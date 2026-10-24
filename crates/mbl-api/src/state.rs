@@ -18,9 +18,15 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(db: Db, jobs: mbl_jobs::JobQueue, info: ServerInfo, secure_cookies: bool) -> Self {
+    pub fn new(
+        db: Db,
+        jobs: mbl_jobs::JobQueue,
+        images: mbl_images::ImageStore,
+        info: ServerInfo,
+        secure_cookies: bool,
+    ) -> Self {
         Self {
-            services: Services::new(db.clone(), jobs),
+            services: Services::new(db.clone(), jobs, images),
             db,
             info: Arc::new(info),
             login_limiter: Arc::new(LoginLimiter::default()),

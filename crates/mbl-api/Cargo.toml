@@ -12,12 +12,14 @@ axum.workspace = true
 governor.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-images.workspace = true
 mbl-jobs.workspace = true
 mbl-platform.workspace = true
 mbl-service.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
+tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH RECURSIVE tree(id) AS (\n               SELECT ?1 UNION ALL SELECT m.id FROM media_items m JOIN tree t ON m.parent_id = t.id)\n           SELECT a.id AS \"id: ArtworkId\" FROM artwork a\n           WHERE a.item_id IN (SELECT id FROM tree) AND a.local_hash IS NULL\n             AND a.source_url IS NOT NULL\n           ORDER BY a.selected DESC, a.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ArtworkId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "64e44a879e4e2eccf72a5f51b530737d4dc095a62b30f406711c437edd7b5a34"
+}

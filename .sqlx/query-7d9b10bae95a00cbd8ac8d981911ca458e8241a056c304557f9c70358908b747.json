@@ -1,0 +1,146 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT a.id AS \"id: ArtworkId\", a.item_id AS \"item_id: ItemId\",\n                  i.library_id AS \"library_id: LibraryId\", a.kind, a.source_url, a.local_hash,\n                  a.width, a.height, a.blurhash, a.palette, a.selected AS \"selected: bool\"\n           FROM artwork a JOIN media_items i ON i.id = a.item_id WHERE a.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ArtworkId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "item_id: ItemId",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "item_id"
+          }
+        }
+      },
+      {
+        "name": "library_id: LibraryId",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "source_url",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "source_url"
+          }
+        }
+      },
+      {
+        "name": "local_hash",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "local_hash"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "height"
+          }
+        }
+      },
+      {
+        "name": "blurhash",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "blurhash"
+          }
+        }
+      },
+      {
+        "name": "palette",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "palette"
+          }
+        }
+      },
+      {
+        "name": "selected: bool",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "selected"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "7d9b10bae95a00cbd8ac8d981911ca458e8241a056c304557f9c70358908b747"
+}

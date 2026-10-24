@@ -71,13 +71,19 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         }
     };
     let matcher = mbl_metadata::Matcher::new(db.clone(), tmdb, events.clone());
-    runner.register(Arc::new(mbl_metadata::MatchHandler { matcher }));
+    runner.register(Arc::new(mbl_metadata::MatchHandler { matcher, jobs: Some(runner.queue()) }));
     runner
         .register(Arc::new(mbl_metadata::RefreshHandler { db: db.clone(), jobs: runner.queue() }));
 
+    let images = mbl_images::ImageStore::new(paths.cache.as_std_path())?;
+    runner.register(Arc::new(mbl_service::ArtworkFetchHandler {
+        images: mbl_service::ImageService::new(db.clone(), images.clone()),
+    }));
+
     let info = ServerInfo::current(env!("CARGO_PKG_VERSION"), profile);
     let secure_cookies = config.server.public_url.starts_with("https://");
-    let router = mbl_api::router(AppState::new(db.clone(), runner.queue(), info, secure_cookies));
+    let router =
+        mbl_api::router(AppState::new(db.clone(), runner.queue(), images, info, secure_cookies));
 
     Ok(Server { config, paths, db, events, router, runner })
 }

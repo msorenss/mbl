@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE artwork SET local_hash = ?, width = ?, height = ?, blurhash = ?, palette = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "4b171e6049574d9a39641ac812be3eababd63bc8a9fb80aa195c1fe606feb329"
+}

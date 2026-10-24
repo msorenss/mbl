@@ -238,9 +238,10 @@ fn local_metadata(file: &Path, show: bool) -> MetadataBundle {
     MetadataBundle::default()
 }
 
-/// `metadata.match` job: payload `{"itemId": n}`.
+/// `metadata.match` job: payload `{"itemId": n}`. Queues `artwork.fetch` afterwards.
 pub struct MatchHandler {
     pub matcher: Matcher,
+    pub jobs: Option<JobQueue>,
 }
 
 #[async_trait]
@@ -261,7 +262,14 @@ impl JobHandler for MatchHandler {
         match self.matcher.match_item(id).await {
             // The item was removed since the job was queued.
             Err(Error::NotFound) => Ok(()),
-            other => other,
+            Err(e) => Err(e),
+            Ok(()) => {
+                if let Some(jobs) = &self.jobs {
+                    jobs.enqueue(kinds::ARTWORK_FETCH, &json!({ "itemId": id }), Priority::Idle)
+                        .await?;
+                }
+                Ok(())
+            }
         }
     }
 }

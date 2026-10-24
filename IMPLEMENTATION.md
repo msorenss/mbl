@@ -299,7 +299,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: an integration test scans `test-media/out` and matches `manifest.json` (item counts, grouping, streams); a rescan with no changes does zero probes; rename-a-file test keeps the item ID; timing is logged.
   - Ref: PLAN §8.1
 
-- [ ] **M1.7 Metadata: local NFO agent + TMDB agent**
+- [x] **M1.7 Metadata: local NFO agent + TMDB agent**
   - Depends: M1.6
   - Crates/paths: `mbl-metadata`
   - Do:
@@ -318,7 +318,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: tests use `wiremock` with recorded TMDB fixtures in `tests/fixtures/tmdb/`; the NFO parsing fixtures pass; an end-to-end test on the synthetic library with a mocked TMDB shows all items matched.
   - Ref: PLAN §8.2
 
-- [ ] **M1.8 Images: fetch, cache, resize, BlurHash, palette**
+- [x] **M1.8 Images: fetch, cache, resize, BlurHash, palette** (variants are JPEG only for now; lossy WebP/AVIF is deferred. Resizing uses the `image` crate rather than fast_image_resize, and the palette comes from a histogram.)
   - Depends: M1.7
   - Crates/paths: `mbl-images`, route `GET /api/v1/images/{artworkId}`
   - Do:
@@ -734,6 +734,8 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.4 | mbl-probe: FfTools locate/version/probe (timeout, output cap, file: prefix), MediaInfo mapping incl. HDR10/HDR10+/HLG/DV, 11 insta snapshots, live test vs generated library | feat(probe) M1.4
 2026-10-24 | M1.5 | mbl-jobs: JobHandler/JobQueue/JobRunner (atomic claim, per-kind limits, priorities, idle pause, backoff retry, crash requeue, cancel, dedup), EventBus in mbl-core | feat(jobs) M1.5
 2026-10-24 | M1.6 | mbl-scanner: walk (.mblignore/.plexignore, system dirs, samples), change detection, xxh3 quick hash + move detection, bounded probing, batched writes (movies/versions/multi-part, show/season/episode incl. multi-episode, artist/album/track from tags), missing + unavailable-root handling, library.scan job, POST /libraries/{id}/scan, metadata.match queued; MediaInfo gains container tags | feat(scanner) M1.6
+2026-10-24 | M1.7 | mbl-metadata: NFO + local artwork, TMDB client (rate limit, disk cache, v3/v4), matcher (0.85), metadata.match/refresh jobs incl. seasons/episodes, locked fields | feat(metadata) M1.7
+2026-10-24 | M1.8 | mbl-images: content-addressed store (file:/http ingest), snapped-width JPEG variants (no upscale), BlurHash + palette, artwork.fetch job (idle), GET /api/v1/images/{id} with ETag/304 + immutable on ?v=hash | feat(images) M1.8
 ```
 
 ---

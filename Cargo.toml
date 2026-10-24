@@ -33,6 +33,7 @@ argon2 = "0.6.0"
 async-trait = "0.1.92"
 axum = "0.8.9"
 base64 = "0.23.1"
+blurhash = "0.2.3"
 camino = { version = "1.2.6", features = ["serde1"] }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 dunce = "1.0.5"
@@ -41,6 +42,7 @@ getrandom = "0.4.3"
 governor = "0.10.4"
 http-body-util = "0.1"
 ignore = "0.4.33"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 insta = "1.49.0"
 proptest = "1.12.0"
 quick-xml = { version = "0.42.0", features = ["serialize"] }

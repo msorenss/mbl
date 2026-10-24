@@ -24,6 +24,7 @@ pub mod kinds {
     pub const LIBRARY_SCAN: &str = "library.scan";
     pub const METADATA_MATCH: &str = "metadata.match";
     pub const METADATA_REFRESH: &str = "metadata.refresh";
+    pub const ARTWORK_FETCH: &str = "artwork.fetch";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
