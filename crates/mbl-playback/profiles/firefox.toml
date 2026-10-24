@@ -1,0 +1,110 @@
+name = "firefox"
+max_audio_channels = 6
+
+[[direct_play]]
+containers = ["mp4", "mov", "m4a", "m4v"]
+video_codecs = ["h264", "vp9", "av1"]
+audio_codecs = ["aac", "mp3", "opus", "flac"]
+
+[[direct_play]]
+containers = ["webm"]
+video_codecs = ["vp8", "vp9", "av1"]
+audio_codecs = ["opus", "vorbis"]
+
+[[direct_play]]
+containers = ["mp3", "flac", "ogg", "wav", "aac"]
+video_codecs = []
+audio_codecs = ["mp3", "flac", "opus", "vorbis", "pcm_s16le", "aac"]
+
+[[codec_limits]]
+codec = "h264"
+profiles = ["Baseline", "Constrained Baseline", "Main", "High"]
+max_level = 51
+max_width = 3840
+max_height = 2160
+max_bit_depth = 8
+hdr = false
+
+[[codec_limits]]
+codec = "vp8"
+max_width = 3840
+max_height = 2160
+max_bit_depth = 8
+hdr = false
+
+[[codec_limits]]
+codec = "vp9"
+profiles = ["Profile 0", "Profile 2"]
+max_width = 3840
+max_height = 2160
+max_bit_depth = 10
+hdr = false
+
+[[codec_limits]]
+codec = "av1"
+profiles = ["Main"]
+max_level = 13
+max_width = 3840
+max_height = 2160
+max_bit_depth = 10
+hdr = false
+
+[transcode_target]
+container = "fmp4"
+video_codecs = ["h264", "vp9", "av1"]
+audio_codecs = ["aac", "opus", "mp3"]
+
+[[subtitles]]
+format = "webvtt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "vtt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "subrip"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "srt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "ass"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "ssa"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "mov_text"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "hdmv_pgs_subtitle"
+method = "burn"
+
+[[subtitles]]
+format = "pgs"
+method = "burn"
+
+[[subtitles]]
+format = "dvd_subtitle"
+method = "burn"
+
+[[subtitles]]
+format = "dvdsub"
+method = "burn"
+
+[[subtitles]]
+format = "dvb_subtitle"
+method = "burn"

@@ -1787,6 +1787,15 @@ dependencies = [
 [[package]]
 name = "mbl-playback"
 version = "0.1.0"
+dependencies = [
+ "insta",
+ "mbl-core",
+ "mbl-probe",
+ "serde",
+ "serde_json",
+ "toml 1.1.8+spec-1.1.0",
+ "utoipa",
+]
 
 [[package]]
 name = "mbl-probe"

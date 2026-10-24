@@ -1,0 +1,81 @@
+name = "generic-hls"
+max_audio_channels = 2
+
+[[direct_play]]
+containers = ["mp4", "m4a"]
+video_codecs = ["h264"]
+audio_codecs = ["aac", "mp3"]
+
+[[direct_play]]
+containers = ["mp3", "aac"]
+video_codecs = []
+audio_codecs = ["mp3", "aac"]
+
+[[codec_limits]]
+codec = "h264"
+profiles = ["Baseline", "Constrained Baseline", "Main", "High"]
+max_level = 41
+max_width = 1920
+max_height = 1080
+max_bit_depth = 8
+hdr = false
+
+[transcode_target]
+container = "fmp4"
+video_codecs = ["h264"]
+audio_codecs = ["aac"]
+
+[[subtitles]]
+format = "webvtt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "vtt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "subrip"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "srt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "ass"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "ssa"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "mov_text"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "hdmv_pgs_subtitle"
+method = "burn"
+
+[[subtitles]]
+format = "pgs"
+method = "burn"
+
+[[subtitles]]
+format = "dvd_subtitle"
+method = "burn"
+
+[[subtitles]]
+format = "dvdsub"
+method = "burn"
+
+[[subtitles]]
+format = "dvb_subtitle"
+method = "burn"

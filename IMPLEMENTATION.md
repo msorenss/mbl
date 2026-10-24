@@ -362,7 +362,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 
 ## 4. Milestone M2: Playback MVP → v0.1.0
 
-- [ ] **M2.1 Device profiles**
+- [x] **M2.1 Device profiles**
   - Depends: M1.4
   - Crates/paths: `mbl-playback/src/profile.rs`, `mbl-playback/profiles/*.toml`
   - Do:
@@ -739,6 +739,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.10 | GET /api/v1/events WebSocket: per-actor filtering in EventService (jobs admin-only, library ACL for scan/library/item events), 30 s ping, origin check on cookie upgrades | feat(api) M1.10
 2026-10-24 | M1.9 | repo items (ItemFilter::for_user ACL on every query, list sort/filter/cursor, detail with versions/parts/streams/people/genres/artwork/watch state, children, FTS5 search with quoted prefix terms, continue watching/up next/recently added), ItemService, /libraries/{id}/items, /items/{id}, /items/{id}/children, /search, /hubs/home; utoipa 6 spec for all routes, /api/openapi.json + Scalar /api/docs, `mbl-server openapi`, `cargo xtask openapi-check` in CI | feat(api) M1.9
 2026-10-24 | M1.11 | LibraryWatcher (notify, 5 s debounce, size-settled check 3 s apart, partial `library.scan` with `folders`), network roots (Linux /proc/self/mounts fstype, Windows UNC/DRIVE_REMOTE) polled every `scanner.poll_interval_secs`, `scanner.watch` toggle; unavailable roots still never mark files missing | feat(scanner) M1.11
+2026-10-24 | M2.1 | DeviceProfile + built-in TOML profiles (chrome, firefox, safari, edge, generic-hls), validation and dynamic DeviceProfileOverlay merging | feat(playback) M2.1
 ```
 
 ---
