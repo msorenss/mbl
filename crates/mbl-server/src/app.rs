@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::sync::Arc;
+use std::net::SocketAddr;
 
 use axum::Router;
 use mbl_api::{AppState, ServerInfo};
@@ -32,10 +32,8 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         env!("CARGO_PKG_VERSION"),
         mbl_platform::system::detect_profile(),
     );
-    let router = mbl_api::router(AppState {
-        db: db.clone(),
-        info: Arc::new(info),
-    });
+    let secure_cookies = config.server.public_url.starts_with("https://");
+    let router = mbl_api::router(AppState::new(db.clone(), info, secure_cookies));
 
     Ok(Server {
         config,
@@ -54,9 +52,13 @@ impl Server {
         let addr = format!("{}:{}", self.config.server.bind, self.config.server.port);
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         tracing::info!(%addr, "listening");
-        axum::serve(listener, self.router)
-            .with_graceful_shutdown(shutdown)
-            .await?;
+        axum::serve(
+            listener,
+            self.router
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown)
+        .await?;
         self.db.close().await;
         tracing::info!("stopped");
         Ok(())

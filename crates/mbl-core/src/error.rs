@@ -17,6 +17,8 @@ pub enum Error {
     External(String),
     #[error("unavailable: {0}")]
     Unavailable(String),
+    #[error("too many requests, retry in {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
     #[error(transparent)]
     Internal(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
@@ -39,6 +41,7 @@ impl Error {
             Self::Validation(_) => "validation",
             Self::External(_) => "external",
             Self::Unavailable(_) => "unavailable",
+            Self::RateLimited { .. } => "rate_limited",
             Self::Internal(_) => "internal",
         }
     }

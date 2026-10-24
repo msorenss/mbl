@@ -9,9 +9,11 @@ publish.workspace = true
 
 [dependencies]
 axum.workspace = true
+governor.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
 mbl-platform.workspace = true
+mbl-service.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

@@ -216,7 +216,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 
 ## 3. Milestone M1: Library core
 
-- [ ] **M1.1 Users, password auth, sessions**
+- [x] **M1.1 Users, password auth, sessions**
   - Depends: M0.5
   - Crates/paths: `mbl-auth`, `mbl-api/src/routes/auth.rs`, `mbl-api/src/extract.rs`
   - Do:
@@ -720,14 +720,15 @@ Jellyfin API shim · **in-app AI assistant + natural-language search** (user-con
 Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 
 ```
-2026-10-23 | M0.1 | workspace, toolchain pin (1.99.1), lints, deny, justfile, licenses, docs | uncommitted
-2026-10-23 | M0.2 | 17 crate skeletons + xtask (incl. mbl-service) | uncommitted
-2026-10-23 | M0.3 | mbl-core: Error, ID newtypes, kinds, Paginated/Cursor, time helpers + tests | uncommitted
-2026-10-23 | M0.4 | layered config (figment), logging (stdout + rolling file), /health, /api/v1/system/info, graceful shutdown, openapi stub | uncommitted
-2026-10-23 | M0.5 | Db read/write pools, pragmas, 0001_init.sql, pre-migration backup, SettingsRepo, .sqlx offline data | uncommitted
-2026-10-23 | M0.6 | .github/workflows/ci.yml (lint, linux, windows, arm64, sqlx, web) — not yet run [~] | uncommitted
-2026-10-23 | M0.7 | cargo xtask gen-media: 15 specs, ffprobe verification, manifest.json (quick run: 14 files OK on Pi 5) | uncommitted
-2026-10-23 | M0.8 | ADR 0001–0005 | uncommitted
+2026-10-23 | M0.1 | workspace, toolchain pin (1.99.1), lints, deny, justfile, licenses, docs | 1a257b1
+2026-10-23 | M0.2 | 17 crate skeletons + xtask (incl. mbl-service) | 1a257b1
+2026-10-23 | M0.3 | mbl-core: Error, ID newtypes, kinds, Paginated/Cursor, time helpers + tests | 1a257b1
+2026-10-23 | M0.4 | layered config (figment), logging (stdout + rolling file), /health, /api/v1/system/info, graceful shutdown, openapi stub | 1a257b1
+2026-10-23 | M0.5 | Db read/write pools, pragmas, 0001_init.sql, pre-migration backup, SettingsRepo, .sqlx offline data | 1a257b1
+2026-10-23 | M0.6 | .github/workflows/ci.yml (lint, linux, windows, arm64, sqlx, web) — not yet run [~] | 1a257b1
+2026-10-23 | M0.7 | cargo xtask gen-media: 15 specs, ffprobe verification, manifest.json (quick run: 14 files OK on Pi 5) | 1a257b1
+2026-10-23 | M0.8 | ADR 0001–0005 | 1a257b1
+2026-10-24 | M1.1 | Argon2id + tokens (mbl-auth), users/sessions repos, AuthService/UserService (mbl-service), setup/login/logout/me/sessions/users API, cookie+bearer, Origin check for cookie writes, login rate limit (IP+user), 429 + Retry-After | feat(auth) M1.1
 ```
 
 ---
@@ -754,6 +755,8 @@ pub enum Error {
     External(String),
     #[error("unavailable: {0}")]
     Unavailable(String),
+    #[error("too many requests, retry in {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
     #[error(transparent)]
     Internal(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
@@ -778,7 +781,7 @@ pub enum MediaKind { Movie, Show, Season, Episode, Artist, Album, Track, Photo, 
 #[serde(rename_all = "lowercase")] #[sqlx(type_name = "TEXT", rename_all = "lowercase")]
 pub enum StreamKind { Video, Audio, Subtitle, Attachment }
 ```
-`mbl-api` maps `Error` to HTTP: NotFound→404, Unauthorized→401, Forbidden→404 for item reads (to avoid leaking that an item exists) and 403 otherwise, Conflict→409, Validation→422, External/Unavailable→503, Internal→500. The response body is `{ "error": { "code": "...", "message": "..." } }`. Internal errors are logged with a request ID and never echoed to the client.
+`mbl-api` maps `Error` to HTTP: NotFound→404, Unauthorized→401, Forbidden→404 for item reads (to avoid leaking that an item exists) and 403 otherwise, Conflict→409, Validation→422, External/Unavailable→503, RateLimited→429 (+`Retry-After`), Internal→500. The response body is `{ "error": { "code": "...", "message": "..." } }`. Internal errors are logged with a request ID and never echoed to the client.
 
 ### A.2 Config (TOML)
 ```toml

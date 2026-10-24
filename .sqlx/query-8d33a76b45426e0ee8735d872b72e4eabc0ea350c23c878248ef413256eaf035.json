@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (username, display_name, password_hash, is_admin, created_at)\n               VALUES (?, ?, ?, ?, ?)\n               RETURNING id AS \"id!: UserId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: UserId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8d33a76b45426e0ee8735d872b72e4eabc0ea350c23c878248ef413256eaf035"
+}

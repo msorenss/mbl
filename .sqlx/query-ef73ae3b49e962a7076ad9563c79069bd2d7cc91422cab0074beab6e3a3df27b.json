@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT s.id AS \"id: SessionId\", s.user_id AS \"user_id: UserId\",\n                      u.is_admin AS \"is_admin: bool\", s.last_seen_at, s.expires_at\n               FROM sessions s JOIN users u ON u.id = s.user_id\n               WHERE s.token_hash = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: SessionId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "user_id: UserId",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "is_admin: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "is_admin"
+          }
+        }
+      },
+      {
+        "name": "last_seen_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "last_seen_at"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ef73ae3b49e962a7076ad9563c79069bd2d7cc91422cab0074beab6e3a3df27b"
+}

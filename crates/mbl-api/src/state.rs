@@ -2,12 +2,31 @@ use std::sync::Arc;
 
 use mbl_db::Db;
 use mbl_platform::PlatformProfile;
+use mbl_service::Services;
 use serde::Serialize;
+
+use crate::rate_limit::LoginLimiter;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub db: Db,
+    pub services: Services,
     pub info: Arc<ServerInfo>,
+    pub login_limiter: Arc<LoginLimiter>,
+    /// Add `Secure` to cookies (set when the public URL is HTTPS).
+    pub secure_cookies: bool,
+}
+
+impl AppState {
+    pub fn new(db: Db, info: ServerInfo, secure_cookies: bool) -> Self {
+        Self {
+            services: Services::new(db.clone()),
+            db,
+            info: Arc::new(info),
+            login_limiter: Arc::new(LoginLimiter::default()),
+            secure_cookies,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

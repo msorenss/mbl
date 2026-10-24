@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use mbl_core::Error;
 use serde_json::json;
@@ -29,6 +29,7 @@ impl ApiError {
             Error::Conflict(_) => StatusCode::CONFLICT,
             Error::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Error::External(_) | Error::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            Error::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -45,7 +46,13 @@ impl IntoResponse for ApiError {
             other => other.to_string(),
         };
         let body = json!({ "error": { "code": self.0.code(), "message": message } });
-        (status, Json(body)).into_response()
+        let mut response = (status, Json(body)).into_response();
+        if let Error::RateLimited { retry_after_secs } = self.0 {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, retry_after_secs.into());
+        }
+        response
     }
 }
 
