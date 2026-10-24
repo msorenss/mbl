@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT t.name FROM item_tags it JOIN tags t ON t.id = it.tag_id\n         WHERE it.item_id = ? AND t.kind = 'genre' ORDER BY t.name",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tags",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "077b25cea02020f553b42af27ec9d63403263ab64be92263143e8180a591ffd9"
+}

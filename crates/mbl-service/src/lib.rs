@@ -6,6 +6,7 @@
 pub mod auth;
 pub mod events;
 pub mod images;
+pub mod items;
 pub mod libraries;
 pub mod paths;
 pub mod users;
@@ -16,6 +17,7 @@ use mbl_db::Db;
 pub use auth::{AuthService, Authenticated, DeviceInfo, LoginResult};
 pub use events::EventService;
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
+pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
 pub use users::{CreateUser, UpdateUser, UserService};
 
@@ -26,6 +28,7 @@ pub struct Services {
     pub users: UserService,
     pub libraries: LibraryService,
     pub images: ImageService,
+    pub items: ItemService,
     pub events: EventService,
 }
 
@@ -41,6 +44,7 @@ impl Services {
             users: UserService::new(db.clone()),
             libraries: LibraryService::new(db.clone(), jobs),
             images: ImageService::new(db.clone(), images),
+            items: ItemService::new(db.clone()),
             events: EventService::new(db, events),
         }
     }

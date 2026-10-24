@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT view_offset_ms, view_count, last_viewed_at FROM watch_state\n         WHERE user_id = ? AND item_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "view_offset_ms",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_state",
+            "name": "view_offset_ms"
+          }
+        }
+      },
+      {
+        "name": "view_count",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_state",
+            "name": "view_count"
+          }
+        }
+      },
+      {
+        "name": "last_viewed_at",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_state",
+            "name": "last_viewed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "60d40b911c14581ee59b6393fb1c7aeff81094854c513e1f95a6f1ad8c04b350"
+}

@@ -328,7 +328,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     4. Response headers: `Cache-Control: public, max-age=31536000, immutable` (URLs include the hash) and an ETag.
   - Accept: tests for resize, cache hit, rejection of non-images, and size snapping.
 
-- [ ] **M1.9 Browse, detail, search, hubs API + OpenAPI**
+- [x] **M1.9 Browse, detail, search, hubs API + OpenAPI** (all browse routes live in `routes/items.rs`; list cursors are opaque offsets; Scalar loads from the jsDelivr CDN; ACL 404s are tested at repo level because every user has all libraries until M6)
   - Depends: M1.7
   - Crates/paths: `mbl-api/src/routes/{items,hubs,search}.rs`, `mbl-db/src/repo/items.rs`
   - Do:
@@ -737,6 +737,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.7 | mbl-metadata: NFO + local artwork, TMDB client (rate limit, disk cache, v3/v4), matcher (0.85), metadata.match/refresh jobs incl. seasons/episodes, locked fields | feat(metadata) M1.7
 2026-10-24 | M1.8 | mbl-images: content-addressed store (file:/http ingest), snapped-width JPEG variants (no upscale), BlurHash + palette, artwork.fetch job (idle), GET /api/v1/images/{id} with ETag/304 + immutable on ?v=hash | feat(images) M1.8
 2026-10-24 | M1.10 | GET /api/v1/events WebSocket: per-actor filtering in EventService (jobs admin-only, library ACL for scan/library/item events), 30 s ping, origin check on cookie upgrades | feat(api) M1.10
+2026-10-24 | M1.9 | repo items (ItemFilter::for_user ACL on every query, list sort/filter/cursor, detail with versions/parts/streams/people/genres/artwork/watch state, children, FTS5 search with quoted prefix terms, continue watching/up next/recently added), ItemService, /libraries/{id}/items, /items/{id}, /items/{id}/children, /search, /hubs/home; utoipa 6 spec for all routes, /api/openapi.json + Scalar /api/docs, `mbl-server openapi`, `cargo xtask openapi-check` in CI | feat(api) M1.9
 ```
 
 ---

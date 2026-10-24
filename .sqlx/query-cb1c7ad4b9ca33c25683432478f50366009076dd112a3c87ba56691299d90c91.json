@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.name, ip.role, ip.character, p.thumb_url FROM item_people ip\n         JOIN people p ON p.id = ip.person_id WHERE ip.item_id = ?\n         ORDER BY ip.role, ip.ord IS NULL, ip.ord, p.name",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "role",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_people",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "name": "character",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_people",
+            "name": "character"
+          }
+        }
+      },
+      {
+        "name": "thumb_url",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "thumb_url"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "cb1c7ad4b9ca33c25683432478f50366009076dd112a3c87ba56691299d90c91"
+}

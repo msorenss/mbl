@@ -4,8 +4,9 @@ use mbl_core::{SessionId, UserId};
 use mbl_db::repo::sessions::SessionInfo;
 use mbl_db::repo::users::User;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UserDto {
     pub id: UserId,
@@ -27,7 +28,7 @@ impl From<User> for UserDto {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDto {
     pub id: SessionId,
@@ -53,20 +54,20 @@ impl SessionDto {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginResponse {
     pub token: String,
     pub user: UserDto,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupStatus {
     pub needs_setup: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupRequest {
     pub username: String,
@@ -76,7 +77,7 @@ pub struct SetupRequest {
     pub client_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginRequest {
     pub username: String,
@@ -85,7 +86,7 @@ pub struct LoginRequest {
     pub client_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUserRequest {
     pub username: String,
@@ -95,7 +96,7 @@ pub struct CreateUserRequest {
     pub is_admin: bool,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateUserRequest {
     pub display_name: Option<String>,

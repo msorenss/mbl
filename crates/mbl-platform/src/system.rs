@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 /// Hardware platform class used to pick defaults. Real detection arrives in M4.1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum PlatformProfile {
     Pi5,

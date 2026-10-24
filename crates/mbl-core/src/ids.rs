@@ -4,7 +4,7 @@ macro_rules! id_newtype {
     ($($name:ident),* $(,)?) => { $(
         #[derive(
             Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-            serde::Serialize, serde::Deserialize, sqlx::Type,
+            serde::Serialize, serde::Deserialize, sqlx::Type, utoipa::ToSchema,
         )]
         #[serde(transparent)]
         #[sqlx(transparent)]

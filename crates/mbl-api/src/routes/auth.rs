@@ -22,6 +22,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/auth/sessions/{id}", delete(revoke_session))
 }
 
+/// Log in; returns a bearer token and sets the session cookie.
+#[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth", security(),
+    request_body = LoginRequest,
+    responses((status = 200, body = LoginResponse), (status = 401), (status = 429)))]
 async fn login(
     State(state): State<AppState>,
     extensions: Extensions,
@@ -53,6 +57,9 @@ fn session_cookie(value: &str, max_age_secs: u64, secure: bool) -> HeaderValue {
     HeaderValue::from_str(&cookie).unwrap_or_else(|_| HeaderValue::from_static(""))
 }
 
+/// End the current session.
+#[utoipa::path(post, path = "/api/v1/auth/logout", tag = "auth",
+    responses((status = 204)))]
 async fn logout(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -62,6 +69,9 @@ async fn logout(
     Ok((StatusCode::NO_CONTENT, [(SET_COOKIE, cookie)]).into_response())
 }
 
+/// The current user.
+#[utoipa::path(get, path = "/api/v1/auth/me", tag = "auth",
+    responses((status = 200, body = UserDto)))]
 async fn me(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -69,6 +79,9 @@ async fn me(
     Ok(Json(state.services.auth.me(&auth.actor).await?.into()))
 }
 
+/// The current user's sessions.
+#[utoipa::path(get, path = "/api/v1/auth/sessions", tag = "auth",
+    responses((status = 200, body = Vec<SessionDto>)))]
 async fn list_sessions(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -77,6 +90,9 @@ async fn list_sessions(
     Ok(Json(sessions.into_iter().map(|s| SessionDto::new(s, auth.session_id)).collect()))
 }
 
+/// Revoke one of the current user's sessions.
+#[utoipa::path(delete, path = "/api/v1/auth/sessions/{id}", tag = "auth",
+    params(("id" = i64, Path)), responses((status = 204), (status = 404)))]
 async fn revoke_session(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,

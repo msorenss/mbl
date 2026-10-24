@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 /// Opaque pagination cursor. Its encoding is owned by the repository that issues it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(transparent)]
 pub struct Cursor(pub String);
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Paginated<T> {
     pub items: Vec<T>,

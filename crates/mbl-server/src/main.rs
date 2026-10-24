@@ -24,7 +24,7 @@ struct Cli {
 enum Command {
     /// Run the server (default).
     Run,
-    /// Print the OpenAPI document as JSON (stub until M1.9).
+    /// Print the OpenAPI document as JSON.
     Openapi,
 }
 
@@ -49,13 +49,6 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn print_openapi() -> anyhow::Result<()> {
-    let doc = serde_json::json!({
-        "openapi": "3.1.0",
-        "info": { "title": "MBL API", "version": env!("CARGO_PKG_VERSION") },
-        "paths": {}
-    });
-    let mut out = std::io::stdout().lock();
-    serde_json::to_writer_pretty(&mut out, &doc)?;
-    writeln!(out)?;
+    std::io::stdout().lock().write_all(mbl_api::openapi::spec_json().as_bytes())?;
     Ok(())
 }

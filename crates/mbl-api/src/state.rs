@@ -36,7 +36,7 @@ impl AppState {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerInfo {
     pub name: &'static str,

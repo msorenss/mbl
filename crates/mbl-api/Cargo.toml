@@ -22,6 +22,7 @@ sqlx.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+utoipa.workspace = true
 
 [lints]
 workspace = true

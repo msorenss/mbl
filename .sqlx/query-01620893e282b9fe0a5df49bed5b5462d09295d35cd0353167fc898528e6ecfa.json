@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT v.id AS \"id: VersionId\", v.edition, v.container, v.bitrate, v.width, v.height,\n                  v.video_codec, v.hdr, v.audio_codec, v.audio_channels\n           FROM media_versions v WHERE v.item_id = ?1\n              OR v.id IN (SELECT version_id FROM item_versions WHERE item_id = ?1)\n           ORDER BY v.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: VersionId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "edition",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "edition"
+          }
+        }
+      },
+      {
+        "name": "container",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "container"
+          }
+        }
+      },
+      {
+        "name": "bitrate",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "bitrate"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "height"
+          }
+        }
+      },
+      {
+        "name": "video_codec",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "video_codec"
+          }
+        }
+      },
+      {
+        "name": "hdr",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "hdr"
+          }
+        }
+      },
+      {
+        "name": "audio_codec",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "audio_codec"
+          }
+        }
+      },
+      {
+        "name": "audio_channels",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "audio_channels"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "01620893e282b9fe0a5df49bed5b5462d09295d35cd0353167fc898528e6ecfa"
+}

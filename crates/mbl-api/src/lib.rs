@@ -4,6 +4,7 @@
 pub mod dto;
 pub mod error;
 pub mod extract;
+pub mod openapi;
 pub mod rate_limit;
 pub mod routes;
 mod state;
@@ -23,6 +24,8 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::libraries::router())
         .merge(routes::images::router())
         .merge(routes::events::router())
+        .merge(routes::items::router())
+        .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

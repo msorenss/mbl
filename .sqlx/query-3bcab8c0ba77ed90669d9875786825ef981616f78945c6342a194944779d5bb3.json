@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: PartId\", size, duration_ms, part_index, missing_since\n               FROM media_parts WHERE version_id = ? ORDER BY part_index, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: PartId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "part_index",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "part_index"
+          }
+        }
+      },
+      {
+        "name": "missing_since",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "missing_since"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "3bcab8c0ba77ed90669d9875786825ef981616f78945c6342a194944779d5bb3"
+}

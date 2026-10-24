@@ -19,6 +19,9 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/api/v1/events", get(events))
 }
 
+/// WebSocket stream of `{type, data}` events the user may see.
+#[utoipa::path(get, path = "/api/v1/events", tag = "events",
+    responses((status = 101, description = "Switching to WebSocket")))]
 async fn events(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,

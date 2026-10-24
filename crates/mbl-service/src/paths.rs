@@ -38,13 +38,13 @@ fn normalize(p: &str) -> String {
     if cfg!(windows) { p.to_lowercase() } else { p.to_owned() }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 pub struct DirEntry {
     pub name: String,
     pub path: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 pub struct DirListing {
     /// `None` for the virtual top level (filesystem root list).
     pub path: Option<String>,

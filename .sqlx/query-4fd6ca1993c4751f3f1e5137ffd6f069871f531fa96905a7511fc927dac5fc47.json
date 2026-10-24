@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: ArtworkId\", kind, local_hash, width, height, blurhash, palette,\n                  selected AS \"selected: bool\"\n           FROM artwork WHERE item_id = ? ORDER BY kind, selected DESC, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ArtworkId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "local_hash",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "local_hash"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "height"
+          }
+        }
+      },
+      {
+        "name": "blurhash",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "blurhash"
+          }
+        }
+      },
+      {
+        "name": "palette",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "palette"
+          }
+        }
+      },
+      {
+        "name": "selected: bool",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "artwork",
+            "name": "selected"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4fd6ca1993c4751f3f1e5137ffd6f069871f531fa96905a7511fc927dac5fc47"
+}

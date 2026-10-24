@@ -14,7 +14,8 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/api/v1/images/{id}", get(image))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ImageQuery {
     pub w: Option<u32>,
     pub q: Option<u8>,
@@ -22,6 +23,10 @@ pub struct ImageQuery {
     pub v: Option<String>,
 }
 
+/// A resized JPEG of an artwork; `w` snaps to a fixed set of widths.
+#[utoipa::path(get, path = "/api/v1/images/{id}", tag = "images",
+    params(("id" = i64, Path), ImageQuery),
+    responses((status = 200, content_type = "image/jpeg"), (status = 304), (status = 404)))]
 async fn image(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,

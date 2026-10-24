@@ -15,6 +15,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/users/{id}", get(get_one).patch(update).delete(remove))
 }
 
+/// All users (admin).
+#[utoipa::path(get, path = "/api/v1/users", tag = "users",
+    responses((status = 200, body = Vec<UserDto>), (status = 403)))]
 async fn list(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -23,6 +26,9 @@ async fn list(
     Ok(Json(users.into_iter().map(Into::into).collect()))
 }
 
+/// Create a user (admin).
+#[utoipa::path(post, path = "/api/v1/users", tag = "users", request_body = CreateUserRequest,
+    responses((status = 201, body = UserDto), (status = 403), (status = 409)))]
 async fn create(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -38,6 +44,9 @@ async fn create(
     Ok((StatusCode::CREATED, Json(user.into())))
 }
 
+/// A user (admins, or the user themselves).
+#[utoipa::path(get, path = "/api/v1/users/{id}", tag = "users", params(("id" = i64, Path)),
+    responses((status = 200, body = UserDto), (status = 404)))]
 async fn get_one(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -46,6 +55,10 @@ async fn get_one(
     Ok(Json(state.services.users.get(&auth.actor, id).await?.into()))
 }
 
+/// Update a user; only admins may change `isAdmin`.
+#[utoipa::path(patch, path = "/api/v1/users/{id}", tag = "users", params(("id" = i64, Path)),
+    request_body = UpdateUserRequest,
+    responses((status = 200, body = UserDto), (status = 403), (status = 404)))]
 async fn update(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -60,6 +73,9 @@ async fn update(
     Ok(Json(state.services.users.update(&auth.actor, id, patch).await?.into()))
 }
 
+/// Delete a user (admin).
+#[utoipa::path(delete, path = "/api/v1/users/{id}", tag = "users", params(("id" = i64, Path)),
+    responses((status = 204), (status = 403), (status = 404)))]
 async fn remove(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,

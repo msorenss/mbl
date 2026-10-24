@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT rowid AS \"id!: i64\" FROM items_fts WHERE items_fts MATCH ? ORDER BY rank LIMIT 500",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "items_fts",
+            "name": "rowid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e61a4082e5f80dc93859e6c256cf8b206e08d2f442f84b2a1a2c234096d8c68a"
+}

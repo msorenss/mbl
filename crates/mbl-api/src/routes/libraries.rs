@@ -19,7 +19,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/system/browse", get(browse))
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryDto {
     pub id: LibraryId,
@@ -35,7 +35,7 @@ impl From<Library> for LibraryDto {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLibraryRequest {
     pub name: String,
@@ -43,7 +43,7 @@ pub struct CreateLibraryRequest {
     pub paths: Vec<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLibraryRequest {
     pub name: Option<String>,
@@ -55,6 +55,9 @@ pub struct BrowseQuery {
     pub path: Option<String>,
 }
 
+/// Libraries the user can access.
+#[utoipa::path(get, path = "/api/v1/libraries", tag = "libraries",
+    responses((status = 200, body = Vec<LibraryDto>)))]
 async fn list(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -63,6 +66,9 @@ async fn list(
     Ok(Json(libs.into_iter().map(Into::into).collect()))
 }
 
+/// One library.
+#[utoipa::path(get, path = "/api/v1/libraries/{id}", tag = "libraries",
+    params(("id" = i64, Path)), responses((status = 200, body = LibraryDto), (status = 404)))]
 async fn get_one(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -71,6 +77,10 @@ async fn get_one(
     Ok(Json(state.services.libraries.get(&auth.actor, id).await?.into()))
 }
 
+/// Create a library (admin). Roots must exist and must not overlap other libraries.
+#[utoipa::path(post, path = "/api/v1/libraries", tag = "libraries",
+    request_body = CreateLibraryRequest,
+    responses((status = 201, body = LibraryDto), (status = 409), (status = 422)))]
 async fn create(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -81,6 +91,10 @@ async fn create(
     Ok((StatusCode::CREATED, Json(lib.into())))
 }
 
+/// Update a library (admin).
+#[utoipa::path(patch, path = "/api/v1/libraries/{id}", tag = "libraries",
+    params(("id" = i64, Path)), request_body = UpdateLibraryRequest,
+    responses((status = 200, body = LibraryDto), (status = 404)))]
 async fn update(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -91,6 +105,9 @@ async fn update(
     Ok(Json(state.services.libraries.update(&auth.actor, id, patch).await?.into()))
 }
 
+/// Delete a library and its items (admin).
+#[utoipa::path(delete, path = "/api/v1/libraries/{id}", tag = "libraries",
+    params(("id" = i64, Path)), responses((status = 204), (status = 404)))]
 async fn remove(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -100,6 +117,10 @@ async fn remove(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// List server directories for picking library roots (admin).
+#[utoipa::path(get, path = "/api/v1/system/browse", tag = "libraries",
+    params(("path" = Option<String>, Query)),
+    responses((status = 200, body = DirListing), (status = 403)))]
 async fn browse(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -108,12 +129,15 @@ async fn browse(
     Ok(Json(state.services.libraries.browse(&auth.actor, q.path).await?))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct JobAccepted {
     pub job_id: JobId,
 }
 
+/// Queue a library scan (admin).
+#[utoipa::path(post, path = "/api/v1/libraries/{id}/scan", tag = "libraries",
+    params(("id" = i64, Path)), responses((status = 202, body = JobAccepted), (status = 404)))]
 async fn scan(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,

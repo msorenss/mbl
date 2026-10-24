@@ -31,10 +31,11 @@ web-check:
         pnpm -C web build
     fi
 
-# Full CI-equivalent run (`cargo xtask openapi-check` is added in M1.9)
+# Full CI-equivalent run
 ci: check
     cargo deny check
     just sqlx-check
+    cargo xtask openapi-check
 
 # Run the server with dev config/data in ./.dev
 dev:

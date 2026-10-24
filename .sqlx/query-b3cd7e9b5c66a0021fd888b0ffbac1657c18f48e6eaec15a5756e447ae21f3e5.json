@@ -1,0 +1,254 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: ItemId\", library_id AS \"library_id: LibraryId\",\n                  kind AS \"kind: MediaKind\", parent_id AS \"parent_id: ItemId\", title,\n                  original_title, year, idx, parent_idx, originally_available_at, summary,\n                  tagline, content_rating, studio, rating, duration_ms, tmdb_id, imdb_id,\n                  needs_review AS \"needs_review: bool\", added_at\n           FROM media_items WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ItemId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "library_id: LibraryId",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "kind: MediaKind",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "parent_id: ItemId",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "original_title",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "original_title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "idx",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "idx"
+          }
+        }
+      },
+      {
+        "name": "parent_idx",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "parent_idx"
+          }
+        }
+      },
+      {
+        "name": "originally_available_at",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "originally_available_at"
+          }
+        }
+      },
+      {
+        "name": "summary",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "summary"
+          }
+        }
+      },
+      {
+        "name": "tagline",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "tagline"
+          }
+        }
+      },
+      {
+        "name": "content_rating",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "content_rating"
+          }
+        }
+      },
+      {
+        "name": "studio",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "studio"
+          }
+        }
+      },
+      {
+        "name": "rating",
+        "ordinal": 14,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "rating"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 15,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "imdb_id",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "imdb_id"
+          }
+        }
+      },
+      {
+        "name": "needs_review: bool",
+        "ordinal": 18,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "needs_review"
+          }
+        }
+      },
+      {
+        "name": "added_at",
+        "ordinal": 19,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "added_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "b3cd7e9b5c66a0021fd888b0ffbac1657c18f48e6eaec15a5756e447ae21f3e5"
+}

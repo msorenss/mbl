@@ -1,0 +1,146 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT idx, kind AS \"kind: StreamKind\", codec, language, title,\n                          is_default AS \"is_default: bool\", is_forced AS \"is_forced: bool\",\n                          width, height, hdr, channels\n                   FROM streams WHERE part_id = ? ORDER BY idx",
+  "describe": {
+    "columns": [
+      {
+        "name": "idx",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "idx"
+          }
+        }
+      },
+      {
+        "name": "kind: StreamKind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "codec",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "codec"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "is_default: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "is_default"
+          }
+        }
+      },
+      {
+        "name": "is_forced: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "is_forced"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "height"
+          }
+        }
+      },
+      {
+        "name": "hdr",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "hdr"
+          }
+        }
+      },
+      {
+        "name": "channels",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "streams",
+            "name": "channels"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "35346ecdd2ec3d3cbc284cf4e60383a7cda74acd7b64fb648ef7c2a2030b615d"
+}
