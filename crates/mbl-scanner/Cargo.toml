@@ -1,0 +1,13 @@
+[package]
+name = "mbl-scanner"
+description = "Library filesystem walking, change detection and watching"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

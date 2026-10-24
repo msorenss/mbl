@@ -1,0 +1,22 @@
+[package]
+name = "mbl-api"
+description = "REST API: axum routers, DTOs and error mapping"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+mbl-core.workspace = true
+mbl-db.workspace = true
+mbl-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

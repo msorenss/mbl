@@ -1,0 +1,10 @@
+/target/
+/.dev/
+/test-media/out/
+node_modules/
+/web/dist/
+*.log
+*.db
+*.db-shm
+*.db-wal
+.env

@@ -1,0 +1,81 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+# Internal crates
+mbl-core = { path = "crates/mbl-core" }
+mbl-db = { path = "crates/mbl-db" }
+mbl-service = { path = "crates/mbl-service" }
+mbl-api = { path = "crates/mbl-api" }
+mbl-auth = { path = "crates/mbl-auth" }
+mbl-parser = { path = "crates/mbl-parser" }
+mbl-probe = { path = "crates/mbl-probe" }
+mbl-scanner = { path = "crates/mbl-scanner" }
+mbl-metadata = { path = "crates/mbl-metadata" }
+mbl-images = { path = "crates/mbl-images" }
+mbl-jobs = { path = "crates/mbl-jobs" }
+mbl-playback = { path = "crates/mbl-playback" }
+mbl-transcode = { path = "crates/mbl-transcode" }
+mbl-stream = { path = "crates/mbl-stream" }
+mbl-platform = { path = "crates/mbl-platform" }
+
+# External crates (approved list: IMPLEMENTATION.md §1.4)
+anyhow = "1.0.104"
+axum = "0.8.9"
+camino = { version = "1.2.6", features = ["serde1"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
+dunce = "1.0.5"
+figment = { version = "0.10.19", features = ["toml", "env"] }
+http-body-util = "0.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sqlx = { version = "0.9.0", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite-bundled",
+    "macros",
+    "migrate",
+    "derive",
+] }
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["formatting"] }
+tokio = { version = "1.54.1", features = [
+    "rt-multi-thread",
+    "macros",
+    "signal",
+    "fs",
+    "net",
+    "sync",
+    "time",
+] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.7.1", features = ["trace"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "json"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2

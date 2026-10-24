@@ -1,0 +1,18 @@
+[package]
+name = "mbl-platform"
+description = "OS abstractions: default directories, system memory, platform profile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+camino.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
