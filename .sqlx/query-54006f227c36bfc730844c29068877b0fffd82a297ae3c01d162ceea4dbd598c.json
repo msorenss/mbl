@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM library_paths WHERE library_id = ? AND path = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "54006f227c36bfc730844c29068877b0fffd82a297ae3c01d162ceea4dbd598c"
+}

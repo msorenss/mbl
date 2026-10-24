@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+dunce.workspace = true
 mbl-auth.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true

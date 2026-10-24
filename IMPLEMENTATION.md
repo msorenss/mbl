@@ -233,7 +233,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: integration tests cover setup-once, login/logout, wrong password, rate limit, non-admin forbidden on `/users`, and a cookie + bearer test.
   - Ref: PLAN §8.6
 
-- [ ] **M1.2 Libraries CRUD**
+- [x] **M1.2 Libraries CRUD** (`POST /libraries/{id}/scan` lands with the scan job in M1.6)
   - Depends: M1.1
   - Crates/paths: `mbl-db/src/repo/libraries.rs`, `mbl-api/src/routes/libraries.rs`
   - Do:
@@ -729,6 +729,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-23 | M0.7 | cargo xtask gen-media: 15 specs, ffprobe verification, manifest.json (quick run: 14 files OK on Pi 5) | 1a257b1
 2026-10-23 | M0.8 | ADR 0001–0005 | 1a257b1
 2026-10-24 | M1.1 | Argon2id + tokens (mbl-auth), users/sessions repos, AuthService/UserService (mbl-service), setup/login/logout/me/sessions/users API, cookie+bearer, Origin check for cookie writes, login rate limit (IP+user), 429 + Retry-After | feat(auth) M1.1
+2026-10-24 | M1.2 | LibrariesRepo, LibraryService (canonical roots, overlap rejection), /libraries CRUD, /system/browse, shared test helpers | feat(libraries) M1.2
 ```
 
 ---

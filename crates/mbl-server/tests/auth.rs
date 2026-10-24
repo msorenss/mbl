@@ -1,98 +1,11 @@
 #![allow(clippy::unwrap_used)]
 
-use axum::Router;
+mod common;
+
 use axum::body::Body;
-use axum::http::{HeaderMap, Method, Request, StatusCode, header};
-use http_body_util::BodyExt;
-use mbl_server::Config;
-use serde_json::{Value, json};
-use tower::ServiceExt;
-
-struct TestApp {
-    router: Router,
-    _dir: tempfile::TempDir,
-}
-
-struct Res {
-    status: StatusCode,
-    headers: HeaderMap,
-    body: Value,
-}
-
-impl TestApp {
-    async fn new() -> Self {
-        let dir = tempfile::tempdir().unwrap();
-        let mut config = Config::default();
-        config.paths.data_dir = dir.path().to_str().unwrap().to_owned();
-        let server = mbl_server::build(config).await.unwrap();
-        Self {
-            router: server.router,
-            _dir: dir,
-        }
-    }
-
-    async fn send(&self, req: Request<Body>) -> Res {
-        let res = self.router.clone().oneshot(req).await.unwrap();
-        let status = res.status();
-        let headers = res.headers().clone();
-        let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        let body = if bytes.is_empty() {
-            Value::Null
-        } else {
-            serde_json::from_slice(&bytes).unwrap()
-        };
-        Res {
-            status,
-            headers,
-            body,
-        }
-    }
-
-    async fn call(
-        &self,
-        method: Method,
-        uri: &str,
-        token: Option<&str>,
-        body: Option<Value>,
-    ) -> Res {
-        let mut req = Request::builder().method(method).uri(uri);
-        if let Some(t) = token {
-            req = req.header(header::AUTHORIZATION, format!("Bearer {t}"));
-        }
-        let req = match body {
-            Some(b) => req
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(b.to_string()))
-                .unwrap(),
-            None => req.body(Body::empty()).unwrap(),
-        };
-        self.send(req).await
-    }
-
-    /// Run setup and return the admin token.
-    async fn setup_admin(&self) -> String {
-        let res = self
-            .call(
-                Method::POST,
-                "/api/v1/system/setup",
-                None,
-                Some(json!({ "username": "admin", "password": "admin-password" })),
-            )
-            .await;
-        assert_eq!(res.status, StatusCode::CREATED, "{:?}", res.body);
-        res.body["token"].as_str().unwrap().to_owned()
-    }
-
-    async fn login(&self, username: &str, password: &str) -> Res {
-        self.call(
-            Method::POST,
-            "/api/v1/auth/login",
-            None,
-            Some(json!({ "username": username, "password": password, "deviceName": "test" })),
-        )
-        .await
-    }
-}
+use axum::http::{Method, Request, StatusCode, header};
+use common::TestApp;
+use serde_json::json;
 
 #[tokio::test]
 async fn setup_runs_exactly_once() {

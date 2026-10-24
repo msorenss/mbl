@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO libraries (name, kind, created_at) VALUES (?, ?, ?)\n               RETURNING id AS \"id!: LibraryId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: LibraryId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5842b43a58c309f8ff0076ed99d3a58f40af0a104389aa3f674e371cb8e199f5"
+}

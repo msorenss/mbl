@@ -4,12 +4,15 @@
 //! performs its own permission checks; adapters never authorize on their own.
 
 pub mod auth;
+pub mod libraries;
+pub mod paths;
 pub mod users;
 mod validate;
 
 use mbl_db::Db;
 
 pub use auth::{AuthService, Authenticated, DeviceInfo, LoginResult};
+pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
 pub use users::{CreateUser, UpdateUser, UserService};
 
 /// All application services, cheap to clone.
@@ -17,13 +20,15 @@ pub use users::{CreateUser, UpdateUser, UserService};
 pub struct Services {
     pub auth: AuthService,
     pub users: UserService,
+    pub libraries: LibraryService,
 }
 
 impl Services {
     pub fn new(db: Db) -> Self {
         Self {
             auth: AuthService::new(db.clone()),
-            users: UserService::new(db),
+            users: UserService::new(db.clone()),
+            libraries: LibraryService::new(db),
         }
     }
 }

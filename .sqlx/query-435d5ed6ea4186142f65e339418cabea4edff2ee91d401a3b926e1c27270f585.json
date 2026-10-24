@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id AS \"library_id: LibraryId\", path FROM library_paths ORDER BY path",
+  "describe": {
+    "columns": [
+      {
+        "name": "library_id: LibraryId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_paths",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_paths",
+            "name": "path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "435d5ed6ea4186142f65e339418cabea4edff2ee91d401a3b926e1c27270f585"
+}
