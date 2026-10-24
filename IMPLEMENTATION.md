@@ -242,7 +242,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     3. `GET /system/browse?path=` returns directory listings for the setup wizard folder picker (admin only). On Windows with no path, list drive roots.
   - Accept: tests for validation errors and the overlap rejection.
 
-- [ ] **M1.3 Filename/path parser**
+- [x] **M1.3 Filename/path parser**
   - Depends: M0.3
   - Crates/paths: `mbl-parser`
   - Do:
@@ -730,6 +730,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-23 | M0.8 | ADR 0001–0005 | 1a257b1
 2026-10-24 | M1.1 | Argon2id + tokens (mbl-auth), users/sessions repos, AuthService/UserService (mbl-service), setup/login/logout/me/sessions/users API, cookie+bearer, Origin check for cookie writes, login rate limit (IP+user), 429 + Retry-After | feat(auth) M1.1
 2026-10-24 | M1.2 | LibrariesRepo, LibraryService (canonical roots, overlap rejection), /libraries CRUD, /system/browse, shared test helpers | feat(libraries) M1.2
+2026-10-24 | M1.3 | mbl-parser: movies/episodes/music/extras/samples, 315 fixture cases, proptest no-panic | feat(parser) M1.3
 ```
 
 ---
@@ -825,7 +826,7 @@ pub struct EpisodeGuess { pub show: String, pub show_year: Option<i32>, pub ids:
     pub season: Option<u32>, pub episodes: Vec<u32>, pub absolute: Option<u32>,
     pub air_date: Option<time::Date>, pub title: Option<String> }
 pub struct MusicGuess { pub artist: Option<String>, pub album: Option<String>,
-    pub disc: Option<u32>, pub track: Option<u32>, pub title: Option<String> }
+    pub album_year: Option<i32>, pub disc: Option<u32>, pub track: Option<u32>, pub title: Option<String> }
 #[derive(Default)] pub struct ExternalIds { pub tmdb: Option<i64>, pub tvdb: Option<i64>, pub imdb: Option<String> }
 pub enum ExtraKind { Trailer, Featurette, BehindTheScenes, DeletedScene, Interview, Scene, Short, Other }
 ```

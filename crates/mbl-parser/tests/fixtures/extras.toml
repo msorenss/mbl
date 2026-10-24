@@ -1,0 +1,37 @@
+# Extras and samples. `kind` is the ExtraKind debug name, absent = not an extra.
+extras = [
+  { path = "Movies/Heat (1995)/Heat (1995)-trailer.mkv", kind = "Trailer" },
+  { path = "Movies/Heat (1995)/Heat-trailer.mp4", kind = "Trailer" },
+  { path = "Movies/Heat (1995)/trailer.mp4", kind = "Trailer" },
+  { path = "Movies/Heat (1995)/Trailers/Teaser.mkv", kind = "Trailer" },
+  { path = "Movies/Heat (1995)/Heat (1995)-featurette.mkv", kind = "Featurette" },
+  { path = "Movies/Heat (1995)/Featurettes/Making Of.mkv", kind = "Featurette" },
+  { path = "Movies/Heat (1995)/Heat (1995)-behindthescenes.mkv", kind = "BehindTheScenes" },
+  { path = "Movies/Heat (1995)/Behind The Scenes/On Set.mkv", kind = "BehindTheScenes" },
+  { path = "Movies/Heat (1995)/Heat (1995)-deleted.mkv", kind = "DeletedScene" },
+  { path = "Movies/Heat (1995)/Deleted Scenes/Scene 4.mkv", kind = "DeletedScene" },
+  { path = "Movies/Heat (1995)/Heat (1995)-interview.mkv", kind = "Interview" },
+  { path = "Movies/Heat (1995)/Interviews/Director.mkv", kind = "Interview" },
+  { path = "Movies/Heat (1995)/Heat (1995)-scene.mkv", kind = "Scene" },
+  { path = "Movies/Heat (1995)/Scenes/Bank.mkv", kind = "Scene" },
+  { path = "Movies/Heat (1995)/Heat (1995)-short.mkv", kind = "Short" },
+  { path = "Movies/Heat (1995)/Shorts/Pixar Short.mkv", kind = "Short" },
+  { path = "Movies/Heat (1995)/Heat (1995)-other.mkv", kind = "Other" },
+  { path = "Movies/Heat (1995)/Extras/Gag Reel.mkv", kind = "Other" },
+  { path = "Movies/Heat (1995)/Other/Gag Reel.mkv", kind = "Other" },
+  { path = "TV/Show/Season 01/Featurettes/Inside Episode 1.mkv", kind = "Featurette" },
+  { path = "Movies/Heat (1995)/Heat (1995).mkv" },
+  { path = "Movies/The Trailer Park (2010)/The Trailer Park (2010).mkv" },
+  { path = "Movies/Short Circuit (1986)/Short Circuit (1986).mkv" },
+  { path = "Movies/Other People (2016)/Other People (2016).mkv" },
+]
+
+samples = [
+  { path = "Movies/Heat (1995)/heat-sample.mkv", sample = true },
+  { path = "Movies/Heat (1995)/Sample/heat.mkv", sample = true },
+  { path = "Downloads/Heat.1995.1080p.SAMPLE.mkv", sample = true },
+  { path = "Movies/Heat (1995)/sample.mkv", sample = true },
+  { path = "Movies/Heat (1995)/Heat (1995).mkv", sample = false },
+  { path = "Movies/Free Samples (2012)/Free Samples (2012).mkv", sample = false },
+  { path = "Movies/Sampler (2019)/Sampler (2019).mkv", sample = false },
+]

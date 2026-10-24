@@ -1,0 +1,134 @@
+# Episode path fixtures. Unspecified optional fields must parse as None / empty.
+cases = [
+  # Plex layout: Show (Year)/Season NN/Show - SxxEyy - Title
+  { path = "TV/Test Show (2019)/Season 01/Test Show - S01E01 - Pilot.mkv", show = "Test Show", year = 2019, season = 1, episodes = [1], title = "Pilot" },
+  { path = "TV/Test Show (2019)/Season 01/Test Show - S01E02 - Second.mkv", show = "Test Show", year = 2019, season = 1, episodes = [2], title = "Second" },
+  { path = "TV/Test Show (2019)/Season 01/Test Show - S01E03-E04 - Double.mkv", show = "Test Show", year = 2019, season = 1, episodes = [3, 4], title = "Double" },
+  { path = "TV/Interlaced Show/Season 01/Interlaced Show - S01E01.ts", show = "Interlaced Show", season = 1, episodes = [1] },
+  { path = "TV/Breaking Bad (2008)/Season 05/Breaking Bad - S05E14 - Ozymandias.mkv", show = "Breaking Bad", year = 2008, season = 5, episodes = [14], title = "Ozymandias" },
+  { path = "TV/The Office (US)/Season 2/The Office (US) - S02E01 - The Dundies.mkv", show = "The Office US", season = 2, episodes = [1], title = "The Dundies" },
+  { path = "TV/Doctor Who (2005)/Season 01/Doctor Who (2005) - S01E01 - Rose.mkv", show = "Doctor Who", year = 2005, season = 1, episodes = [1], title = "Rose" },
+  { path = "TV/Severance (2022)/Season 02/Severance - S02E10 - Cold Harbor.mkv", show = "Severance", year = 2022, season = 2, episodes = [10], title = "Cold Harbor" },
+  { path = "TV/Mr. Robot (2015)/Season 01/Mr. Robot - S01E01 - eps1.0_hellofriend.mov.mkv", show = "Mr. Robot", year = 2015, season = 1, episodes = [1], title = "eps1.0 hellofriend.mov" },
+  { path = "TV/Shogun (2024)/Season 1/Shogun (2024) - S01E01 - Anjin.mkv", show = "Shogun", year = 2024, season = 1, episodes = [1], title = "Anjin" },
+  { path = "TV/Show/Season 1/Show - s01e01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 10/Show - S10E100.mkv", show = "Show", season = 10, episodes = [100] },
+  { path = "TV/Show/Season 1/Show - S01E01 - Title With - Dash.mkv", show = "Show", season = 1, episodes = [1], title = "Title With Dash" },
+  { path = "TV/Show/Season 1/Show - S01E01 - Part 1.mkv", show = "Show", season = 1, episodes = [1], title = "Part 1" },
+  { path = "TV/Show/Season 1/Show - S01E01 - 1080p.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 1/Show - S01E01 - Pilot - 1080p WEB-DL.mkv", show = "Show", season = 1, episodes = [1], title = "Pilot" },
+  { path = "TV/Show/Season 1/Show - S01E01 - Pilot [1080p].mkv", show = "Show", season = 1, episodes = [1], title = "Pilot" },
+  { path = "TV/Show/Season 1/S01E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 1/S01E01 - Pilot.mkv", show = "Show", season = 1, episodes = [1], title = "Pilot" },
+  { path = "TV/Show/Season 1/s1e1.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 01/Show S01 E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 01/Show S01.E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 01/Show S01_E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 01/Show S01-E01.mkv", show = "Show", season = 1, episodes = [1] },
+
+  # Multi-episode
+  { path = "TV/Show/Season 01/Show - S01E01E02.mkv", show = "Show", season = 1, episodes = [1, 2] },
+  { path = "TV/Show/Season 01/Show - S01E01-E02.mkv", show = "Show", season = 1, episodes = [1, 2] },
+  { path = "TV/Show/Season 01/Show - S01E01-02.mkv", show = "Show", season = 1, episodes = [1, 2] },
+  { path = "TV/Show/Season 01/Show - S01E01-E03.mkv", show = "Show", season = 1, episodes = [1, 2, 3] },
+  { path = "TV/Show/Season 01/Show - S01E01E02E03.mkv", show = "Show", season = 1, episodes = [1, 2, 3] },
+  { path = "TV/Show/Season 01/Show - S01E09-E10 - Finale.mkv", show = "Show", season = 1, episodes = [9, 10], title = "Finale" },
+  { path = "TV/Show/Season 01/Show.S01E01-E02.720p.HDTV.mkv", show = "Show", season = 1, episodes = [1, 2] },
+  { path = "TV/Show/Season 01/Show - S01E01-720p.mkv", show = "Show", season = 1, episodes = [1] },
+
+  # Specials and season folder variants
+  { path = "TV/Show/Specials/Show - S00E01 - Christmas Special.mkv", show = "Show", season = 0, episodes = [1], title = "Christmas Special" },
+  { path = "TV/Show/Season 00/Show - S00E05.mkv", show = "Show", season = 0, episodes = [5] },
+  { path = "TV/Show/Special/Show - S00E02.mkv", show = "Show", season = 0, episodes = [2] },
+  { path = "TV/Show/S01/Show - S01E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Series 3/Show - S03E01.mkv", show = "Show", season = 3, episodes = [1] },
+  { path = "TV/Show/Staffel 2/Show - S02E01.mkv", show = "Show", season = 2, episodes = [1] },
+  { path = "TV/Show/Saison 4/Show - S04E01.mkv", show = "Show", season = 4, episodes = [1] },
+  { path = "TV/Show/Season.1/Show - S01E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/season_02/Show - S02E01.mkv", show = "Show", season = 2, episodes = [1] },
+  { path = "TV/Show/Season 1 (2010)/Show - S01E01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 02/Show - E05.mkv", show = "Show", season = 2, episodes = [5] },
+  { path = "TV/Show/Season 02/Episode 5.mkv", show = "Show", season = 2, episodes = [5] },
+  { path = "TV/Show/Season 02/Ep05 - Title.mkv", show = "Show", season = 2, episodes = [5], title = "Title" },
+  { path = "TV/Show/Season 02/05 - Title.mkv", show = "Show", season = 2 },
+  { path = "TV/Show/Season 02/Show - 05 - Title.mkv", show = "Show", season = 2, episodes = [5], title = "Title" },
+
+  # Season folder disagrees with file: file wins
+  { path = "TV/Show/Season 1/Show - S02E01.mkv", show = "Show", season = 2, episodes = [1] },
+
+  # NxNN
+  { path = "TV/Show/Season 1/Show - 1x01 - Pilot.mkv", show = "Show", season = 1, episodes = [1], title = "Pilot" },
+  { path = "TV/Show/Season 1/Show 1x01.mkv", show = "Show", season = 1, episodes = [1] },
+  { path = "TV/Show/Season 12/Show - 12x105.mkv", show = "Show", season = 12, episodes = [105] },
+  { path = "Downloads/show.2x03.hdtv.mkv", show = "show", season = 2, episodes = [3] },
+  { path = "TV/Show/Season 1/Show - 1x01-02.mkv", show = "Show", season = 1, episodes = [1, 2] },
+  { path = "TV/Show/Season 1/Show - 1x01x02.mkv", show = "Show", season = 1, episodes = [1, 2] },
+  { path = "Downloads/Video.1920x1080.mkv", show = "Downloads" },
+
+  # Scene names (flat)
+  { path = "Downloads/The.Office.US.S01E01.720p.HDTV.x264-CTU.mkv", show = "The Office US", season = 1, episodes = [1] },
+  { path = "Downloads/Breaking.Bad.S05E14.Ozymandias.1080p.WEB-DL.mkv", show = "Breaking Bad", season = 5, episodes = [14], title = "Ozymandias" },
+  { path = "Downloads/Doctor.Who.2005.S01E01.Rose.mkv", show = "Doctor Who", year = 2005, season = 1, episodes = [1], title = "Rose" },
+  { path = "Downloads/Severance.S02E01.Hello.Ms.Cobel.2160p.ATVP.WEB-DL.DDP5.1.HDR.H.265-FLUX.mkv", show = "Severance", season = 2, episodes = [1], title = "Hello Ms Cobel" },
+  { path = "Downloads/game_of_thrones_s08e03_1080p.mkv", show = "game of thrones", season = 8, episodes = [3] },
+  { path = "Downloads/Show Name S01E01 Episode Title 1080p.mkv", show = "Show Name", season = 1, episodes = [1], title = "Episode Title" },
+  { path = "Downloads/Show Name - S01E01.mkv", show = "Show Name", season = 1, episodes = [1] },
+  { path = "Downloads/Show.Name.S01E01.mkv", show = "Show Name", season = 1, episodes = [1] },
+  { path = "Downloads/Show.Name.S2024E05.mkv", show = "Downloads" },
+  { path = "Downloads/Shogun.2024.S01E01.Anjin.1080p.DSNP.WEB-DL.mkv", show = "Shogun", year = 2024, season = 1, episodes = [1], title = "Anjin" },
+  { path = "Downloads/9-1-1.S07E01.mkv", show = "9-1-1", season = 7, episodes = [1] },
+  { path = "Downloads/24.S01E01.mkv", show = "24", season = 1, episodes = [1] },
+  { path = "Downloads/S.W.A.T.2017.S01E01.mkv", show = "S W A T", year = 2017, season = 1, episodes = [1] },
+
+  # Flat in show folder
+  { path = "TV/Test Show (2019)/Test Show - S01E01.mkv", show = "Test Show", year = 2019, season = 1, episodes = [1] },
+  { path = "TV/Test Show (2019)/S01E01.mkv", show = "Test Show", year = 2019, season = 1, episodes = [1] },
+  { path = "TV/Test Show (2019)/Other Name - S01E01.mkv", show = "Other Name", season = 1, episodes = [1] },
+  { path = "TV/Test Show (2019) {tvdb-12345}/Test Show - S01E01.mkv", show = "Test Show", year = 2019, tvdb = 12345, season = 1, episodes = [1] },
+
+  # IDs
+  { path = "TV/Breaking Bad (2008) {tvdb-81189}/Season 01/Breaking Bad - S01E01.mkv", show = "Breaking Bad", year = 2008, tvdb = 81189, season = 1, episodes = [1] },
+  { path = "TV/Breaking Bad (2008) {tmdb-1396}/Season 01/Breaking Bad - S01E01.mkv", show = "Breaking Bad", year = 2008, tmdb = 1396, season = 1, episodes = [1] },
+  { path = "TV/Breaking Bad (2008) [tvdbid-81189]/Season 01/Breaking Bad - S01E01.mkv", show = "Breaking Bad", year = 2008, tvdb = 81189, season = 1, episodes = [1] },
+  { path = "TV/Breaking Bad (2008) [imdbid-tt0903747]/Season 01/Breaking Bad - S01E01.mkv", show = "Breaking Bad", year = 2008, imdb = "tt0903747", season = 1, episodes = [1] },
+  { path = "TV/Breaking Bad (2008) {tvdb-81189} {imdb-tt0903747}/Season 01/S01E01.mkv", show = "Breaking Bad", year = 2008, tvdb = 81189, imdb = "tt0903747", season = 1, episodes = [1] },
+
+  # Date-based
+  { path = "TV/The Daily Show/Season 2024/The Daily Show - 2024-03-01 - Guest Name.mkv", show = "The Daily Show", season = 2024, date = "2024-03-01", title = "Guest Name" },
+  { path = "TV/The Daily Show/The Daily Show - 2024-03-01.mkv", show = "The Daily Show", date = "2024-03-01" },
+  { path = "TV/The Daily Show/The Daily Show 2024.03.01.mkv", show = "The Daily Show", date = "2024-03-01" },
+  { path = "Downloads/The.Daily.Show.2024.03.01.Guest.720p.WEB.mkv", show = "The Daily Show", date = "2024-03-01", title = "Guest" },
+  { path = "TV/News/News - 2023-12-31.mkv", show = "News", date = "2023-12-31" },
+  { path = "TV/News/News - 2023-02-30.mkv", show = "News" },
+  { path = "TV/Late Show/2022 05 17.mkv", show = "Late Show", date = "2022-05-17" },
+  { path = "TV/Late Show/2022_05_17.mkv", show = "Late Show", date = "2022-05-17" },
+
+  # Anime: absolute numbering
+  { path = "Anime/Frieren/[SubsPlease] Frieren - 05 (1080p) [ABCD1234].mkv", show = "Frieren", absolute = 5 },
+  { path = "Anime/One Piece/One Piece - 1071.mkv", show = "One Piece", absolute = 1071 },
+  { path = "Anime/One Piece/One Piece - 1071 - Title.mkv", show = "One Piece", absolute = 1071, title = "Title" },
+  { path = "Anime/One Piece/[Group] One Piece - 1071 [1080p].mkv", show = "One Piece", absolute = 1071 },
+  { path = "Anime/Naruto/Naruto - 001.mkv", show = "Naruto", absolute = 1 },
+  { path = "Anime/Naruto/Naruto - 012v2.mkv", show = "Naruto", absolute = 12 },
+  { path = "Downloads/[Erai-raws] Spy x Family - 12 [1080p].mkv", show = "Spy x Family", absolute = 12 },
+  { path = "Anime/Spy x Family/Season 01/Spy x Family - S01E12.mkv", show = "Spy x Family", season = 1, episodes = [12] },
+  { path = "Anime/Bleach/Season 1/Bleach - 05.mkv", show = "Bleach", season = 1, episodes = [5] },
+  { path = "Anime/Bleach/Bleach - 05 (BD 1080p).mkv", show = "Bleach", absolute = 5 },
+
+  # Episode IDs on file
+  { path = "TV/Show/Season 1/Show - S01E01 {tvdb-999}.mkv", show = "Show", season = 1, episodes = [1], tvdb = 999 },
+
+  # Windows / UNC separators
+  { path = "D:\\TV\\Show (2010)\\Season 03\\Show - S03E07 - Seven.mkv", show = "Show", year = 2010, season = 3, episodes = [7], title = "Seven" },
+  { path = "\\\\nas\\tv\\Show\\Season 1\\Show - S01E02.mkv", show = "Show", season = 1, episodes = [2] },
+
+  # Unicode
+  { path = "TV/Bron/Broen (2011)/Season 01/Bron - S01E01.mkv", show = "Broen", year = 2011, season = 1, episodes = [1] },
+  { path = "TV/Señora Acero (2014)/Season 01/Señora Acero - S01E01 - Capítulo 1.mkv", show = "Señora Acero", year = 2014, season = 1, episodes = [1], title = "Capítulo 1" },
+  { path = "TV/進撃の巨人/Season 1/進撃の巨人 - S01E01.mkv", show = "進撃の巨人", season = 1, episodes = [1] },
+
+  # No marker at all
+  { path = "TV/Show/Season 1/random.mkv", show = "Show", season = 1 },
+  { path = "TV/Show/random.mkv", show = "Show" },
+  { path = "random.mkv", show = "" },
+]
