@@ -108,6 +108,7 @@ impl Server {
         shutdown: impl Future<Output = ()> + Send + 'static,
     ) -> anyhow::Result<()> {
         let stop = CancellationToken::new();
+        self.start_watcher(&stop);
         let jobs = self.runner.start(stop.clone()).await?;
 
         let addr = format!("{}:{}", self.config.server.bind, self.config.server.port);
@@ -128,9 +129,24 @@ impl Server {
         Ok(())
     }
 
-    /// Start the job runner without serving HTTP (used by integration tests).
+    /// Start the job runner and watcher without serving HTTP (used by integration tests).
     pub async fn start_jobs(self, stop: CancellationToken) -> anyhow::Result<(Router, Db)> {
+        self.start_watcher(&stop);
         self.runner.start(stop).await?;
         Ok((self.router, self.db))
+    }
+
+    fn start_watcher(&self, stop: &CancellationToken) {
+        if !self.config.scanner.watch {
+            return;
+        }
+        let cfg = mbl_scanner::WatchConfig {
+            poll_interval: std::time::Duration::from_secs(
+                self.config.scanner.poll_interval_secs.max(60),
+            ),
+            ..Default::default()
+        };
+        mbl_scanner::LibraryWatcher::new(self.db.clone(), self.runner.queue(), cfg)
+            .spawn(stop.clone());
     }
 }

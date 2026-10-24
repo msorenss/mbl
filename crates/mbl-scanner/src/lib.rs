@@ -6,6 +6,7 @@
 
 mod hash;
 mod walk;
+pub mod watch;
 mod write;
 
 use std::collections::{HashMap, HashSet};
@@ -25,6 +26,7 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 pub use walk::{AUDIO_EXTS, FoundFile, VIDEO_EXTS};
+pub use watch::{LibraryWatcher, WatchConfig};
 pub use write::sort_title;
 
 pub const SCAN_JOB: &str = mbl_jobs::kinds::LIBRARY_SCAN;
@@ -80,6 +82,18 @@ impl Scanner {
         cancel: &CancellationToken,
         on_progress: impl Fn(f32) + Send + Sync,
     ) -> Result<ScanStats> {
+        self.scan_folders(library_id, &[], cancel, on_progress).await
+    }
+
+    /// Scan only `folders` (the whole library when empty). Folders outside the library's roots
+    /// are ignored; known files outside them are left untouched.
+    pub async fn scan_folders(
+        &self,
+        library_id: LibraryId,
+        folders: &[String],
+        cancel: &CancellationToken,
+        on_progress: impl Fn(f32) + Send + Sync,
+    ) -> Result<ScanStats> {
         let started = std::time::Instant::now();
         let library =
             LibrariesRepo::new(self.db.clone()).get(library_id).await?.ok_or(Error::NotFound)?;
@@ -95,15 +109,33 @@ impl Scanner {
             .map(|p| (p.path.clone(), p))
             .collect();
 
+        let sep = std::path::MAIN_SEPARATOR;
+        let in_scope = |path: &str| {
+            folders.is_empty() || folders.iter().any(|f| path.starts_with(&format!("{f}{sep}")))
+        };
+
         // Walk available roots (blocking I/O off the executor).
         let mut found = Vec::new();
         let mut unavailable = Vec::new();
         for root in &library.paths {
-            let prefix = format!("{root}{}", std::path::MAIN_SEPARATOR);
+            let prefix = format!("{root}{sep}");
+            let starts: Vec<String> = if folders.is_empty() {
+                vec![root.clone()]
+            } else {
+                folders.iter().filter(|f| *f == root || f.starts_with(&prefix)).cloned().collect()
+            };
+            if starts.is_empty() {
+                continue;
+            }
             let has_known = known.keys().any(|p| p.starts_with(&prefix));
             let (root_c, kind) = (root.clone(), library.kind);
             let files = tokio::task::spawn_blocking(move || {
-                walk::root_available(&root_c, has_known).then(|| walk::walk(&root_c, kind))
+                walk::root_available(&root_c, has_known).then(|| {
+                    starts
+                        .iter()
+                        .flat_map(|s| walk::walk_from(&root_c, s, kind))
+                        .collect::<Vec<_>>()
+                })
             })
             .await
             .map_err(Error::internal)?;
@@ -143,7 +175,7 @@ impl Scanner {
         }
         let vanished: Vec<&PartFile> = known
             .values()
-            .filter(|p| !seen.contains(p.path.as_str()))
+            .filter(|p| !seen.contains(p.path.as_str()) && in_scope(&p.path))
             .filter(|p| !unavailable.iter().any(|root| p.path.starts_with(root)))
             .collect();
 
@@ -354,7 +386,8 @@ impl Scanner {
     }
 }
 
-/// `library.scan` job: payload `{"libraryId": n}`.
+/// `library.scan` job: payload `{"libraryId": n}`, optionally with `"folders": [..]` for a
+/// partial scan.
 pub struct ScanHandler {
     pub scanner: Scanner,
 }
@@ -370,11 +403,15 @@ impl JobHandler for ScanHandler {
             .as_i64()
             .map(LibraryId)
             .ok_or_else(|| Error::Validation("scan job without libraryId".into()))?;
+        let folders: Vec<String> = payload["folders"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default();
         let progress = ctx.progress.clone();
         let last = std::sync::Mutex::new(-1i32);
         let handle = tokio::runtime::Handle::current();
         self.scanner
-            .scan(library_id, &ctx.cancel, move |p| {
+            .scan_folders(library_id, &folders, &ctx.cancel, move |p| {
                 let pct = (p * 100.0) as i32;
                 let mut last = last.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 if pct > *last {

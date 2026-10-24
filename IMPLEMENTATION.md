@@ -345,7 +345,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Do: `GET /api/v1/events` (WebSocket, authenticated) forwards bus events the user may see (`scan.progress`, `library.updated`, `item.updated`, `job.progress` for admins). JSON frames `{type, data}`. Ping every 30 s.
   - Accept: integration test receives `scan.progress` during a scan.
 
-- [ ] **M1.11 Filesystem watcher**
+- [x] **M1.11 Filesystem watcher** (notify 8.2 stable instead of 9.0-rc; new/removed libraries are picked up within 30 s; the Windows `GetDriveTypeW` path is only compiled in CI)
   - Depends: M1.6
   - Do:
     1. Use `notify` with a 5 s debounce. A file counts as settled when its size is unchanged across 2 checks 3 s apart. Enqueue a partial scan of the affected folder.
@@ -738,6 +738,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.8 | mbl-images: content-addressed store (file:/http ingest), snapped-width JPEG variants (no upscale), BlurHash + palette, artwork.fetch job (idle), GET /api/v1/images/{id} with ETag/304 + immutable on ?v=hash | feat(images) M1.8
 2026-10-24 | M1.10 | GET /api/v1/events WebSocket: per-actor filtering in EventService (jobs admin-only, library ACL for scan/library/item events), 30 s ping, origin check on cookie upgrades | feat(api) M1.10
 2026-10-24 | M1.9 | repo items (ItemFilter::for_user ACL on every query, list sort/filter/cursor, detail with versions/parts/streams/people/genres/artwork/watch state, children, FTS5 search with quoted prefix terms, continue watching/up next/recently added), ItemService, /libraries/{id}/items, /items/{id}, /items/{id}/children, /search, /hubs/home; utoipa 6 spec for all routes, /api/openapi.json + Scalar /api/docs, `mbl-server openapi`, `cargo xtask openapi-check` in CI | feat(api) M1.9
+2026-10-24 | M1.11 | LibraryWatcher (notify, 5 s debounce, size-settled check 3 s apart, partial `library.scan` with `folders`), network roots (Linux /proc/self/mounts fstype, Windows UNC/DRIVE_REMOTE) polled every `scanner.poll_interval_secs`, `scanner.watch` toggle; unavailable roots still never mark files missing | feat(scanner) M1.11
 ```
 
 ---

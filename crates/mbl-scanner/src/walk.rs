@@ -50,12 +50,19 @@ fn has_ext(path: &Path, exts: &[&str]) -> bool {
 
 /// Recursively list media files under `root`. Honors `.mblignore` / `.plexignore` (gitignore
 /// syntax), skips hidden and system folders and release samples. Blocking: run off the executor.
+#[cfg(test)]
 pub fn walk(root: &str, kind: LibraryKind) -> Vec<FoundFile> {
+    walk_from(root, root, kind)
+}
+
+/// Recursive listing of media files under `start`, a folder inside `root` (`.mblignore` /
+/// `.plexignore`, hidden/system folders and samples are skipped). A missing `start` yields nothing.
+pub fn walk_from(root: &str, start: &str, kind: LibraryKind) -> Vec<FoundFile> {
     let exts = extensions(kind);
-    if exts.is_empty() {
+    if exts.is_empty() || !Path::new(start).is_dir() {
         return Vec::new();
     }
-    let walker = ignore::WalkBuilder::new(root)
+    let walker = ignore::WalkBuilder::new(start)
         .standard_filters(false)
         .hidden(true)
         .add_custom_ignore_filename(".mblignore")

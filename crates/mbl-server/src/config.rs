@@ -45,12 +45,15 @@ pub struct PathsConfig {
 pub struct ScannerConfig {
     /// 0 = automatic, based on the platform profile.
     pub probe_concurrency: u32,
+    /// Seconds between rescans of roots on network filesystems.
     pub poll_interval_secs: u64,
+    /// Watch local library roots for changes.
+    pub watch: bool,
 }
 
 impl Default for ScannerConfig {
     fn default() -> Self {
-        Self { probe_concurrency: 0, poll_interval_secs: 900 }
+        Self { probe_concurrency: 0, poll_interval_secs: 900, watch: true }
     }
 }
 

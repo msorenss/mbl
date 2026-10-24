@@ -45,6 +45,7 @@ http-body-util = "0.1"
 ignore = "0.4.33"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 insta = "1.49.0"
+notify = "8.2.0"
 proptest = "1.12.0"
 quick-xml = { version = "0.42.0", features = ["serialize"] }
 regex = "1.13.1"
