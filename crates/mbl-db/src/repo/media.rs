@@ -425,6 +425,16 @@ pub async fn touch_library_paths(db: &Db, library_id: LibraryId, now: i64) -> Re
     Ok(())
 }
 
+/// Library an item belongs to, if the item exists.
+pub async fn library_of_item(db: &Db, id: ItemId) -> Result<Option<LibraryId>> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT library_id AS "library_id: LibraryId" FROM media_items WHERE id = ?"#,
+        id
+    )
+    .fetch_optional(&db.read)
+    .await?)
+}
+
 /// Item counts by kind, for tests and stats.
 pub async fn count_items(db: &Db, library_id: LibraryId, kind: MediaKind) -> Result<i64> {
     Ok(sqlx::query_scalar!(

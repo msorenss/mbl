@@ -4,6 +4,7 @@
 //! performs its own permission checks; adapters never authorize on their own.
 
 pub mod auth;
+pub mod events;
 pub mod images;
 pub mod libraries;
 pub mod paths;
@@ -13,6 +14,7 @@ mod validate;
 use mbl_db::Db;
 
 pub use auth::{AuthService, Authenticated, DeviceInfo, LoginResult};
+pub use events::EventService;
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
 pub use users::{CreateUser, UpdateUser, UserService};
@@ -24,15 +26,22 @@ pub struct Services {
     pub users: UserService,
     pub libraries: LibraryService,
     pub images: ImageService,
+    pub events: EventService,
 }
 
 impl Services {
-    pub fn new(db: Db, jobs: mbl_jobs::JobQueue, images: mbl_images::ImageStore) -> Self {
+    pub fn new(
+        db: Db,
+        jobs: mbl_jobs::JobQueue,
+        images: mbl_images::ImageStore,
+        events: mbl_core::events::EventBus,
+    ) -> Self {
         Self {
             auth: AuthService::new(db.clone()),
             users: UserService::new(db.clone()),
             libraries: LibraryService::new(db.clone(), jobs),
-            images: ImageService::new(db, images),
+            images: ImageService::new(db.clone(), images),
+            events: EventService::new(db, events),
         }
     }
 }

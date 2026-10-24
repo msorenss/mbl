@@ -33,10 +33,12 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
+futures-util.workspace = true
 http-body-util.workspace = true
 image.workspace = true
 sqlx.workspace = true
 tempfile.workspace = true
+tokio-tungstenite.workspace = true
 tower.workspace = true
 
 [lints]

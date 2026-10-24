@@ -340,7 +340,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     6. Generate OpenAPI with `utoipa`, serve Scalar at `/api/docs`, and make `mbl-server openapi` print the spec.
   - Accept: integration tests for each endpoint; `cargo xtask openapi-check` diffs the spec against the committed `docs/openapi.json` (CI fails on uncommitted changes).
 
-- [ ] **M1.10 WebSocket events**
+- [x] **M1.10 WebSocket events** (frames use the camelCase `type` of `mbl_core::Event`, e.g. `scanProgress`; cookie-authenticated upgrades require same origin)
   - Depends: M1.9
   - Do: `GET /api/v1/events` (WebSocket, authenticated) forwards bus events the user may see (`scan.progress`, `library.updated`, `item.updated`, `job.progress` for admins). JSON frames `{type, data}`. Ping every 30 s.
   - Accept: integration test receives `scan.progress` during a scan.
@@ -736,6 +736,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.6 | mbl-scanner: walk (.mblignore/.plexignore, system dirs, samples), change detection, xxh3 quick hash + move detection, bounded probing, batched writes (movies/versions/multi-part, show/season/episode incl. multi-episode, artist/album/track from tags), missing + unavailable-root handling, library.scan job, POST /libraries/{id}/scan, metadata.match queued; MediaInfo gains container tags | feat(scanner) M1.6
 2026-10-24 | M1.7 | mbl-metadata: NFO + local artwork, TMDB client (rate limit, disk cache, v3/v4), matcher (0.85), metadata.match/refresh jobs incl. seasons/episodes, locked fields | feat(metadata) M1.7
 2026-10-24 | M1.8 | mbl-images: content-addressed store (file:/http ingest), snapped-width JPEG variants (no upscale), BlurHash + palette, artwork.fetch job (idle), GET /api/v1/images/{id} with ETag/304 + immutable on ?v=hash | feat(images) M1.8
+2026-10-24 | M1.10 | GET /api/v1/events WebSocket: per-actor filtering in EventService (jobs admin-only, library ACL for scan/library/item events), 30 s ping, origin check on cookie upgrades | feat(api) M1.10
 ```
 
 ---

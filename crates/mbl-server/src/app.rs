@@ -82,8 +82,14 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
 
     let info = ServerInfo::current(env!("CARGO_PKG_VERSION"), profile);
     let secure_cookies = config.server.public_url.starts_with("https://");
-    let router =
-        mbl_api::router(AppState::new(db.clone(), runner.queue(), images, info, secure_cookies));
+    let router = mbl_api::router(AppState::new(
+        db.clone(),
+        runner.queue(),
+        images,
+        events.clone(),
+        info,
+        secure_cookies,
+    ));
 
     Ok(Server { config, paths, db, events, router, runner })
 }

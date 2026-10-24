@@ -22,11 +22,12 @@ impl AppState {
         db: Db,
         jobs: mbl_jobs::JobQueue,
         images: mbl_images::ImageStore,
+        events: mbl_core::events::EventBus,
         info: ServerInfo,
         secure_cookies: bool,
     ) -> Self {
         Self {
-            services: Services::new(db.clone(), jobs, images),
+            services: Services::new(db.clone(), jobs, images, events),
             db,
             info: Arc::new(info),
             login_limiter: Arc::new(LoginLimiter::default()),

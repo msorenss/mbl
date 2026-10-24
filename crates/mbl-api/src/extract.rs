@@ -28,7 +28,10 @@ impl FromRequestParts<AppState> for AuthUser {
             token
         } else if let Some(token) = cookie(&parts.headers, SESSION_COOKIE) {
             // Cookies are sent automatically by browsers: reject cross-site state changes.
-            if is_unsafe(&parts.method) && !same_origin(&parts.headers) {
+            // WebSocket upgrades are GETs but carry the session too (cross-site hijacking).
+            if (is_unsafe(&parts.method) || is_upgrade(&parts.headers))
+                && !same_origin(&parts.headers)
+            {
                 return Err(Error::Forbidden.into());
             }
             token
@@ -92,6 +95,10 @@ pub(crate) fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
 
 fn is_unsafe(method: &Method) -> bool {
     !matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
+}
+
+fn is_upgrade(headers: &HeaderMap) -> bool {
+    headers.contains_key(header::UPGRADE)
 }
 
 /// True when there is no `Origin` header or its host matches the `Host` header.

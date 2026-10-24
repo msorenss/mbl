@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id AS \"library_id: LibraryId\" FROM media_items WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "library_id: LibraryId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "library_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "003ba2b57d9a5fae1dc37eb42054bbeb468a27a8604ee4b7844c100924ae33ac"
+}
