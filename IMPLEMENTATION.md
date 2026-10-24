@@ -273,7 +273,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     4. Kill the process on timeout (default 60 s) and cap stdout size (16 MB).
   - Accept: snapshot tests from stored ffprobe JSON fixtures; integration test against `test-media/out` (skipped if missing).
 
-- [ ] **M1.5 Persistent job queue**
+- [x] **M1.5 Persistent job queue**
   - Depends: M0.5
   - Crates/paths: `mbl-jobs`
   - Do:
@@ -732,6 +732,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.2 | LibrariesRepo, LibraryService (canonical roots, overlap rejection), /libraries CRUD, /system/browse, shared test helpers | feat(libraries) M1.2
 2026-10-24 | M1.3 | mbl-parser: movies/episodes/music/extras/samples, 315 fixture cases, proptest no-panic | feat(parser) M1.3
 2026-10-24 | M1.4 | mbl-probe: FfTools locate/version/probe (timeout, output cap, file: prefix), MediaInfo mapping incl. HDR10/HDR10+/HLG/DV, 11 insta snapshots, live test vs generated library | feat(probe) M1.4
+2026-10-24 | M1.5 | mbl-jobs: JobHandler/JobQueue/JobRunner (atomic claim, per-kind limits, priorities, idle pause, backoff retry, crash requeue, cancel, dedup), EventBus in mbl-core | feat(jobs) M1.5
 ```
 
 ---

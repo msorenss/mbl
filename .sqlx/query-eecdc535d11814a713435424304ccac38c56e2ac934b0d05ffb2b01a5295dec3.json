@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE jobs SET status = ?, error = ?, progress = CASE WHEN ? = 'done' THEN 1.0 ELSE progress END,\n                    updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "eecdc535d11814a713435424304ccac38c56e2ac934b0d05ffb2b01a5295dec3"
+}

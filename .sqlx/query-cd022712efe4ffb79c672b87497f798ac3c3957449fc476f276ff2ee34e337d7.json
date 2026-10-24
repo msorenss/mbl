@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: JobId\" FROM jobs\n               WHERE kind = ? AND payload = ? AND status IN ('queued', 'running')\n               ORDER BY id LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: JobId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cd022712efe4ffb79c672b87497f798ac3c3957449fc476f276ff2ee34e337d7"
+}

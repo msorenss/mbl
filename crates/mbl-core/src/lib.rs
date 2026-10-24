@@ -2,6 +2,7 @@
 
 pub mod actor;
 pub mod error;
+pub mod events;
 pub mod ids;
 pub mod kinds;
 pub mod pagination;
