@@ -1,0 +1,18 @@
+---
+source: crates/mbl-playback/tests/decide.rs
+expression: formatted
+---
+[
+    "ContainerUnsupported(\"matroska,webm\") => Container 'matroska,webm' is not supported for direct play on this device",
+    "VideoCodecUnsupported(\"hevc\") => Video codec 'hevc' is not supported by this device",
+    "VideoProfileUnsupported(\"h264 High 10\") => Video profile or level 'h264 High 10' is not supported by this device",
+    "BitDepthUnsupported(10) => 10-bit video is not supported by this device",
+    "HdrUnsupported => HDR format is not supported by this device and requires transcoding",
+    "ResolutionTooHigh => Video resolution exceeds the maximum supported by this device",
+    "BitrateTooHigh { source: 25000000, limit: 8000000 } => Source bitrate (25000000 bps) exceeds the limit (8000000 bps)",
+    "AudioCodecUnsupported(\"truehd\") => Audio codec 'truehd' is not supported by this device",
+    "TooManyChannels(8) => Audio has 8 channels, exceeding the device limit",
+    "SubtitleBurnInRequired(\"hdmv_pgs_subtitle\") => Subtitle format 'hdmv_pgs_subtitle' must be burned into the video stream",
+    "NoTranscodeCapacity => Video transcoding is required, but the server has no free transcode capacity",
+    "Other(\"Video stream 'mpeg2video' is interlaced\") => Video stream 'mpeg2video' is interlaced",
+]
