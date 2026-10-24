@@ -50,9 +50,6 @@ mod tests {
 
     #[test]
     fn profile_serializes_camel_case() {
-        assert_eq!(
-            serde_json::to_string(&PlatformProfile::X86Nvidia).unwrap(),
-            "\"x86Nvidia\""
-        );
+        assert_eq!(serde_json::to_string(&PlatformProfile::X86Nvidia).unwrap(), "\"x86Nvidia\"");
     }
 }

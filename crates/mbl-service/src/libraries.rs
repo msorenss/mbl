@@ -1,6 +1,7 @@
-use mbl_core::{Actor, Error, LibraryId, LibraryKind, Result, time::now_ms};
+use mbl_core::{Actor, Error, JobId, LibraryId, LibraryKind, Result, time::now_ms};
 use mbl_db::Db;
 use mbl_db::repo::libraries::{LibrariesRepo, Library};
+use mbl_jobs::{JobQueue, Priority, kinds};
 
 use crate::blocking;
 use crate::paths::{self, DirListing};
@@ -21,13 +22,21 @@ pub struct UpdateLibrary {
 #[derive(Debug, Clone)]
 pub struct LibraryService {
     repo: LibrariesRepo,
+    jobs: JobQueue,
 }
 
 impl LibraryService {
-    pub fn new(db: Db) -> Self {
-        Self {
-            repo: LibrariesRepo::new(db),
-        }
+    pub fn new(db: Db, jobs: JobQueue) -> Self {
+        Self { repo: LibrariesRepo::new(db), jobs }
+    }
+
+    /// Queue a scan (deduplicated if one is already pending for this library).
+    pub async fn scan(&self, actor: &Actor, id: LibraryId) -> Result<JobId> {
+        actor.require_admin()?;
+        self.repo.get(id).await?.ok_or(Error::NotFound)?;
+        self.jobs
+            .enqueue(kinds::LIBRARY_SCAN, &serde_json::json!({ "libraryId": id }), Priority::High)
+            .await
     }
 
     /// Libraries visible to the actor.
@@ -48,10 +57,7 @@ impl LibraryService {
         actor.require_admin()?;
         let name = library_name(&input.name)?;
         let roots = self.validate_roots(input.paths, None).await?;
-        let id = self
-            .repo
-            .insert(&name, input.kind, &roots, now_ms())
-            .await?;
+        let id = self.repo.insert(&name, input.kind, &roots, now_ms()).await?;
         tracing::info!(library_id = %id, kind = ?input.kind, "library created");
         self.repo.get(id).await?.ok_or(Error::NotFound)
     }
@@ -101,14 +107,10 @@ impl LibraryService {
         except: Option<LibraryId>,
     ) -> Result<Vec<String>> {
         if raw.is_empty() {
-            return Err(Error::Validation(
-                "a library needs at least one path".into(),
-            ));
+            return Err(Error::Validation("a library needs at least one path".into()));
         }
         let roots = blocking(move || {
-            raw.iter()
-                .map(|p| paths::canonical_root(p))
-                .collect::<Result<Vec<_>>>()
+            raw.iter().map(|p| paths::canonical_root(p)).collect::<Result<Vec<_>>>()
         })
         .await?;
         for (i, a) in roots.iter().enumerate() {
@@ -121,9 +123,7 @@ impl LibraryService {
                 continue;
             }
             if let Some(root) = roots.iter().find(|r| paths::overlaps(r, &existing)) {
-                return Err(Error::Conflict(format!(
-                    "{root} overlaps {existing} (library {lib})"
-                )));
+                return Err(Error::Conflict(format!("{root} overlaps {existing} (library {lib})")));
             }
         }
         Ok(roots)
@@ -133,9 +133,7 @@ impl LibraryService {
 fn library_name(raw: &str) -> Result<String> {
     let name = raw.trim();
     if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
-        return Err(Error::Validation(
-            "library name must be 1-100 printable characters".into(),
-        ));
+        return Err(Error::Validation("library name must be 1-100 printable characters".into()));
     }
     Ok(name.to_owned())
 }

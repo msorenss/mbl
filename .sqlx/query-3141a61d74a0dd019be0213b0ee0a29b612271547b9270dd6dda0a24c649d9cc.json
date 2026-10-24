@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO streams\n                 (part_id, idx, kind, codec, profile, language, title, is_default, is_forced,\n                  external_path, width, height, bit_depth, hdr, channels, channel_layout)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 16
+    },
+    "nullable": []
+  },
+  "hash": "3141a61d74a0dd019be0213b0ee0a29b612271547b9270dd6dda0a24c649d9cc"
+}

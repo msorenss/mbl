@@ -24,13 +24,10 @@ struct Health {
 
 /// Liveness + database reachability.
 async fn health(State(state): State<AppState>) -> Result<Json<Health>, ApiError> {
-    sqlx::query("SELECT 1")
-        .execute(&state.db.read)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, "health check: database unavailable");
-            mbl_core::Error::Unavailable("database".into())
-        })?;
+    sqlx::query("SELECT 1").execute(&state.db.read).await.map_err(|e| {
+        tracing::warn!(error = %e, "health check: database unavailable");
+        mbl_core::Error::Unavailable("database".into())
+    })?;
     Ok(Json(Health { status: "ok" }))
 }
 
@@ -39,9 +36,7 @@ async fn info(State(state): State<AppState>) -> Json<ServerInfo> {
 }
 
 async fn setup_status(State(state): State<AppState>) -> Result<Json<SetupStatus>, ApiError> {
-    Ok(Json(SetupStatus {
-        needs_setup: state.services.auth.needs_setup().await?,
-    }))
+    Ok(Json(SetupStatus { needs_setup: state.services.auth.needs_setup().await? }))
 }
 
 /// Create the first admin account. Only allowed while no users exist.
@@ -54,16 +49,7 @@ async fn setup(
     let result = state
         .services
         .auth
-        .setup(
-            &req.username,
-            &req.password,
-            req.display_name.as_deref(),
-            &device,
-        )
+        .setup(&req.username, &req.password, req.display_name.as_deref(), &device)
         .await?;
-    Ok(login_response(
-        StatusCode::CREATED,
-        result,
-        state.secure_cookies,
-    ))
+    Ok(login_response(StatusCode::CREATED, result, state.secure_cookies))
 }

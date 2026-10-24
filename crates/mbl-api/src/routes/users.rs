@@ -12,10 +12,7 @@ use crate::{ApiError, AppState};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/users", get(list).post(create))
-        .route(
-            "/api/v1/users/{id}",
-            get(get_one).patch(update).delete(remove),
-        )
+        .route("/api/v1/users/{id}", get(get_one).patch(update).delete(remove))
 }
 
 async fn list(
@@ -46,9 +43,7 @@ async fn get_one(
     AuthUser(auth): AuthUser,
     Path(id): Path<UserId>,
 ) -> Result<Json<UserDto>, ApiError> {
-    Ok(Json(
-        state.services.users.get(&auth.actor, id).await?.into(),
-    ))
+    Ok(Json(state.services.users.get(&auth.actor, id).await?.into()))
 }
 
 async fn update(
@@ -62,14 +57,7 @@ async fn update(
         password: req.password,
         is_admin: req.is_admin,
     };
-    Ok(Json(
-        state
-            .services
-            .users
-            .update(&auth.actor, id, patch)
-            .await?
-            .into(),
-    ))
+    Ok(Json(state.services.users.update(&auth.actor, id, patch).await?.into()))
 }
 
 async fn remove(

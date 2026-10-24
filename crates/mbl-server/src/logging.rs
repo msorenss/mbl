@@ -23,23 +23,11 @@ pub fn init(cfg: &LogConfig, logs_dir: &Utf8Path) -> anyhow::Result<WorkerGuard>
         .map_err(|e| anyhow::anyhow!("invalid log.level {:?}: {e}", cfg.level))?;
 
     let layers: Vec<Box<dyn Layer<Registry> + Send + Sync>> = if cfg.json {
-        vec![
-            fmt::layer().json().boxed(),
-            fmt::layer().json().with_writer(file_writer).boxed(),
-        ]
+        vec![fmt::layer().json().boxed(), fmt::layer().json().with_writer(file_writer).boxed()]
     } else {
-        vec![
-            fmt::layer().boxed(),
-            fmt::layer()
-                .with_ansi(false)
-                .with_writer(file_writer)
-                .boxed(),
-        ]
+        vec![fmt::layer().boxed(), fmt::layer().with_ansi(false).with_writer(file_writer).boxed()]
     };
 
-    tracing_subscriber::registry()
-        .with(layers)
-        .with(filter)
-        .try_init()?;
+    tracing_subscriber::registry().with(layers).with(filter).try_init()?;
     Ok(guard)
 }

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: ItemId\" FROM media_items\n           WHERE library_id = ? AND kind = ? AND parent_id IS NULL\n             AND title = ? COLLATE NOCASE AND year IS ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ItemId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "92552190f9190c529f3c2198852cae67328f277f0d07bf9eecc30dcc4f5a1718"
+}

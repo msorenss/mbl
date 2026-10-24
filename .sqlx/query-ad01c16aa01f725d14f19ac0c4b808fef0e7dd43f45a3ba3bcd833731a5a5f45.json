@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO item_versions (item_id, version_id) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ad01c16aa01f725d14f19ac0c4b808fef0e7dd43f45a3ba3bcd833731a5a5f45"
+}

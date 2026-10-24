@@ -40,28 +40,13 @@ async fn admin_crud_lifecycle() {
     assert_eq!(updated.body["name"], "Films");
     assert_eq!(updated.body["paths"].as_array().unwrap().len(), 2);
 
-    let list = app
-        .call(Method::GET, "/api/v1/libraries", Some(&admin), None)
-        .await;
+    let list = app.call(Method::GET, "/api/v1/libraries", Some(&admin), None).await;
     assert_eq!(list.body.as_array().unwrap().len(), 1);
 
-    let del = app
-        .call(
-            Method::DELETE,
-            &format!("/api/v1/libraries/{id}"),
-            Some(&admin),
-            None,
-        )
-        .await;
+    let del =
+        app.call(Method::DELETE, &format!("/api/v1/libraries/{id}"), Some(&admin), None).await;
     assert_eq!(del.status, StatusCode::NO_CONTENT);
-    let gone = app
-        .call(
-            Method::GET,
-            &format!("/api/v1/libraries/{id}"),
-            Some(&admin),
-            None,
-        )
-        .await;
+    let gone = app.call(Method::GET, &format!("/api/v1/libraries/{id}"), Some(&admin), None).await;
     assert_eq!(gone.status, StatusCode::NOT_FOUND);
 }
 
@@ -76,10 +61,7 @@ async fn path_validation() {
     for (paths, expected) in [
         (json!([]), StatusCode::UNPROCESSABLE_ENTITY),
         (json!(["relative/path"]), StatusCode::UNPROCESSABLE_ENTITY),
-        (
-            json!([format!("{root}/missing")]),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ),
+        (json!([format!("{root}/missing")]), StatusCode::UNPROCESSABLE_ENTITY),
         (json!([file]), StatusCode::UNPROCESSABLE_ENTITY),
     ] {
         let res = app
@@ -149,11 +131,7 @@ async fn overlapping_roots_are_rejected() {
             Method::POST,
             "/api/v1/libraries",
             Some(&admin),
-            Some(create(
-                "Nested",
-                "show",
-                json!([tv, format!("{tv}/Season 1")]),
-            )),
+            Some(create("Nested", "show", json!([tv, format!("{tv}/Season 1")]))),
         )
         .await;
     assert!(nested_input.status.is_client_error());
@@ -193,15 +171,11 @@ async fn non_admins_can_read_but_not_write() {
         Some(json!({ "name": "M", "kind": "movie", "paths": [movies] })),
     )
     .await;
-    let list = app
-        .call(Method::GET, "/api/v1/libraries", Some(&user), None)
-        .await;
+    let list = app.call(Method::GET, "/api/v1/libraries", Some(&user), None).await;
     assert_eq!(list.status, StatusCode::OK);
     assert_eq!(list.body.as_array().unwrap().len(), 1);
 
-    let browse = app
-        .call(Method::GET, "/api/v1/system/browse", Some(&user), None)
-        .await;
+    let browse = app.call(Method::GET, "/api/v1/system/browse", Some(&user), None).await;
     assert_eq!(browse.status, StatusCode::FORBIDDEN);
 }
 
@@ -222,17 +196,11 @@ async fn folder_browser() {
         )
         .await;
     assert_eq!(res.status, StatusCode::OK, "{:?}", res.body);
-    let names: Vec<_> = res.body["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|e| e["name"].clone())
-        .collect();
+    let names: Vec<_> =
+        res.body["entries"].as_array().unwrap().iter().map(|e| e["name"].clone()).collect();
     assert_eq!(names, [json!("Movies"), json!("TV")]);
 
-    let roots = app
-        .call(Method::GET, "/api/v1/system/browse", Some(&admin), None)
-        .await;
+    let roots = app.call(Method::GET, "/api/v1/system/browse", Some(&admin), None).await;
     assert!(roots.body["path"].is_null());
     assert!(!roots.body["entries"].as_array().unwrap().is_empty());
 }

@@ -28,10 +28,7 @@ pub struct UserService {
 
 impl UserService {
     pub fn new(db: Db) -> Self {
-        Self {
-            users: UsersRepo::new(db.clone()),
-            sessions: SessionsRepo::new(db),
-        }
+        Self { users: UsersRepo::new(db.clone()), sessions: SessionsRepo::new(db) }
     }
 
     pub async fn list(&self, actor: &Actor) -> Result<Vec<User>> {

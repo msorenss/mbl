@@ -74,4 +74,10 @@ MediaInfo {
         },
     ],
     chapters: [],
+    tags: {
+        "compatible_brands": "isomiso2avc1mp41",
+        "encoder": "Lavf61.7.103",
+        "major_brand": "isom",
+        "minor_version": "512",
+    },
 }

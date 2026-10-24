@@ -13,9 +13,7 @@ pub(crate) fn re(pattern: &str) -> Regex {
 
 /// Path components, split on both separator styles.
 pub(crate) fn components(path: &str) -> Vec<&str> {
-    path.split(['/', '\\'])
-        .filter(|c| !c.is_empty() && *c != ".")
-        .collect()
+    path.split(['/', '\\']).filter(|c| !c.is_empty() && *c != ".").collect()
 }
 
 /// File name without its extension (only short alphanumeric extensions are stripped).
@@ -57,10 +55,7 @@ pub(crate) fn extract_ids(s: &str) -> (String, ExternalIds) {
 static EDITION: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)[\[{]edition-([^\]}]+)[\]}]"));
 
 pub(crate) fn extract_edition(s: &str) -> (String, Option<String>) {
-    let edition = EDITION
-        .captures(s)
-        .map(|c| c[1].trim().to_owned())
-        .filter(|e| !e.is_empty());
+    let edition = EDITION.captures(s).map(|c| c[1].trim().to_owned()).filter(|e| !e.is_empty());
     (EDITION.replace_all(s, " ").into_owned(), edition)
 }
 
@@ -106,11 +101,7 @@ pub(crate) fn is_junk(token: &str) -> bool {
 
 /// Index of the first junk token at or after `from`, or `tokens.len()`.
 pub(crate) fn junk_start(tokens: &[String], from: usize) -> usize {
-    tokens
-        .iter()
-        .skip(from)
-        .position(|t| is_junk(t))
-        .map_or(tokens.len(), |i| i + from)
+    tokens.iter().skip(from).position(|t| is_junk(t)).map_or(tokens.len(), |i| i + from)
 }
 
 pub(crate) fn as_year(token: &str) -> Option<i32> {
@@ -122,17 +113,9 @@ pub(crate) fn as_year(token: &str) -> Option<i32> {
 
 /// Join tokens into a display title, dropping dangling separators.
 pub(crate) fn join_title(tokens: &[String]) -> String {
-    let words: Vec<&str> = tokens
-        .iter()
-        .map(String::as_str)
-        .filter(|t| !t.chars().all(|c| c == '-'))
-        .collect();
-    words
-        .join(" ")
-        .trim()
-        .trim_end_matches([' ', '-', ','])
-        .trim()
-        .to_owned()
+    let words: Vec<&str> =
+        tokens.iter().map(String::as_str).filter(|t| !t.chars().all(|c| c == '-')).collect();
+    words.join(" ").trim().trim_end_matches([' ', '-', ',']).trim().to_owned()
 }
 
 /// Title + year from a name: the year is the last plausible year token before any junk that is
@@ -165,10 +148,7 @@ mod tests {
     #[test]
     fn tokenizer_modes() {
         assert_eq!(tokenize("Mr. Robot (2015)"), ["Mr.", "Robot", "2015"]);
-        assert_eq!(
-            tokenize("The.Matrix.1999.1080p"),
-            ["The", "Matrix", "1999", "1080p"]
-        );
+        assert_eq!(tokenize("The.Matrix.1999.1080p"), ["The", "Matrix", "1999", "1080p"]);
         assert_eq!(stem("a.b.mkv"), "a.b");
         assert_eq!(stem("noext"), "noext");
     }

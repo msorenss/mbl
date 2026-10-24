@@ -2,6 +2,7 @@
 
 pub mod jobs;
 pub mod libraries;
+pub mod media;
 pub mod sessions;
 pub mod settings;
 pub mod users;

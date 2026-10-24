@@ -14,10 +14,7 @@ async fn test_server() -> (mbl_server::Server, tempfile::TempDir) {
 }
 
 async fn get_json(router: axum::Router, uri: &str) -> (StatusCode, serde_json::Value) {
-    let res = router
-        .oneshot(Request::get(uri).body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let res = router.oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
     let status = res.status();
     let bytes = res.into_body().collect().await.unwrap().to_bytes();
     (status, serde_json::from_slice(&bytes).unwrap())
@@ -57,19 +54,13 @@ async fn build_creates_data_layout() {
     assert!(dir.path().join("mbl.db").exists());
     assert!(dir.path().join("cache").is_dir());
     assert!(dir.path().join("transcode").is_dir());
-    assert_eq!(
-        server.paths.db_file.as_std_path(),
-        dir.path().join("mbl.db")
-    );
+    assert_eq!(server.paths.db_file.as_std_path(), dir.path().join("mbl.db"));
 }
 
 #[tokio::test]
 async fn unknown_route_is_404() {
     let (server, _dir) = test_server().await;
-    let res = server
-        .router
-        .oneshot(Request::get("/nope").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let res =
+        server.router.oneshot(Request::get("/nope").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }

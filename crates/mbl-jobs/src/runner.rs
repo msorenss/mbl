@@ -59,10 +59,7 @@ impl JobQueue {
         if let Some(existing) = self.repo.find_active(kind, &payload).await? {
             return Ok(existing);
         }
-        let id = self
-            .repo
-            .insert(kind, &payload, priority as i64, now_ms())
-            .await?;
+        let id = self.repo.insert(kind, &payload, priority as i64, now_ms()).await?;
         self.events.publish(Event::JobUpdated {
             job_id: id,
             kind: kind.to_owned(),
@@ -111,13 +108,7 @@ impl JobRunner {
             cancels: Arc::default(),
             events,
         };
-        Self {
-            db,
-            queue,
-            handlers: HashMap::new(),
-            config,
-            activity: Arc::new(NoActivity),
-        }
+        Self { db, queue, handlers: HashMap::new(), config, activity: Arc::new(NoActivity) }
     }
 
     pub fn queue(&self) -> JobQueue {
@@ -151,10 +142,7 @@ impl JobRunner {
         let mut tasks: JoinSet<&'static str> = JoinSet::new();
 
         loop {
-            if let Err(e) = self
-                .dispatch(&limits, &mut running, &mut tasks, &shutdown)
-                .await
-            {
+            if let Err(e) = self.dispatch(&limits, &mut running, &mut tasks, &shutdown).await {
                 tracing::error!(error = %e, "job dispatch failed");
             }
             tokio::select! {
@@ -196,17 +184,11 @@ impl JobRunner {
             if free.is_empty() {
                 return Ok(());
             }
-            let max_priority = if self.activity.playback_active() {
-                Priority::Normal
-            } else {
-                Priority::Idle
-            } as i64;
+            let max_priority =
+                if self.activity.playback_active() { Priority::Normal } else { Priority::Idle }
+                    as i64;
             let kinds = serde_json::to_string(&free).unwrap_or_else(|_| "[]".into());
-            let Some(job) = self
-                .queue
-                .repo
-                .claim_next(&kinds, max_priority, now_ms())
-                .await?
+            let Some(job) = self.queue.repo.claim_next(&kinds, max_priority, now_ms()).await?
             else {
                 return Ok(());
             };
@@ -285,23 +267,15 @@ async fn execute(
             Err(e) if job.attempts >= config.max_attempts => {
                 tracing::warn!(job_id = %job.id, kind, error = %e, "job failed permanently");
                 publish(jobs::FAILED, job.progress as f32);
-                queue
-                    .repo
-                    .finish(job.id, jobs::FAILED, Some(&e.to_string()), now)
-                    .await
+                queue.repo.finish(job.id, jobs::FAILED, Some(&e.to_string()), now).await
             }
             Err(e) => {
-                let exp = u32::try_from(job.attempts.saturating_sub(1))
-                    .unwrap_or(0)
-                    .min(10);
+                let exp = u32::try_from(job.attempts.saturating_sub(1)).unwrap_or(0).min(10);
                 let delay = config.base_backoff.saturating_mul(2u32.pow(exp));
                 let run_after = now + i64::try_from(delay.as_millis()).unwrap_or(i64::MAX / 2);
                 tracing::info!(job_id = %job.id, kind, error = %e, retry_in = ?delay, "job failed, will retry");
                 publish(jobs::QUEUED, job.progress as f32);
-                let res = queue
-                    .repo
-                    .retry_later(job.id, &e.to_string(), run_after, now)
-                    .await;
+                let res = queue.repo.retry_later(job.id, &e.to_string(), run_after, now).await;
                 // Wake the runner when the retry is due.
                 let notify = queue.notify.clone();
                 tokio::spawn(async move {

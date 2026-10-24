@@ -43,14 +43,8 @@ mod tests {
 
     #[test]
     fn kinds_use_lowercase_names() {
-        assert_eq!(
-            serde_json::to_string(&LibraryKind::HomeVideo).unwrap(),
-            "\"homevideo\""
-        );
-        assert_eq!(
-            serde_json::to_string(&MediaKind::Episode).unwrap(),
-            "\"episode\""
-        );
+        assert_eq!(serde_json::to_string(&LibraryKind::HomeVideo).unwrap(), "\"homevideo\"");
+        assert_eq!(serde_json::to_string(&MediaKind::Episode).unwrap(), "\"episode\"");
         assert_eq!(
             serde_json::from_str::<StreamKind>("\"subtitle\"").unwrap(),
             StreamKind::Subtitle

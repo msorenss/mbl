@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO media_parts\n             (version_id, path, size, mtime, quick_hash, duration_ms, probe, chapters, part_index)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!: PartId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: PartId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2cf85609c2e1d3e607208cf4ccd70214ba8e49be927324ff426efdc151129ed9"
+}

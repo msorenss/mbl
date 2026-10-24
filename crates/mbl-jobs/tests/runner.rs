@@ -17,10 +17,7 @@ use tokio_util::sync::CancellationToken;
 async fn db() -> (Db, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let path = Utf8PathBuf::from_path_buf(dir.path().join("mbl.db")).unwrap();
-    (
-        Db::connect(&path, &DbOptions::default()).await.unwrap(),
-        dir,
-    )
+    (Db::connect(&path, &DbOptions::default()).await.unwrap(), dir)
 }
 
 fn config() -> RunnerConfig {
@@ -40,10 +37,7 @@ async fn wait_for_status(queue: &JobQueue, id: JobId, status: &str) -> mbl_jobs:
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    panic!(
-        "job {id} never reached {status}: {:?}",
-        queue.get(id).await.unwrap()
-    );
+    panic!("job {id} never reached {status}: {:?}", queue.get(id).await.unwrap());
 }
 
 /// Records payload `n` in order; fails `fail_times` times first; optional sleep.
@@ -88,10 +82,7 @@ impl JobHandler for Recorder {
         self.max_active.fetch_max(now_active, Ordering::SeqCst);
         tokio::time::sleep(self.sleep).await;
         self.active.fetch_sub(1, Ordering::SeqCst);
-        self.order
-            .lock()
-            .unwrap()
-            .push(payload["n"].as_i64().unwrap_or(-1));
+        self.order.lock().unwrap().push(payload["n"].as_i64().unwrap_or(-1));
         if self.calls.fetch_add(1, Ordering::SeqCst) < self.fail_times {
             return Err(Error::External("transient".into()));
         }
@@ -109,10 +100,7 @@ async fn runs_and_completes() {
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
 
-    let id = queue
-        .enqueue("test.record", &json!({ "n": 7 }), Priority::Normal)
-        .await
-        .unwrap();
+    let id = queue.enqueue("test.record", &json!({ "n": 7 }), Priority::Normal).await.unwrap();
     let job = wait_for_status(&queue, id, "done").await;
     assert_eq!(job.progress, 1.0);
     assert_eq!(*rec.order.lock().unwrap(), [7]);
@@ -130,10 +118,7 @@ async fn retries_with_backoff_then_succeeds() {
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
 
-    let id = queue
-        .enqueue("test.flaky", &json!({}), Priority::Normal)
-        .await
-        .unwrap();
+    let id = queue.enqueue("test.flaky", &json!({}), Priority::Normal).await.unwrap();
     let job = wait_for_status(&queue, id, "done").await;
     assert_eq!(job.attempts, 3);
     shutdown.cancel();
@@ -150,10 +135,7 @@ async fn gives_up_after_max_attempts() {
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
 
-    let id = queue
-        .enqueue("test.broken", &json!({}), Priority::Normal)
-        .await
-        .unwrap();
+    let id = queue.enqueue("test.broken", &json!({}), Priority::Normal).await.unwrap();
     let job = wait_for_status(&queue, id, "failed").await;
     assert_eq!(job.attempts, 3);
     assert!(job.error.unwrap().contains("transient"));
@@ -175,10 +157,7 @@ async fn respects_concurrency_limit() {
     let mut ids = Vec::new();
     for n in 0..6 {
         ids.push(
-            queue
-                .enqueue("test.parallel", &json!({ "n": n }), Priority::Normal)
-                .await
-                .unwrap(),
+            queue.enqueue("test.parallel", &json!({ "n": n }), Priority::Normal).await.unwrap(),
         );
     }
     runner.start(shutdown.clone()).await.unwrap();
@@ -198,18 +177,10 @@ async fn runs_by_priority_then_age() {
     let queue = runner.queue();
 
     let mut ids = Vec::new();
-    for (n, p) in [
-        (1, Priority::Normal),
-        (2, Priority::High),
-        (3, Priority::Idle),
-        (4, Priority::Normal),
-    ] {
-        ids.push(
-            queue
-                .enqueue("test.order", &json!({ "n": n }), p)
-                .await
-                .unwrap(),
-        );
+    for (n, p) in
+        [(1, Priority::Normal), (2, Priority::High), (3, Priority::Idle), (4, Priority::Normal)]
+    {
+        ids.push(queue.enqueue("test.order", &json!({ "n": n }), p).await.unwrap());
     }
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
@@ -226,11 +197,7 @@ async fn requeues_jobs_interrupted_by_a_crash() {
     // Simulate a crash: a job was claimed (running) but never finished.
     let repo = mbl_db::repo::jobs::JobsRepo::new(db.clone());
     let id = repo.insert("test.crash", "{\"n\":1}", 1, 0).await.unwrap();
-    let claimed = repo
-        .claim_next("[\"test.crash\"]", 2, 1)
-        .await
-        .unwrap()
-        .unwrap();
+    let claimed = repo.claim_next("[\"test.crash\"]", 2, 1).await.unwrap().unwrap();
     assert_eq!((claimed.id, claimed.status.as_str()), (id, "running"));
 
     let mut runner = JobRunner::new(db, EventBus::default(), config());
@@ -262,14 +229,8 @@ async fn idle_jobs_wait_for_playback_to_stop() {
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
 
-    let idle = queue
-        .enqueue("test.idle", &json!({ "n": 1 }), Priority::Idle)
-        .await
-        .unwrap();
-    let normal = queue
-        .enqueue("test.idle", &json!({ "n": 2 }), Priority::Normal)
-        .await
-        .unwrap();
+    let idle = queue.enqueue("test.idle", &json!({ "n": 1 }), Priority::Idle).await.unwrap();
+    let normal = queue.enqueue("test.idle", &json!({ "n": 2 }), Priority::Normal).await.unwrap();
     wait_for_status(&queue, normal, "done").await;
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(queue.get(idle).await.unwrap().unwrap().status, "queued");
@@ -303,23 +264,14 @@ async fn cancels_running_and_queued_jobs() {
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
 
-    let running = queue
-        .enqueue("test.cancel", &json!({ "n": 1 }), Priority::Normal)
-        .await
-        .unwrap();
-    let waiting = queue
-        .enqueue("test.cancel", &json!({ "n": 2 }), Priority::Normal)
-        .await
-        .unwrap();
+    let running = queue.enqueue("test.cancel", &json!({ "n": 1 }), Priority::Normal).await.unwrap();
+    let waiting = queue.enqueue("test.cancel", &json!({ "n": 2 }), Priority::Normal).await.unwrap();
     wait_for_status(&queue, running, "running").await;
     assert!(queue.cancel(waiting).await.unwrap());
     assert!(queue.cancel(running).await.unwrap());
     let job = wait_for_status(&queue, running, "cancelled").await;
     assert_eq!(job.progress, 0.25);
-    assert_eq!(
-        queue.get(waiting).await.unwrap().unwrap().status,
-        "cancelled"
-    );
+    assert_eq!(queue.get(waiting).await.unwrap().unwrap().status, "cancelled");
     assert!(!queue.cancel(running).await.unwrap());
     shutdown.cancel();
 }
@@ -329,18 +281,9 @@ async fn identical_active_jobs_are_deduplicated() {
     let (db, _dir) = db().await;
     let runner = JobRunner::new(db, EventBus::default(), config());
     let queue = runner.queue();
-    let a = queue
-        .enqueue("test.dedup", &json!({ "libraryId": 1 }), Priority::High)
-        .await
-        .unwrap();
-    let b = queue
-        .enqueue("test.dedup", &json!({ "libraryId": 1 }), Priority::High)
-        .await
-        .unwrap();
-    let c = queue
-        .enqueue("test.dedup", &json!({ "libraryId": 2 }), Priority::High)
-        .await
-        .unwrap();
+    let a = queue.enqueue("test.dedup", &json!({ "libraryId": 1 }), Priority::High).await.unwrap();
+    let b = queue.enqueue("test.dedup", &json!({ "libraryId": 1 }), Priority::High).await.unwrap();
+    let c = queue.enqueue("test.dedup", &json!({ "libraryId": 2 }), Priority::High).await.unwrap();
     assert_eq!(a, b);
     assert_ne!(a, c);
 }
@@ -355,10 +298,7 @@ async fn publishes_job_events() {
     let queue = runner.queue();
     let shutdown = CancellationToken::new();
     runner.start(shutdown.clone()).await.unwrap();
-    let id = queue
-        .enqueue("test.events", &json!({}), Priority::Normal)
-        .await
-        .unwrap();
+    let id = queue.enqueue("test.events", &json!({}), Priority::Normal).await.unwrap();
     wait_for_status(&queue, id, "done").await;
 
     let mut statuses = Vec::new();

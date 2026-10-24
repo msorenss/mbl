@@ -68,10 +68,7 @@ fn sine(ctx: &Ctx, freq: u32) -> Vec<String> {
         "-f".into(),
         "lavfi".into(),
         "-i".into(),
-        format!(
-            "sine=frequency={freq}:sample_rate=48000:duration={}",
-            ctx.dur
-        ),
+        format!("sine=frequency={freq}:sample_rate=48000:duration={}", ctx.dur),
     ]
 }
 
@@ -83,19 +80,8 @@ fn h264_aac(ctx: &Ctx) -> Vec<String> {
     [
         video(ctx, 1280, 720, 24),
         sine(ctx, 440),
-        strs(&[
-            "-map",
-            "0:v",
-            "-map",
-            "1:a",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-        ]),
-        strs(&[
-            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ac", "2",
-        ]),
+        strs(&["-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "ultrafast"]),
+        strs(&["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ac", "2"]),
     ]
     .concat()
 }
@@ -147,21 +133,9 @@ fn specs() -> Vec<Spec> {
                     file_input(&ctx.tmp.join("sub.srt")),
                     file_input(&ctx.tmp.join("sub.ass")),
                     strs(&["-map", "0:v", "-map", "1:a", "-map", "2", "-map", "3"]),
-                    strs(&[
-                        "-c:v",
-                        "libx264",
-                        "-preset",
-                        "ultrafast",
-                        "-pix_fmt",
-                        "yuv420p",
-                    ]),
+                    strs(&["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"]),
                     strs(&["-c:a", "ac3", "-ac", "6", "-c:s:0", "srt", "-c:s:1", "ass"]),
-                    strs(&[
-                        "-metadata:s:s:0",
-                        "language=eng",
-                        "-metadata:s:s:1",
-                        "language=eng",
-                    ]),
+                    strs(&["-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=eng"]),
                     strs(&["-metadata:s:a:0", "language=eng"]),
                 ]
                 .concat()
@@ -257,16 +231,7 @@ fn specs() -> Vec<Spec> {
                 [
                     video(ctx, 1280, 720, 24),
                     sine(ctx, 440),
-                    strs(&[
-                        "-map",
-                        "0:v",
-                        "-map",
-                        "1:a",
-                        "-c:v",
-                        "libsvtav1",
-                        "-preset",
-                        "12",
-                    ]),
+                    strs(&["-map", "0:v", "-map", "1:a", "-c:v", "libsvtav1", "-preset", "12"]),
                     strs(&["-pix_fmt", "yuv420p", "-c:a", "libopus", "-b:a", "96k"]),
                 ]
                 .concat()
@@ -291,24 +256,8 @@ fn specs() -> Vec<Spec> {
                 [
                     video(ctx, 1280, 720, 24),
                     sine(ctx, 440),
-                    strs(&[
-                        "-map",
-                        "0:v",
-                        "-map",
-                        "1:a",
-                        "-c:v",
-                        "libvpx-vp9",
-                        "-deadline",
-                    ]),
-                    strs(&[
-                        "realtime",
-                        "-cpu-used",
-                        "8",
-                        "-b:v",
-                        "1M",
-                        "-c:a",
-                        "libopus",
-                    ]),
+                    strs(&["-map", "0:v", "-map", "1:a", "-c:v", "libvpx-vp9", "-deadline"]),
+                    strs(&["realtime", "-cpu-used", "8", "-b:v", "1M", "-c:a", "libopus"]),
                 ]
                 .concat()
             },
@@ -334,21 +283,9 @@ fn specs() -> Vec<Spec> {
                     sine(ctx, 440),
                     sine(ctx, 660),
                     strs(&["-map", "0:v", "-map", "1:a", "-map", "2:a"]),
-                    strs(&[
-                        "-c:v",
-                        "libx264",
-                        "-preset",
-                        "ultrafast",
-                        "-pix_fmt",
-                        "yuv420p",
-                    ]),
+                    strs(&["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"]),
                     strs(&["-c:a", "aac", "-ac", "2"]),
-                    strs(&[
-                        "-metadata:s:a:0",
-                        "language=eng",
-                        "-metadata:s:a:1",
-                        "language=ger",
-                    ]),
+                    strs(&["-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=ger"]),
                     strs(&["-disposition:a:0", "default", "-disposition:a:1", "0"]),
                 ]
                 .concat()
@@ -532,14 +469,8 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
     ensure_tool("ffmpeg")?;
     ensure_tool("ffprobe")?;
 
-    let out = args
-        .out
-        .clone()
-        .unwrap_or_else(|| crate::workspace_root().join("test-media/out"));
-    let ctx = Ctx {
-        dur: if args.quick { 3 } else { 10 },
-        tmp: out.join(".tmp"),
-    };
+    let out = args.out.clone().unwrap_or_else(|| crate::workspace_root().join("test-media/out"));
+    let ctx = Ctx { dur: if args.quick { 3 } else { 10 }, tmp: out.join(".tmp") };
     std::fs::create_dir_all(&ctx.tmp)?;
     std::fs::write(ctx.tmp.join("sub.srt"), SRT)?;
     std::fs::write(ctx.tmp.join("sub.ass"), ASS)?;
@@ -566,10 +497,7 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
 
     std::fs::remove_dir_all(&ctx.tmp)?;
     let doc = json!({ "version": 1, "durationSecs": ctx.dur, "files": manifest });
-    std::fs::write(
-        out.join("manifest.json"),
-        serde_json::to_string_pretty(&doc)?,
-    )?;
+    std::fs::write(out.join("manifest.json"), serde_json::to_string_pretty(&doc)?)?;
     eprintln!(
         "done: {} files, manifest at {}",
         doc["files"].as_array().map_or(0, Vec::len),
@@ -579,11 +507,8 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
 }
 
 fn ensure_tool(name: &str) -> anyhow::Result<()> {
-    let ok = Command::new(name)
-        .arg("-version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
+    let ok =
+        Command::new(name).arg("-version").output().map(|o| o.status.success()).unwrap_or(false);
     if !ok {
         bail!("`{name}` not found on PATH; install FFmpeg >= 6.1");
     }
@@ -603,33 +528,19 @@ fn generate(ctx: &Ctx, spec: &Spec, target: &Utf8Path) -> anyhow::Result<()> {
         .context("running ffmpeg")?;
     if !output.status.success() {
         let _ = std::fs::remove_file(target);
-        bail!(
-            "ffmpeg failed for {}:\n{}",
-            spec.path,
-            String::from_utf8_lossy(&output.stderr)
-        );
+        bail!("ffmpeg failed for {}:\n{}", spec.path, String::from_utf8_lossy(&output.stderr));
     }
     Ok(())
 }
 
 fn verify(path: &Utf8Path, expect: &Expect) -> anyhow::Result<()> {
     let output = Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-show_format",
-            "-show_streams",
-            "-of",
-            "json",
-        ])
+        .args(["-v", "error", "-show_format", "-show_streams", "-of", "json"])
         .arg(path.as_str())
         .output()
         .context("running ffprobe")?;
     if !output.status.success() {
-        bail!(
-            "ffprobe failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        bail!("ffprobe failed: {}", String::from_utf8_lossy(&output.stderr));
     }
     let probe: Value = serde_json::from_slice(&output.stdout)?;
     let streams = probe["streams"].as_array().cloned().unwrap_or_default();
@@ -652,23 +563,14 @@ fn verify(path: &Utf8Path, expect: &Expect) -> anyhow::Result<()> {
         bail!("video codecs {video:?}, expected {expected_video:?}");
     }
     if codecs("audio") != expect.audio {
-        bail!(
-            "audio codecs {:?}, expected {:?}",
-            codecs("audio"),
-            expect.audio
-        );
+        bail!("audio codecs {:?}, expected {:?}", codecs("audio"), expect.audio);
     }
     if codecs("subtitle") != expect.subtitles {
-        bail!(
-            "subtitle codecs {:?}, expected {:?}",
-            codecs("subtitle"),
-            expect.subtitles
-        );
+        bail!("subtitle codecs {:?}, expected {:?}", codecs("subtitle"), expect.subtitles);
     }
-    if let (Some((w, h)), Some(v)) = (
-        expect.size,
-        streams.iter().find(|s| s["codec_type"] == "video"),
-    ) {
+    if let (Some((w, h)), Some(v)) =
+        (expect.size, streams.iter().find(|s| s["codec_type"] == "video"))
+    {
         if v["width"] != w || v["height"] != h {
             bail!("size {}x{}, expected {w}x{h}", v["width"], v["height"]);
         }

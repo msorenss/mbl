@@ -1,8 +1,8 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
-use mbl_core::{LibraryId, LibraryKind};
+use mbl_core::{JobId, LibraryId, LibraryKind};
 use mbl_db::repo::libraries::Library;
 use mbl_service::paths::DirListing;
 use mbl_service::{CreateLibrary, UpdateLibrary};
@@ -14,10 +14,8 @@ use crate::{ApiError, AppState};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/libraries", get(list).post(create))
-        .route(
-            "/api/v1/libraries/{id}",
-            get(get_one).patch(update).delete(remove),
-        )
+        .route("/api/v1/libraries/{id}", get(get_one).patch(update).delete(remove))
+        .route("/api/v1/libraries/{id}/scan", post(scan))
         .route("/api/v1/system/browse", get(browse))
 }
 
@@ -33,13 +31,7 @@ pub struct LibraryDto {
 
 impl From<Library> for LibraryDto {
     fn from(l: Library) -> Self {
-        Self {
-            id: l.id,
-            name: l.name,
-            kind: l.kind,
-            paths: l.paths,
-            created_at: l.created_at,
-        }
+        Self { id: l.id, name: l.name, kind: l.kind, paths: l.paths, created_at: l.created_at }
     }
 }
 
@@ -76,9 +68,7 @@ async fn get_one(
     AuthUser(auth): AuthUser,
     Path(id): Path<LibraryId>,
 ) -> Result<Json<LibraryDto>, ApiError> {
-    Ok(Json(
-        state.services.libraries.get(&auth.actor, id).await?.into(),
-    ))
+    Ok(Json(state.services.libraries.get(&auth.actor, id).await?.into()))
 }
 
 async fn create(
@@ -86,11 +76,7 @@ async fn create(
     AdminUser(auth): AdminUser,
     Json(req): Json<CreateLibraryRequest>,
 ) -> Result<(StatusCode, Json<LibraryDto>), ApiError> {
-    let input = CreateLibrary {
-        name: req.name,
-        kind: req.kind,
-        paths: req.paths,
-    };
+    let input = CreateLibrary { name: req.name, kind: req.kind, paths: req.paths };
     let lib = state.services.libraries.create(&auth.actor, input).await?;
     Ok((StatusCode::CREATED, Json(lib.into())))
 }
@@ -101,18 +87,8 @@ async fn update(
     Path(id): Path<LibraryId>,
     Json(req): Json<UpdateLibraryRequest>,
 ) -> Result<Json<LibraryDto>, ApiError> {
-    let patch = UpdateLibrary {
-        name: req.name,
-        paths: req.paths,
-    };
-    Ok(Json(
-        state
-            .services
-            .libraries
-            .update(&auth.actor, id, patch)
-            .await?
-            .into(),
-    ))
+    let patch = UpdateLibrary { name: req.name, paths: req.paths };
+    Ok(Json(state.services.libraries.update(&auth.actor, id, patch).await?.into()))
 }
 
 async fn remove(
@@ -129,7 +105,20 @@ async fn browse(
     AdminUser(auth): AdminUser,
     Query(q): Query<BrowseQuery>,
 ) -> Result<Json<DirListing>, ApiError> {
-    Ok(Json(
-        state.services.libraries.browse(&auth.actor, q.path).await?,
-    ))
+    Ok(Json(state.services.libraries.browse(&auth.actor, q.path).await?))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobAccepted {
+    pub job_id: JobId,
+}
+
+async fn scan(
+    State(state): State<AppState>,
+    AdminUser(auth): AdminUser,
+    Path(id): Path<LibraryId>,
+) -> Result<(StatusCode, Json<JobAccepted>), ApiError> {
+    let job_id = state.services.libraries.scan(&auth.actor, id).await?;
+    Ok((StatusCode::ACCEPTED, Json(JobAccepted { job_id })))
 }

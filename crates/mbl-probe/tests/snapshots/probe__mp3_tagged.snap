@@ -39,4 +39,13 @@ MediaInfo {
         },
     ],
     chapters: [],
+    tags: {
+        "album": "Test Album",
+        "album_artist": "Test Artist",
+        "artist": "Test Artist",
+        "date": "2020",
+        "encoder": "Lavf61.7.103",
+        "title": "Second Song",
+        "track": "2/3",
+    },
 }

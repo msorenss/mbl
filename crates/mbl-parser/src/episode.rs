@@ -69,8 +69,7 @@ struct Marker<'a> {
 }
 
 fn split<'a>(s: &'a str, caps: &Captures<'_>) -> (&'a str, &'a str) {
-    caps.name("m")
-        .map_or((s, ""), |m| (&s[..m.start()], &s[m.end()..]))
+    caps.name("m").map_or((s, ""), |m| (&s[..m.start()], &s[m.end()..]))
 }
 
 fn find_marker(s: &str, has_season_dir: bool) -> Option<Marker<'_>> {
@@ -120,19 +119,9 @@ fn find_marker(s: &str, has_season_dir: bool) -> Option<Marker<'_>> {
         let (prefix, suffix) = split(s, &c);
         let n = num(&c, "e")?;
         // Inside a season folder " - 05" is a plain episode number, otherwise absolute numbering.
-        let (episodes, absolute) = if has_season_dir {
-            (vec![n], None)
-        } else {
-            (Vec::new(), Some(n))
-        };
-        return Some(Marker {
-            prefix,
-            suffix,
-            season: None,
-            episodes,
-            absolute,
-            air_date: None,
-        });
+        let (episodes, absolute) =
+            if has_season_dir { (vec![n], None) } else { (Vec::new(), Some(n)) };
+        return Some(Marker { prefix, suffix, season: None, episodes, absolute, air_date: None });
     }
     None
 }
@@ -151,12 +140,8 @@ fn show_from_name(name: &str) -> (String, Option<i32>, ExternalIds) {
 }
 
 fn same_title(a: &str, b: &str) -> bool {
-    let norm = |s: &str| {
-        s.chars()
-            .filter(|c| c.is_alphanumeric())
-            .collect::<String>()
-            .to_lowercase()
-    };
+    let norm =
+        |s: &str| s.chars().filter(|c| c.is_alphanumeric()).collect::<String>().to_lowercase();
     norm(a) == norm(b)
 }
 
@@ -185,11 +170,7 @@ pub fn parse_episode(path: &str) -> EpisodeGuess {
         (None, Some(prefix), Some(folder)) if !prefix.0.is_empty() => {
             // Flat layout: trust the file, but borrow the folder's year/ids when it is the same show.
             if same_title(&prefix.0, &folder.0) {
-                (
-                    prefix.0.clone(),
-                    prefix.1.or(folder.1),
-                    prefix.2.clone().or(folder.2.clone()),
-                )
+                (prefix.0.clone(), prefix.1.or(folder.1), prefix.2.clone().or(folder.2.clone()))
             } else {
                 prefix.clone()
             }

@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id AS \"id: PartId\", p.path, p.size, p.mtime, p.quick_hash, p.missing_since\n           FROM media_parts p\n           JOIN media_versions v ON v.id = p.version_id\n           JOIN media_items i ON i.id = v.item_id\n           WHERE i.library_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: PartId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "mtime",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "mtime"
+          }
+        }
+      },
+      {
+        "name": "quick_hash",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "quick_hash"
+          }
+        }
+      },
+      {
+        "name": "missing_since",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "missing_since"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "3546538563972ab972fd223731cb524695dcf59bcba5ea252396fad1877cf88f"
+}

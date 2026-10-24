@@ -27,11 +27,7 @@ pub struct ServerConfig {
 
 impl Default for ServerConfig {
     fn default() -> Self {
-        Self {
-            bind: "0.0.0.0".into(),
-            port: 8420,
-            public_url: String::new(),
-        }
+        Self { bind: "0.0.0.0".into(), port: 8420, public_url: String::new() }
     }
 }
 
@@ -54,10 +50,7 @@ pub struct ScannerConfig {
 
 impl Default for ScannerConfig {
     fn default() -> Self {
-        Self {
-            probe_concurrency: 0,
-            poll_interval_secs: 900,
-        }
+        Self { probe_concurrency: 0, poll_interval_secs: 900 }
     }
 }
 
@@ -70,10 +63,7 @@ pub struct MetadataConfig {
 
 impl Default for MetadataConfig {
     fn default() -> Self {
-        Self {
-            language: "en-US".into(),
-            tmdb_api_key: String::new(),
-        }
+        Self { language: "en-US".into(), tmdb_api_key: String::new() }
     }
 }
 
@@ -112,10 +102,7 @@ pub struct LogConfig {
 
 impl Default for LogConfig {
     fn default() -> Self {
-        Self {
-            level: "info".into(),
-            json: false,
-        }
+        Self { level: "info".into(), json: false }
     }
 }
 
@@ -143,10 +130,7 @@ impl Config {
     }
 
     fn load_with_env(cli: &CliOverrides, env: Env) -> Result<Self, Box<figment::Error>> {
-        let file = cli
-            .config_file
-            .clone()
-            .unwrap_or_else(mbl_platform::dirs::default_config_file);
+        let file = cli.config_file.clone().unwrap_or_else(mbl_platform::dirs::default_config_file);
         let mut figment = Figment::from(Serialized::defaults(Config::default()));
         // A missing config file is fine: defaults + env + CLI are enough to run.
         if file.exists() {
@@ -168,13 +152,7 @@ impl Config {
         let cache = non_empty(&self.paths.cache_dir).unwrap_or_else(|| data.join("cache"));
         let transcode =
             non_empty(&self.paths.transcode_dir).unwrap_or_else(|| data.join("transcode"));
-        Paths {
-            logs: data.join("logs"),
-            db_file: data.join("mbl.db"),
-            data,
-            cache,
-            transcode,
-        }
+        Paths { logs: data.join("logs"), db_file: data.join("mbl.db"), data, cache, transcode }
     }
 }
 
@@ -211,10 +189,7 @@ mod tests {
     fn file_then_cli_precedence() {
         let dir = tempfile::tempdir().unwrap();
         let file = write_toml(&dir, "[server]\nport = 9000\n[log]\nlevel = \"debug\"\n");
-        let mut cli = CliOverrides {
-            config_file: Some(file),
-            ..Default::default()
-        };
+        let mut cli = CliOverrides { config_file: Some(file), ..Default::default() };
 
         let cfg = Config::load_with_env(&cli, no_env()).unwrap();
         assert_eq!(cfg.server.port, 9000);
@@ -234,10 +209,7 @@ mod tests {
             jail.create_file("mbl.toml", "[server]\nport = 9000\n")?;
             jail.set_env("MBL_SERVER__PORT", "9200");
             jail.set_env("MBL_METADATA__TMDB_API_KEY", "abc");
-            let cli = CliOverrides {
-                config_file: Some("mbl.toml".into()),
-                ..Default::default()
-            };
+            let cli = CliOverrides { config_file: Some("mbl.toml".into()), ..Default::default() };
             let cfg = Config::load(&cli).map_err(|e| *e)?;
             assert_eq!(cfg.server.port, 9200);
             assert_eq!(cfg.metadata.tmdb_api_key, "abc");
@@ -249,10 +221,7 @@ mod tests {
     fn invalid_value_is_an_error() {
         let dir = tempfile::tempdir().unwrap();
         let file = write_toml(&dir, "[server]\nport = \"not a number\"\n");
-        let cli = CliOverrides {
-            config_file: Some(file),
-            ..Default::default()
-        };
+        let cli = CliOverrides { config_file: Some(file), ..Default::default() };
         assert!(Config::load_with_env(&cli, no_env()).is_err());
     }
 

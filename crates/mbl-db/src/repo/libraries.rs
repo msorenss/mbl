@@ -40,14 +40,10 @@ impl LibrariesRepo {
         .fetch_one(&mut *tx)
         .await?;
         for path in paths {
-            sqlx::query!(
-                "INSERT INTO library_paths (library_id, path) VALUES (?, ?)",
-                id,
-                path
-            )
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| crate::map_unique(e, "path is already used by a library"))?;
+            sqlx::query!("INSERT INTO library_paths (library_id, path) VALUES (?, ?)", id, path)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| crate::map_unique(e, "path is already used by a library"))?;
         }
         tx.commit().await?;
         Ok(id)
@@ -94,13 +90,7 @@ impl LibrariesRepo {
         )
         .fetch_all(&self.db.read)
         .await?;
-        Ok(Some(Library {
-            id: r.id,
-            name: r.name,
-            kind: r.kind,
-            created_at: r.created_at,
-            paths,
-        }))
+        Ok(Some(Library { id: r.id, name: r.name, kind: r.kind, created_at: r.created_at, paths }))
     }
 
     /// Every configured root as `(library, path)`.
@@ -128,32 +118,23 @@ impl LibrariesRepo {
                 .fetch_all(&mut *tx)
                 .await?;
         for old in existing.iter().filter(|p| !paths.contains(p)) {
-            sqlx::query!(
-                "DELETE FROM library_paths WHERE library_id = ? AND path = ?",
-                id,
-                old
-            )
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query!("DELETE FROM library_paths WHERE library_id = ? AND path = ?", id, old)
+                .execute(&mut *tx)
+                .await?;
         }
         for new in paths.iter().filter(|p| !existing.contains(p)) {
-            sqlx::query!(
-                "INSERT INTO library_paths (library_id, path) VALUES (?, ?)",
-                id,
-                new
-            )
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| crate::map_unique(e, "path is already used by a library"))?;
+            sqlx::query!("INSERT INTO library_paths (library_id, path) VALUES (?, ?)", id, new)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| crate::map_unique(e, "path is already used by a library"))?;
         }
         tx.commit().await?;
         Ok(())
     }
 
     pub async fn delete(&self, id: LibraryId) -> Result<bool> {
-        let res = sqlx::query!("DELETE FROM libraries WHERE id = ?", id)
-            .execute(&self.db.write)
-            .await?;
+        let res =
+            sqlx::query!("DELETE FROM libraries WHERE id = ?", id).execute(&self.db.write).await?;
         Ok(res.rows_affected() > 0)
     }
 }

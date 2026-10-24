@@ -33,23 +33,17 @@ fn main() -> anyhow::Result<()> {
     match cli.command.as_ref().unwrap_or(&Command::Run) {
         Command::Openapi => print_openapi(),
         Command::Run => {
-            let overrides = CliOverrides {
-                config_file: cli.config,
-                data_dir: cli.data_dir,
-                port: cli.port,
-            };
+            let overrides =
+                CliOverrides { config_file: cli.config, data_dir: cli.data_dir, port: cli.port };
             let config = Config::load(&overrides)?;
             let paths = config.paths();
             let _log_guard = mbl_server::logging::init(&config.log, &paths.logs)?;
             tracing::info!(version = env!("CARGO_PKG_VERSION"), data = %paths.data, "starting MBL");
 
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?
-                .block_on(async {
-                    let server = mbl_server::build(config).await?;
-                    server.serve(mbl_server::shutdown::signal()).await
-                })
+            tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(async {
+                let server = mbl_server::build(config).await?;
+                server.serve(mbl_server::shutdown::signal()).await
+            })
         }
     }
 }

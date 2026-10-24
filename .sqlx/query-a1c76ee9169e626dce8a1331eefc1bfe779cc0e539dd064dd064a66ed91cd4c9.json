@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT v.id AS \"id: VersionId\" FROM media_versions v\n           JOIN media_parts p ON p.version_id = v.id\n           WHERE v.item_id = ? AND v.edition IS ? AND p.part_index > 0 AND p.path LIKE ? ESCAPE '\\'\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: VersionId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a1c76ee9169e626dce8a1331eefc1bfe779cc0e539dd064dd064a66ed91cd4c9"
+}

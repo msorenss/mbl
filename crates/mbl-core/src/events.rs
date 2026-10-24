@@ -6,35 +6,13 @@ use tokio::sync::broadcast;
 use crate::{ItemId, JobId, LibraryId};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(
-    tag = "type",
-    content = "data",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
+#[serde(tag = "type", content = "data", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Event {
-    JobUpdated {
-        job_id: JobId,
-        kind: String,
-        status: String,
-        progress: f32,
-    },
-    ScanProgress {
-        library_id: LibraryId,
-        scanned: u64,
-        total: Option<u64>,
-        done: bool,
-    },
-    LibraryUpdated {
-        library_id: LibraryId,
-    },
-    LibraryUnavailable {
-        library_id: LibraryId,
-        path: String,
-    },
-    ItemUpdated {
-        item_id: ItemId,
-    },
+    JobUpdated { job_id: JobId, kind: String, status: String, progress: f32 },
+    ScanProgress { library_id: LibraryId, scanned: u64, total: Option<u64>, done: bool },
+    LibraryUpdated { library_id: LibraryId },
+    LibraryUnavailable { library_id: LibraryId, path: String },
+    ItemUpdated { item_id: ItemId },
 }
 
 /// Cheap-to-clone broadcast bus. Slow subscribers miss events rather than block publishers.
@@ -51,9 +29,7 @@ impl Default for EventBus {
 
 impl EventBus {
     pub fn new(capacity: usize) -> Self {
-        Self {
-            tx: broadcast::channel(capacity).0,
-        }
+        Self { tx: broadcast::channel(capacity).0 }
     }
 
     pub fn publish(&self, event: Event) {
@@ -87,18 +63,9 @@ mod tests {
     #[test]
     fn publish_without_subscribers_is_ok() {
         let bus = EventBus::default();
-        bus.publish(Event::LibraryUpdated {
-            library_id: LibraryId(1),
-        });
+        bus.publish(Event::LibraryUpdated { library_id: LibraryId(1) });
         let mut rx = bus.subscribe();
-        bus.publish(Event::LibraryUpdated {
-            library_id: LibraryId(2),
-        });
-        assert_eq!(
-            rx.try_recv().unwrap(),
-            Event::LibraryUpdated {
-                library_id: LibraryId(2)
-            }
-        );
+        bus.publish(Event::LibraryUpdated { library_id: LibraryId(2) });
+        assert_eq!(rx.try_recv().unwrap(), Event::LibraryUpdated { library_id: LibraryId(2) });
     }
 }

@@ -17,19 +17,13 @@ pub fn hash_password(password: &str) -> Result<String> {
 
 /// Constant-time verification against a PHC string. Any malformed hash counts as a mismatch.
 pub fn verify_password(password: &str, phc: &str) -> bool {
-    Argon2::default()
-        .verify_password(password.as_bytes(), phc)
-        .is_ok()
+    Argon2::default().verify_password(password.as_bytes(), phc).is_ok()
 }
 
 /// A valid hash of a random password, used to equalize timing for unknown usernames.
 pub fn dummy_hash() -> &'static str {
     static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    DUMMY.get_or_init(|| {
-        new_token()
-            .and_then(|t| hash_password(&t.value))
-            .unwrap_or_default()
-    })
+    DUMMY.get_or_init(|| new_token().and_then(|t| hash_password(&t.value)).unwrap_or_default())
 }
 
 /// A newly minted bearer token. `value` is shown to the client once; only `hash` is stored.

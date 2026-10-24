@@ -28,32 +28,19 @@ async fn login(
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, ApiError> {
-    state
-        .login_limiter
-        .check(&client_ip(&extensions), &req.username)?;
+    state.login_limiter.check(&client_ip(&extensions), &req.username)?;
     let device = device_info(&headers, req.device_name, req.client_name);
-    let result = state
-        .services
-        .auth
-        .login(&req.username, &req.password, &device)
-        .await;
+    let result = state.services.auth.login(&req.username, &req.password, &device).await;
     if result.is_err() {
         tracing::warn!(username = %req.username, ip = %client_ip(&extensions), "failed login");
     }
-    Ok(login_response(
-        StatusCode::OK,
-        result?,
-        state.secure_cookies,
-    ))
+    Ok(login_response(StatusCode::OK, result?, state.secure_cookies))
 }
 
 /// Build the token response and set the session cookie.
 pub(crate) fn login_response(status: StatusCode, result: LoginResult, secure: bool) -> Response {
     let cookie = session_cookie(&result.token, COOKIE_MAX_AGE_SECS, secure);
-    let body = LoginResponse {
-        token: result.token,
-        user: result.user.into(),
-    };
+    let body = LoginResponse { token: result.token, user: result.user.into() };
     (status, [(SET_COOKIE, cookie)], Json(body)).into_response()
 }
 
@@ -87,12 +74,7 @@ async fn list_sessions(
     AuthUser(auth): AuthUser,
 ) -> Result<Json<Vec<SessionDto>>, ApiError> {
     let sessions = state.services.auth.list_sessions(&auth.actor).await?;
-    Ok(Json(
-        sessions
-            .into_iter()
-            .map(|s| SessionDto::new(s, auth.session_id))
-            .collect(),
-    ))
+    Ok(Json(sessions.into_iter().map(|s| SessionDto::new(s, auth.session_id)).collect()))
 }
 
 async fn revoke_session(

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO media_items\n             (library_id, kind, parent_id, title, sort_title, year, idx, parent_idx,\n              originally_available_at, tmdb_id, tvdb_id, imdb_id, duration_ms, added_at, updated_at)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!: ItemId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: ItemId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 15
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "03cb97c44f8c839ae2effabe503dd1b2486082f1d8da86d467135bfd39fcc1d4"
+}

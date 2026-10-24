@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: ItemId\" FROM media_items\n               WHERE parent_id = ? AND kind = ? AND idx = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ItemId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6faf56e2385fcb9b742d35df2e2b44fd79bea0b581a306705916c663afe55cc3"
+}

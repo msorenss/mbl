@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_paths SET last_scan_at = ? WHERE library_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ff15e251314bf516c8e7a19fc65b3ec517bb55eb5251a99235208795290457f9"
+}

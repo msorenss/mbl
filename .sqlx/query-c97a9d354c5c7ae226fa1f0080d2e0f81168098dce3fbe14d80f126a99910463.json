@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE media_parts SET missing_since = NULL WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "c97a9d354c5c7ae226fa1f0080d2e0f81168098dce3fbe14d80f126a99910463"
+}

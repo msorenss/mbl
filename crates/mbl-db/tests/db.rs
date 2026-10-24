@@ -23,84 +23,49 @@ async fn creates_database_and_applies_migrations() {
     let db = Db::connect(&path, &DbOptions::default()).await.unwrap();
 
     assert!(path.exists());
-    for table in [
-        "users",
-        "media_items",
-        "media_parts",
-        "jobs",
-        "settings",
-        "items_fts",
-    ] {
+    for table in ["users", "media_items", "media_parts", "jobs", "settings", "items_fts"] {
         assert!(table_exists(&db, table).await, "missing table {table}");
     }
-    assert!(
-        !dir.path().join("backups").exists(),
-        "fresh DB must not be backed up"
-    );
+    assert!(!dir.path().join("backups").exists(), "fresh DB must not be backed up");
 }
 
 #[tokio::test]
 async fn pragmas_are_applied() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::connect(
-        &temp_db_path(&dir),
-        &DbOptions {
-            cache_kib: 4096,
-            read_connections: 2,
-        },
-    )
-    .await
-    .unwrap();
+    let db = Db::connect(&temp_db_path(&dir), &DbOptions { cache_kib: 4096, read_connections: 2 })
+        .await
+        .unwrap();
 
-    let mode: String = sqlx::query_scalar("PRAGMA journal_mode")
-        .fetch_one(&db.write)
-        .await
-        .unwrap();
+    let mode: String =
+        sqlx::query_scalar("PRAGMA journal_mode").fetch_one(&db.write).await.unwrap();
     assert_eq!(mode, "wal");
-    let fk: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
-        .fetch_one(&db.read)
-        .await
-        .unwrap();
+    let fk: i64 = sqlx::query_scalar("PRAGMA foreign_keys").fetch_one(&db.read).await.unwrap();
     assert_eq!(fk, 1);
-    let cache: i64 = sqlx::query_scalar("PRAGMA cache_size")
-        .fetch_one(&db.read)
-        .await
-        .unwrap();
+    let cache: i64 = sqlx::query_scalar("PRAGMA cache_size").fetch_one(&db.read).await.unwrap();
     assert_eq!(cache, -4096);
-    let busy: i64 = sqlx::query_scalar("PRAGMA busy_timeout")
-        .fetch_one(&db.write)
-        .await
-        .unwrap();
+    let busy: i64 = sqlx::query_scalar("PRAGMA busy_timeout").fetch_one(&db.write).await.unwrap();
     assert_eq!(busy, 5000);
 }
 
 #[tokio::test]
 async fn read_pool_is_read_only() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default())
-        .await
-        .unwrap();
-    let res = sqlx::query("INSERT INTO settings (key, value) VALUES ('a', 'b')")
-        .execute(&db.read)
-        .await;
+    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default()).await.unwrap();
+    let res =
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('a', 'b')").execute(&db.read).await;
     assert!(res.is_err());
 }
 
 #[tokio::test]
 async fn settings_roundtrip() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default())
-        .await
-        .unwrap();
+    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default()).await.unwrap();
     let settings = SettingsRepo::new(db);
 
     assert_eq!(settings.get("theme").await.unwrap(), None);
     settings.set("theme", "dark").await.unwrap();
     settings.set("theme", "oled").await.unwrap();
-    assert_eq!(
-        settings.get("theme").await.unwrap().as_deref(),
-        Some("oled")
-    );
+    assert_eq!(settings.get("theme").await.unwrap().as_deref(), Some("oled"));
     assert!(settings.delete("theme").await.unwrap());
     assert!(!settings.delete("theme").await.unwrap());
 }
@@ -108,9 +73,7 @@ async fn settings_roundtrip() {
 #[tokio::test]
 async fn concurrent_reads_and_writes() {
     let dir = tempfile::tempdir().unwrap();
-    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default())
-        .await
-        .unwrap();
+    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default()).await.unwrap();
     let settings = SettingsRepo::new(db);
 
     let mut tasks = Vec::new();
@@ -142,23 +105,14 @@ async fn existing_unmigrated_db_is_backed_up_once() {
     let path = temp_db_path(&dir);
 
     // Simulate an older database that predates the pending migrations.
-    let opts = sqlx::sqlite::SqliteConnectOptions::new()
-        .filename(&path)
-        .create_if_missing(true);
+    let opts = sqlx::sqlite::SqliteConnectOptions::new().filename(&path).create_if_missing(true);
     let pool = sqlx::SqlitePool::connect_with(opts).await.unwrap();
-    sqlx::query("CREATE TABLE legacy (id INTEGER)")
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query("CREATE TABLE legacy (id INTEGER)").execute(&pool).await.unwrap();
     pool.close().await;
 
     let db = Db::connect(&path, &DbOptions::default()).await.unwrap();
     db.close().await;
-    let backups = || {
-        std::fs::read_dir(dir.path().join("backups"))
-            .unwrap()
-            .count()
-    };
+    let backups = || std::fs::read_dir(dir.path().join("backups")).unwrap().count();
     assert_eq!(backups(), 1);
 
     let db = Db::connect(&path, &DbOptions::default()).await.unwrap();

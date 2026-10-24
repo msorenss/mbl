@@ -18,11 +18,7 @@ pub enum LibraryAccess {
 
 impl Actor {
     pub fn require_admin(&self) -> crate::Result<()> {
-        if self.is_admin {
-            Ok(())
-        } else {
-            Err(crate::Error::Forbidden)
-        }
+        if self.is_admin { Ok(()) } else { Err(crate::Error::Forbidden) }
     }
 
     pub fn can_access_library(&self, id: LibraryId) -> bool {
@@ -48,11 +44,8 @@ mod tests {
         assert!(user.can_access_library(LibraryId(1)));
         assert!(!user.can_access_library(LibraryId(2)));
 
-        let admin = Actor {
-            user_id: UserId(1),
-            is_admin: true,
-            library_access: LibraryAccess::All,
-        };
+        let admin =
+            Actor { user_id: UserId(1), is_admin: true, library_access: LibraryAccess::All };
         assert!(admin.require_admin().is_ok());
         assert!(admin.can_access_library(LibraryId(99)));
     }

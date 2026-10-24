@@ -74,4 +74,7 @@ MediaInfo {
         },
     ],
     chapters: [],
+    tags: {
+        "encoder": "Lavf61.7.103",
+    },
 }

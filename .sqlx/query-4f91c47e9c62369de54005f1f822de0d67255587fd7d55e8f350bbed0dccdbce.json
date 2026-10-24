@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE media_parts SET size = ?, mtime = ?, quick_hash = ?, duration_ms = ?, probe = ?,\n             chapters = ?, missing_since = NULL\n           WHERE id = ? RETURNING version_id AS \"version_id!: VersionId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id!: VersionId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "version_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4f91c47e9c62369de54005f1f822de0d67255587fd7d55e8f350bbed0dccdbce"
+}

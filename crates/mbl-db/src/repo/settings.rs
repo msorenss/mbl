@@ -34,9 +34,8 @@ impl SettingsRepo {
 
     /// Returns `true` if a value was removed.
     pub async fn delete(&self, key: &str) -> Result<bool> {
-        let res = sqlx::query!("DELETE FROM settings WHERE key = ?", key)
-            .execute(&self.db.write)
-            .await?;
+        let res =
+            sqlx::query!("DELETE FROM settings WHERE key = ?", key).execute(&self.db.write).await?;
         Ok(res.rows_affected() > 0)
     }
 }

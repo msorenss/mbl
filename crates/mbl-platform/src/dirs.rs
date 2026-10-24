@@ -13,11 +13,7 @@ pub fn default_config_file() -> Utf8PathBuf {
 
 /// Default data directory (database, logs, backups, caches).
 pub fn default_data_dir() -> Utf8PathBuf {
-    if cfg!(windows) {
-        program_data().join("data")
-    } else {
-        Utf8PathBuf::from("/var/lib/mbl")
-    }
+    if cfg!(windows) { program_data().join("data") } else { Utf8PathBuf::from("/var/lib/mbl") }
 }
 
 fn program_data() -> Utf8PathBuf {

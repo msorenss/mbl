@@ -48,9 +48,7 @@ impl IntoResponse for ApiError {
         let body = json!({ "error": { "code": self.0.code(), "message": message } });
         let mut response = (status, Json(body)).into_response();
         if let Error::RateLimited { retry_after_secs } = self.0 {
-            response
-                .headers_mut()
-                .insert(header::RETRY_AFTER, retry_after_secs.into());
+            response.headers_mut().insert(header::RETRY_AFTER, retry_after_secs.into());
         }
         response
     }

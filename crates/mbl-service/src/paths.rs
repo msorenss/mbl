@@ -9,9 +9,7 @@ pub(crate) fn canonical_root(raw: &str) -> Result<String> {
     let raw = raw.trim();
     let path = Path::new(raw);
     if raw.is_empty() || !path.is_absolute() {
-        return Err(Error::Validation(format!(
-            "library path must be absolute: {raw:?}"
-        )));
+        return Err(Error::Validation(format!("library path must be absolute: {raw:?}")));
     }
     let meta = std::fs::metadata(path)
         .map_err(|_| Error::Validation(format!("path does not exist: {raw}")))?;
@@ -37,11 +35,7 @@ pub(crate) fn overlaps(a: &str, b: &str) -> bool {
 }
 
 fn normalize(p: &str) -> String {
-    if cfg!(windows) {
-        p.to_lowercase()
-    } else {
-        p.to_owned()
-    }
+    if cfg!(windows) { p.to_lowercase() } else { p.to_owned() }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -61,11 +55,7 @@ pub struct DirListing {
 /// List sub-directories of `path`, or the filesystem roots when `path` is `None`.
 pub(crate) fn list_dirs(path: Option<&str>) -> Result<DirListing> {
     let Some(raw) = path.map(str::trim).filter(|p| !p.is_empty()) else {
-        return Ok(DirListing {
-            path: None,
-            parent: None,
-            entries: roots(),
-        });
+        return Ok(DirListing { path: None, parent: None, entries: roots() });
     };
     let dir = canonical_root(raw)?;
     let mut entries: Vec<DirEntry> = std::fs::read_dir(&dir)?
@@ -78,23 +68,13 @@ pub(crate) fn list_dirs(path: Option<&str>) -> Result<DirListing> {
         })
         .collect();
     entries.sort_by_key(|e| e.name.to_lowercase());
-    let parent = Path::new(&dir)
-        .parent()
-        .and_then(|p| p.to_str())
-        .map(str::to_owned);
-    Ok(DirListing {
-        path: Some(dir),
-        parent,
-        entries,
-    })
+    let parent = Path::new(&dir).parent().and_then(|p| p.to_str()).map(str::to_owned);
+    Ok(DirListing { path: Some(dir), parent, entries })
 }
 
 fn is_hidden(name: &str) -> bool {
     name.starts_with('.')
-        || matches!(
-            name,
-            "$RECYCLE.BIN" | "System Volume Information" | "lost+found" | "@eaDir"
-        )
+        || matches!(name, "$RECYCLE.BIN" | "System Volume Information" | "lost+found" | "@eaDir")
 }
 
 #[cfg(windows)]
@@ -102,19 +82,13 @@ fn roots() -> Vec<DirEntry> {
     ('A'..='Z')
         .map(|d| format!("{d}:\\"))
         .filter(|p| Path::new(p).exists())
-        .map(|p| DirEntry {
-            name: p.clone(),
-            path: p,
-        })
+        .map(|p| DirEntry { name: p.clone(), path: p })
         .collect()
 }
 
 #[cfg(not(windows))]
 fn roots() -> Vec<DirEntry> {
-    vec![DirEntry {
-        name: "/".into(),
-        path: "/".into(),
-    }]
+    vec![DirEntry { name: "/".into(), path: "/".into() }]
 }
 
 #[cfg(test)]

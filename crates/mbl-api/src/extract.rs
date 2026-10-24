@@ -67,9 +67,7 @@ pub fn device_info(
         .map(|ua| ua.chars().take(200).collect::<String>());
     DeviceInfo {
         device_name: device_name.map(|d| d.chars().take(100).collect()),
-        client_name: client_name
-            .map(|c| c.chars().take(100).collect())
-            .or(user_agent),
+        client_name: client_name.map(|c| c.chars().take(100).collect()).or(user_agent),
     }
 }
 
@@ -130,27 +128,15 @@ mod tests {
             bearer_token(&headers(&[(header::AUTHORIZATION, "bearer  abc ")])).as_deref(),
             Some("abc")
         );
-        assert_eq!(
-            bearer_token(&headers(&[(header::AUTHORIZATION, "Basic abc")])),
-            None
-        );
-        assert_eq!(
-            bearer_token(&headers(&[(header::AUTHORIZATION, "Bearer ")])),
-            None
-        );
+        assert_eq!(bearer_token(&headers(&[(header::AUTHORIZATION, "Basic abc")])), None);
+        assert_eq!(bearer_token(&headers(&[(header::AUTHORIZATION, "Bearer ")])), None);
     }
 
     #[test]
     fn parses_cookie() {
         let h = headers(&[(header::COOKIE, "a=1; mbl_session=tok; b=2")]);
         assert_eq!(cookie(&h, SESSION_COOKIE).as_deref(), Some("tok"));
-        assert_eq!(
-            cookie(
-                &headers(&[(header::COOKIE, "mbl_session=")]),
-                SESSION_COOKIE
-            ),
-            None
-        );
+        assert_eq!(cookie(&headers(&[(header::COOKIE, "mbl_session=")]), SESSION_COOKIE), None);
     }
 
     #[test]

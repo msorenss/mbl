@@ -31,17 +31,13 @@ impl UsersRepo {
     }
 
     pub async fn count(&self) -> Result<i64> {
-        Ok(sqlx::query_scalar!("SELECT COUNT(*) FROM users")
-            .fetch_one(&self.db.read)
-            .await?)
+        Ok(sqlx::query_scalar!("SELECT COUNT(*) FROM users").fetch_one(&self.db.read).await?)
     }
 
     pub async fn count_admins(&self) -> Result<i64> {
-        Ok(
-            sqlx::query_scalar!("SELECT COUNT(*) FROM users WHERE is_admin = 1")
-                .fetch_one(&self.db.read)
-                .await?,
-        )
+        Ok(sqlx::query_scalar!("SELECT COUNT(*) FROM users WHERE is_admin = 1")
+            .fetch_one(&self.db.read)
+            .await?)
     }
 
     /// Atomically insert the first (admin) user. Returns `None` if any user already exists.
@@ -124,24 +120,17 @@ impl UsersRepo {
     }
 
     pub async fn update_display_name(&self, id: UserId, display_name: &str) -> Result<bool> {
-        let res = sqlx::query!(
-            "UPDATE users SET display_name = ? WHERE id = ?",
-            display_name,
-            id
-        )
-        .execute(&self.db.write)
-        .await?;
+        let res = sqlx::query!("UPDATE users SET display_name = ? WHERE id = ?", display_name, id)
+            .execute(&self.db.write)
+            .await?;
         Ok(res.rows_affected() > 0)
     }
 
     pub async fn update_password(&self, id: UserId, password_hash: &str) -> Result<bool> {
-        let res = sqlx::query!(
-            "UPDATE users SET password_hash = ? WHERE id = ?",
-            password_hash,
-            id
-        )
-        .execute(&self.db.write)
-        .await?;
+        let res =
+            sqlx::query!("UPDATE users SET password_hash = ? WHERE id = ?", password_hash, id)
+                .execute(&self.db.write)
+                .await?;
         Ok(res.rows_affected() > 0)
     }
 
@@ -153,9 +142,8 @@ impl UsersRepo {
     }
 
     pub async fn delete(&self, id: UserId) -> Result<bool> {
-        let res = sqlx::query!("DELETE FROM users WHERE id = ?", id)
-            .execute(&self.db.write)
-            .await?;
+        let res =
+            sqlx::query!("DELETE FROM users WHERE id = ?", id).execute(&self.db.write).await?;
         Ok(res.rows_affected() > 0)
     }
 }

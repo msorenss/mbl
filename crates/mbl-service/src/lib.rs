@@ -24,11 +24,11 @@ pub struct Services {
 }
 
 impl Services {
-    pub fn new(db: Db) -> Self {
+    pub fn new(db: Db, jobs: mbl_jobs::JobQueue) -> Self {
         Self {
             auth: AuthService::new(db.clone()),
             users: UserService::new(db.clone()),
-            libraries: LibraryService::new(db),
+            libraries: LibraryService::new(db, jobs),
         }
     }
 }
@@ -39,7 +39,5 @@ where
     F: FnOnce() -> mbl_core::Result<T> + Send + 'static,
     T: Send + 'static,
 {
-    tokio::task::spawn_blocking(f)
-        .await
-        .map_err(mbl_core::Error::internal)?
+    tokio::task::spawn_blocking(f).await.map_err(mbl_core::Error::internal)?
 }

@@ -37,10 +37,7 @@ pub struct AuthService {
 
 impl AuthService {
     pub fn new(db: Db) -> Self {
-        Self {
-            users: UsersRepo::new(db.clone()),
-            sessions: SessionsRepo::new(db),
-        }
+        Self { users: UsersRepo::new(db.clone()), sessions: SessionsRepo::new(db) }
     }
 
     pub async fn needs_setup(&self) -> Result<bool> {
@@ -87,9 +84,8 @@ impl AuthService {
         device: &DeviceInfo,
     ) -> Result<LoginResult> {
         let creds = self.users.get_credentials(username.trim()).await?;
-        let hash = creds
-            .as_ref()
-            .map_or_else(|| mbl_auth::dummy_hash().to_owned(), |(_, h)| h.clone());
+        let hash =
+            creds.as_ref().map_or_else(|| mbl_auth::dummy_hash().to_owned(), |(_, h)| h.clone());
         let password = password.to_owned();
         let ok = blocking(move || Ok(mbl_auth::verify_password(&password, &hash))).await?;
 
@@ -113,30 +109,20 @@ impl AuthService {
                 expires_at: now + SESSION_TTL_MS,
             })
             .await?;
-        Ok(LoginResult {
-            token: token.value,
-            session_id,
-            user,
-        })
+        Ok(LoginResult { token: token.value, session_id, user })
     }
 
     /// Resolve a bearer/cookie token to an actor. Expired or unknown tokens are `Unauthorized`.
     pub async fn authenticate(&self, token: &str) -> Result<Authenticated> {
         let hash = mbl_auth::hash_token(token);
-        let session = self
-            .sessions
-            .find_by_token_hash(&hash)
-            .await?
-            .ok_or(Error::Unauthorized)?;
+        let session = self.sessions.find_by_token_hash(&hash).await?.ok_or(Error::Unauthorized)?;
         let now = now_ms();
         if session.expires_at <= now {
             self.sessions.delete(session.id).await?;
             return Err(Error::Unauthorized);
         }
         if now - session.last_seen_at >= TOUCH_INTERVAL_MS {
-            self.sessions
-                .touch(session.id, now, now + SESSION_TTL_MS)
-                .await?;
+            self.sessions.touch(session.id, now, now + SESSION_TTL_MS).await?;
         }
         Ok(Authenticated {
             actor: Actor {
@@ -167,10 +153,7 @@ impl AuthService {
     }
 
     pub async fn me(&self, actor: &Actor) -> Result<User> {
-        self.users
-            .get(actor.user_id)
-            .await?
-            .ok_or(Error::Unauthorized)
+        self.users.get(actor.user_id).await?.ok_or(Error::Unauthorized)
     }
 
     pub async fn purge_expired_sessions(&self) -> Result<u64> {

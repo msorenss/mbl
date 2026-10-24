@@ -16,11 +16,7 @@ pub struct Paginated<T> {
 
 impl<T> Paginated<T> {
     pub fn last_page(items: Vec<T>) -> Self {
-        Self {
-            items,
-            next_cursor: None,
-            total: None,
-        }
+        Self { items, next_cursor: None, total: None }
     }
 
     pub fn map<U>(self, f: impl FnMut(T) -> U) -> Paginated<U> {
@@ -38,24 +34,15 @@ mod tests {
 
     #[test]
     fn serializes_camel_case_and_skips_missing_total() {
-        let page = Paginated {
-            items: vec![1, 2],
-            next_cursor: Some(Cursor("abc".into())),
-            total: None,
-        };
-        assert_eq!(
-            serde_json::to_string(&page).unwrap(),
-            r#"{"items":[1,2],"nextCursor":"abc"}"#
-        );
+        let page =
+            Paginated { items: vec![1, 2], next_cursor: Some(Cursor("abc".into())), total: None };
+        assert_eq!(serde_json::to_string(&page).unwrap(), r#"{"items":[1,2],"nextCursor":"abc"}"#);
     }
 
     #[test]
     fn map_keeps_cursor() {
-        let page = Paginated {
-            items: vec![1, 2],
-            next_cursor: Some(Cursor("c".into())),
-            total: Some(9),
-        };
+        let page =
+            Paginated { items: vec![1, 2], next_cursor: Some(Cursor("c".into())), total: Some(9) };
         let mapped = page.map(|n| n * 10);
         assert_eq!(mapped.items, vec![10, 20]);
         assert_eq!(mapped.next_cursor, Some(Cursor("c".into())));

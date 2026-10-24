@@ -99,21 +99,16 @@ impl SessionsRepo {
     }
 
     pub async fn delete(&self, id: SessionId) -> Result<bool> {
-        let res = sqlx::query!("DELETE FROM sessions WHERE id = ?", id)
-            .execute(&self.db.write)
-            .await?;
+        let res =
+            sqlx::query!("DELETE FROM sessions WHERE id = ?", id).execute(&self.db.write).await?;
         Ok(res.rows_affected() > 0)
     }
 
     /// Delete a session only if it belongs to `user_id`.
     pub async fn delete_for_user(&self, user_id: UserId, id: SessionId) -> Result<bool> {
-        let res = sqlx::query!(
-            "DELETE FROM sessions WHERE id = ? AND user_id = ?",
-            id,
-            user_id
-        )
-        .execute(&self.db.write)
-        .await?;
+        let res = sqlx::query!("DELETE FROM sessions WHERE id = ? AND user_id = ?", id, user_id)
+            .execute(&self.db.write)
+            .await?;
         Ok(res.rows_affected() > 0)
     }
 

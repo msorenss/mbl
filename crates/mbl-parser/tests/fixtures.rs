@@ -87,18 +87,8 @@ fn movies() {
     let mut failures = Vec::new();
     for c in &cases.cases {
         let g = parse_movie(&c.path);
-        let got = (
-            &g.title,
-            g.year,
-            g.ids.tmdb,
-            g.ids.tvdb,
-            &g.ids.imdb,
-            &g.edition,
-            g.part,
-        );
-        let want = (
-            &c.title, c.year, c.tmdb, c.tvdb, &c.imdb, &c.edition, c.part,
-        );
+        let got = (&g.title, g.year, g.ids.tmdb, g.ids.tvdb, &g.ids.imdb, &g.edition, g.part);
+        let want = (&c.title, c.year, c.tmdb, c.tvdb, &c.imdb, &c.edition, c.part);
         if got != want {
             failures.push(format!("{}\n    got  {got:?}\n    want {want:?}", c.path));
         }
@@ -174,11 +164,7 @@ fn extras_and_samples() {
             failures.push(format!("{}: sample should be {}", c.path, c.sample));
         }
     }
-    report(
-        "extra/sample",
-        failures,
-        file.extras.len() + file.samples.len(),
-    );
+    report("extra/sample", failures, file.extras.len() + file.samples.len());
 }
 
 #[test]

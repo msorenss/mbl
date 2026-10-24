@@ -14,12 +14,16 @@ camino.workspace = true
 clap.workspace = true
 figment.workspace = true
 mbl-api.workspace = true
+mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-jobs.workspace = true
 mbl-platform.workspace = true
 mbl-probe.workspace = true
+mbl-scanner.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
@@ -27,6 +31,7 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
 http-body-util.workspace = true
+sqlx.workspace = true
 tempfile.workspace = true
 tower.workspace = true
 

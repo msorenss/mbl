@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: ItemId\" FROM media_items\n               WHERE parent_id = ? AND kind = ? AND title = ? COLLATE NOCASE LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ItemId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f50ad32e0b4128d1f6b8b243824fb5c7400d95e01fe3e031401f03fe9a61623e"
+}

@@ -58,8 +58,5 @@ pub fn is_sample(path: &str) -> bool {
     let Some((file, dirs)) = comps.split_last() else {
         return false;
     };
-    SAMPLE.is_match(stem(file))
-        || dirs
-            .last()
-            .is_some_and(|d| d.eq_ignore_ascii_case("sample"))
+    SAMPLE.is_match(stem(file)) || dirs.last().is_some_and(|d| d.eq_ignore_ascii_case("sample"))
 }

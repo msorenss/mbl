@@ -18,10 +18,7 @@ pub struct DbOptions {
 
 impl Default for DbOptions {
     fn default() -> Self {
-        Self {
-            cache_kib: 16 * 1024,
-            read_connections: 4,
-        }
+        Self { cache_kib: 16 * 1024, read_connections: 4 }
     }
 }
 
@@ -32,10 +29,7 @@ impl DbOptions {
             .map(|b| (b / 256 / 1024).clamp(8 * 1024, 64 * 1024) as u32)
             .unwrap_or(16 * 1024);
         let read_connections = cpus.clamp(2, 8) as u32;
-        Self {
-            cache_kib,
-            read_connections,
-        }
+        Self { cache_kib, read_connections }
     }
 }
 
@@ -49,9 +43,7 @@ pub struct Db {
 impl Db {
     /// Open (or create) the database, back it up if migrations are pending, and migrate.
     pub async fn connect(path: &Utf8Path, opts: &DbOptions) -> Result<Self> {
-        let existed = std::fs::metadata(path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false);
+        let existed = std::fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false);
 
         let write = SqlitePoolOptions::new()
             .max_connections(1)
@@ -109,16 +101,10 @@ async fn has_pending_migrations(pool: &SqlitePool) -> Result<bool> {
 }
 
 async fn backup_before_migrate(pool: &SqlitePool, db_path: &Utf8Path) -> Result<Utf8PathBuf> {
-    let dir = db_path
-        .parent()
-        .unwrap_or(Utf8Path::new("."))
-        .join("backups");
+    let dir = db_path.parent().unwrap_or(Utf8Path::new(".")).join("backups");
     std::fs::create_dir_all(&dir)?;
     let target = dir.join(format!("pre-migrate-{}.db", mbl_core::time::now_ms()));
-    sqlx::query("VACUUM INTO ?")
-        .bind(target.as_str())
-        .execute(pool)
-        .await?;
+    sqlx::query("VACUUM INTO ?").bind(target.as_str()).execute(pool).await?;
     tracing::info!(backup = %target, "backed up database before migrating");
     Ok(target)
 }
@@ -132,10 +118,7 @@ mod tests {
         let gib = 1024 * 1024 * 1024;
         assert_eq!(DbOptions::for_memory(Some(2 * gib), 4).cache_kib, 8 * 1024);
         assert_eq!(DbOptions::for_memory(Some(8 * gib), 4).cache_kib, 32 * 1024);
-        assert_eq!(
-            DbOptions::for_memory(Some(64 * gib), 4).cache_kib,
-            64 * 1024
-        );
+        assert_eq!(DbOptions::for_memory(Some(64 * gib), 4).cache_kib, 64 * 1024);
         assert_eq!(DbOptions::for_memory(None, 1).read_connections, 2);
     }
 }

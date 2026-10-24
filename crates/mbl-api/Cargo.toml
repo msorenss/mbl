@@ -12,6 +12,7 @@ axum.workspace = true
 governor.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-jobs.workspace = true
 mbl-platform.workspace = true
 mbl-service.workspace = true
 serde.workspace = true

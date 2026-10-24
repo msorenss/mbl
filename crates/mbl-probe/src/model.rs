@@ -11,6 +11,9 @@ pub struct MediaInfo {
     pub size: u64,
     pub streams: Vec<StreamInfo>,
     pub chapters: Vec<Chapter>,
+    /// Container-level tags with lowercase keys (artist, album, title, track, date, ...).
+    #[serde(default)]
+    pub tags: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,11 +69,6 @@ impl MediaInfo {
     pub fn primary_video(&self) -> Option<&StreamInfo> {
         let mut videos = self.streams_of(StreamKind::Video);
         let first = videos.next()?;
-        Some(
-            std::iter::once(first)
-                .chain(videos)
-                .find(|s| s.default)
-                .unwrap_or(first),
-        )
+        Some(std::iter::once(first).chain(videos).find(|s| s.default).unwrap_or(first))
     }
 }

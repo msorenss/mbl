@@ -2,9 +2,8 @@ use mbl_core::{Error, Result};
 
 pub(crate) fn username(raw: &str) -> Result<String> {
     let name = raw.trim();
-    let valid_chars = name
-        .chars()
-        .all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-' | '@'));
+    let valid_chars =
+        name.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-' | '@'));
     if name.is_empty() || name.chars().count() > 64 || !valid_chars {
         return Err(Error::Validation(
             "username must be 1-64 characters: letters, digits, '.', '_', '-', '@'".into(),
@@ -16,18 +15,13 @@ pub(crate) fn username(raw: &str) -> Result<String> {
 pub(crate) fn password(raw: &str) -> Result<()> {
     let len = raw.chars().count();
     if !(8..=256).contains(&len) {
-        return Err(Error::Validation(
-            "password must be 8-256 characters".into(),
-        ));
+        return Err(Error::Validation("password must be 8-256 characters".into()));
     }
     Ok(())
 }
 
 pub(crate) fn display_name(raw: Option<&str>, fallback: &str) -> Result<String> {
-    let name = raw
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or(fallback);
+    let name = raw.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(fallback);
     if name.chars().count() > 100 || name.chars().any(char::is_control) {
         return Err(Error::Validation(
             "display name must be at most 100 printable characters".into(),

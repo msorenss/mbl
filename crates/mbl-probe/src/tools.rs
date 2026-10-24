@@ -34,11 +34,7 @@ impl FfTools {
     /// First line of `ffmpeg -version`.
     pub async fn version(&self) -> Result<String> {
         let out = Command::new(&self.ffmpeg).arg("-version").output().await?;
-        Ok(String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .to_owned())
+        Ok(String::from_utf8_lossy(&out.stdout).lines().next().unwrap_or_default().to_owned())
     }
 
     /// Probe a file. Fails with `Validation` for unreadable media and `Unavailable` on timeout.
@@ -48,15 +44,7 @@ impl FfTools {
         input.push(path.as_os_str());
 
         let mut child = Command::new(&self.ffprobe)
-            .args([
-                "-v",
-                "error",
-                "-show_format",
-                "-show_streams",
-                "-show_chapters",
-                "-of",
-                "json",
-            ])
+            .args(["-v", "error", "-show_format", "-show_streams", "-show_chapters", "-of", "json"])
             .arg(input)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -67,10 +55,8 @@ impl FfTools {
         let stderr = child.stderr.take();
 
         let run = async {
-            let (out, err) = tokio::join!(
-                read_limited(stdout, MAX_STDOUT),
-                read_limited(stderr, MAX_STDERR)
-            );
+            let (out, err) =
+                tokio::join!(read_limited(stdout, MAX_STDOUT), read_limited(stderr, MAX_STDERR));
             let status = child.wait().await?;
             Ok::<_, Error>((status, out?, err?))
         };
@@ -83,10 +69,7 @@ impl FfTools {
         }
         if !status.success() {
             let msg = String::from_utf8_lossy(&err);
-            return Err(Error::Validation(format!(
-                "not a readable media file: {}",
-                msg.trim()
-            )));
+            return Err(Error::Validation(format!("not a readable media file: {}", msg.trim())));
         }
         parse_ffprobe_json(&out)
     }
@@ -101,18 +84,13 @@ async fn read_limited(reader: Option<impl AsyncRead + Unpin>, limit: u64) -> Res
 }
 
 async fn find_binary(name: &str, configured: &str) -> Result<PathBuf> {
-    let exe_name = if cfg!(windows) {
-        format!("{name}.exe")
-    } else {
-        name.to_owned()
-    };
+    let exe_name = if cfg!(windows) { format!("{name}.exe") } else { name.to_owned() };
     let mut candidates = Vec::new();
     if !configured.trim().is_empty() {
         candidates.push(PathBuf::from(configured.trim()));
     } else {
-        if let Some(dir) = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(Path::to_path_buf))
+        if let Some(dir) =
+            std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf))
         {
             candidates.push(dir.join(&exe_name));
         }

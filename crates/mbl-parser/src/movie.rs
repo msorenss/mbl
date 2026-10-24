@@ -31,13 +31,7 @@ fn parse_name(name: &str) -> NameGuess {
         None => (trimmed.to_owned(), None),
     };
     let (title, year) = title_and_year(&name);
-    NameGuess {
-        title,
-        year,
-        ids,
-        edition,
-        part,
-    }
+    NameGuess { title, year, ids, edition, part }
 }
 
 /// Guess a movie from its path, e.g. `Movies/Heat (1995) {tmdb-949}/Heat (1995).mkv`.

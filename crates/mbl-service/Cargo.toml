@@ -12,7 +12,9 @@ dunce.workspace = true
 mbl-auth.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-jobs.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

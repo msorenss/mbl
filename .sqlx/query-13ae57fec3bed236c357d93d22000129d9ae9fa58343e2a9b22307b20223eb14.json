@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO media_versions\n             (item_id, edition, container, bitrate, width, height, video_codec, video_profile,\n              bit_depth, hdr, audio_codec, audio_channels)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!: VersionId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: VersionId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "13ae57fec3bed236c357d93d22000129d9ae9fa58343e2a9b22307b20223eb14"
+}

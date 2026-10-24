@@ -23,6 +23,8 @@ struct RawFormat {
     duration: Option<String>,
     size: Option<String>,
     bit_rate: Option<String>,
+    #[serde(default)]
+    tags: HashMap<String, Value>,
 }
 
 #[derive(Deserialize)]
@@ -80,11 +82,7 @@ fn parse_rate(s: Option<&str>) -> Option<f32> {
 }
 
 fn bit_depth(raw: &RawStream) -> Option<u8> {
-    if let Some(b) = raw
-        .bits_per_raw_sample
-        .as_deref()
-        .and_then(|b| b.parse::<u8>().ok())
-    {
+    if let Some(b) = raw.bits_per_raw_sample.as_deref().and_then(|b| b.parse::<u8>().ok()) {
         return Some(b);
     }
     let pix = raw.pix_fmt.as_deref()?;
@@ -98,22 +96,10 @@ fn bit_depth(raw: &RawStream) -> Option<u8> {
 }
 
 fn hdr(raw: &RawStream) -> Option<HdrKind> {
-    let side_type = |v: &Value| {
-        v.get("side_data_type")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned()
-    };
-    if let Some(dv) = raw
-        .side_data_list
-        .iter()
-        .find(|v| side_type(v).contains("DOVI"))
-    {
-        let field = |k: &str| {
-            dv.get(k)
-                .and_then(Value::as_u64)
-                .and_then(|n| u8::try_from(n).ok())
-        };
+    let side_type =
+        |v: &Value| v.get("side_data_type").and_then(Value::as_str).unwrap_or_default().to_owned();
+    if let Some(dv) = raw.side_data_list.iter().find(|v| side_type(v).contains("DOVI")) {
+        let field = |k: &str| dv.get(k).and_then(Value::as_u64).and_then(|n| u8::try_from(n).ok());
         return Some(HdrKind::DolbyVision {
             profile: field("dv_profile").unwrap_or(0),
             compat_id: field("dv_bl_signal_compatibility_id").unwrap_or(0),
@@ -121,15 +107,8 @@ fn hdr(raw: &RawStream) -> Option<HdrKind> {
     }
     match raw.color_transfer.as_deref() {
         Some("smpte2084") => {
-            let plus = raw
-                .side_data_list
-                .iter()
-                .any(|v| side_type(v).contains("2094-40"));
-            Some(if plus {
-                HdrKind::Hdr10Plus
-            } else {
-                HdrKind::Hdr10
-            })
+            let plus = raw.side_data_list.iter().any(|v| side_type(v).contains("2094-40"));
+            Some(if plus { HdrKind::Hdr10Plus } else { HdrKind::Hdr10 })
         }
         Some("arib-std-b67") => Some(HdrKind::Hlg),
         _ => None,
@@ -173,11 +152,7 @@ fn stream(raw: RawStream) -> Option<StreamInfo> {
         hdr: if is_video { hdr(&raw) } else { None },
         channels: raw.channels.filter(|_| is_audio),
         channel_layout: raw.channel_layout.filter(|_| is_audio),
-        sample_rate: raw
-            .sample_rate
-            .as_deref()
-            .and_then(|s| s.parse().ok())
-            .filter(|_| is_audio),
+        sample_rate: raw.sample_rate.as_deref().and_then(|s| s.parse().ok()).filter(|_| is_audio),
     })
 }
 
@@ -203,13 +178,15 @@ pub fn parse_ffprobe_json(bytes: &[u8]) -> Result<MediaInfo> {
         container: format.format_name.unwrap_or_default(),
         duration_ms: secs_to_ms(format.duration.as_deref()).unwrap_or(0),
         bitrate: format.bit_rate.as_deref().and_then(|b| b.parse().ok()),
-        size: format
-            .size
-            .as_deref()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0),
+        size: format.size.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0),
         streams: raw.streams.into_iter().filter_map(stream).collect(),
         chapters,
+        tags: format
+            .tags
+            .iter()
+            .filter_map(|(k, v)| Some((k.to_lowercase(), v.as_str()?.trim().to_owned())))
+            .filter(|(_, v)| !v.is_empty())
+            .collect(),
     })
 }
 

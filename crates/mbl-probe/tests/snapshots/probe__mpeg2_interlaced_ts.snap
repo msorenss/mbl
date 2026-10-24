@@ -72,4 +72,5 @@ MediaInfo {
         },
     ],
     chapters: [],
+    tags: {},
 }

@@ -283,7 +283,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     4. Emit progress events on an internal `tokio::sync::broadcast` bus (`mbl-core::events`).
   - Accept: tests for retry, concurrency limit, crash recovery, and priority ordering.
 
-- [ ] **M1.6 Scanner**
+- [x] **M1.6 Scanner** (extras are recognized but skipped until M7.6; photo libraries walk nothing until M7.5)
   - Depends: M1.2, M1.3, M1.4, M1.5
   - Crates/paths: `mbl-scanner`
   - Do:
@@ -733,6 +733,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.3 | mbl-parser: movies/episodes/music/extras/samples, 315 fixture cases, proptest no-panic | feat(parser) M1.3
 2026-10-24 | M1.4 | mbl-probe: FfTools locate/version/probe (timeout, output cap, file: prefix), MediaInfo mapping incl. HDR10/HDR10+/HLG/DV, 11 insta snapshots, live test vs generated library | feat(probe) M1.4
 2026-10-24 | M1.5 | mbl-jobs: JobHandler/JobQueue/JobRunner (atomic claim, per-kind limits, priorities, idle pause, backoff retry, crash requeue, cancel, dedup), EventBus in mbl-core | feat(jobs) M1.5
+2026-10-24 | M1.6 | mbl-scanner: walk (.mblignore/.plexignore, system dirs, samples), change detection, xxh3 quick hash + move detection, bounded probing, batched writes (movies/versions/multi-part, show/season/episode incl. multi-episode, artist/album/track from tags), missing + unavailable-root handling, library.scan job, POST /libraries/{id}/scan, metadata.match queued; MediaInfo gains container tags | feat(scanner) M1.6
 ```
 
 ---

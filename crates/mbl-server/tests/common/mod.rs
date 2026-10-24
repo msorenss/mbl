@@ -26,10 +26,7 @@ impl TestApp {
         let mut config = Config::default();
         config.paths.data_dir = dir.path().join("data").to_str().unwrap().to_owned();
         let server = mbl_server::build(config).await.unwrap();
-        Self {
-            router: server.router,
-            dir,
-        }
+        Self { router: server.router, dir }
     }
 
     pub async fn send(&self, req: Request<Body>) -> Res {
@@ -43,11 +40,7 @@ impl TestApp {
             serde_json::from_slice(&bytes)
                 .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into()))
         };
-        Res {
-            status,
-            headers,
-            body,
-        }
+        Res { status, headers, body }
     }
 
     pub async fn call(
@@ -107,10 +100,7 @@ impl TestApp {
             )
             .await;
         assert_eq!(res.status, StatusCode::CREATED, "{:?}", res.body);
-        self.login(username, &password).await.body["token"]
-            .as_str()
-            .unwrap()
-            .to_owned()
+        self.login(username, &password).await.body["token"].as_str().unwrap().to_owned()
     }
 
     /// Create a directory under the test's temp dir and return its path.

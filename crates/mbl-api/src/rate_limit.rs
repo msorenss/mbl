@@ -24,10 +24,7 @@ impl std::fmt::Debug for LoginLimiter {
 impl Default for LoginLimiter {
     fn default() -> Self {
         let quota = Quota::per_minute(ATTEMPTS_PER_MINUTE);
-        Self {
-            by_ip: RateLimiter::keyed(quota),
-            by_user: RateLimiter::keyed(quota),
-        }
+        Self { by_ip: RateLimiter::keyed(quota), by_user: RateLimiter::keyed(quota) }
     }
 }
 
@@ -44,9 +41,7 @@ impl LoginLimiter {
         for (limiter, key) in [(&self.by_ip, ip.to_owned()), (&self.by_user, user_key)] {
             if let Err(not_until) = limiter.check_key(&key) {
                 let wait = not_until.wait_time_from(DefaultClock::default().now());
-                return Err(Error::RateLimited {
-                    retry_after_secs: wait.as_secs().max(1),
-                });
+                return Err(Error::RateLimited { retry_after_secs: wait.as_secs().max(1) });
             }
         }
         Ok(())

@@ -24,10 +24,7 @@ fn album_and_year(dir: &str) -> (String, Option<i32>) {
         return (c["a"].trim().to_owned(), Some(y));
     }
     if let Some(c) = ALBUM_YEAR_PREFIX.captures(dir) {
-        let year = c
-            .name("by")
-            .or_else(|| c.name("y"))
-            .and_then(|m| as_year(m.as_str()));
+        let year = c.name("by").or_else(|| c.name("y")).and_then(|m| as_year(m.as_str()));
         if let Some(y) = year {
             return (c["a"].trim().to_owned(), Some(y));
         }
@@ -48,10 +45,8 @@ pub fn parse_music(path: &str) -> MusicGuess {
         return MusicGuess::default();
     };
     let mut dirs = dirs.to_vec();
-    let mut disc = dirs
-        .last()
-        .and_then(|d| DISC_DIR.captures(d))
-        .and_then(|c| c[1].parse::<u32>().ok());
+    let mut disc =
+        dirs.last().and_then(|d| DISC_DIR.captures(d)).and_then(|c| c[1].parse::<u32>().ok());
     if disc.is_some() {
         dirs.pop();
     }
@@ -67,10 +62,7 @@ pub fn parse_music(path: &str) -> MusicGuess {
     let name = stem(file).trim();
     let (track, rest) = if let Some(c) = DISC_TRACK.captures(name) {
         disc = disc.or(c["d"].parse().ok());
-        (
-            c["t"].parse().ok(),
-            c.name("rest").map_or("", |m| m.as_str()).to_owned(),
-        )
+        (c["t"].parse().ok(), c.name("rest").map_or("", |m| m.as_str()).to_owned())
     } else if let Some(c) = TRACK.captures(name) {
         (c["t"].parse().ok(), c["rest"].to_owned())
     } else {
@@ -83,12 +75,5 @@ pub fn parse_music(path: &str) -> MusicGuess {
         _ => non_empty(&rest),
     };
 
-    MusicGuess {
-        artist,
-        album,
-        album_year,
-        disc,
-        track,
-        title,
-    }
+    MusicGuess { artist, album, album_year, disc, track, title }
 }
