@@ -1,0 +1,79 @@
+---
+source: crates/mbl-probe/tests/probe.rs
+expression: info
+---
+MediaInfo {
+    container: "matroska,webm",
+    duration_ms: 3021,
+    bitrate: Some(
+        1740218,
+    ),
+    size: 657150,
+    streams: [
+        StreamInfo {
+            index: 0,
+            kind: Video,
+            codec: "hevc",
+            profile: Some(
+                "Main 10",
+            ),
+            level: Some(
+                93,
+            ),
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: Some(
+                1280,
+            ),
+            height: Some(
+                720,
+            ),
+            bit_depth: Some(
+                10,
+            ),
+            frame_rate: Some(
+                24.0,
+            ),
+            interlaced: false,
+            hdr: Some(
+                Hdr10,
+            ),
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 1,
+            kind: Audio,
+            codec: "aac",
+            profile: Some(
+                "LC",
+            ),
+            level: None,
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: Some(
+                2,
+            ),
+            channel_layout: Some(
+                "stereo",
+            ),
+            sample_rate: Some(
+                48000,
+            ),
+        },
+    ],
+    chapters: [],
+}

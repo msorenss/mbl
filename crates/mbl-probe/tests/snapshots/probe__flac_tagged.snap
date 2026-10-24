@@ -1,0 +1,42 @@
+---
+source: crates/mbl-probe/tests/probe.rs
+expression: info
+---
+MediaInfo {
+    container: "flac",
+    duration_ms: 3000,
+    bitrate: Some(
+        127218,
+    ),
+    size: 47707,
+    streams: [
+        StreamInfo {
+            index: 0,
+            kind: Audio,
+            codec: "flac",
+            profile: None,
+            level: None,
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: Some(
+                1,
+            ),
+            channel_layout: Some(
+                "mono",
+            ),
+            sample_rate: Some(
+                48000,
+            ),
+        },
+    ],
+    chapters: [],
+}

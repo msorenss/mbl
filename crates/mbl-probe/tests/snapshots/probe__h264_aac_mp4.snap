@@ -1,0 +1,77 @@
+---
+source: crates/mbl-probe/tests/probe.rs
+expression: info
+---
+MediaInfo {
+    container: "mov,mp4,m4a,3gp,3g2,mj2",
+    duration_ms: 3000,
+    bitrate: Some(
+        6454882,
+    ),
+    size: 2420581,
+    streams: [
+        StreamInfo {
+            index: 0,
+            kind: Video,
+            codec: "h264",
+            profile: Some(
+                "Constrained Baseline",
+            ),
+            level: Some(
+                31,
+            ),
+            language: None,
+            title: None,
+            default: true,
+            forced: false,
+            external_path: None,
+            width: Some(
+                1280,
+            ),
+            height: Some(
+                720,
+            ),
+            bit_depth: Some(
+                8,
+            ),
+            frame_rate: Some(
+                24.0,
+            ),
+            interlaced: false,
+            hdr: None,
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 1,
+            kind: Audio,
+            codec: "aac",
+            profile: Some(
+                "LC",
+            ),
+            level: None,
+            language: None,
+            title: None,
+            default: true,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: Some(
+                2,
+            ),
+            channel_layout: Some(
+                "stereo",
+            ),
+            sample_rate: Some(
+                48000,
+            ),
+        },
+    ],
+    chapters: [],
+}

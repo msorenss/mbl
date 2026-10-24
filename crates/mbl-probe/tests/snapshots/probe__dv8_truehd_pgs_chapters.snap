@@ -1,0 +1,235 @@
+---
+source: crates/mbl-probe/tests/probe.rs
+expression: info
+---
+MediaInfo {
+    container: "matroska,webm",
+    duration_ms: 7380500,
+    bitrate: Some(
+        65170000,
+    ),
+    size: 60123456789,
+    streams: [
+        StreamInfo {
+            index: 0,
+            kind: Video,
+            codec: "hevc",
+            profile: Some(
+                "Main 10",
+            ),
+            level: Some(
+                153,
+            ),
+            language: Some(
+                "eng",
+            ),
+            title: Some(
+                "Main Video",
+            ),
+            default: true,
+            forced: false,
+            external_path: None,
+            width: Some(
+                3840,
+            ),
+            height: Some(
+                2160,
+            ),
+            bit_depth: Some(
+                10,
+            ),
+            frame_rate: Some(
+                23.976,
+            ),
+            interlaced: false,
+            hdr: Some(
+                DolbyVision {
+                    profile: 8,
+                    compat_id: 1,
+                },
+            ),
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 1,
+            kind: Audio,
+            codec: "truehd",
+            profile: None,
+            level: None,
+            language: Some(
+                "eng",
+            ),
+            title: Some(
+                "TrueHD Atmos 7.1",
+            ),
+            default: true,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: Some(
+                8,
+            ),
+            channel_layout: Some(
+                "7.1",
+            ),
+            sample_rate: Some(
+                48000,
+            ),
+        },
+        StreamInfo {
+            index: 2,
+            kind: Audio,
+            codec: "eac3",
+            profile: None,
+            level: None,
+            language: Some(
+                "swe",
+            ),
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: Some(
+                6,
+            ),
+            channel_layout: Some(
+                "5.1(side)",
+            ),
+            sample_rate: Some(
+                48000,
+            ),
+        },
+        StreamInfo {
+            index: 3,
+            kind: Subtitle,
+            codec: "hdmv_pgs_subtitle",
+            profile: None,
+            level: None,
+            language: Some(
+                "eng",
+            ),
+            title: Some(
+                "Forced",
+            ),
+            default: false,
+            forced: true,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 4,
+            kind: Subtitle,
+            codec: "subrip",
+            profile: None,
+            level: None,
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 5,
+            kind: Attachment,
+            codec: "ttf",
+            profile: None,
+            level: None,
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 7,
+            kind: Video,
+            codec: "hevc",
+            profile: None,
+            level: None,
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: Some(
+                1920,
+            ),
+            height: Some(
+                1080,
+            ),
+            bit_depth: Some(
+                10,
+            ),
+            frame_rate: Some(
+                25.0,
+            ),
+            interlaced: false,
+            hdr: Some(
+                Hdr10Plus,
+            ),
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+    ],
+    chapters: [
+        Chapter {
+            start_ms: 0,
+            end_ms: 300000,
+            title: Some(
+                "Opening",
+            ),
+        },
+        Chapter {
+            start_ms: 300000,
+            end_ms: 7200000,
+            title: Some(
+                "Chapter 2",
+            ),
+        },
+        Chapter {
+            start_ms: 7200000,
+            end_ms: 7380500,
+            title: None,
+        },
+    ],
+}

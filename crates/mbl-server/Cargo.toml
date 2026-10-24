@@ -16,6 +16,7 @@ figment.workspace = true
 mbl-api.workspace = true
 mbl-db.workspace = true
 mbl-platform.workspace = true
+mbl-probe.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

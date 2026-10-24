@@ -1,0 +1,75 @@
+---
+source: crates/mbl-probe/tests/probe.rs
+expression: info
+---
+MediaInfo {
+    container: "mpegts",
+    duration_ms: 3008,
+    bitrate: Some(
+        4643000,
+    ),
+    size: 1745768,
+    streams: [
+        StreamInfo {
+            index: 0,
+            kind: Video,
+            codec: "mpeg2video",
+            profile: Some(
+                "Main",
+            ),
+            level: Some(
+                8,
+            ),
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: Some(
+                720,
+            ),
+            height: Some(
+                576,
+            ),
+            bit_depth: Some(
+                8,
+            ),
+            frame_rate: Some(
+                25.0,
+            ),
+            interlaced: true,
+            hdr: None,
+            channels: None,
+            channel_layout: None,
+            sample_rate: None,
+        },
+        StreamInfo {
+            index: 1,
+            kind: Audio,
+            codec: "ac3",
+            profile: None,
+            level: None,
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            external_path: None,
+            width: None,
+            height: None,
+            bit_depth: None,
+            frame_rate: None,
+            interlaced: false,
+            hdr: None,
+            channels: Some(
+                2,
+            ),
+            channel_layout: Some(
+                "stereo",
+            ),
+            sample_rate: Some(
+                48000,
+            ),
+        },
+    ],
+    chapters: [],
+}

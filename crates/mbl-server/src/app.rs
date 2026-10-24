@@ -28,6 +28,20 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     let db_opts = DbOptions::for_memory(mbl_platform::system::total_memory_bytes(), cpus);
     let db = Db::connect(&paths.db_file, &db_opts).await?;
 
+    match mbl_probe::FfTools::locate(
+        &config.transcode.ffmpeg_path,
+        &config.transcode.ffprobe_path,
+    )
+    .await
+    {
+        Ok(tools) => {
+            tracing::info!(version = %tools.version().await.unwrap_or_default(), ffprobe = ?tools.ffprobe, "FFmpeg found")
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "FFmpeg not available: scanning and playback will not work")
+        }
+    }
+
     let info = ServerInfo::current(
         env!("CARGO_PKG_VERSION"),
         mbl_platform::system::detect_profile(),

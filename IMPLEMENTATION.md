@@ -263,7 +263,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: `cargo nextest run -p mbl-parser` passes; ≥ 300 fixture cases.
   - Ref: PLAN §8.1
 
-- [ ] **M1.4 ffprobe wrapper**
+- [x] **M1.4 ffprobe wrapper**
   - Depends: M0.4
   - Crates/paths: `mbl-probe`
   - Do:
@@ -731,6 +731,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.1 | Argon2id + tokens (mbl-auth), users/sessions repos, AuthService/UserService (mbl-service), setup/login/logout/me/sessions/users API, cookie+bearer, Origin check for cookie writes, login rate limit (IP+user), 429 + Retry-After | feat(auth) M1.1
 2026-10-24 | M1.2 | LibrariesRepo, LibraryService (canonical roots, overlap rejection), /libraries CRUD, /system/browse, shared test helpers | feat(libraries) M1.2
 2026-10-24 | M1.3 | mbl-parser: movies/episodes/music/extras/samples, 315 fixture cases, proptest no-panic | feat(parser) M1.3
+2026-10-24 | M1.4 | mbl-probe: FfTools locate/version/probe (timeout, output cap, file: prefix), MediaInfo mapping incl. HDR10/HDR10+/HLG/DV, 11 insta snapshots, live test vs generated library | feat(probe) M1.4
 ```
 
 ---
