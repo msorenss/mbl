@@ -17,6 +17,7 @@ mbl-api.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
 mbl-jobs.workspace = true
+mbl-metadata.workspace = true
 mbl-platform.workspace = true
 mbl-probe.workspace = true
 mbl-scanner.workspace = true

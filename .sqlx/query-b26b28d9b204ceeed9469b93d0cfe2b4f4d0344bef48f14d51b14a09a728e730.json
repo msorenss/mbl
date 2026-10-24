@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE people SET name = ?, thumb_url = COALESCE(?, thumb_url) WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b26b28d9b204ceeed9469b93d0cfe2b4f4d0344bef48f14d51b14a09a728e730"
+}

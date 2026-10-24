@@ -23,6 +23,7 @@ pub use runner::{JobQueue, JobRunner, RunnerConfig};
 pub mod kinds {
     pub const LIBRARY_SCAN: &str = "library.scan";
     pub const METADATA_MATCH: &str = "metadata.match";
+    pub const METADATA_REFRESH: &str = "metadata.refresh";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

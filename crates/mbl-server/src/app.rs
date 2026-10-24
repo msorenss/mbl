@@ -62,6 +62,19 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         Scanner::new(db.clone(), tools, events.clone(), Some(runner.queue()), probe_concurrency);
     runner.register(Arc::new(ScanHandler { scanner }));
 
+    let tmdb = match config.metadata.tmdb_api_key.trim() {
+        "" => None,
+        key => {
+            let mut tmdb = mbl_metadata::TmdbConfig::new(key, config.metadata.language.clone());
+            tmdb.cache_dir = Some(paths.cache.join("http/tmdb").into_std_path_buf());
+            Some(mbl_metadata::TmdbClient::new(tmdb)?)
+        }
+    };
+    let matcher = mbl_metadata::Matcher::new(db.clone(), tmdb, events.clone());
+    runner.register(Arc::new(mbl_metadata::MatchHandler { matcher }));
+    runner
+        .register(Arc::new(mbl_metadata::RefreshHandler { db: db.clone(), jobs: runner.queue() }));
+
     let info = ServerInfo::current(env!("CARGO_PKG_VERSION"), profile);
     let secure_cookies = config.server.public_url.starts_with("https://");
     let router = mbl_api::router(AppState::new(db.clone(), runner.queue(), info, secure_cookies));

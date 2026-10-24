@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH RECURSIVE tree(id) AS (\n               SELECT ?1 UNION ALL SELECT m.id FROM media_items m JOIN tree t ON m.parent_id = t.id)\n           SELECT p.path FROM media_parts p\n           JOIN item_versions iv ON iv.version_id = p.version_id\n           WHERE iv.item_id IN (SELECT id FROM tree)\n           ORDER BY p.path LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "66342b26d2a9e4f4538153cd452695162500ef8a6c2109fd960ea31df254aaaa"
+}

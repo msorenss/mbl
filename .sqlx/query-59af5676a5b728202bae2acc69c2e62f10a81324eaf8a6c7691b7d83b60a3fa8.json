@@ -1,0 +1,146 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id: ItemId\", library_id AS \"library_id: LibraryId\", kind AS \"kind: MediaKind\",\n                  parent_id AS \"parent_id: ItemId\", title, year, idx, tmdb_id, tvdb_id, imdb_id,\n                  locked_fields\n           FROM media_items WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: ItemId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "library_id: LibraryId",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "kind: MediaKind",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "parent_id: ItemId",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "idx",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "idx"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "tvdb_id",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "tvdb_id"
+          }
+        }
+      },
+      {
+        "name": "imdb_id",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "imdb_id"
+          }
+        }
+      },
+      {
+        "name": "locked_fields",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "locked_fields"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "59af5676a5b728202bae2acc69c2e62f10a81324eaf8a6c7691b7d83b60a3fa8"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO artwork (item_id, kind, source_url, selected) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "a3693eb1c91d8f2c4eed8cd153f42adba588e55aeee7a3d54d2567eae58a25a8"
+}

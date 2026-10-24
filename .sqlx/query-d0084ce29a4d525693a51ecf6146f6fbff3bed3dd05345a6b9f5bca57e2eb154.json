@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE media_items SET\n             title = COALESCE(?, title),\n             sort_title = COALESCE(?, sort_title),\n             original_title = COALESCE(?, original_title),\n             summary = COALESCE(?, summary),\n             tagline = COALESCE(?, tagline),\n             year = COALESCE(?, year),\n             originally_available_at = COALESCE(?, originally_available_at),\n             content_rating = COALESCE(?, content_rating),\n             studio = COALESCE(?, studio),\n             rating = COALESCE(?, rating),\n             tmdb_id = COALESCE(?, tmdb_id),\n             tvdb_id = COALESCE(?, tvdb_id),\n             imdb_id = COALESCE(?, imdb_id),\n             match_confidence = COALESCE(?, match_confidence),\n             needs_review = COALESCE(?, needs_review),\n             metadata_refreshed_at = ?,\n             updated_at = ?\n           WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 18
+    },
+    "nullable": []
+  },
+  "hash": "d0084ce29a4d525693a51ecf6146f6fbff3bed3dd05345a6b9f5bca57e2eb154"
+}

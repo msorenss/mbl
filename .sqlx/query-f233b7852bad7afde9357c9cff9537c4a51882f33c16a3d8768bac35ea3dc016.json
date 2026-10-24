@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM artwork WHERE item_id = ? AND kind = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "f233b7852bad7afde9357c9cff9537c4a51882f33c16a3d8768bac35ea3dc016"
+}
