@@ -380,7 +380,31 @@ impl HlsSession {
     pub async fn shutdown(&self) {
         let mut st = self.state.lock().await;
         kill_existing_child(&mut st).await;
-        let _ = std::fs::remove_dir_all(self.dir.as_std_path());
+        for attempt in 0..5 {
+            match tokio::fs::remove_dir_all(self.dir.as_std_path()).await {
+                Ok(()) => return,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+                Err(error)
+                    if attempt < 4
+                        && matches!(
+                            error.kind(),
+                            std::io::ErrorKind::PermissionDenied
+                                | std::io::ErrorKind::DirectoryNotEmpty
+                        ) =>
+                {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %self.id,
+                        path = %self.dir,
+                        %error,
+                        "failed to remove HLS session directory"
+                    );
+                    return;
+                }
+            }
+        }
     }
 
     fn advance_fallback_locked(&self, st: &mut SessionState) {

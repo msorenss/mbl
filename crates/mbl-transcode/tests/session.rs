@@ -247,9 +247,26 @@ async fn inactivity_timeout_kills_ffmpeg_and_deletes_session_dir() {
     assert!(session_dir.exists());
 
     tokio::time::sleep(Duration::from_millis(180)).await;
+    #[cfg(windows)]
+    let release_lock = {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(session_dir.join("master.m3u8"))
+            .unwrap();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            drop(file);
+        })
+    };
     mgr.run_maintenance_once().await;
+    #[cfg(windows)]
+    release_lock.await.unwrap();
 
     assert!(mgr.get_session(&session_id).is_none(), "expired session must be removed");
+    assert!(session.ffmpeg_pid().await.is_none(), "expired session FFmpeg must be stopped");
     assert!(!session_dir.exists(), "expired session directory must be deleted");
 }
 
