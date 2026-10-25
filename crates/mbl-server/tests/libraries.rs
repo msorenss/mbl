@@ -25,7 +25,7 @@ async fn admin_crud_lifecycle() {
     assert_eq!(created.body["name"], "Movies");
     assert_eq!(created.body["kind"], "movie");
     let id = created.body["id"].as_i64().unwrap();
-    let canonical = std::fs::canonicalize(&movies).unwrap();
+    let canonical = dunce::canonicalize(&movies).unwrap();
     assert_eq!(created.body["paths"][0], canonical.to_str().unwrap());
 
     let updated = app

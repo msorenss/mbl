@@ -37,6 +37,7 @@ mime_guess.workspace = true
 rust-embed.workspace = true
 
 [dev-dependencies]
+dunce.workspace = true
 figment = { workspace = true, features = ["test"] }
 futures-util.workspace = true
 http-body-util.workspace = true
