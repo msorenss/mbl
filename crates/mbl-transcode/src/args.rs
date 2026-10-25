@@ -89,7 +89,7 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
     push_str(&mut args, "-sn");
 
     // HLS fMP4 output flags.
-    let target_dir = p.output.rendition_dir(0);
+    let target_dir = ffmpeg_path(p.output.rendition_dir(0).as_str());
     let segment_pattern = format!("{target_dir}/%d.m4s");
     let playlist_path = format!("{target_dir}/ffmpeg.m3u8");
 
@@ -103,6 +103,17 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
     push_str(&mut args, &playlist_path);
 
     Ok(args)
+}
+
+fn ffmpeg_path(path: &str) -> String {
+    #[cfg(windows)]
+    {
+        path.replace('\\', "/")
+    }
+    #[cfg(not(windows))]
+    {
+        path.to_owned()
+    }
 }
 
 fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
