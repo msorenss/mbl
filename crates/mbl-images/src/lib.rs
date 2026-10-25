@@ -281,9 +281,9 @@ mod tests {
         assert_eq!(ing.palette.vibrant, "#dc1e1e");
 
         let v = store.variant(&ing.hash, 300, 80).await.unwrap();
-        assert!(v
-            .components()
-            .any(|component| component.as_os_str() == std::ffi::OsStr::new("320")));
+        assert!(
+            v.components().any(|component| component.as_os_str() == std::ffi::OsStr::new("320"))
+        );
         let (img, format) = decode(&std::fs::read(&v).unwrap()).unwrap();
         assert_eq!(format, image::ImageFormat::Jpeg);
         assert_eq!(img.dimensions(), (320, 480));
