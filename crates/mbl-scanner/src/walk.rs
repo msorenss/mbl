@@ -149,8 +149,10 @@ mod tests {
         std::fs::write(root.join("Partly/.plexignore"), "Drop.mkv\n").unwrap();
 
         let root_str = root.to_str().unwrap();
-        let found: Vec<_> =
-            walk(root_str, LibraryKind::Movie).iter().map(|f| f.relative().to_owned()).collect();
+        let found: Vec<_> = walk(root_str, LibraryKind::Movie)
+            .iter()
+            .map(|f| f.relative().replace('\\', "/"))
+            .collect();
         assert_eq!(found, ["Movie (2020)/Movie (2020).mkv", "Partly/Keep.mkv"]);
         assert!(walk(root_str, LibraryKind::Music).is_empty());
     }
