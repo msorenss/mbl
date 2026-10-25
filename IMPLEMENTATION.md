@@ -569,7 +569,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 - [ ] **M3.5 Navigation shells:** desktop sidebar + top bar, mobile bottom tabs + mini player, TV spatial navigation (`norigin-spatial-navigation`) when `?tv=1` is set or a TV user agent is detected. *Accept:* E2E keyboard-only navigation covers every screen.
 - [ ] **M3.6 Home v2:** hero spotlight, per-user reorderable hubs (`PUT /users/me/home-layout`), Up Next. *Accept:* E2E for reordering hubs.
 - [ ] **M3.7 Detail v2:** title logo, badges, "ends at" time, version/audio/subtitle pickers, cast carousel, **playback prediction chip** (`GET /items/{id}/playback-preview?profile=…` calls `decide()` without starting a session). *Accept:* the chip matches the actual decision in E2E.
-- [ ] **M3.8 Player v2:** auto-hiding OSD, chapter ticks, quality menu (Auto/Original/bitrates), subtitle styling, speed, audio offset, Up Next card, and a **Stats overlay** (decision, codecs, HW pipeline, bitrate, buffer, dropped frames, network class). *Accept:* E2E toggles the stats overlay and asserts its fields.
+- [ ] **M3.8 Player v2:** auto-hiding OSD, chapter ticks, quality menu (Auto/Original/bitrates), subtitle styling, speed, audio offset, **"Night Mode / Smart Dialogue Boost"** toggle (WebAudio vocal boost + compressor on direct play; FFmpeg center-boost + `speechnorm` on transcode), Up Next card, and a **Stats overlay** (decision, codecs, HW pipeline, bitrate, buffer, dropped frames, network class). *Accept:* E2E toggles the stats overlay and night mode and asserts their state.
 - [ ] **M3.9 Command palette (Ctrl/⌘+K)** for search plus navigation and admin actions. *Accept:* E2E.
 - [ ] **M3.10 Profile picker + i18n:** Netflix-style picker (PIN is stubbed until M6), and i18next with `en` complete and `sv`/`de` scaffolded. *Accept:* a lint rule flags hard-coded strings.
 - [ ] **M3.11 Performance budget enforcement:** CI checks the bundle size (≤ 150 KB gz initial) and Lighthouse CI (LCP < 1.5 s on the local server). *Accept:* CI fails when a budget is exceeded.
@@ -580,7 +580,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 
 ## 6. Milestone M4: Hardware acceleration
 
-- [ ] **M4.1 Platform fingerprint** (`mbl-hwaccel`, new crate): detect the Pi model (`/proc/device-tree/model`), CPU, RAM, `/dev/dri/*`, `/dev/video*` V4L2 caps (ioctl via `nix`), NVIDIA (`/dev/nvidia*`, `nvidia-smi -q -x` if present), and Windows DXGI adapters (`windows` crate). Output a `PlatformProfile` (`Pi5`, `Pi4`, `GenericArm`, `X86Intel`, `X86Nvidia`, `X86Amd`, `Generic`). *Accept:* unit tests with fixture sysfs trees; `GET /system/info` shows the profile.
+- [ ] **M4.1 Platform fingerprint** (`mbl-hwaccel`, new crate): detect the Pi model (`/proc/device-tree/model`), CPU, RAM, `/dev/dri/*`, `/dev/video*` V4L2 caps (ioctl via `nix`), Hailo NPU (`/dev/hailo*`), NVIDIA (`/dev/nvidia*`, `nvidia-smi -q -x` if present), and Windows DXGI adapters (`windows` crate). Output a `PlatformProfile` (`Pi5`, `Pi4`, `GenericArm`, `X86Intel`, `X86Nvidia`, `X86Amd`, `Generic`). *Accept:* unit tests with fixture sysfs trees; `GET /system/info` shows the profile.
 - [ ] **M4.2 FFmpeg capability probe:** parse `-hwaccels/-encoders/-decoders/-filters` into `FfmpegCaps`, cached per FFmpeg binary hash. *Accept:* snapshot tests over captured outputs from several builds.
 - [ ] **M4.3 Functional self-test:** for each candidate backend, run a 2 s decode test per codec (bundled tiny samples in `assets/hwtest/`) and a 2 s 1080p encode test, recording `ok` and fps into `hw_capabilities`. Re-run when the FFmpeg hash or driver fingerprint changes, or via `POST /hw/test`. *Accept:* runs on CI Linux in software mode; `[~]` until run on the HW lab.
 - [ ] **M4.4 Backend: VAAPI** (Intel/AMD Linux) full-GPU pipeline (`-hwaccel vaapi -hwaccel_output_format vaapi`, `scale_vaapi`, `*_vaapi` encode). *Accept:* snapshot args + HW lab verification.
@@ -620,6 +620,13 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 - [ ] **M5.10 `mbl-tv` input and output:** HDMI-CEC via libcec, gamepad via `gilrs`, refresh-rate matching, HDR passthrough, audio passthrough (IEC958). *Accept:* manual HW checklist on a Pi 5 + TV.
 - [ ] **M5.11 MBL OS image:** `pi-gen` stage that installs `mbl-server` + `mbl-tv` + FFmpeg. First boot: mDNS `mbl.local`, setup wizard, optional appliance mode (boot into `mbl-tv`), TCP BBR + `fq`, journald volatile, log2ram. *Accept:* flash, boot, and finish the wizard in under 10 minutes, with no keyboard on the Pi.
 - [ ] **M5.12 APT repository:** signed repo on GitHub Pages or a packaging host; the image's apt sources point to it. *Accept:* `apt upgrade` updates mbl.
+- [ ] **M5.13 Raspberry Pi 5 Hailo NPU Acceleration (`mbl-hailo`):**
+  - Native support for Hailo-8 / Hailo-10H NPU (`/dev/hailo0`) and `hailo-ollama` on Raspberry Pi 5.
+  - Offload visual & audio AI indexing to the NPU with near-zero CPU overhead:
+    - Face recognition and object/scene tagging for Photos (`M7.5`) and home videos.
+    - Semantic visual scene search across movie/episode keyframes (CLIP embeddings on NPU, e.g. *"find the scene with a car chase in the snow"*).
+    - Local LLM inference via `hailo-ollama` powering spoiler-free recaps, AI Watch Companion, and natural-language library search.
+  - *Accept:* NPU detection test + semantic frame embedding benchmark on Pi 5 + Hailo-10H.
 
 **Gate M5:** PLAN §21 Pi 5 metrics met; TV client p99 frame time < 20 ms on the Pi 5; MBL OS image released as a beta.
 
@@ -679,8 +686,44 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - `resources/subscribe` for health, sessions, libraries, items, jobs and logs, with `notifications/resources/updated` fed from the event bus.
   - Prompts: `diagnose_playback`, `library_health_check`, `optimize_for_remote`, `weekly_report`, `curate_collection`.
   - `cargo xtask mcp-parity` compares OpenAPI operations with MCP tools plus `EXCLUSIONS.toml` and fails CI below 95%.
+- [ ] **M7.15 Home Assistant MQTT Integration:**
+  - MQTT client (`rumqttc`) with auto-reconnect and TLS under `[integrations.mqtt]` (broker URL, credentials, topic prefix `mbl`).
+  - Home Assistant MQTT Discovery: auto-registers `media_player.mbl_<client_id>` for active web, TV, Cast, and DLNA players with controls (play/pause/stop/seek/volume) and state (title, artist, album/series, episode, artwork URL, playback method).
+  - Diagnostic sensors: server CPU, Pi thermal throttling state, active transcode sessions, and scanner job status.
+  - Automation triggers: publishes playback lifecycle events (`mbl/events/playback_{started,paused,resumed,ended}`) for cinema room lighting and home automation scenes.
+  - *Accept:* integration tests verifying discovery JSON payload generation, state publication on playback events, and execution of incoming MQTT playback control commands.
+- [ ] **M7.16 MCP AI Watch Companion ("Co-watching with Agent", e.g. Hermes):**
+  - Real-time co-watching protocol over MCP (compatible with Hermes Agent, Claude, and local LLMs).
+  - Session attachment: `join_watch_session(session_id, bot_name)` connects an agent to a live playback session.
+  - Subscribable context resource `mbl://sessions/{id}/live-context`: streams real-time playback state, timestamps, chapter markers, plot context, and real-time dialogue cues (VTT subtitle cues delivered as they are spoken on screen).
+  - Companion interaction tools:
+    - `send_companion_reaction`: agent submits live commentary, trivia, emotional reactions, or scene explanations (with optional timestamp and sentiment).
+    - `sync_playback(session_id, action: pause|resume|rewind, reason)`: agent requests a temporary pause or rewind to discuss or explain a plot twist.
+    - `explain_scene(session_id)`: provides detailed contextual background on the current scene (actors on screen, historical context, previous episode callbacks).
+  - Web and TV player integration: toggleable "AI Companion" panel and on-screen subtitle-style thought bubble overlay rendering real-time commentary from the connected agent.
+  - *Accept:* E2E test with a mock agent joining a session, receiving live VTT dialogue cues, posting a commentary reaction, and asserting that the reaction appears in the player's event stream.
+- [ ] **M7.17 Auto-Sync Subtitles & Local Whisper AI Subtitles:**
+  - **One-click Auto-Sync (`mbl-subsync`):** audio-to-subtitle alignment engine (VAD voice energy envelope + dynamic programming alignment) that automatically calculates and applies offset/drift corrections for out-of-sync external SRT/VTT files.
+  - **Local Whisper AI Subtitle Generation & Translation:** idle background job (offloadable to `mbl-worker`, Ollama, or Hailo NPU) that transcribes audio tracks into synced WebVTT subtitles and translates them to the user's preferred language.
+  - *Accept:* unit test aligning a synthetically shifted (+2.8 s) subtitle file back within ±100 ms of the audio voice track.
+- [ ] **M7.18 Scene X-Ray, Spoiler-Free AI Recap, Sleep Guard & Shareable Clips:**
+  - **Scene X-Ray on Pause:** pausing playback displays an unobtrusive X-Ray drawer showing actors present in the current scene (linked to other titles with that actor on the server), character bios, and current soundtrack/song info.
+  - **Spoiler-Free "Previously On..." AI Recap:** generates a concise summary of a show or season strictly bounded by the user's personal `watch_history` and subtitle transcripts of *already watched* episodes—guaranteeing zero spoilers from future episodes.
+  - **"Did You Fall Asleep?" Binge Guard:** detects when consecutive episodes auto-play with zero remote/mouse interaction, pauses playback after a configurable threshold, and bookmarks the last episode where the user was awake.
+  - **Shareable Clip & GIF Creator ("Share Moment"):** select a 5–30 s range on the player timeline to export a shareable MP4/WebM/GIF clip with burned-in subtitles.
+  - *Accept:* tests verifying that recap context strictly excludes unwatched episode transcripts, plus clip extraction verification with `ffprobe`.
+- [ ] **M7.19 Movie Night Matchmaker ("Swipe to Match"):**
+  - Multi-user real-time session (`POST /api/v1/matchmaker/sessions`) joinable via QR code or short link on mobile phones.
+  - Filters candidate movies by shared unwatched status across all participants, max runtime, genre, or mood.
+  - Participants swipe right/left on posters; as soon as all participants swipe right on the same movie, a match celebration triggers with one-click playback launch directly on the living-room TV.
+  - *Accept:* WebSocket integration test with 2 simulated users swiping to a match and triggering TV playback.
+- [ ] **M7.20 Built-in Media Requests, Sonarr/Radarr Bridge & Hardlink Storage Hygiene:**
+  - **Native Media Requests (no separate Overseerr/Jellyseerr container required):** users can search TMDB and request missing movies/shows directly inside MBL; admins can approve or auto-forward requests to **Radarr / Sonarr** via native API integration, with live download progress shown on the item page.
+  - **Missing Episodes Inspector:** highlights missing episodes inside TV season views (e.g. *"S01E06 missing"*).
+  - **Hardlink-aware Storage & Duplicate Analyzer:** admin dashboard showing disk usage by library/codec/resolution, duplicate movie detector (e.g. 4K + 1080p copies), and Linux `st_nlink` (hardlink) awareness so admins see exact net disk space freed before deleting files shared with torrent/Arr seed folders.
+  - *Accept:* tests for hardlink net-size calculation, missing episode detection, and mocked Radarr/Sonarr webhook/API request flow.
 
-### M8: Transcode workers
+### M8: Distributed nodes (Transcode workers & Remote library nodes)
 - [ ] **M8.1** Worker protocol spec (`docs/worker-protocol.md`) and typed `JobSpec` shared in `mbl-core`.
 - [ ] **M8.2** `mbl-worker` binary: pairing code flow, mTLS with pinned certs, capability report (reuses `mbl-hwaccel`), heartbeat.
 - [ ] **M8.3** Source access via signed short-lived HTTP range URLs; optional path mapping.
@@ -690,13 +733,40 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 - [ ] **M8.7** Windows worker tray: current jobs, pause-while-gaming (GPU utilization / fullscreen detection).
 - [ ] **M8.8** Admin UI for workers (pair, status, revoke). *Gate:* Pi 5 + NVIDIA and Pi 5 + Intel Arc E2E on the HW lab, including a worker-kill failover test.
 - [ ] **M8.9 MCP tools: workers and optimization:** `list_workers`, `wake_worker`, `pair_worker` (returns a pairing code), `revoke_worker` (D), `create_optimized_versions` (dry run estimates size, duration and which worker would run it).
+- [ ] **M8.10 Standalone Library Node (`mbl-node` / Federated storage node):**
+  - Standalone storage node daemon mode for NAS, remote mini-PCs, or secondary servers.
+  - Pairing & federation: pairs with the central MBL server using a one-time pairing code and pinned mTLS certificates.
+  - Local scanning & metadata indexing: the node scans its local disks/folders (`/data/movies`, etc.), generates file hashes and metadata fingerprints, and syncs its library catalog to the central server via an efficient delta protocol.
+  - Central server aggregation: the central MBL server presents the node's libraries seamlessly in the unified library grid with a node badge (e.g. "Storage: NAS-Node-1").
+  - Health monitoring & auto-reconnect: heartbeats, offline status detection (pausing missing-file deletions while node is offline).
+  - *Accept:* integration tests for node pairing, delta catalog sync, and aggregation into the central server's library listing.
+- [ ] **M8.11 Remote Node Streaming & Smart Handover:**
+  - Depends: M8.10
+  - LAN direct play handover: when a client on the same network requests playback of an item hosted on a remote library node, the central server returns a signed direct playback URL pointing directly to the node, offloading network traffic from the central server.
+  - Remote / Relay streaming: when the client is on WAN and the node is behind NAT, the central server or a transcode worker proxies or transcodes the stream.
+  - Distributed transcode offload: if the storage node possesses hardware acceleration (e.g. Intel QuickSync or NVENC), it can transcode its own media locally before sending HLS segments to the client.
+  - *Accept:* integration tests for direct handover URLs and relay fallback for node-hosted media.
 
-### M9: Live TV and DVR
+### M9: Live TV, Channels and Online Streaming Plugins
 - [ ] **M9.1** HDHomeRun discovery + lineup + stream; M3U parser; streaming XMLTV parser.
 - [ ] **M9.2** Channel mapping UI, EPG grid (two-axis virtualization).
 - [ ] **M9.3** Live playback (remux/transcode with deinterlace).
 - [ ] **M9.4** Recording scheduler (one-off and series rules, padding, conflicts, keep policies); recorder; post-processing (remux to MKV, optional comskip).
 - [ ] **M9.5 MCP tools: Live TV:** `search_guide`, `list_recordings`, `schedule_recording`, `create_series_rule`, `cancel_recording` (D).
+- [ ] **M9.6 Streaming & Online Media Plugins (YouTube, Spotify, Web/K-Drama channels):**
+  - Plugin provider framework for online media sources (`mbl-plugins`):
+    - **YouTube channel plugin:** channel subscriptions, trending, playlists, search, and dynamic DASH/HLS stream extraction.
+    - **Spotify audio plugin:** user library, playlists, artist discovery, and audio playback integration (with Spotify Connect support).
+    - **Online Drama & Web Series scrapers (e.g. K-drama, anime, web channels):** manifest-driven or WASM scrapers that discover online series, scrape episode listings, and resolve direct HLS/MP4 stream URLs with multi-language subtitle tracks.
+  - Unified Item abstraction: online content items integrate into standard `MediaItem` models with `source: Plugin(id)`, allowing them to appear in unified search, watch history, and resume tracking.
+  - *Accept:* unit tests for the plugin channel resolver, mock YouTube/Spotify feed parsers, and stream resolution tests.
+- [ ] **M9.7 Virtual 24/7 Channels & TV UI Integration (ErsatzTV-style):**
+  - Depends: M9.6, M5.9
+  - Dedicated "Channels" / "Online" section in the TV and Web navigation:
+    - Hub rows for YouTube subscriptions, Spotify playlists, and K-Drama/web streaming feeds.
+    - **Virtual 24/7 Linear TV Channels:** build custom continuous TV channels from libraries, collections, or smart rules (e.g. *"90s Sitcoms"*, *"Sci-Fi Night"*, *"Kids Channel"*) with rolling synthetic EPG schedules, optional local movie trailers inserted as "commercial breaks" between shows, and calculated live playhead offsets (zero background CPU/transcoding until a viewer tunes in).
+  - Player integration: seamless channel surfing (Up/Down channel zapping) with on-screen EPG mini-banner, quality selectors, audio source switching, and subtitle selectors.
+  - *Accept:* E2E test browsing an online plugin channel and tuning into a virtual 24/7 channel at its calculated live timestamp.
 
 ### M10: Hardening → v1.0.0
 - [ ] **M10.1** Threat model doc; external security review; fix findings.
@@ -711,8 +781,33 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Compatibility tests with VS Code, Claude Desktop, Cursor and MCP Inspector.
   - An agent evaluation suite in `evals/mcp/*.yaml` (scenario, expected tool calls, end state) run nightly with a configured LLM (non-blocking), with a ≥ 90% pass target.
 
-### M11+: Post-1.0 backlog (prioritize after v1.0)
-Jellyfin API shim · **in-app AI assistant + natural-language search** (user-configured LLM endpoint, in-process MCP tools, PLAN §9.5.8) · WASM plugins (`wasmtime`) + catalog · OIDC SSO · smart collections/playlists · Watch Together · offline sync/downloads · embedded Tailscale (`libtailscale`) · HTTP/3 · `mbl-relay` · Live TV time-shift · commercial detection · HEIC/RAW photos · Rockchip RKMPP tier-1 · native mobile apps.
+### M11: Native Mobile, TV & Spatial VR Clients (Post-1.0)
+- [ ] **M11.1 Android Mobile & Tablet App:**
+  - Modern touch-first client matching MBL Design tokens.
+  - Native player via AndroidX Media3 / ExoPlayer with hardware decode, HDR/Dolby Vision, gesture controls (swipe brightness/volume, double-tap seek), and Picture-in-Picture (PiP).
+  - Background audio playback for music with lock-screen media controls, synced lyrics, and Android Auto support.
+  - Offline downloads & sync: download movies and episodes with quality presets for offline viewing (planes, trains, travel).
+  - Chromecast sender and companion remote mode.
+- [ ] **M11.2 Android TV / Google TV / Fire TV App:**
+  - Dedicated 10-foot remote D-pad navigation built with Compose for TV / Leanback.
+  - Auto frame rate (AFR) refresh-rate matching (23.976, 24, 50, 59.94, 60 Hz) and dynamic range matching (HDR10/DV).
+  - Audio passthrough over HDMI eARC: Dolby TrueHD, DTS-HD MA, Dolby Digital Plus (EAC3) with Atmos, and DTS.
+  - Google TV / Android TV home screen integration: "Watch Next" / "Play Next" channel recommendations and voice search integration.
+- [ ] **M11.3 Meta Quest (Oculus) VR Cinema & Spatial Media App (Quest 2, 3, Pro):**
+  - Immersive virtual cinema powered by OpenXR:
+    - Environments: Grand Virtual Cinema, Cozy Living Room, Void Space, and Mixed Reality (MR) Passthrough (place a floating giant IMAX screen anywhere in your physical room).
+    - Real-time screen adjustments: curved display curvature, screen distance, scale, tilt, and realistic light bounce onto virtual theater surfaces.
+  - 3D & Spatial Video engine:
+    - Zero-stutter stereoscopic 3D support: Half-SBS, Full-SBS, Over-Under (Top-Bottom), and frame-packed MVC 3D.
+    - 180° and 360° VR video formats with 6DoF head tracking.
+    - Spatial Audio: head-tracked binaural 3D sound positioning relative to the virtual screen.
+    - Natural hand-tracking and Touch controller interactions for pinch-to-play, scrub timeline, and laser pointing.
+- [ ] **M11.4 VR Social Cinema & Spatial AI Co-watching:**
+  - Synchronized Watch Together rooms in VR with spatial voice chat and customized avatars.
+  - Spatial AI Watch Companion (Hermes / AI avatar seated beside you in the virtual cinema, offering live commentary, trivia, and conversational reactions with spatialized voice audio).
+
+### M12+: Extended Ecosystem & Backlog
+Jellyfin API shim · **in-app AI assistant + natural-language search** (user-configured LLM endpoint, in-process MCP tools, PLAN §9.5.8) · WASM plugins (`wasmtime`) + catalog · OIDC SSO · smart collections/playlists · Watch Together (web/TV) · embedded Tailscale (`libtailscale`) · HTTP/3 · `mbl-relay` · Live TV time-shift · commercial detection · HEIC/RAW photos · Rockchip RKMPP tier-1.
 
 ---
 

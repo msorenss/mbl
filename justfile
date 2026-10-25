@@ -69,6 +69,10 @@ build-pi:
 deb:
     cargo deb -p mbl-server
 
+# Build Docker image
+docker:
+    docker build -f packaging/docker/Dockerfile.local -t mbl:latest .
+
 # Launch MCP Inspector against the dev server
 mcp-inspect:
     # In the Inspector UI choose "Streamable HTTP" and URL http://localhost:8420/mcp

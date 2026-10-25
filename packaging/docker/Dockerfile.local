@@ -1,0 +1,36 @@
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="MBL Media Server" \
+      org.opencontainers.image.description="Fast, lightweight personal media server for Raspberry Pi 5 and home servers" \
+      org.opencontainers.image.authors="MBL Contributors <dev@mbl.media>"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PUID=1000 \
+    PGID=1000 \
+    MBL_PATHS__DATA_DIR=/var/lib/mbl \
+    MBL_SERVER__BIND=0.0.0.0 \
+    MBL_SERVER__PORT=8420
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    ca-certificates \
+    gosu \
+    tini \
+    tzdata \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /var/lib/mbl /etc/mbl /media
+
+COPY packaging/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ARG BINARY_PATH=target/aarch64-unknown-linux-gnu/release/mbl-server
+COPY ${BINARY_PATH} /usr/bin/mbl-server
+RUN chmod 755 /usr/bin/mbl-server
+
+EXPOSE 8420
+VOLUME ["/var/lib/mbl", "/etc/mbl", "/media"]
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/bin/mbl-server", "--config", "/etc/mbl/mbl.toml"]

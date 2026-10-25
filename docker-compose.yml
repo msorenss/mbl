@@ -1,0 +1,20 @@
+services:
+  mbl:
+    image: mbl:latest
+    container_name: mbl
+    restart: unless-stopped
+    ports:
+      - "8420:8420"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Stockholm
+    volumes:
+      - ./data:/var/lib/mbl
+      - ./config:/etc/mbl
+      # Point to your local media directories:
+      # - /path/to/movies:/media/movies:ro
+      # - /path/to/tv:/media/tv:ro
+    devices:
+      # Pass through hardware acceleration (Raspberry Pi V4L2/DRM, Intel VAAPI, etc.)
+      - /dev/dri:/dev/dri

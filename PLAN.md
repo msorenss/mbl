@@ -573,10 +573,20 @@ flowchart TD
 - **Remux direct stream** uses the same HLS mechanism with `-c copy` (near-zero CPU).
 - **Music:** progressive transcoding (Opus in Ogg/WebM or AAC in ADTS/MP4) via chunked HTTP, plus gapless metadata.
 
-### 8.5 Intro/credits detection and trickplay (`mbl-analysis`)
+### 8.5 Intro/credits detection, trickplay, subtitle sync and smart analysis (`mbl-analysis`)
 - **Intro detection:** extract the first ~10 minutes of audio from each episode in a season (ffmpeg → 16 kHz mono PCM). Chromaprint-fingerprint it and find the longest common segment across ≥2 episodes. Store it as a `marker`. Chapter names ("Intro", "Opening") take precedence when present.
 - **Credits:** chapter names, then black-frame/silence detection near the end (`blackdetect`, `silencedetect`) as a heuristic.
 - **Trickplay:** extract 1 frame every 10 s at 320 px width using HW decode where possible (`-skip_frame nokey` to decode only keyframes, which makes it very cheap on Pi), then tile into JPEG/WebP sprites with a WebVTT index or JSON.
+- **One-click Auto-Sync Subtitles (`mbl-subsync`):** compares the audio stream's voice activity envelope (VAD) against external SRT/VTT cue timestamps using dynamic programming (`alass`-style alignment) to fix out-of-sync subtitles in ~1 s.
+- **Local Whisper AI Subtitles & Translation:** idle background job (offloadable to `mbl-worker`, Ollama, or Hailo NPU) that transcribes missing subtitles and translates them to the user's preferred language.
+- **Night Mode & Smart Dialogue Boost:** one-click player audio profile that boosts center-channel vocals and compresses dynamic range (WebAudio filter chain on direct play; FFmpeg `pan` + `speechnorm` on transcode) so whispered dialogue is clear without loud explosions waking the household.
+- **Scene X-Ray & Spoiler-Free AI Recap:**
+  - Pausing displays an X-Ray overlay with actors in the current scene (linked to other titles on the server) and soundtrack metadata.
+  - "Previously On..." AI Recap summarizes plot points strictly from the user's watched episodes and subtitle transcripts—guaranteeing zero spoilers from unwatched episodes.
+- **"Did You Fall Asleep?" Binge Guard & Shareable Clips:**
+  - Automatically pauses episode auto-play after configurable inactivity and bookmarks the last episode where the user interacted.
+  - Timeline clip selector exports 5–30 s MP4/WebM/GIF snippets with burned-in subtitles for easy sharing.
+- **Raspberry Pi 5 Hailo NPU Acceleration (`mbl-hailo`):** native support for `/dev/hailo0` (`Hailo-8` / `Hailo-10H`) and `hailo-ollama` to run face recognition, photo/video scene tagging, semantic visual search (*"car chase in the snow"*), and local LLM tasks at near-zero CPU cost.
 - All analysis jobs are *idle-priority* and pause automatically when a playback session starts on low-end platforms.
 
 ### 8.6 Users, auth and permissions (`mbl-auth`)
@@ -588,28 +598,52 @@ flowchart TD
 - Device management: list and revoke sessions.
 - Quick connect: a 6-digit code to authorize a TV client from a phone, which avoids typing passwords on a remote.
 
-### 8.7 Live TV and DVR (`mbl-livetv`)
+### 8.7 Live TV, DVR and Virtual 24/7 Channels (`mbl-livetv`)
 - HDHomeRun: discovery via UDP broadcast on port 65001 plus the HTTP `lineup.json`. The tuner stream is MPEG-TS, remuxed or transcoded (deinterlace with `yadif`/`deinterlace_qsv`/`deinterlace_vaapi`).
 - M3U: parse `#EXTINF` attributes (`tvg-id`, `tvg-logo`, `group-title`).
 - XMLTV: streaming parse (`quick-xml`) so large EPG files don't blow up RAM on a Pi.
+- **Virtual 24/7 Linear TV Channels (ErsatzTV-style):** create custom continuous linear channels from libraries, collections, or smart rules (e.g. *"90s Sitcoms"*, *"Sci-Fi Night"*), complete with rolling synthetic EPG guides, local movie trailer bumpers between shows, and calculated live playhead offsets (zero background transcoding when nobody is watching).
 - Scheduler: a persistent job queue for recordings, conflict detection based on tuner count, padding, keep policies (keep N latest, delete after watched), and series rules that match title/season/new-only.
 - Recordings are written as MPEG-TS, then optionally post-processed: remux to MKV, comskip markers, and a transcode to H.264 at low priority.
 
-### 8.8 DLNA, Chromecast, remote control
+### 8.8 DLNA, Chromecast, Home Assistant MQTT, remote control
 - DLNA: SSDP NOTIFY/M-SEARCH, a ContentDirectory browse tree (Movies/TV/Music/Photos), DLNA profile flags (`DLNA.ORG_PN`, `DLNA.ORG_OP`), and transcoding for picky TVs via renderer profiles (Samsung, LG, Sony quirks).
 - Chromecast: the web client uses the Cast SDK with an optional custom receiver hosted by the server.
 - Companion remote: TV clients register as controllable players via WebSocket. Phones and web clients send `play`, `pause`, `seek`, `setAudio`, `setSubtitle`, and `navigate` commands.
+- **Home Assistant MQTT Integration:**
+  - Auto-discovery via MQTT (`homeassistant/media_player/mbl_<id>/config`).
+  - Exposes `media_player` entities for all active web, TV, Cast, and DLNA sessions with bi-directional play/pause/seek/stop/volume controls and detailed metadata (title, artist, album, poster artwork URL, playback method).
+  - Diagnostic sensors (CPU, thermal throttle status, transcode count) and automation lifecycle event topics (`mbl/events/playback_{started,paused,resumed,ended}`) for automated cinema lighting.
 
 ### 8.9 Plugin system (`mbl-plugins`)
-- WASM components (wasmtime, WIT interfaces): `metadata-agent`, `scrobbler`, `notification` (Discord, ntfy, Gotify), and `scheduled-task`.
+- WASM components (wasmtime, WIT interfaces): `metadata-agent`, `scrobbler`, `notification` (Discord, ntfy, Gotify), `scheduled-task`, and **`channel-provider`**.
+- **Online media & streaming channel plugins:**
+  - Providers for online sources: **YouTube** (subscriptions, playlists, search, dynamic stream extraction), **Spotify** (audio library, playlists, Spotify Connect bridge), and **Online Drama / Web series** scrapers (e.g. K-drama, anime, web series with multi-subtitles).
+  - Virtual 24/7 channels and custom online hub rows integrated directly into Web and TV navigation shells.
 - **Capability-based permissions:** plugins declare allowed hosts for outbound HTTP (enforced by the host), have no filesystem access by default, and run under memory and fuel limits.
 - A plugin catalog is a simple JSON index hosted in a GitHub repo, with plugin hashes verified on install.
 
-### 8.10 Observability and admin
+### 8.10 Observability, Storage Hygiene, and Built-in Requests
 - Structured logs (JSON optional) with a rotating file appender. Log level is changeable at runtime from the dashboard.
 - A `/metrics` Prometheus endpoint (opt-in) and a `/health` endpoint for Docker and systemd.
 - Dashboard: active sessions (user, client, decision, reason, bandwidth, transcode fps/speed, HW or SW), system graphs (CPU, RAM, temperature, throttle state on Pi), library stats, and a job queue view.
+- **Hardlink-aware Storage & Duplicate Analyzer:** breaks down disk usage by library/resolution/codec, flags duplicate movies/episodes, highlights missing episodes in a season, and checks Linux `st_nlink` hardlinks so admins see exact net bytes freed before deleting files shared with torrent/Arr seed directories.
+- **Built-in Media Requests & Sonarr/Radarr Bridge:** users can request missing movies/series directly from search/discovery without needing an external Overseerr/Jellyseerr container; requests can be approved by admins or forwarded automatically to Radarr/Sonarr with live download status shown in MBL.
 - A one-click **support bundle** (logs, redacted config, hw report) for bug reports.
+
+### 8.11 Standalone Library Nodes (`mbl-node` / Federated storage nodes)
+- Lightweight storage node daemon (`mbl-node`) for NAS boxes, remote mini-PCs, and secondary storage servers.
+- **Pairing & Federation:** joins the central MBL server via one-time code pairing and pinned mTLS.
+- **Catalog Synchronization:** scans local storage, computes quick hashes, and syncs media catalogs via delta sync without central file replication.
+- **Smart Handover Streaming:**
+  - LAN clients stream directly from the storage node via signed handover URLs, offloading local network traffic from the central server.
+  - Remote WAN clients use relay or central transcode workers if the node is behind NAT.
+  - Nodes with local GPU/QSV capacity can transcode locally before serving HLS segments.
+
+### 8.12 Movie Night Matchmaker ("Swipe to Match")
+- Real-time multi-user session joinable via QR code or short link on mobile phones.
+- Filters the library by shared unwatched status across all participants, maximum runtime, genre, or mood.
+- Participants swipe right/left on candidate posters; as soon as everyone matches on a title, MBL celebrates the match and offers one-click playback launch on the living-room TV.
 
 ---
 
@@ -781,6 +815,15 @@ Resource templates are advertised so agents can construct item and library URIs.
 - It is off by default, and nothing leaves the home unless an external endpoint is configured.
 - It also powers natural-language search ("80s sci-fi I haven't seen, under 2 hours"), which is translated into typed `search_media` filters.
 
+#### 9.5.9 AI Watch Companion ("Co-watching with Agent", e.g. Hermes)
+- External AI agents (Hermes Agent, Claude, local models) can join an active playback session as a real-time **co-watcher**.
+- **Real-time Live Context:** `mbl://sessions/{id}/live-context` resource streams playback state, position, active chapter markers, and real-time dialogue cues (VTT subtitles pushed as lines are spoken).
+- **Interactive Commentary & Banter:**
+  - Tools `join_watch_session`, `send_companion_reaction`, `sync_playback` (pause/rewind), and `explain_scene`.
+  - The agent can react to shocking plot twists, explain complex lore/character backgrounds, or answer user voice/chat questions without interrupting flow.
+- **Client Render Overlay:**
+  - A subtle subtitle-style thought bubble or side-drawer in Web and TV clients displays live commentary, character trivia, and agent reactions.
+
 ---
 
 ## 10. Modern Interface and Clients
@@ -810,8 +853,9 @@ Resource templates are advertised so agents can construct item and library URIs.
 | Form factor | Navigation pattern |
 |---|---|
 | Desktop | Collapsible left sidebar (Home, libraries, Live TV, Playlists, Admin), a top bar with global search, and a **⌘K / Ctrl+K command palette** (search media, jump to settings, run admin actions). |
-| Phone/tablet | Bottom tab bar (Home, Search, Libraries, Downloads, Profile), swipe gestures in the player, and a persistent mini player for music and video. |
-| TV (MBL TV client, TV browsers) | Left rail that expands on focus, spatial D-pad navigation (`@noriginmedia/norigin-spatial-navigation` for web on TV), clear focus states (scale 1.06 + accent outline + glow), "Back" always predictable, long-press for context menus, and voice-free search with an on-screen keyboard plus phone keyboard via companion remote. |
+| Phone/tablet (iOS, Android) | Bottom tab bar (Home, Search, Libraries, Downloads, Profile), swipe gestures in the player, picture-in-picture, background audio with lock-screen controls, and offline download sync. |
+| TV (MBL TV, Android TV, Google TV, Fire TV) | Left rail that expands on focus, spatial D-pad navigation (`@noriginmedia/norigin-spatial-navigation` for web on TV; Compose for TV / Leanback for Android TV), auto frame-rate (AFR) matching, audio passthrough (TrueHD, DTS-HD MA, Atmos), and phone keyboard via companion remote. |
+| Spatial / VR (Meta Quest 2, 3, Pro) | OpenXR virtual cinema, floating virtual IMAX screen, Void and MR Passthrough modes, stereoscopic 3D (Half/Full SBS, Over-Under, MVC), 180°/360° projections, head-tracked 3D spatial audio, hand-tracking gestures, and VR Watch Together with AI companion avatar. |
 
 ### 10.4 Key screens
 1. **Onboarding wizard:** welcome → create admin → add libraries (built-in folder browser with drive and network share detection) → metadata language → **hardware report** ("Raspberry Pi 5 detected: direct play preferred, HEVC hardware decode, software transcoding limited to 1 stream, add a GPU worker for more") → **remote access setup** (§13) → done.
