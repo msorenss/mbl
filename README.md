@@ -8,7 +8,7 @@ An open source, Plex-inspired media center written in Rust. It is built first fo
 
 ## Status
 
-Milestone M3 (Modern UI v1) is complete; MBL remains in active development.
+Milestone M4 (Hardware acceleration) is complete; MBL remains in active development.
 
 ## Development
 

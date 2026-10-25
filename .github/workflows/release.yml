@@ -95,7 +95,7 @@ jobs:
           Copy-Item target\release\mbl-server.exe staging\
           Copy-Item packaging\windows\README.txt staging\
           $version = "${{ github.ref_name }}"
-          if (-not $version) { $version = "v0.2.0" }
+          if (-not $version) { $version = "v0.3.0" }
           $zipName = "mbl-$version-windows-x86_64.zip"
           Compress-Archive -Path staging\* -DestinationPath $zipName
           Move-Item $zipName dist-windows.zip
@@ -117,7 +117,7 @@ jobs:
           cd release-dist
           if [ -f dist-windows.zip ]; then
             TAG="${{ github.ref_name }}"
-            [ -z "$TAG" ] && TAG="v0.2.0"
+            [ -z "$TAG" ] && TAG="v0.3.0"
             mv dist-windows.zip "mbl-${TAG}-windows-x86_64.zip"
           fi
       - name: Generate SHA-256 Checksums
