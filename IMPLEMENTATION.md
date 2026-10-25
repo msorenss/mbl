@@ -7,7 +7,8 @@ This document turns [PLAN.md](PLAN.md) into an ordered list of small, verifiable
 ## 0. How to use this document
 
 ### 0.1 Agent operating rules
-1. **Work strictly in order.** Pick the first task whose checkbox is `[ ]` and whose `Depends` are all `[x]`. Do one task at a time.
+0. **Read and update [`AGENTS.md`](AGENTS.md) first.** `AGENTS.md` in the repository root contains the current milestone status, critical host-environment rules (disk space flags on Pi 5, Hailo NPU co-tenant notes, test flags), and the session handoff log. Update `AGENTS.md` whenever you finish a task batch or milestone.
+1. **Work strictly in order.** Pick the first task whose checkbox is `[ ]` and whose `Depends` are all `[x]`. Do one task at a time (or complete a full milestone before running the heavy test suite, as documented in `AGENTS.md`).
 2. **Read before writing.** Read the task, the referenced PLAN.md sections, and the existing code in the crates you will touch.
 3. **Stay in scope.** Implement only what the task says. Write any ideas for later in the task's *Notes* line. Do not implement them.
 4. **Follow the conventions in §1.** Use the interfaces in Appendix A exactly as defined. If an interface must change, update Appendix A in the same commit.
@@ -18,6 +19,7 @@ This document turns [PLAN.md](PLAN.md) into an ordered list of small, verifiable
 6. **Record progress.**
    - Change `[ ]` to `[x]`.
    - Append a line to the Progress Log (§9): `YYYY-MM-DD | <task id> | <short summary> | <commit sha>`.
+   - Append a handoff entry to [`AGENTS.md`](AGENTS.md) (§5).
    - Commit using Conventional Commits that include the task ID, e.g. `feat(scanner): M1.6 incremental scan with quick hash`.
 7. **Hardware-dependent tasks.** If the required hardware (Pi 5, NVIDIA, Intel, etc.) is not available:
    - Implement the task and cover it with snapshot/unit tests.
