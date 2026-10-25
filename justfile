@@ -31,6 +31,7 @@ web-check:
         pnpm -C web lint
         pnpm -C web test
         pnpm -C web build
+        pnpm -C web run bundle:check
     fi
 
 # Full CI-equivalent run
@@ -38,6 +39,11 @@ ci: check
     cargo deny check
     just sqlx-check
     cargo xtask openapi-check
+    cargo xtask tokens --check
+
+# Regenerate CSS and Slint design tokens from design/tokens.json
+tokens:
+    cargo xtask tokens
 
 # Run the server with dev config/data in ./.dev
 dev:

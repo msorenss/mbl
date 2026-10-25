@@ -21,9 +21,11 @@ pub struct ImageQuery {
     pub q: Option<u8>,
     /// Content hash from the item DTO; when it matches, the response is cached as immutable.
     pub v: Option<String>,
+    /// Server-side Gaussian blur for TV/ambient mode (?blur=1).
+    pub blur: Option<String>,
 }
 
-/// A resized JPEG of an artwork; `w` snaps to a fixed set of widths.
+/// A resized JPEG of an artwork; `w` snaps to a fixed set of widths. Supports `?blur=1`.
 #[utoipa::path(get, path = "/api/v1/images/{id}", tag = "images",
     params(("id" = i64, Path), ImageQuery),
     responses((status = 200, content_type = "image/jpeg"), (status = 304), (status = 404)))]
@@ -34,9 +36,17 @@ async fn image(
     Query(q): Query<ImageQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let file =
-        state.services.images.get(&auth.actor, id, q.w.unwrap_or(480), q.q.unwrap_or(80)).await?;
-    let etag = format!("\"{}-{}-{}\"", file.hash, file.width, file.quality);
+    let is_blur = q.blur.as_deref().is_some_and(|b| b == "1" || b.eq_ignore_ascii_case("true"));
+    let file = state
+        .services
+        .images
+        .get_with_blur(&auth.actor, id, q.w.unwrap_or(480), q.q.unwrap_or(80), is_blur)
+        .await?;
+    let etag = if file.blurred {
+        format!("\"{}-{}-{}-blur\"", file.hash, file.width, file.quality)
+    } else {
+        format!("\"{}-{}-{}\"", file.hash, file.width, file.quality)
+    };
     let cache = if q.v.as_deref() == Some(file.hash.as_str()) {
         "private, max-age=31536000, immutable"
     } else {

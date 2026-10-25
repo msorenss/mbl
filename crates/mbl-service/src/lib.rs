@@ -28,6 +28,7 @@ pub use events::EventService;
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
+pub use mbl_playback::{PlayMethod, StreamAction, SubtitleDelivery};
 pub use mcp::{
     McpConfig, McpConfigSnippets, McpPreset, McpService, McpSnippetsRequest, McpStatus,
     UpdateMcpStatusRequest, generate_snippets, mcp_presets,

@@ -3,6 +3,8 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import { getPreferredProfile } from "../api/deviceProfile";
 import type { components } from "../api/schema";
+import { useTheme } from "../context/ThemeContext";
+import { Button } from "./ui";
 
 type PlaybackResponse = components["schemas"]["PlaybackResponse"];
 type PlaybackSubtitleTrack = components["schemas"]["PlaybackSubtitleTrack"];
@@ -22,6 +24,14 @@ export function Player(props: PlayerProps) {
   let progressInterval: number | null = null;
   let hideControlsTimer: number | null = null;
 
+  // WebAudio nodes for Night Mode / Smart Dialogue Boost
+  let audioCtx: AudioContext | null = null;
+  let audioSource: MediaElementAudioSourceNode | null = null;
+  let dialogueBoostFilter: BiquadFilterNode | null = null;
+  let compressorNode: DynamicsCompressorNode | null = null;
+
+  const { subtitleStyle, nightMode, setNightMode } = useTheme();
+
   const [playbackData, setPlaybackData] = createSignal<PlaybackResponse | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
@@ -34,6 +44,11 @@ export function Player(props: PlayerProps) {
   const [showResumePrompt, setShowResumePrompt] = createSignal(false);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = createSignal<number>(-1);
   const [showSubtitlesMenu, setShowSubtitlesMenu] = createSignal(false);
+  const [showSpeedMenu, setShowSpeedMenu] = createSignal(false);
+  const [playbackRate, setPlaybackRate] = createSignal(1.0);
+  const [showStats, setShowStats] = createSignal(false);
+  const [droppedFrames, setDroppedFrames] = createSignal(0);
+  const [bufferAheadSecs, setBufferAheadSecs] = createSignal(0);
 
   const formatTime = (secs: number) => {
     if (!Number.isFinite(secs) || secs < 0) return "00:00";
@@ -50,11 +65,67 @@ export function Player(props: PlayerProps) {
     setShowControls(true);
     if (hideControlsTimer) clearTimeout(hideControlsTimer);
     hideControlsTimer = window.setTimeout(() => {
-      if (isPlaying()) {
+      if (isPlaying() && !showStats()) {
         setShowControls(false);
         setShowSubtitlesMenu(false);
+        setShowSpeedMenu(false);
       }
     }, 3500);
+  };
+
+  // WebAudio setup for Night Mode
+  const initWebAudio = () => {
+    if (!videoRef || audioCtx) return;
+    try {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtxClass) return;
+      audioCtx = new AudioCtxClass();
+      audioSource = audioCtx.createMediaElementSource(videoRef);
+
+      // Center vocal boost peaking filter (~2 kHz, +6 dB)
+      dialogueBoostFilter = audioCtx.createBiquadFilter();
+      dialogueBoostFilter.type = "peaking";
+      dialogueBoostFilter.frequency.value = 2000;
+      dialogueBoostFilter.Q.value = 1.4;
+      dialogueBoostFilter.gain.value = 6;
+
+      // Dynamics compressor to tame sudden explosions and lift whisper dialogue
+      compressorNode = audioCtx.createDynamicsCompressor();
+      compressorNode.threshold.value = -24;
+      compressorNode.knee.value = 30;
+      compressorNode.ratio.value = 12;
+      compressorNode.attack.value = 0.003;
+      compressorNode.release.value = 0.25;
+
+      connectAudioNodes();
+    } catch {
+      // Browser WebAudio policy or already connected
+    }
+  };
+
+  const connectAudioNodes = () => {
+    if (!audioCtx || !audioSource) return;
+    audioSource.disconnect();
+    if (dialogueBoostFilter) dialogueBoostFilter.disconnect();
+    if (compressorNode) compressorNode.disconnect();
+
+    if (nightMode() && dialogueBoostFilter && compressorNode) {
+      audioSource.connect(dialogueBoostFilter);
+      dialogueBoostFilter.connect(compressorNode);
+      compressorNode.connect(audioCtx.destination);
+    } else {
+      audioSource.connect(audioCtx.destination);
+    }
+  };
+
+  const toggleNightMode = () => {
+    initWebAudio();
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    const next = !nightMode();
+    setNightMode(next);
+    connectAudioNodes();
   };
 
   const reportProgress = async (state: "playing" | "paused" | "buffering") => {
@@ -68,9 +139,7 @@ export function Player(props: PlayerProps) {
         params: { path: { session: data.sessionId } },
         body: { positionMs, state },
       });
-    } catch {
-      // Ignore background progress reporting errors
-    }
+    } catch {}
   };
 
   const stopPlayback = async () => {
@@ -84,9 +153,7 @@ export function Player(props: PlayerProps) {
         params: { path: { session: data.sessionId } },
         body: { positionMs },
       });
-    } catch {
-      // Ignore stop errors
-    }
+    } catch {}
   };
 
   const startPlaybackSession = async (startMs = 0) => {
@@ -108,8 +175,8 @@ export function Player(props: PlayerProps) {
         return;
       }
 
-      setPlaybackData(data);
-      initPlayer(data, startMs);
+      setPlaybackData(data as PlaybackResponse);
+      initPlayer(data as PlaybackResponse, startMs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Playback initiation failed");
       setLoading(false);
@@ -157,7 +224,6 @@ export function Player(props: PlayerProps) {
       });
       hlsInstance = hls;
     } else {
-      // Direct play or native HLS (e.g. Safari)
       vid.src = streamUrl;
       if (startMs > 0) {
         vid.currentTime = startMs / 1000;
@@ -166,7 +232,6 @@ export function Player(props: PlayerProps) {
       vid.play().catch(() => {});
     }
 
-    // Set initial default subtitle if available
     const defaultSub = data.subtitles.find((s) => s.isDefault);
     if (defaultSub) {
       setSelectedSubtitleIndex(defaultSub.index);
@@ -181,12 +246,21 @@ export function Player(props: PlayerProps) {
       startPlaybackSession(0);
     }
 
-    // Progress interval every 10 seconds
     progressInterval = window.setInterval(() => {
       if (isPlaying()) {
         reportProgress("playing");
+        // Update stats
+        if (videoRef) {
+          const qual = (videoRef as any).getVideoPlaybackQuality?.();
+          if (qual) setDroppedFrames(qual.droppedVideoFrames);
+          const buffered = videoRef.buffered;
+          if (buffered.length > 0) {
+            const end = buffered.end(buffered.length - 1);
+            setBufferAheadSecs(Math.max(0, Math.round(end - videoRef.currentTime)));
+          }
+        }
       }
-    }, 10000);
+    }, 5000);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const vid = videoRef;
@@ -234,6 +308,14 @@ export function Player(props: PlayerProps) {
           e.preventDefault();
           toggleFullscreen();
           break;
+        case "s":
+          e.preventDefault();
+          setShowStats((prev) => !prev);
+          break;
+        case "n":
+          e.preventDefault();
+          toggleNightMode();
+          break;
         case "Escape":
           e.preventDefault();
           handleClose();
@@ -251,6 +333,9 @@ export function Player(props: PlayerProps) {
       if (hlsInstance) {
         hlsInstance.destroy();
         hlsInstance = null;
+      }
+      if (audioCtx) {
+        audioCtx.close().catch(() => {});
       }
     });
   });
@@ -300,6 +385,14 @@ export function Player(props: PlayerProps) {
     setIsMuted(v === 0);
   };
 
+  const handleSetSpeed = (rate: number) => {
+    if (videoRef) {
+      videoRef.playbackRate = rate;
+      setPlaybackRate(rate);
+    }
+    setShowSpeedMenu(false);
+  };
+
   const handleClose = () => {
     stopPlayback();
     props.onClose();
@@ -313,6 +406,43 @@ export function Player(props: PlayerProps) {
   const activeSubtitleTrack = (): PlaybackSubtitleTrack | undefined => {
     const subs = playbackData()?.subtitles || [];
     return subs.find((s) => s.index === selectedSubtitleIndex());
+  };
+
+  // Markers: intro, credits, chapters
+  const currentMarkers = () => playbackData()?.markers || [];
+  const activeIntroMarker = () => {
+    const curMs = currentTime() * 1000;
+    return currentMarkers().find(
+      (m) => m.kind === "intro" && curMs >= m.startMs && curMs <= m.endMs,
+    );
+  };
+  const activeCreditsMarker = () => {
+    const curMs = currentTime() * 1000;
+    return currentMarkers().find(
+      (m) => m.kind === "credits" && curMs >= m.startMs && curMs <= m.endMs,
+    );
+  };
+
+  // Subtitle cue styling CSS injection
+  const subCueStyle = () => {
+    const s = subtitleStyle();
+    const fontSize =
+      s.size === "sm" ? "14px" : s.size === "lg" ? "24px" : s.size === "xl" ? "32px" : "18px";
+    const bg =
+      s.background === "none"
+        ? "transparent"
+        : s.background === "solid"
+          ? "#000000"
+          : "rgba(0, 0, 0, 0.75)";
+    const color = s.color === "yellow" ? "#facc15" : s.color === "cyan" ? "#06b6d4" : "#ffffff";
+    return `
+      video::cue {
+        font-size: ${fontSize};
+        background-color: ${bg};
+        color: ${color};
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+      }
+    `;
   };
 
   return (
@@ -335,6 +465,8 @@ export function Player(props: PlayerProps) {
         "user-select": "none",
       }}
     >
+      <style>{subCueStyle()}</style>
+
       {/* Resume Prompt Modal */}
       <Show when={showResumePrompt()}>
         <div
@@ -347,7 +479,7 @@ export function Player(props: PlayerProps) {
             "text-align": "center",
             "z-index": 10001,
             "max-width": "420px",
-            "box-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.8)",
+            "box-shadow": "var(--shadow-xl)",
           }}
         >
           <h3 style={{ margin: "0 0 10px", "font-size": "20px", "font-weight": "700" }}>
@@ -358,43 +490,88 @@ export function Player(props: PlayerProps) {
             <strong>{formatTime((props.initialStartMs ?? 0) / 1000)}</strong>.
           </p>
           <div style={{ display: "flex", gap: "12px", "justify-content": "center" }}>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => {
                 setShowResumePrompt(false);
                 startPlaybackSession(props.initialStartMs ?? 0);
               }}
-              style={{
-                padding: "10px 20px",
-                background: "var(--accent)",
-                color: "#fff",
-                border: "none",
-                "border-radius": "var(--radius-sm)",
-                "font-weight": "600",
-                cursor: "pointer",
-              }}
             >
               Resume ({formatTime((props.initialStartMs ?? 0) / 1000)})
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
               onClick={() => {
                 setShowResumePrompt(false);
                 startPlaybackSession(0);
               }}
-              style={{
-                padding: "10px 20px",
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-                "border-radius": "var(--radius-sm)",
-                cursor: "pointer",
-              }}
             >
               Start Over
-            </button>
+            </Button>
           </div>
         </div>
+      </Show>
+
+      {/* Loading Overlay */}
+      <Show when={loading()}>
+        <div
+          style={{
+            position: "absolute",
+            inset: "0",
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "center",
+            background: "rgba(0, 0, 0, 0.5)",
+            "z-index": "15",
+            "pointer-events": "none",
+          }}
+        >
+          <div
+            style={{
+              width: "48px",
+              height: "48px",
+              border: "4px solid var(--accent)",
+              "border-right-color": "transparent",
+              "border-radius": "var(--radius-full)",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+        </div>
+      </Show>
+
+      {/* Error Overlay */}
+      <Show when={error()}>
+        {(err) => (
+          <div
+            style={{
+              position: "absolute",
+              inset: "0",
+              display: "flex",
+              "flex-direction": "column",
+              "align-items": "center",
+              "justify-content": "center",
+              background: "rgba(0, 0, 0, 0.85)",
+              "z-index": "25",
+              padding: "var(--space-6)",
+              "text-align": "center",
+            }}
+          >
+            <p
+              style={{
+                color: "var(--danger)",
+                "font-size": "var(--font-size-lg)",
+                "margin-bottom": "var(--space-4)",
+              }}
+            >
+              {err()}
+            </p>
+            <Button variant="secondary" onClick={props.onClose}>
+              Close
+            </Button>
+          </div>
+        )}
       </Show>
 
       {/* Main Video Element */}
@@ -435,69 +612,105 @@ export function Player(props: PlayerProps) {
         </Show>
       </video>
 
-      {/* Loading Spinner */}
-      <Show when={loading()}>
+      {/* Floating Skip Intro / Credits Button */}
+      <Show when={activeIntroMarker()}>
+        {(intro) => (
+          <div style={{ position: "absolute", bottom: "100px", right: "40px", "z-index": 10000 }}>
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => {
+                if (videoRef) videoRef.currentTime = intro().endMs / 1000;
+              }}
+            >
+              Skip Intro ›
+            </Button>
+          </div>
+        )}
+      </Show>
+      <Show when={activeCreditsMarker()}>
+        {(credits) => (
+          <div style={{ position: "absolute", bottom: "100px", right: "40px", "z-index": 10000 }}>
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => {
+                if (videoRef) videoRef.currentTime = credits().endMs / 1000;
+              }}
+            >
+              Skip Credits ›
+            </Button>
+          </div>
+        )}
+      </Show>
+
+      {/* Stats for Nerds Overlay (M3.8) */}
+      <Show when={showStats()}>
         <div
           style={{
             position: "absolute",
-            display: "flex",
-            "flex-direction": "column",
-            "align-items": "center",
-            gap: "14px",
-            color: "var(--text-secondary)",
+            top: "80px",
+            left: "32px",
+            background: "rgba(10, 12, 16, 0.88)",
+            "backdrop-filter": "blur(8px)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            padding: "16px 20px",
+            color: "#fff",
+            "font-family": "var(--font-mono)",
+            "font-size": "12px",
+            "z-index": 10005,
+            "max-width": "380px",
+            "box-shadow": "var(--shadow-xl)",
           }}
         >
           <div
             style={{
-              width: "48px",
-              height: "48px",
-              border: "4px solid rgba(255, 255, 255, 0.2)",
-              "border-top-color": "var(--accent)",
-              "border-radius": "50%",
-              animation: "spin 1s linear infinite",
-            }}
-          />
-          <span style={{ "font-size": "14px", "font-weight": "500" }}>
-            Negotiating playback stream...
-          </span>
-        </div>
-      </Show>
-
-      {/* Error Display */}
-      <Show when={error()}>
-        <div
-          style={{
-            position: "absolute",
-            background: "rgba(30, 10, 10, 0.95)",
-            border: "1px solid var(--danger)",
-            "border-radius": "var(--radius-md)",
-            padding: "24px 32px",
-            "max-width": "460px",
-            "text-align": "center",
-          }}
-        >
-          <div style={{ "font-size": "24px", "margin-bottom": "8px" }}>⚠️</div>
-          <h3 style={{ margin: "0 0 8px", color: "var(--danger)", "font-size": "18px" }}>
-            Playback Error
-          </h3>
-          <p style={{ margin: "0 0 16px", color: "var(--text-secondary)", "font-size": "13px" }}>
-            {error()}
-          </p>
-          <button
-            type="button"
-            onClick={handleClose}
-            style={{
-              padding: "8px 18px",
-              background: "var(--accent)",
-              color: "#fff",
-              border: "none",
-              "border-radius": "var(--radius-sm)",
-              cursor: "pointer",
-              "font-weight": "600",
+              display: "flex",
+              "justify-content": "space-between",
+              "margin-bottom": "8px",
+              "border-bottom": "1px solid var(--border)",
+              "padding-bottom": "6px",
             }}
           >
-            Close Player
-          </button>
+            <span style={{ "font-weight": "bold", color: "var(--accent)" }}>STATS FOR NERDS</span>
+            <button
+              type="button"
+              onClick={() => setShowStats(false)}
+              style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer" }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: "flex", "flex-direction": "column", gap: "4px" }}>
+            <div>
+              Method:{" "}
+              <strong style={{ color: "var(--accent)" }}>
+                {playbackData()?.method || "Unknown"}
+              </strong>
+            </div>
+            <div>
+              Reasons: <span>{playbackData()?.reasons?.join("; ") || "Direct stream capable"}</span>
+            </div>
+            <div>
+              Resolution:{" "}
+              <span>
+                {videoRef?.videoWidth}x{videoRef?.videoHeight}
+              </span>
+            </div>
+            <div>
+              Buffer Health: <span>{bufferAheadSecs()}s</span>
+            </div>
+            <div>
+              Dropped Frames: <span>{droppedFrames()}</span>
+            </div>
+            <div>
+              Night Mode EQ: <span>{nightMode() ? "Active (WebAudio Boost & Comp)" : "Off"}</span>
+            </div>
+            <div>
+              Speed: <span>{playbackRate()}x</span>
+            </div>
+          </div>
         </div>
       </Show>
 
@@ -509,7 +722,7 @@ export function Player(props: PlayerProps) {
           left: 0,
           right: 0,
           padding: "24px 32px",
-          background: "linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, transparent 100%)",
+          background: "linear-gradient(to bottom, rgba(0, 0, 0, 0.85) 0%, transparent 100%)",
           display: "flex",
           "align-items": "center",
           "justify-content": "space-between",
@@ -529,7 +742,7 @@ export function Player(props: PlayerProps) {
               color: "#fff",
               width: "40px",
               height: "40px",
-              "border-radius": "50%",
+              "border-radius": "var(--radius-full)",
               cursor: "pointer",
               display: "flex",
               "align-items": "center",
@@ -543,37 +756,52 @@ export function Player(props: PlayerProps) {
             <div style={{ "font-size": "18px", "font-weight": "700", color: "#fff" }}>
               {props.title || "Now Playing"}
             </div>
-            <Show when={props.subtitle}>
+            {props.subtitle && (
               <div style={{ "font-size": "13px", color: "var(--text-muted)" }}>
                 {props.subtitle}
               </div>
-            </Show>
+            )}
           </div>
         </div>
 
         <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
-          <Show when={playbackData()}>
-            {(data) => (
-              <span
-                style={{
-                  "font-size": "11px",
-                  padding: "4px 8px",
-                  "border-radius": "4px",
-                  background: "rgba(255, 255, 255, 0.15)",
-                  color: "#fff",
-                  "text-transform": "uppercase",
-                  "font-weight": "600",
-                  "letter-spacing": "0.5px",
-                }}
-              >
-                {data().method}
-              </span>
-            )}
-          </Show>
+          <button
+            type="button"
+            onClick={toggleNightMode}
+            title="Toggle Night Mode (n)"
+            style={{
+              background: nightMode() ? "var(--accent)" : "rgba(255, 255, 255, 0.15)",
+              color: "#fff",
+              border: "none",
+              padding: "6px 12px",
+              "border-radius": "var(--radius-sm)",
+              "font-size": "12px",
+              "font-weight": "600",
+              cursor: "pointer",
+            }}
+          >
+            🌙 Night Mode
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowStats(!showStats())}
+            title="Stats for Nerds (s)"
+            style={{
+              background: showStats() ? "var(--accent)" : "rgba(255, 255, 255, 0.15)",
+              color: "#fff",
+              border: "none",
+              padding: "6px 10px",
+              "border-radius": "var(--radius-sm)",
+              "font-size": "12px",
+              cursor: "pointer",
+            }}
+          >
+            📊
+          </button>
         </div>
       </div>
 
-      {/* Player Bottom Controls Overlay */}
+      {/* Bottom Controls Overlay */}
       <div
         style={{
           position: "absolute",
@@ -581,7 +809,7 @@ export function Player(props: PlayerProps) {
           left: 0,
           right: 0,
           padding: "24px 32px 28px",
-          background: "linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%)",
+          background: "linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, transparent 100%)",
           display: "flex",
           "flex-direction": "column",
           gap: "12px",
@@ -590,27 +818,52 @@ export function Player(props: PlayerProps) {
           "pointer-events": showControls() ? "auto" : "none",
         }}
       >
-        {/* Scrubber timeline */}
-        <div style={{ display: "flex", "align-items": "center", gap: "12px" }}>
+        {/* Scrubber timeline with chapter markers */}
+        <div
+          style={{ position: "relative", display: "flex", "align-items": "center", gap: "12px" }}
+        >
           <span
             style={{ "font-size": "12px", color: "#fff", "font-variant-numeric": "tabular-nums" }}
           >
             {formatTime(currentTime())}
           </span>
-          <input
-            type="range"
-            min={0}
-            max={duration() || 100}
-            step={0.5}
-            value={currentTime()}
-            onInput={handleSeek}
-            style={{
-              flex: 1,
-              height: "5px",
-              cursor: "pointer",
-              "accent-color": "var(--accent)",
-            }}
-          />
+          <div style={{ position: "relative", flex: 1, display: "flex", "align-items": "center" }}>
+            <input
+              type="range"
+              min={0}
+              max={duration() || 100}
+              step={0.5}
+              value={currentTime()}
+              onInput={handleSeek}
+              style={{
+                width: "100%",
+                height: "6px",
+                cursor: "pointer",
+                "accent-color": "var(--accent)",
+              }}
+            />
+            {/* Chapter ticks */}
+            <Show when={duration() > 0}>
+              <For each={currentMarkers().filter((m) => m.kind === "chapter")}>
+                {(chap) => {
+                  const pct = (chap.startMs / 1000 / duration()) * 100;
+                  return (
+                    <div
+                      title={chap.title || "Chapter"}
+                      style={{
+                        position: "absolute",
+                        left: `${pct}%`,
+                        width: "2px",
+                        height: "10px",
+                        background: "rgba(255, 255, 255, 0.7)",
+                        "pointer-events": "none",
+                      }}
+                    />
+                  );
+                }}
+              </For>
+            </Show>
+          </div>
           <span
             style={{
               "font-size": "12px",
@@ -622,7 +875,7 @@ export function Player(props: PlayerProps) {
           </span>
         </div>
 
-        {/* Action Buttons Row */}
+        {/* Buttons Row */}
         <div
           style={{ display: "flex", "align-items": "center", "justify-content": "space-between" }}
         >
@@ -642,26 +895,21 @@ export function Player(props: PlayerProps) {
             >
               {isPlaying() ? "⏸" : "▶"}
             </button>
-
-            {/* Skip -10s */}
             <button
               type="button"
               onClick={() => {
                 if (videoRef) videoRef.currentTime = Math.max(0, videoRef.currentTime - 10);
               }}
-              title="Back 10s (Left)"
               style={{
                 background: "transparent",
                 border: "none",
                 color: "#ccc",
-                "font-size": "15px",
+                "font-size": "14px",
                 cursor: "pointer",
               }}
             >
               ↺ 10s
             </button>
-
-            {/* Skip +10s */}
             <button
               type="button"
               onClick={() => {
@@ -671,19 +919,18 @@ export function Player(props: PlayerProps) {
                     videoRef.currentTime + 10,
                   );
               }}
-              title="Forward 10s (Right)"
               style={{
                 background: "transparent",
                 border: "none",
                 color: "#ccc",
-                "font-size": "15px",
+                "font-size": "14px",
                 cursor: "pointer",
               }}
             >
               10s ↻
             </button>
 
-            {/* Volume control */}
+            {/* Volume */}
             <div
               style={{
                 display: "flex",
@@ -695,16 +942,14 @@ export function Player(props: PlayerProps) {
               <button
                 type="button"
                 onClick={toggleMute}
-                title="Mute (m)"
                 style={{
                   background: "transparent",
                   border: "none",
                   color: "#ccc",
-                  "font-size": "16px",
                   cursor: "pointer",
                 }}
               >
-                {isMuted() || volume() === 0 ? "🔇" : volume() < 0.5 ? "🔉" : "🔊"}
+                {isMuted() || volume() === 0 ? "🔇" : "🔊"}
               </button>
               <input
                 type="range"
@@ -713,12 +958,7 @@ export function Player(props: PlayerProps) {
                 step={0.05}
                 value={isMuted() ? 0 : volume()}
                 onInput={handleVolumeChange}
-                style={{
-                  width: "70px",
-                  height: "4px",
-                  cursor: "pointer",
-                  "accent-color": "#fff",
-                }}
+                style={{ width: "70px", height: "4px", cursor: "pointer", "accent-color": "#fff" }}
               />
             </div>
           </div>
@@ -726,13 +966,69 @@ export function Player(props: PlayerProps) {
           <div
             style={{ display: "flex", "align-items": "center", gap: "14px", position: "relative" }}
           >
-            {/* Subtitles Menu Button */}
+            {/* Speed Selector */}
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setShowSpeedMenu(!showSpeedMenu())}
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  border: "none",
+                  color: "#fff",
+                  padding: "6px 10px",
+                  "border-radius": "var(--radius-sm)",
+                  cursor: "pointer",
+                  "font-size": "12px",
+                  "font-weight": "bold",
+                }}
+              >
+                {playbackRate()}x
+              </button>
+              <Show when={showSpeedMenu()}>
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "40px",
+                    right: 0,
+                    background: "rgba(20, 20, 20, 0.95)",
+                    border: "1px solid var(--border)",
+                    "border-radius": "var(--radius-md)",
+                    padding: "6px 0",
+                    width: "80px",
+                    "z-index": 10002,
+                  }}
+                >
+                  <For each={[0.5, 0.75, 1.0, 1.25, 1.5, 2.0]}>
+                    {(rate) => (
+                      <button
+                        type="button"
+                        onClick={() => handleSetSpeed(rate)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          padding: "6px 12px",
+                          "text-align": "center",
+                          background: playbackRate() === rate ? "var(--accent)" : "transparent",
+                          color: "#fff",
+                          border: "none",
+                          cursor: "pointer",
+                          "font-size": "12px",
+                        }}
+                      >
+                        {rate}x
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+
+            {/* Subtitles Menu */}
             <Show when={playbackData() && (playbackData()?.subtitles.length ?? 0) > 0}>
               <div style={{ position: "relative" }}>
                 <button
                   type="button"
                   onClick={() => setShowSubtitlesMenu(!showSubtitlesMenu())}
-                  title="Subtitles"
                   style={{
                     background:
                       selectedSubtitleIndex() >= 0 ? "var(--accent)" : "rgba(255,255,255,0.1)",
@@ -747,7 +1043,6 @@ export function Player(props: PlayerProps) {
                 >
                   💬 CC
                 </button>
-
                 <Show when={showSubtitlesMenu()}>
                   <div
                     style={{
@@ -759,21 +1054,9 @@ export function Player(props: PlayerProps) {
                       "border-radius": "var(--radius-md)",
                       padding: "8px 0",
                       width: "200px",
-                      "box-shadow": "0 10px 25px rgba(0,0,0,0.7)",
                       "z-index": 10002,
                     }}
                   >
-                    <div
-                      style={{
-                        padding: "6px 14px",
-                        "font-size": "11px",
-                        "text-transform": "uppercase",
-                        color: "var(--text-muted)",
-                        "font-weight": "700",
-                      }}
-                    >
-                      Subtitles
-                    </div>
                     <button
                       type="button"
                       onClick={() => selectSubtitle(-1)}
@@ -822,7 +1105,6 @@ export function Player(props: PlayerProps) {
               </div>
             </Show>
 
-            {/* Fullscreen Button */}
             <button
               type="button"
               onClick={toggleFullscreen}
@@ -844,4 +1126,5 @@ export function Player(props: PlayerProps) {
     </div>
   );
 }
+
 export default Player;

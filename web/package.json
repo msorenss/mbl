@@ -10,7 +10,8 @@
     "gen:api": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bundle:check": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
     "@kobalte/core": "^0.13.14",

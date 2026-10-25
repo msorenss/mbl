@@ -1,5 +1,6 @@
-import { createContext, createSignal, type JSX, Show, useContext } from "solid-js";
-import { Player } from "../components/Player";
+import { createContext, createSignal, type JSX, lazy, Show, useContext } from "solid-js";
+
+const Player = lazy(() => import("../components/Player"));
 
 export interface PlayRequest {
   itemId: number;

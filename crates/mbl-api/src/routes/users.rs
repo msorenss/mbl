@@ -1,17 +1,21 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, put};
 use axum::{Json, Router};
 use mbl_core::UserId;
+use mbl_db::repo::users::{HomeLayoutRequest, UpdateUserPreferences, UserPreferences};
 use mbl_service::{CreateUser, UpdateUser};
 
-use crate::dto::{CreateUserRequest, UpdateUserRequest, UserDto};
+use crate::dto::{CreateUserRequest, UpdateUserRequest, UserDto, UserProfileDto};
 use crate::extract::{AdminUser, AuthUser};
 use crate::{ApiError, AppState};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/users", get(list).post(create))
+        .route("/api/v1/users/profiles", get(list_profiles))
+        .route("/api/v1/users/me/preferences", get(get_preferences).patch(update_preferences))
+        .route("/api/v1/users/me/home-layout", put(update_home_layout))
         .route("/api/v1/users/{id}", get(get_one).patch(update).delete(remove))
 }
 
@@ -87,4 +91,49 @@ async fn remove(
 ) -> Result<StatusCode, ApiError> {
     state.services.users.delete(&auth.actor, id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Household user profiles for the profile switcher (authenticated).
+#[utoipa::path(get, path = "/api/v1/users/profiles", tag = "users", operation_id = "list_user_profiles",
+    responses((status = 200, body = Vec<UserProfileDto>), (status = 401)))]
+async fn list_profiles(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> Result<Json<Vec<UserProfileDto>>, ApiError> {
+    let profiles = state.services.users.list_profiles(&auth.actor).await?;
+    Ok(Json(profiles.into_iter().map(Into::into).collect()))
+}
+
+/// Current user preferences (theme, accent, locale, subtitles, layout).
+#[utoipa::path(get, path = "/api/v1/users/me/preferences", tag = "users", operation_id = "get_user_preferences",
+    responses((status = 200, body = UserPreferences), (status = 401)))]
+async fn get_preferences(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> Result<Json<UserPreferences>, ApiError> {
+    Ok(Json(state.services.users.get_preferences(&auth.actor).await?))
+}
+
+/// Update current user preferences.
+#[utoipa::path(patch, path = "/api/v1/users/me/preferences", tag = "users", operation_id = "update_user_preferences",
+    request_body = UpdateUserPreferences,
+    responses((status = 200, body = UserPreferences), (status = 400), (status = 401)))]
+async fn update_preferences(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Json(patch): Json<UpdateUserPreferences>,
+) -> Result<Json<UserPreferences>, ApiError> {
+    Ok(Json(state.services.users.update_preferences(&auth.actor, patch).await?))
+}
+
+/// Reorder home hubs layout.
+#[utoipa::path(put, path = "/api/v1/users/me/home-layout", tag = "users", operation_id = "update_home_layout",
+    request_body = HomeLayoutRequest,
+    responses((status = 200, body = UserPreferences), (status = 400), (status = 401)))]
+async fn update_home_layout(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Json(req): Json<HomeLayoutRequest>,
+) -> Result<Json<UserPreferences>, ApiError> {
+    Ok(Json(state.services.users.update_home_layout(&auth.actor, req).await?))
 }

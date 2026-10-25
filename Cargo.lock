@@ -1996,6 +1996,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mbl-ui-kit"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "md-5"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4303,6 +4311,7 @@ dependencies = [
  "camino",
  "clap",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

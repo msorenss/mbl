@@ -1031,3 +1031,5 @@ export function AiAgents() {
     </div>
   );
 }
+
+export default AiAgents;

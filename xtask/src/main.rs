@@ -1,6 +1,7 @@
 //! Developer automation. Run with `cargo xtask <command>`.
 
 mod gen_media;
+mod tokens;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
@@ -21,12 +22,18 @@ enum Command {
         #[arg(long)]
         write: bool,
     },
+    /// Generate CSS and Slint design tokens from `design/tokens.json` (`--check` verifies no drift).
+    Tokens {
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::GenMedia(args) => gen_media::run(&args),
         Command::OpenapiCheck { write } => openapi_check(write),
+        Command::Tokens { check } => tokens::run(&workspace_root(), check),
     }
 }
 

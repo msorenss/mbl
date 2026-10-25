@@ -13,6 +13,7 @@ pub struct ImageFile {
     pub hash: String,
     pub width: u32,
     pub quality: u8,
+    pub blurred: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,18 @@ impl ImageService {
         width: u32,
         quality: u8,
     ) -> Result<ImageFile> {
+        self.get_with_blur(actor, id, width, quality, false).await
+    }
+
+    /// Resized JPEG, optionally with server-side Gaussian blur for TV/ambient mode.
+    pub async fn get_with_blur(
+        &self,
+        actor: &Actor,
+        id: ArtworkId,
+        width: u32,
+        quality: u8,
+        blur: bool,
+    ) -> Result<ImageFile> {
         let art = artwork::get(&self.db, id).await?.ok_or(Error::NotFound)?;
         if !actor.can_access_library(art.library_id) {
             return Err(Error::NotFound);
@@ -44,8 +57,12 @@ impl ImageService {
         };
         let width = mbl_images::snap_width(width);
         let quality = quality.clamp(30, 95);
-        let path = self.store.variant(&hash, width, quality).await?;
-        Ok(ImageFile { path, hash, width, quality })
+        let path = if blur {
+            self.store.blurred_variant(&hash, width, quality).await?
+        } else {
+            self.store.variant(&hash, width, quality).await?
+        };
+        Ok(ImageFile { path, hash, width, quality, blurred: blur })
     }
 
     async fn ingest(&self, art: &Artwork) -> Result<String> {

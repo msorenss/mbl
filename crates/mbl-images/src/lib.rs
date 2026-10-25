@@ -140,6 +140,45 @@ impl ImageStore {
         .await
         .map_err(Error::internal)?
     }
+
+    /// Path to a pre-blurred JPEG of the original (`?blur=1`), cached on disk so TV/low-power
+    /// clients never need expensive CSS `backdrop-filter: blur()`.
+    pub async fn blurred_variant(&self, hash: &str, width: u32, quality: u8) -> Result<PathBuf> {
+        if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(Error::Validation("invalid image hash".into()));
+        }
+        let width = snap_width(width);
+        let quality = quality.clamp(30, 95);
+        let target = self.root.join(width.to_string()).join(format!("{hash}-q{quality}-blur.jpg"));
+        if target.exists() {
+            return Ok(target);
+        }
+        let original = self.original_path(hash);
+        tokio::task::spawn_blocking(move || {
+            let bytes = std::fs::read(&original).map_err(|_| Error::NotFound)?;
+            let (img, _) = decode(&bytes)?;
+            let out_w = width.min(img.width().max(1));
+            let out_h = (u64::from(img.height()) * u64::from(out_w) / u64::from(img.width().max(1)))
+                .max(1) as u32;
+            // Downscale before Gaussian blur for O(1) latency on Raspberry Pi, then scale to output.
+            let blur_w = out_w.min(240);
+            let blur_h =
+                (u64::from(out_h) * u64::from(blur_w) / u64::from(out_w.max(1))).max(1) as u32;
+            let blurred = img.resize_exact(blur_w, blur_h, FilterType::Triangle).blur(14.0);
+            let final_img = if out_w > blur_w {
+                blurred.resize_exact(out_w, out_h, FilterType::Triangle)
+            } else {
+                blurred
+            };
+            let mut out = Vec::new();
+            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
+            final_img.to_rgb8().write_with_encoder(encoder).map_err(Error::internal)?;
+            write_atomic(&target, &out)?;
+            Ok(target)
+        })
+        .await
+        .map_err(Error::internal)?
+    }
 }
 
 fn read_capped(path: &Path) -> Result<Vec<u8>> {

@@ -256,7 +256,7 @@
         "tags": [
           "images"
         ],
-        "summary": "A resized JPEG of an artwork; `w` snaps to a fixed set of widths.",
+        "summary": "A resized JPEG of an artwork; `w` snaps to a fixed set of widths. Supports `?blur=1`.",
         "operationId": "image",
         "parameters": [
           {
@@ -292,6 +292,15 @@
             "name": "v",
             "in": "query",
             "description": "Content hash from the item DTO; when it matches, the response is cached as immutable.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "blur",
+            "in": "query",
+            "description": "Server-side Gaussian blur for TV/ambient mode (?blur=1).",
             "required": false,
             "schema": {
               "type": "string"
@@ -368,6 +377,125 @@
                   "items": {
                     "$ref": "#/components/schemas/ItemSummary"
                   }
+                }
+              }
+            }
+          },
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/playback-preview": {
+      "get": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Preview playback decision (Direct Play vs Direct Stream vs Transcode) without starting a session.",
+        "operationId": "preview_playback_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "description": "Built-in profile name (\"chrome\", \"firefox\", \"safari\") or serialized JSON profile.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "part_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PartId"
+            }
+          },
+          {
+            "name": "max_bitrate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "audio_stream_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "subtitle_stream_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackPreview"
+                }
+              }
+            }
+          },
+          "404": {}
+        }
+      },
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Preview playback decision with custom dynamic client device profile body.",
+        "operationId": "preview_playback_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackPreviewRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackPreview"
                 }
               }
             }
@@ -1397,6 +1525,113 @@
         }
       }
     },
+    "/api/v1/users/me/home-layout": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Reorder home hubs layout.",
+        "operationId": "update_home_layout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/users/me/preferences": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Current user preferences (theme, accent, locale, subtitles, layout).",
+        "operationId": "get_user_preferences",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      },
+      "patch": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Update current user preferences.",
+        "operationId": "update_user_preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserPreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/users/profiles": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Household user profiles for the profile switcher (authenticated).",
+        "operationId": "list_user_profiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserProfileDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
     "/api/v1/users/{id}": {
       "get": {
         "tags": [
@@ -1815,6 +2050,29 @@
         "properties": {
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "HomeLayoutRequest": {
+        "type": "object",
+        "required": [
+          "homeLayout"
+        ],
+        "properties": {
+          "hiddenHubs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "homeLayout": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -2625,6 +2883,100 @@
           }
         }
       },
+      "PlaybackPreview": {
+        "type": "object",
+        "description": "Decision preview returned by `preview_playback`.",
+        "required": [
+          "itemId",
+          "partId",
+          "method",
+          "reasons",
+          "container",
+          "video",
+          "audio",
+          "subtitle",
+          "durationMs"
+        ],
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/StreamAction"
+          },
+          "container": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PlayMethod"
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subtitle": {
+            "$ref": "#/components/schemas/SubtitleDelivery"
+          },
+          "video": {
+            "$ref": "#/components/schemas/StreamAction"
+          }
+        }
+      },
+      "PlaybackPreviewRequestBody": {
+        "type": "object",
+        "properties": {
+          "audioStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxBitrate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "subtitleStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "PlaybackProgressRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/playback/{session}/progress`.",
@@ -3042,6 +3394,71 @@
           }
         }
       },
+      "StreamAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "copy"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "codec",
+              "bitrate",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "transcode"
+                ]
+              },
+              "bitrate": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "codec": {
+                "type": "string"
+              },
+              "width": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "drop"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Action to take for an individual video or audio stream."
+      },
       "StreamKind": {
         "type": "string",
         "enum": [
@@ -3050,6 +3467,93 @@
           "subtitle",
           "attachment"
         ]
+      },
+      "SubtitleDelivery": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "delivery"
+            ],
+            "properties": {
+              "delivery": {
+                "type": "string",
+                "enum": [
+                  "none"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "format",
+              "delivery"
+            ],
+            "properties": {
+              "delivery": {
+                "type": "string",
+                "enum": [
+                  "sidecar"
+                ]
+              },
+              "format": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "delivery"
+            ],
+            "properties": {
+              "delivery": {
+                "type": "string",
+                "enum": [
+                  "embedded"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "delivery"
+            ],
+            "properties": {
+              "delivery": {
+                "type": "string",
+                "enum": [
+                  "burnIn"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "How subtitles will be delivered for the session."
+      },
+      "SubtitleStylePreferences": {
+        "type": "object",
+        "required": [
+          "size",
+          "background",
+          "color"
+        ],
+        "properties": {
+          "background": {
+            "type": "string",
+            "description": "`\"none\" | \"dim\" | \"solid\"`, default `\"dim\"`."
+          },
+          "color": {
+            "type": "string",
+            "description": "`\"white\" | \"yellow\" | \"cyan\"`, default `\"white\"`."
+          },
+          "size": {
+            "type": "string",
+            "description": "`\"sm\" | \"md\" | \"lg\" | \"xl\"`, default `\"md\"`."
+          }
+        }
       },
       "UpdateLibraryRequest": {
         "type": "object",
@@ -3080,6 +3584,76 @@
         "properties": {
           "enabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "UpdateUserPreferences": {
+        "type": "object",
+        "properties": {
+          "accent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "audioOffsetMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "hiddenHubs": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "homeLayout": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nightMode": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "reducedMotion": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "subtitleStyle": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SubtitleStylePreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -3137,6 +3711,90 @@
       "UserId": {
         "type": "integer",
         "format": "int64"
+      },
+      "UserPreferences": {
+        "type": "object",
+        "properties": {
+          "accent": {
+            "type": "string",
+            "description": "`\"amber\" | \"indigo\" | \"emerald\" | \"rose\" | \"cyan\" | \"violet\"`, default `\"amber\"`.",
+            "default": "amber"
+          },
+          "audioOffsetMs": {
+            "type": "integer",
+            "format": "int64",
+            "default": 0
+          },
+          "hiddenHubs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Hub keys hidden by the user on the Home screen.",
+            "default": []
+          },
+          "homeLayout": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered hub keys (`\"continueWatching\"`, `\"upNext\"`, `\"recentlyAdded.<id>\"`).",
+            "default": []
+          },
+          "locale": {
+            "type": "string",
+            "description": "`\"en\" | \"sv\" | \"de\"`, default `\"en\"`.",
+            "default": "en"
+          },
+          "nightMode": {
+            "type": "boolean",
+            "default": false
+          },
+          "reducedMotion": {
+            "type": "boolean",
+            "default": false
+          },
+          "subtitleStyle": {
+            "$ref": "#/components/schemas/SubtitleStylePreferences",
+            "default": {
+              "background": "dim",
+              "color": "white",
+              "size": "md"
+            }
+          },
+          "theme": {
+            "type": "string",
+            "description": "`\"dark\" | \"oled\" | \"light\" | \"high-contrast\"`, default `\"dark\"`.",
+            "default": "dark"
+          }
+        }
+      },
+      "UserProfileDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "isAdmin",
+          "hasPin"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "hasPin": {
+            "type": "boolean"
+          },
+          "id": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
       },
       "Version": {
         "type": "object",

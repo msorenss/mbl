@@ -165,7 +165,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A resized JPEG of an artwork; `w` snaps to a fixed set of widths. */
+        /** A resized JPEG of an artwork; `w` snaps to a fixed set of widths. Supports `?blur=1`. */
         get: operations["image"];
         put?: never;
         post?: never;
@@ -203,6 +203,24 @@ export interface paths {
         get: operations["children"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/playback-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview playback decision (Direct Play vs Direct Stream vs Transcode) without starting a session. */
+        get: operations["preview_playback_get"];
+        put?: never;
+        /** Preview playback decision with custom dynamic client device profile body. */
+        post: operations["preview_playback_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -579,6 +597,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/home-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder home hubs layout. */
+        put: operations["update_home_layout"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current user preferences (theme, accent, locale, subtitles, layout). */
+        get: operations["get_user_preferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update current user preferences. */
+        patch: operations["update_user_preferences"];
+        trace?: never;
+    };
+    "/api/v1/users/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Household user profiles for the profile switcher (authenticated). */
+        get: operations["list_user_profiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}": {
         parameters: {
             query?: never;
@@ -692,6 +762,10 @@ export interface components {
         };
         Health: {
             status: string;
+        };
+        HomeLayoutRequest: {
+            hiddenHubs?: string[] | null;
+            homeLayout: string[];
         };
         Hub: {
             items: components["schemas"]["ItemSummary"][];
@@ -897,6 +971,29 @@ export interface components {
             startMs: number;
             title?: string | null;
         };
+        /** @description Decision preview returned by `preview_playback`. */
+        PlaybackPreview: {
+            audio: components["schemas"]["StreamAction"];
+            container: string;
+            /** Format: int64 */
+            durationMs: number;
+            itemId: components["schemas"]["ItemId"];
+            method: components["schemas"]["PlayMethod"];
+            partId: components["schemas"]["PartId"];
+            reasons: string[];
+            subtitle: components["schemas"]["SubtitleDelivery"];
+            video: components["schemas"]["StreamAction"];
+        };
+        PlaybackPreviewRequestBody: {
+            /** Format: int32 */
+            audioStreamIndex?: number | null;
+            /** Format: int64 */
+            maxBitrate?: number | null;
+            partId?: components["schemas"]["PartId"] | null;
+            profile?: Record<string, never> | null;
+            /** Format: int32 */
+            subtitleStreamIndex?: number | null;
+        };
         /** @description Request body for `POST /api/v1/playback/{session}/progress`. */
         PlaybackProgressRequest: {
             /** Format: int64 */
@@ -1008,8 +1105,47 @@ export interface components {
             /** Format: int64 */
             width?: number | null;
         };
+        /** @description Action to take for an individual video or audio stream. */
+        StreamAction: {
+            /** @enum {string} */
+            action: "copy";
+        } | {
+            /** @enum {string} */
+            action: "transcode";
+            /** Format: int64 */
+            bitrate: number;
+            codec: string;
+            /** Format: int32 */
+            width?: number | null;
+        } | {
+            /** @enum {string} */
+            action: "drop";
+        };
         /** @enum {string} */
         StreamKind: "video" | "audio" | "subtitle" | "attachment";
+        /** @description How subtitles will be delivered for the session. */
+        SubtitleDelivery: {
+            /** @enum {string} */
+            delivery: "none";
+        } | {
+            /** @enum {string} */
+            delivery: "sidecar";
+            format: string;
+        } | {
+            /** @enum {string} */
+            delivery: "embedded";
+        } | {
+            /** @enum {string} */
+            delivery: "burnIn";
+        };
+        SubtitleStylePreferences: {
+            /** @description `"none" | "dim" | "solid"`, default `"dim"`. */
+            background: string;
+            /** @description `"white" | "yellow" | "cyan"`, default `"white"`. */
+            color: string;
+            /** @description `"sm" | "md" | "lg" | "xl"`, default `"md"`. */
+            size: string;
+        };
         UpdateLibraryRequest: {
             name?: string | null;
             paths?: string[] | null;
@@ -1017,6 +1153,18 @@ export interface components {
         /** @description Request payload to update MCP status (e.g. kill-switch toggle). */
         UpdateMcpStatusRequest: {
             enabled: boolean;
+        };
+        UpdateUserPreferences: {
+            accent?: string | null;
+            /** Format: int64 */
+            audioOffsetMs?: number | null;
+            hiddenHubs?: string[] | null;
+            homeLayout?: string[] | null;
+            locale?: string | null;
+            nightMode?: boolean | null;
+            reducedMotion?: boolean | null;
+            subtitleStyle?: components["schemas"]["SubtitleStylePreferences"] | null;
+            theme?: string | null;
         };
         UpdateUserRequest: {
             displayName?: string | null;
@@ -1033,6 +1181,57 @@ export interface components {
         };
         /** Format: int64 */
         UserId: number;
+        UserPreferences: {
+            /**
+             * @description `"amber" | "indigo" | "emerald" | "rose" | "cyan" | "violet"`, default `"amber"`.
+             * @default amber
+             */
+            accent: string;
+            /**
+             * Format: int64
+             * @default 0
+             */
+            audioOffsetMs: number;
+            /**
+             * @description Hub keys hidden by the user on the Home screen.
+             * @default []
+             */
+            hiddenHubs: string[];
+            /**
+             * @description Ordered hub keys (`"continueWatching"`, `"upNext"`, `"recentlyAdded.<id>"`).
+             * @default []
+             */
+            homeLayout: string[];
+            /**
+             * @description `"en" | "sv" | "de"`, default `"en"`.
+             * @default en
+             */
+            locale: string;
+            /** @default false */
+            nightMode: boolean;
+            /** @default false */
+            reducedMotion: boolean;
+            /**
+             * @default {
+             *       "background": "dim",
+             *       "color": "white",
+             *       "size": "md"
+             *     }
+             */
+            subtitleStyle: components["schemas"]["SubtitleStylePreferences"];
+            /**
+             * @description `"dark" | "oled" | "light" | "high-contrast"`, default `"dark"`.
+             * @default dark
+             */
+            theme: string;
+        };
+        UserProfileDto: {
+            displayName: string;
+            hasPin: boolean;
+            id: components["schemas"]["UserId"];
+            isAdmin: boolean;
+            username: string;
+        };
         Version: {
             /** Format: int64 */
             audioChannels?: number | null;
@@ -1312,6 +1511,8 @@ export interface operations {
                 q?: number;
                 /** @description Content hash from the item DTO; when it matches, the response is cached as immutable. */
                 v?: string;
+                /** @description Server-side Gaussian blur for TV/ambient mode (?blur=1). */
+                blur?: string;
             };
             header?: never;
             path: {
@@ -1387,6 +1588,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemSummary"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_playback_get: {
+        parameters: {
+            query?: {
+                /** @description Built-in profile name ("chrome", "firefox", "safari") or serialized JSON profile. */
+                profile?: string;
+                part_id?: components["schemas"]["PartId"];
+                max_bitrate?: number;
+                audio_stream_index?: number;
+                subtitle_stream_index?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackPreview"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_playback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaybackPreviewRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackPreview"];
                 };
             };
             404: {
@@ -2298,6 +2564,126 @@ export interface operations {
                 content?: never;
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_home_layout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomeLayoutRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_user_preferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_user_preferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserPreferences"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_user_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileDto"][];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

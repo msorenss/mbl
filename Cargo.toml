@@ -27,6 +27,7 @@ mbl-transcode = { path = "crates/mbl-transcode" }
 mbl-stream = { path = "crates/mbl-stream" }
 mbl-platform = { path = "crates/mbl-platform" }
 mbl-mcp = { path = "crates/mbl-mcp" }
+mbl-ui-kit = { path = "crates/mbl-ui-kit" }
 
 # External crates (approved list: IMPLEMENTATION.md §1.4)
 anyhow = "1.0.104"

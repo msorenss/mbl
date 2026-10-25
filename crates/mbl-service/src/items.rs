@@ -111,6 +111,21 @@ impl ItemService {
             });
         }
         hubs.retain(|h| !h.items.is_empty());
+
+        if let Ok(Some(prefs)) = mbl_db::repo::users::UsersRepo::new(self.db.clone())
+            .get_preferences(actor.user_id)
+            .await
+        {
+            if !prefs.hidden_hubs.is_empty() {
+                hubs.retain(|h| !prefs.hidden_hubs.contains(&h.key));
+            }
+            if !prefs.home_layout.is_empty() {
+                hubs.sort_by_key(|h| {
+                    prefs.home_layout.iter().position(|k| k == &h.key).unwrap_or(usize::MAX)
+                });
+            }
+        }
+
         Ok(hubs)
     }
 }

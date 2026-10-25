@@ -4,9 +4,9 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mbl_core::{Cursor, ItemId, LibraryId, MediaKind, Paginated};
+use mbl_core::{Cursor, ItemId, LibraryId, MediaKind, Paginated, PartId};
 use mbl_db::repo::items::{ItemDetail, ItemSummary, ListQuery, SortField, SortOrder};
-use mbl_service::{Hub, SearchGroup};
+use mbl_service::{Hub, PlaybackPreview, PlaybackProfileInput, PlaybackRequest, SearchGroup};
 use serde::Deserialize;
 use utoipa::IntoParams;
 
@@ -18,6 +18,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/libraries/{id}/items", get(list))
         .route("/api/v1/items/{id}", get(detail))
         .route("/api/v1/items/{id}/children", get(children))
+        .route(
+            "/api/v1/items/{id}/playback-preview",
+            get(playback_preview_get).post(playback_preview_post),
+        )
         .route("/api/v1/items/{id}/watched", post(mark_watched).delete(mark_unwatched))
         .route("/api/v1/search", get(search))
         .route("/api/v1/hubs/home", get(home))
@@ -136,4 +140,92 @@ pub async fn mark_unwatched(
 ) -> Result<StatusCode, ApiError> {
     state.services.watch.mark_unwatched(&auth.actor, id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct PlaybackPreviewQuery {
+    /// Built-in profile name ("chrome", "firefox", "safari") or serialized JSON profile.
+    pub profile: Option<String>,
+    pub part_id: Option<PartId>,
+    pub max_bitrate: Option<u64>,
+    pub audio_stream_index: Option<u32>,
+    pub subtitle_stream_index: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackPreviewRequestBody {
+    pub part_id: Option<PartId>,
+    #[schema(value_type = Option<Object>)]
+    pub profile: Option<PlaybackProfileInput>,
+    pub max_bitrate: Option<u64>,
+    pub audio_stream_index: Option<u32>,
+    pub subtitle_stream_index: Option<u32>,
+}
+
+/// Preview playback decision (Direct Play vs Direct Stream vs Transcode) without starting a session.
+#[utoipa::path(get, path = "/api/v1/items/{id}/playback-preview", tag = "playback", operation_id = "preview_playback_get",
+    params(("id" = i64, Path), PlaybackPreviewQuery),
+    responses((status = 200, body = PlaybackPreview), (status = 404)))]
+async fn playback_preview_get(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+    Query(q): Query<PlaybackPreviewQuery>,
+) -> Result<Json<PlaybackPreview>, ApiError> {
+    let profile_input = match q.profile {
+        Some(s) if s.trim().starts_with('{') => {
+            serde_json::from_str::<PlaybackProfileInput>(&s).ok()
+        }
+        Some(name) => Some(PlaybackProfileInput::Named(name)),
+        None => None,
+    };
+    let preview = state
+        .services
+        .playback
+        .preview(
+            &auth.actor,
+            PlaybackRequest {
+                item_id: id,
+                part_id: q.part_id,
+                profile: profile_input,
+                max_bitrate: q.max_bitrate,
+                audio_stream_index: q.audio_stream_index,
+                subtitle_stream_index: q.subtitle_stream_index,
+                start_ms: None,
+            },
+        )
+        .await?;
+    Ok(Json(preview))
+}
+
+/// Preview playback decision with custom dynamic client device profile body.
+#[utoipa::path(post, path = "/api/v1/items/{id}/playback-preview", tag = "playback", operation_id = "preview_playback_post",
+    params(("id" = i64, Path)),
+    request_body = PlaybackPreviewRequestBody,
+    responses((status = 200, body = PlaybackPreview), (status = 404)))]
+async fn playback_preview_post(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+    Json(body): Json<PlaybackPreviewRequestBody>,
+) -> Result<Json<PlaybackPreview>, ApiError> {
+    let preview = state
+        .services
+        .playback
+        .preview(
+            &auth.actor,
+            PlaybackRequest {
+                item_id: id,
+                part_id: body.part_id,
+                profile: body.profile,
+                max_bitrate: body.max_bitrate,
+                audio_stream_index: body.audio_stream_index,
+                subtitle_stream_index: body.subtitle_stream_index,
+                start_ms: None,
+            },
+        )
+        .await?;
+    Ok(Json(preview))
 }

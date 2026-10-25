@@ -103,3 +103,25 @@ pub struct UpdateUserRequest {
     pub password: Option<String>,
     pub is_admin: Option<bool>,
 }
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UserProfileDto {
+    pub id: UserId,
+    pub username: String,
+    pub display_name: String,
+    pub is_admin: bool,
+    pub has_pin: bool,
+}
+
+impl From<User> for UserProfileDto {
+    fn from(u: User) -> Self {
+        Self {
+            id: u.id,
+            username: u.username,
+            display_name: u.display_name,
+            is_admin: u.is_admin,
+            has_pin: false,
+        }
+    }
+}

@@ -453,7 +453,7 @@ pub async fn detail(db: &Db, filter: &ItemFilter, id: ItemId) -> Result<Option<I
         width: a.width,
         height: a.height,
         blurhash: a.blurhash,
-        palette: a.palette.and_then(|p| serde_json::from_str(&p).ok()).unwrap_or_default(),
+        palette: a.palette.as_deref().map(parse_palette).unwrap_or_default(),
         selected: a.selected,
     })
     .collect();
@@ -554,6 +554,25 @@ pub async fn detail(db: &Db, filter: &ItemFilter, id: ItemId) -> Result<Option<I
     }))
 }
 
+fn parse_palette(raw: &str) -> Vec<String> {
+    if let Ok(arr) = serde_json::from_str::<Vec<String>>(raw) {
+        return arr;
+    }
+    if let Ok(val) = serde_json::from_str::<serde_json::Value>(raw)
+        && let Some(obj) = val.as_object()
+    {
+        let mut out = Vec::with_capacity(2);
+        if let Some(d) = obj.get("dominant").and_then(|v| v.as_str()) {
+            out.push(d.to_owned());
+        }
+        if let Some(v) = obj.get("vibrant").and_then(|v| v.as_str()) {
+            out.push(v.to_owned());
+        }
+        return out;
+    }
+    Vec::new()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -563,5 +582,17 @@ mod tests {
         assert_eq!(fts_query("the  mat\"rix").as_deref(), Some("\"the\"* \"matrix\"*"));
         assert_eq!(fts_query("  "), None);
         assert_eq!(fts_query("OR NEAR(").as_deref(), Some("\"OR\"* \"NEAR(\"*"));
+    }
+
+    #[test]
+    fn parses_object_and_array_palettes() {
+        assert_eq!(
+            parse_palette(r##"{"dominant":"#141414","vibrant":"#dc1e1e"}"##),
+            vec!["#141414".to_string(), "#dc1e1e".to_string()]
+        );
+        assert_eq!(
+            parse_palette(r##"["#112233","#445566"]"##),
+            vec!["#112233".to_string(), "#445566".to_string()]
+        );
     }
 }
