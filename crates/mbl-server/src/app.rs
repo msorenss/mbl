@@ -101,7 +101,12 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         AppState::new(db.clone(), runner.queue(), images, events.clone(), info, secure_cookies);
     state.services.stream =
         state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
-    state.services.playback = state.services.playback.with_stream(state.services.stream.clone());
+    state.services.hw = mbl_service::HwService::new(db.clone(), state.services.stream.clone());
+    state.services.playback = state
+        .services
+        .playback
+        .with_stream(state.services.stream.clone())
+        .with_hw(state.services.hw.clone());
     runner.set_activity_probe(Arc::new(state.services.playback.clone()));
     let services = state.services.clone();
     let mcp_state = mbl_mcp::McpState::new(

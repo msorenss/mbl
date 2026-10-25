@@ -171,6 +171,47 @@ pub enum Backend {
     D3d11Amf,
 }
 
+impl Backend {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Software => "software",
+            Self::Vaapi => "vaapi",
+            Self::Qsv => "qsv",
+            Self::Nvenc => "nvenc",
+            Self::V4l2m2m => "v4l2m2m",
+            Self::PiDrmDecode => "piDrmDecode",
+            Self::D3d11Amf => "d3d11Amf",
+        }
+    }
+
+    /// True for full-GPU hardware encode backends that support multi-rendition ABR ladders (M4.13).
+    pub const fn is_gpu(self) -> bool {
+        matches!(self, Self::Vaapi | Self::Qsv | Self::Nvenc | Self::D3d11Amf)
+    }
+
+    /// True for Raspberry Pi specific backends where software tone mapping and ABR ladders are disabled.
+    pub const fn is_pi(self) -> bool {
+        matches!(self, Self::V4l2m2m | Self::PiDrmDecode)
+    }
+}
+
+impl FromStr for Backend {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.trim() {
+            "software" | "Software" => Ok(Self::Software),
+            "vaapi" | "Vaapi" => Ok(Self::Vaapi),
+            "qsv" | "Qsv" => Ok(Self::Qsv),
+            "nvenc" | "Nvenc" | "cuda" => Ok(Self::Nvenc),
+            "v4l2m2m" | "V4l2m2m" => Ok(Self::V4l2m2m),
+            "piDrmDecode" | "PiDrmDecode" | "pi_drm_decode" => Ok(Self::PiDrmDecode),
+            "d3d11Amf" | "D3d11Amf" | "d3d11_amf" | "amf" => Ok(Self::D3d11Amf),
+            other => Err(Error::Validation(format!("unknown transcode backend '{other}'"))),
+        }
+    }
+}
+
 /// Encoder tuning and capabilities discovered for the active FFmpeg binary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

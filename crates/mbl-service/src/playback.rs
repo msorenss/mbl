@@ -176,6 +176,7 @@ pub struct PlaybackService {
     auth: AuthService,
     stream: StreamService,
     watch: WatchService,
+    hw: Option<crate::hw::HwService>,
     sessions: Arc<RwLock<HashMap<String, ActivePlaybackSession>>>,
 }
 
@@ -197,13 +198,45 @@ impl PlaybackService {
             auth,
             stream,
             watch,
+            hw: None,
             sessions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     pub fn with_stream(mut self, stream: StreamService) -> Self {
-        self.stream = stream;
+        self.stream = stream.clone();
+        if let Some(hw) = self.hw.take() {
+            self.hw = Some(hw.with_stream(stream));
+        }
         self
+    }
+
+    pub fn with_hw(mut self, hw: crate::hw::HwService) -> Self {
+        self.hw = Some(hw);
+        self
+    }
+
+    async fn build_decision_context(&self, req: &PlaybackRequest) -> DecisionContext {
+        let mut can_transcode_video = true;
+        let mut hw = None;
+
+        if let Ok(rows) = mbl_db::repo::hw::list_all(&self.db).await
+            && !rows.is_empty()
+            && let Some(hw_svc) = &self.hw
+            && let Ok((cap_ok, hw_sum, _)) = hw_svc.decision_summary().await
+        {
+            can_transcode_video = cap_ok;
+            hw = hw_sum;
+        }
+
+        DecisionContext {
+            max_bitrate: req.max_bitrate,
+            network: Network::Lan,
+            can_transcode_video,
+            hw,
+            audio_index: req.audio_stream_index,
+            subtitle_index: req.subtitle_stream_index,
+        }
     }
 
     /// Preview playback decision without creating an active session or updating watch state.
@@ -239,14 +272,7 @@ impl PlaybackService {
             None => DeviceProfile::builtin("chrome")?,
         };
 
-        let ctx = DecisionContext {
-            max_bitrate: req.max_bitrate,
-            network: Network::Lan,
-            can_transcode_video: true,
-            hw: None,
-            audio_index: req.audio_stream_index,
-            subtitle_index: req.subtitle_stream_index,
-        };
+        let ctx = self.build_decision_context(&req).await;
 
         let decision = decide(&media_info, &profile, &ctx);
         let reasons: Vec<String> = decision.reasons.iter().map(Reason::message).collect();
@@ -298,14 +324,7 @@ impl PlaybackService {
             None => DeviceProfile::builtin("chrome")?,
         };
 
-        let ctx = DecisionContext {
-            max_bitrate: req.max_bitrate,
-            network: Network::Lan,
-            can_transcode_video: true,
-            hw: None,
-            audio_index: req.audio_stream_index,
-            subtitle_index: req.subtitle_stream_index,
-        };
+        let ctx = self.build_decision_context(&req).await;
 
         let decision = decide(&media_info, &profile, &ctx);
 
@@ -605,8 +624,8 @@ impl PlaybackService {
             duration_ms: part.duration_ms.and_then(|d| u64::try_from(d).ok()).unwrap_or(60_000),
             bitrate: Some(4_000_000),
             size: u64::try_from(part.size.max(0)).unwrap_or(0),
-            streams,
             chapters: Vec::new(),
+            streams,
             tags: BTreeMap::new(),
         })
     }
@@ -670,6 +689,14 @@ impl PlaybackService {
                     .or_else(|| media_info.streams_of(StreamKind::Audio).next())
             });
 
+        let selected_backend = ctx
+            .hw
+            .as_ref()
+            .and_then(|h| h.backend.parse::<Backend>().ok())
+            .unwrap_or(Backend::Software);
+        let can_tonemap = ctx.hw.as_ref().is_some_and(|h| h.can_tonemap);
+        let needs_tonemap = decision.reasons.contains(&Reason::HdrUnsupported) && can_tonemap;
+
         let video_op = match &decision.video {
             StreamAction::Copy => VideoOp::Copy,
             StreamAction::Transcode { codec, bitrate, width } => VideoOp::Encode {
@@ -677,7 +704,7 @@ impl PlaybackService {
                 width: *width,
                 max_bitrate: *bitrate,
                 deinterlace: video_stream.is_some_and(|v| v.interlaced),
-                tonemap: false,
+                tonemap: needs_tonemap,
             },
             StreamAction::Drop => VideoOp::None,
         };
@@ -736,19 +763,39 @@ impl PlaybackService {
                 start_number: initial_seg,
                 renditions: vec![Rendition { name: "0".to_owned(), width, max_bitrate }],
             },
-            backend: Backend::Software,
+            backend: selected_backend,
         };
 
         let eff_duration = duration_ms.max(6_000);
+        let video_codec_str = match &decision.video {
+            StreamAction::Transcode { codec, .. } => Some(codec.clone()),
+            _ => Some("h264".to_owned()),
+        };
         let master = render_master_playlist(&[HlsRendition {
             name: "0".to_owned(),
             width,
             height,
             bandwidth: max_bitrate,
-            video_codec: Some("h264".to_owned()),
+            video_codec: video_codec_str,
             audio_codec: Some("aac".to_owned()),
         }]);
         let media_m3u8 = render_media_playlist(eff_duration, DEFAULT_SEGMENT_SECS);
+
+        if !hls_mgr.has_video_transcode_capacity() {
+            let prev_ids: Vec<String> = self
+                .sessions
+                .read()
+                .map(|m| {
+                    m.values()
+                        .filter(|s| s.user_id == user_id && s.is_hls)
+                        .map(|s| s.session_id.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+            for prev_id in prev_ids {
+                let _ = hls_mgr.stop_session(&prev_id).await;
+            }
+        }
 
         match hls_mgr
             .create_session(CreateSessionReq {

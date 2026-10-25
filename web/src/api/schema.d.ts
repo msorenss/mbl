@@ -158,6 +158,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hw/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get live hardware/software transcode capacity and available video transcode slots. */
+        get: operations["get_capacity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get hardware acceleration report, self-test capabilities, Hailo NPU sharing state, and recent failures. */
+        get: operations["get_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run functional decode/encode self-tests across candidate hardware backends (admin only). */
+        post: operations["run_test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/images/{id}": {
         parameters: {
             query?: never;
@@ -720,6 +771,16 @@ export interface components {
             /** Format: int64 */
             width?: number | null;
         };
+        /** @description Record of a runtime transcode backend failure tracked with a TTL (M4.9). */
+        BadBackendFailure: {
+            backend: string;
+            codec: string;
+            /** Format: int64 */
+            expiresAt: number;
+            /** Format: int64 */
+            failedAt: number;
+            reason: string;
+        };
         CreateApiTokenRequest: {
             allowedNetworks?: string[] | null;
             /** Format: int64 */
@@ -760,6 +821,90 @@ export interface components {
             /** @description `None` for the virtual top level (filesystem root list). */
             path?: string | null;
         };
+        /** @description Linux DRM/KMS device node (`/dev/dri/card*`, `/dev/dri/renderD*`). */
+        DrmDevice: {
+            card: string;
+            deviceId?: string | null;
+            driver?: string | null;
+            renderNode?: string | null;
+            vendorId?: string | null;
+        };
+        /** @description Windows DXGI display/compute adapter. */
+        DxgiAdapter: {
+            /** Format: int64 */
+            dedicatedVideoMemoryBytes: number;
+            /** Format: int32 */
+            deviceId: number;
+            name: string;
+            /** Format: int32 */
+            vendorId: number;
+        };
+        /** @description Discovered capabilities of an `ffmpeg` binary (M4.2). */
+        FfmpegProbeCaps: {
+            binaryHash: string;
+            decoders: string[];
+            encoders: string[];
+            filters: string[];
+            hwaccels: string[];
+            supportsLibplacebo: boolean;
+            supportsTonemapCuda: boolean;
+            supportsTonemapOpencl: boolean;
+            supportsTonemapVaapi: boolean;
+            supportsVppQsv: boolean;
+            supportsZscaleTonemap: boolean;
+            version: string;
+        };
+        /** @description Detected Hailo NPU device details (`/dev/h1x-*` or `/dev/hailo*`). */
+        HailoDeviceInfo: {
+            architecture: string;
+            boardName: string;
+            deviceNode: string;
+            driverVersion?: string | null;
+            pciAddress?: string | null;
+            profile: components["schemas"]["NpuProfile"];
+        };
+        /**
+         * @description AI media pipelines accelerated by Hailo-8 / Hailo-8L / Hailo-10H.
+         * @enum {string}
+         */
+        HailoPipelineCapability: "whisperAsr" | "videoSuperResolution" | "sceneIntroDetection" | "clipSemanticIndexing" | "genAiLlm";
+        /** @description Live runtime status and co-tenant sharing state of the Hailo NPU. */
+        HailoRuntimeStatus: {
+            activeCoTenants: string[];
+            deviceBusyOrLocked: boolean;
+            /** Format: int32 */
+            dutyCyclePercent: number;
+            externalInferenceUrl?: string | null;
+            npuProfile: components["schemas"]["NpuProfile"];
+            sharingMode: components["schemas"]["HailoSharingMode"];
+            supportedPipelines: components["schemas"]["HailoPipelineCapability"][];
+            vdeviceGroupId: string;
+        };
+        /**
+         * @description Cooperative NPU sharing mode (`[hw.hailo] mode` in config, ADR 0006).
+         * @enum {string}
+         */
+        HailoSharingMode: "auto" | "exclusive" | "offload_only" | "disabled";
+        /** @description Complete hardware fingerprint of the host machine. */
+        HardwareFingerprint: {
+            arch: string;
+            boardModel?: string | null;
+            /** Format: int32 */
+            cpuCores: number;
+            cpuModel: string;
+            /** @description Stable SHA-256 hex digest of the hardware + driver state so self-tests re-run on driver changes. */
+            driverFingerprint: string;
+            drmDevices: components["schemas"]["DrmDevice"][];
+            dxgiAdapters: components["schemas"]["DxgiAdapter"][];
+            hailoDevices: components["schemas"]["HailoDeviceInfo"][];
+            npuProfile: components["schemas"]["NpuProfile"];
+            nvidiaGpus: components["schemas"]["NvidiaGpu"][];
+            os: string;
+            profile: components["schemas"]["PlatformProfile"];
+            /** Format: int64 */
+            totalMemoryBytes?: number | null;
+            v4l2Devices: components["schemas"]["V4l2Device"][];
+        };
         Health: {
             status: string;
         };
@@ -773,6 +918,38 @@ export interface components {
             key: string;
             libraryId?: components["schemas"]["LibraryId"] | null;
             title: string;
+        };
+        /** @description One row in `hw_capabilities` recording the result of a functional decode/encode self-test (M4.3). */
+        HwCapEntry: {
+            backend: string;
+            codec: string;
+            driverFingerprint: string;
+            error?: string | null;
+            ffmpegHash: string;
+            /** Format: double */
+            fps?: number | null;
+            ok: boolean;
+            operation: string;
+            /** Format: int64 */
+            testedAt: number;
+        };
+        /**
+         * @description Complete hardware acceleration report returned by `GET /api/v1/hw/report`, `get_hw_report`,
+         *     and `mbl://hw/report` (M4.15, M4.16).
+         */
+        HwReport: {
+            capabilities: components["schemas"]["HwCapEntry"][];
+            capacity: components["schemas"]["TranscodeCapacity"];
+            ffmpeg: components["schemas"]["FfmpegProbeCaps"];
+            fingerprint: components["schemas"]["HardwareFingerprint"];
+            hailo: components["schemas"]["HailoRuntimeStatus"];
+            recentFailures: components["schemas"]["BadBackendFailure"][];
+        };
+        /** @description Response returned when triggering a hardware self-test (`POST /api/v1/hw/test` and `run_hw_selftest`). */
+        HwSelftestResponse: {
+            capabilities: components["schemas"]["HwCapEntry"][];
+            capacity: components["schemas"]["TranscodeCapacity"];
+            jobId: components["schemas"]["JobId"];
         };
         ItemDetail: {
             /** Format: int64 */
@@ -908,6 +1085,23 @@ export interface components {
         };
         /** @enum {string} */
         MediaKind: "movie" | "show" | "season" | "episode" | "artist" | "album" | "track" | "photo" | "collection" | "extra";
+        /**
+         * @description Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).
+         * @enum {string}
+         */
+        NpuProfile: "none" | "hailo8L" | "hailo8" | "hailo10H";
+        /** @description NVIDIA GPU discovered via `nvidia-smi -q -x` or `/proc/driver/nvidia/gpus`. */
+        NvidiaGpu: {
+            driverVersion?: string | null;
+            /** Format: int32 */
+            index: number;
+            /** Format: int32 */
+            maxEncSessions: number;
+            /** Format: int64 */
+            memoryTotalMib?: number | null;
+            name: string;
+            uuid?: string | null;
+        };
         Paginated_ItemSummary: {
             items: {
                 /** Format: int64 */
@@ -953,7 +1147,7 @@ export interface components {
         /** Format: int64 */
         PartId: number;
         /**
-         * @description Hardware platform class used to pick defaults. Real detection arrives in M4.1.
+         * @description Hardware platform class used to pick defaults and hardware transcode pipelines (M4.1).
          * @enum {string}
          */
         PlatformProfile: "pi5" | "pi4" | "genericArm" | "x86Intel" | "x86Nvidia" | "x86Amd" | "generic";
@@ -1056,6 +1250,7 @@ export interface components {
         ServerInfo: {
             arch: string;
             name: string;
+            npuProfile: components["schemas"]["NpuProfile"];
             os: string;
             platformProfile: components["schemas"]["PlatformProfile"];
             version: string;
@@ -1146,6 +1341,18 @@ export interface components {
             /** @description `"sm" | "md" | "lg" | "xl"`, default `"md"`. */
             size: string;
         };
+        /** @description Live transcode capacity summary derived from hardware profile, self-test FPS, and active sessions (M4.11). */
+        TranscodeCapacity: {
+            activeVideoSessions: number;
+            availableVideoSessions: number;
+            canTonemap: boolean;
+            canTranscodeVideo: boolean;
+            encodeCodecs: string[];
+            fallbackBackends: string[];
+            maxVideoSessions: number;
+            preferredBackend: string;
+            supportsAbrLadder: boolean;
+        };
         UpdateLibraryRequest: {
             name?: string | null;
             paths?: string[] | null;
@@ -1231,6 +1438,13 @@ export interface components {
             id: components["schemas"]["UserId"];
             isAdmin: boolean;
             username: string;
+        };
+        /** @description Linux V4L2 video device (`/dev/video*`). */
+        V4l2Device: {
+            driver?: string | null;
+            isM2m: boolean;
+            name: string;
+            path: string;
         };
         Version: {
             /** Format: int64 */
@@ -1501,6 +1715,87 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Hub"][];
                 };
+            };
+        };
+    };
+    get_capacity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscodeCapacity"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HwReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    run_test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HwSelftestResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

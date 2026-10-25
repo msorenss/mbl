@@ -177,6 +177,10 @@ export function Layout(props: { children?: JSX.Element }) {
               <span>🤖</span>
               <span>{t("aiAgents")}</span>
             </A>
+            <A href="/admin/hardware" style={navLinkStyle("/admin/hardware")}>
+              <span>⚡</span>
+              <span>{t("hardware")}</span>
+            </A>
           </Show>
         </nav>
 

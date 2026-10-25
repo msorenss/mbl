@@ -419,7 +419,7 @@ async fn scope_filtering_escalation_redaction_and_rate_limiting() {
     let mut cookie_client = McpClient::connect_router(app.router.clone(), None)
         .with_session_cookie(admin_session, "localhost:8420", "http://localhost:8420");
     let cookie_tools = cookie_client.list_tools().await.unwrap();
-    assert_eq!(cookie_tools.tools.len(), 21);
+    assert_eq!(cookie_tools.tools.len(), 24);
 
     // 6. Verify 90-day audit pruning.
     let now = now_ms();
@@ -1051,4 +1051,49 @@ async fn m2_14_ai_agent_wizard_audit_view_and_kill_switch_lifecycle() {
     assert_eq!(all_tokens_res.status, StatusCode::OK);
     let all_tokens = all_tokens_res.body.as_array().unwrap();
     assert!(all_tokens.iter().any(|t| t["name"] == "switch-test"));
+}
+
+#[tokio::test]
+async fn m4_hw_endpoints_and_mcp_tools() {
+    let app = TestApp::new().await;
+    let admin_session = app.setup_admin().await;
+
+    // 1. REST GET /api/v1/hw/report and GET /api/v1/hw/capacity
+    let report_res = app.call(Method::GET, "/api/v1/hw/report", Some(&admin_session), None).await;
+    assert_eq!(report_res.status, StatusCode::OK);
+    assert!(report_res.body["fingerprint"]["profile"].is_string());
+    assert!(report_res.body["fingerprint"]["npuProfile"].is_string());
+    assert!(report_res.body["hailo"]["sharingMode"].is_string());
+
+    let cap_res = app.call(Method::GET, "/api/v1/hw/capacity", Some(&admin_session), None).await;
+    assert_eq!(cap_res.status, StatusCode::OK);
+    assert!(cap_res.body["preferredBackend"].is_string());
+
+    // 2. MCP tools: get_hw_report, get_transcode_capacity, run_hw_selftest, and mbl://hw/report
+    let tok_res = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/tokens",
+            Some(&admin_session),
+            Some(json!({ "name": "hw-agent", "scopes": ["admin"] })),
+        )
+        .await;
+    let token = tok_res.body["token"].as_str().unwrap().to_owned();
+    let mut client = McpClient::connect_router(app.router.clone(), Some(token));
+    let _ = client.initialize().await.unwrap();
+
+    let hw_report = client.call_tool("get_hw_report", json!({})).await.unwrap();
+    assert!(!hw_report.is_error);
+    assert!(hw_report.structured_content.as_ref().unwrap()["fingerprint"]["profile"].is_string());
+
+    let hw_cap = client.call_tool("get_transcode_capacity", json!({})).await.unwrap();
+    assert!(!hw_cap.is_error);
+    assert!(hw_cap.structured_content.as_ref().unwrap()["preferredBackend"].is_string());
+
+    let dry = client.call_tool("run_hw_selftest", json!({ "dry_run": true })).await.unwrap();
+    assert!(!dry.is_error);
+    assert_eq!(dry.structured_content.as_ref().unwrap()["dryRun"], true);
+
+    let hw_res = client.read_resource(mbl_mcp::URI_HW_REPORT).await.unwrap();
+    assert!(hw_res.text.contains("fingerprint"));
 }

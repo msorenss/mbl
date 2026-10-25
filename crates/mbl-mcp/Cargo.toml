@@ -17,6 +17,7 @@ http-body-util.workspace = true
 mbl-auth.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-hwaccel.workspace = true
 mbl-jobs.workspace = true
 mbl-playback.workspace = true
 mbl-platform.workspace = true

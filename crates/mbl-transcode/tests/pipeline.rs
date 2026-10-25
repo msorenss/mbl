@@ -561,29 +561,179 @@ fn rejects_invalid_pipeline_combinations() {
     };
     assert!(build_args(&bad_burn, &caps).is_err());
 
-    // Non-software backend rejected by software builder.
-    let bad_hw = Pipeline {
-        input: Utf8PathBuf::from("/media/Movie.mkv"),
+    // Tone mapping on Pi profile (PiDrmDecode or V4l2m2m) is rejected (M4.10).
+    let bad_pi_tonemap = Pipeline {
+        input: Utf8PathBuf::from("/media/Movie_HDR.mkv"),
         start_ms: 0,
         video: VideoOp::Encode {
             codec: VideoCodec::H264,
             width: None,
             max_bitrate: 8_000_000,
             deinterlace: false,
-            tonemap: false,
+            tonemap: true,
         },
         audio: AudioOp::Copy { index: 1 },
         subtitle: SubtitleOp::None,
         output: default_output(),
-        backend: Backend::Vaapi,
+        backend: Backend::PiDrmDecode,
     };
-    assert!(build_args(&bad_hw, &caps).is_err());
+    assert!(build_args(&bad_pi_tonemap, &caps).is_err());
+
+    // Multi-rendition ABR ladder on Pi or Software backend is rejected (M4.13).
+    let bad_abr_pi = Pipeline {
+        input: Utf8PathBuf::from("/media/Movie.mkv"),
+        start_ms: 0,
+        video: VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(1920),
+            max_bitrate: 8_000_000,
+            deinterlace: false,
+            tonemap: false,
+        },
+        audio: AudioOp::Copy { index: 1 },
+        subtitle: SubtitleOp::None,
+        output: HlsOutput {
+            dir: Utf8PathBuf::from("/var/lib/mbl/transcode/sess-abr"),
+            segment_secs: 6,
+            start_number: 0,
+            renditions: vec![
+                Rendition { name: "0".to_owned(), width: Some(1920), max_bitrate: 8_000_000 },
+                Rendition { name: "1".to_owned(), width: Some(1280), max_bitrate: 4_000_000 },
+            ],
+        },
+        backend: Backend::PiDrmDecode,
+    };
+    assert!(build_args(&bad_abr_pi, &caps).is_err());
 
     // Zero segment_secs rejected.
     let mut bad_seg = bad_burn.clone();
     bad_seg.subtitle = SubtitleOp::None;
     bad_seg.output.segment_secs = 0;
     assert!(build_args(&bad_seg, &caps).is_err());
+}
+
+#[test]
+fn hardware_backends_tonemap_and_abr_ladder_args() {
+    let caps = FfmpegCaps::default();
+
+    // M4.4 + M4.10: VAAPI with HDR tone-mapping and HEVC encode
+    let vaapi_hdr = Pipeline {
+        input: Utf8PathBuf::from("/media/Movies/HDR10.mkv"),
+        start_ms: 0,
+        video: VideoOp::Encode {
+            codec: VideoCodec::Hevc,
+            width: Some(1920),
+            max_bitrate: 8_000_000,
+            deinterlace: false,
+            tonemap: true,
+        },
+        audio: AudioOp::Copy { index: 1 },
+        subtitle: SubtitleOp::None,
+        output: default_output(),
+        backend: Backend::Vaapi,
+    };
+    let vaapi_args = args_to_strings(&vaapi_hdr, &caps);
+    assert!(vaapi_args.windows(2).any(|w| w == ["-hwaccel", "vaapi"]));
+    assert!(vaapi_args.windows(2).any(|w| w == ["-c:v", "hevc_vaapi"]));
+    assert!(vaapi_args.iter().any(|a| a.contains("tonemap_vaapi") && a.contains("scale_vaapi")));
+
+    // M4.5 + M4.10: QSV with deinterlace + tone-mapping + low_power=1
+    let qsv = Pipeline {
+        backend: Backend::Qsv,
+        video: VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(1280),
+            max_bitrate: 4_000_000,
+            deinterlace: true,
+            tonemap: true,
+        },
+        ..vaapi_hdr.clone()
+    };
+    let qsv_args = args_to_strings(&qsv, &caps);
+    assert!(qsv_args.windows(2).any(|w| w == ["-hwaccel", "qsv"]));
+    assert!(qsv_args.windows(2).any(|w| w == ["-c:v", "h264_qsv"]));
+    assert!(qsv_args.windows(2).any(|w| w == ["-low_power", "1"]));
+    assert!(
+        qsv_args
+            .iter()
+            .any(|a| a.contains("vpp_qsv=deinterlace=2:tonemap=1:w=1280:h=-2:format=nv12"))
+    );
+
+    // M4.6 + M4.10: NVENC with yadif_cuda + tonemap_cuda + scale_cuda + av1_nvenc
+    let nvenc = Pipeline {
+        backend: Backend::Nvenc,
+        video: VideoOp::Encode {
+            codec: VideoCodec::Av1,
+            width: Some(1920),
+            max_bitrate: 6_000_000,
+            deinterlace: true,
+            tonemap: true,
+        },
+        ..vaapi_hdr.clone()
+    };
+    let nvenc_args = args_to_strings(&nvenc, &caps);
+    assert!(nvenc_args.windows(2).any(|w| w == ["-hwaccel", "cuda"]));
+    assert!(nvenc_args.windows(2).any(|w| w == ["-c:v", "av1_nvenc"]));
+    assert!(nvenc_args.iter().any(|a| a.contains("yadif_cuda")
+        && a.contains("tonemap_cuda")
+        && a.contains("scale_cuda")));
+
+    // M4.7: Pi 4 V4L2M2M and Pi 5 DRM decode + libx264 software encode
+    let pi4 = Pipeline {
+        backend: Backend::V4l2m2m,
+        video: VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(1280),
+            max_bitrate: 4_000_000,
+            deinterlace: false,
+            tonemap: false,
+        },
+        ..vaapi_hdr.clone()
+    };
+    let pi4_args = args_to_strings(&pi4, &caps);
+    assert!(pi4_args.windows(2).any(|w| w == ["-c:v", "h264_v4l2m2m"]));
+
+    let pi5 = Pipeline { backend: Backend::PiDrmDecode, ..pi4.clone() };
+    let pi5_args = args_to_strings(&pi5, &caps);
+    assert!(pi5_args.windows(2).any(|w| w == ["-hwaccel", "drm"]));
+    assert!(pi5_args.windows(2).any(|w| w == ["-c:v", "libx264"]));
+
+    // M4.8: Windows D3D11VA + AMF
+    let amf = Pipeline { backend: Backend::D3d11Amf, ..pi4.clone() };
+    let amf_args = args_to_strings(&amf, &caps);
+    assert!(amf_args.windows(2).any(|w| w == ["-hwaccel", "d3d11va"]));
+    assert!(amf_args.windows(2).any(|w| w == ["-c:v", "h264_amf"]));
+
+    // M4.13: Multi-rendition GPU ABR ladder with split=3
+    let abr = Pipeline {
+        input: Utf8PathBuf::from("/media/Movies/4K_Source.mkv"),
+        start_ms: 0,
+        video: VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(1920),
+            max_bitrate: 8_000_000,
+            deinterlace: false,
+            tonemap: false,
+        },
+        audio: AudioOp::Encode { index: 1, codec: AudioCodec::Aac, channels: 2, bitrate: 192_000 },
+        subtitle: SubtitleOp::None,
+        output: HlsOutput {
+            dir: Utf8PathBuf::from("/var/lib/mbl/transcode/sess-abr"),
+            segment_secs: 6,
+            start_number: 0,
+            renditions: vec![
+                Rendition { name: "0".to_owned(), width: Some(1920), max_bitrate: 8_000_000 },
+                Rendition { name: "1".to_owned(), width: Some(1280), max_bitrate: 4_000_000 },
+                Rendition { name: "2".to_owned(), width: Some(854), max_bitrate: 1_500_000 },
+            ],
+        },
+        backend: Backend::Vaapi,
+    };
+    let abr_args = args_to_strings(&abr, &caps);
+    assert!(abr_args.iter().any(|a| a.contains("[0:v:0]split=3[s0][s1][s2]")));
+    assert!(abr_args.iter().any(|a| a.ends_with("/0/ffmpeg.m3u8")));
+    assert!(abr_args.iter().any(|a| a.ends_with("/1/ffmpeg.m3u8")));
+    assert!(abr_args.iter().any(|a| a.ends_with("/2/ffmpeg.m3u8")));
 }
 
 #[tokio::test]

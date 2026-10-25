@@ -18,6 +18,7 @@ const Login = lazy(() => import("./pages/Login"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Users = lazy(() => import("./pages/admin/Users"));
 const AiAgents = lazy(() => import("./pages/admin/AiAgents"));
+const Hardware = lazy(() => import("./pages/admin/Hardware"));
 
 export function App() {
   return (
@@ -55,6 +56,14 @@ export function App() {
                   component={() => (
                     <AuthGuard adminOnly>
                       <AiAgents />
+                    </AuthGuard>
+                  )}
+                />
+                <Route
+                  path="/admin/hardware"
+                  component={() => (
+                    <AuthGuard adminOnly>
+                      <Hardware />
                     </AuthGuard>
                   )}
                 />

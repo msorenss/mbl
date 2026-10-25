@@ -8,7 +8,9 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder
 use utoipa::{Modify, OpenApi};
 
 use crate::AppState;
-use crate::routes::{auth, events, images, items, libraries, mcp, playback, stream, system, users};
+use crate::routes::{
+    auth, events, hw, images, items, libraries, mcp, playback, stream, system, users,
+};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -28,6 +30,7 @@ use crate::routes::{auth, events, images, items, libraries, mcp, playback, strea
         images::image, events::events, stream::direct, stream::hls_master,
         stream::hls_rendition_file, stream::subtitle,
         mcp::list_audit, mcp::get_status, mcp::update_status, mcp::create_snippets, mcp::list_presets,
+        hw::get_report, hw::get_capacity, hw::run_test,
     ),
     components(schemas(
         mbl_db::repo::items::SortField,
@@ -41,6 +44,22 @@ use crate::routes::{auth, events, images, items, libraries, mcp, playback, strea
         mbl_service::PlayMethod,
         mbl_service::StreamAction,
         mbl_service::SubtitleDelivery,
+        mbl_service::HwReport,
+        mbl_service::HwSelftestResponse,
+        mbl_hwaccel::HardwareFingerprint,
+        mbl_hwaccel::NpuProfile,
+        mbl_hwaccel::DrmDevice,
+        mbl_hwaccel::V4l2Device,
+        mbl_hwaccel::NvidiaGpu,
+        mbl_hwaccel::DxgiAdapter,
+        mbl_hwaccel::HailoDeviceInfo,
+        mbl_hwaccel::FfmpegProbeCaps,
+        mbl_hwaccel::HwCapEntry,
+        mbl_hwaccel::TranscodeCapacity,
+        mbl_hwaccel::BadBackendFailure,
+        mbl_hwaccel::HailoRuntimeStatus,
+        mbl_hwaccel::HailoSharingMode,
+        mbl_hwaccel::HailoPipelineCapability,
     )),
     modifiers(&Security),
     security(("bearer" = []), ("cookie" = [])),

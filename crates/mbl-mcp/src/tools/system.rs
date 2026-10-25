@@ -94,21 +94,24 @@ pub async fn execute(
     match tool_name {
         "get_server_info" => {
             let profile: PlatformProfile = mbl_platform::system::detect_profile();
+            let npu_profile = services.hw.fingerprint().npu_profile;
             let info = json!({
                 "name": "MBL",
                 "version": env!("CARGO_PKG_VERSION"),
                 "os": std::env::consts::OS,
                 "arch": std::env::consts::ARCH,
                 "platformProfile": profile,
+                "npuProfile": npu_profile,
             });
             Ok(CallToolResult::structured(
                 &info,
                 format!(
-                    "MBL {} on {}/{} ({:?})",
+                    "MBL {} on {}/{} ({:?}, NPU: {:?})",
                     env!("CARGO_PKG_VERSION"),
                     std::env::consts::OS,
                     std::env::consts::ARCH,
-                    profile
+                    profile,
+                    npu_profile
                 ),
             ))
         }

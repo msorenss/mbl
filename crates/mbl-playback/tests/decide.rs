@@ -902,6 +902,68 @@ fn edge_cases_and_constraints_matrix() {
         dec.video,
         StreamAction::Transcode { codec: "h264".into(), bitrate: 4_000_000, width: Some(1280) }
     );
+
+    // Case 72 (M4.10): HDR10 on Firefox when running on a Pi 5 profile (`piDrmDecode`, `can_tonemap: false`)
+    // explains that software HDR tone mapping is disabled on Raspberry Pi profiles and marks refused.
+    let pi_hdr = decide(
+        &hdr_mkv,
+        &firefox,
+        &DecisionContext {
+            can_transcode_video: true,
+            hw: Some(HwSummary {
+                backend: "piDrmDecode".into(),
+                encode_codecs: vec!["h264".into()],
+                can_tonemap: false,
+            }),
+            ..Default::default()
+        },
+    );
+    assert!(pi_hdr.is_refused());
+    assert!(pi_hdr.reasons.contains(&Reason::Other(
+        "Software HDR tone mapping is disabled on Raspberry Pi profiles".into()
+    )));
+
+    // Case 73 (M4.14): Remote playback (WAN / Tailnet) prefers AV1 or HEVC when supported by both
+    // the client profile and hardware encoder, whereas LAN prefers H.264.
+    let remote_av1 = decide(
+        &mp4,
+        &chrome,
+        &DecisionContext {
+            max_bitrate: Some(2_000_000),
+            network: Network::Wan,
+            can_transcode_video: true,
+            hw: Some(HwSummary {
+                backend: "nvenc".into(),
+                encode_codecs: vec!["h264".into(), "hevc".into(), "av1".into()],
+                can_tonemap: true,
+            }),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        remote_av1.video,
+        StreamAction::Transcode { codec: "av1".into(), bitrate: 2_000_000, width: None }
+    );
+
+    let remote_hevc_safari = decide(
+        &mp4,
+        &safari,
+        &DecisionContext {
+            max_bitrate: Some(2_000_000),
+            network: Network::TailnetDirect,
+            can_transcode_video: true,
+            hw: Some(HwSummary {
+                backend: "vaapi".into(),
+                encode_codecs: vec!["h264".into(), "hevc".into()],
+                can_tonemap: true,
+            }),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        remote_hevc_safari.video,
+        StreamAction::Transcode { codec: "hevc".into(), bitrate: 2_000_000, width: None }
+    );
 }
 
 #[test]

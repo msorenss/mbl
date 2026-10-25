@@ -14,8 +14,8 @@ pub use audit::{
 };
 pub use caller::{Caller, McpRateLimiter, is_expensive_tool, resolve_caller};
 pub use resources::{
-    TEMPLATE_ITEM, TEMPLATE_JOB, URI_SERVER_HEALTH, URI_SERVER_INFO, URI_SESSIONS_ACTIVE,
-    list_resource_templates, list_resources, read_resource,
+    TEMPLATE_ITEM, TEMPLATE_JOB, URI_HW_REPORT, URI_SERVER_HEALTH, URI_SERVER_INFO,
+    URI_SESSIONS_ACTIVE, list_resource_templates, list_resources, read_resource,
 };
 pub use sanitize::{
     MAX_SUMMARY_LEN, MAX_TITLE_LEN, is_bidi_control, sanitize_text, untrusted, untrusted_title,

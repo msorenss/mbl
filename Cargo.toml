@@ -26,6 +26,7 @@ mbl-playback = { path = "crates/mbl-playback" }
 mbl-transcode = { path = "crates/mbl-transcode" }
 mbl-stream = { path = "crates/mbl-stream" }
 mbl-platform = { path = "crates/mbl-platform" }
+mbl-hwaccel = { path = "crates/mbl-hwaccel" }
 mbl-mcp = { path = "crates/mbl-mcp" }
 mbl-ui-kit = { path = "crates/mbl-ui-kit" }
 

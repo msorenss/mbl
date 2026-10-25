@@ -15,7 +15,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
 use crate::args::build_args;
-use crate::pipeline::{FfmpegCaps, Pipeline, VideoOp};
+use crate::pipeline::{Backend, FfmpegCaps, Pipeline, VideoOp};
 
 /// Default number of segments after which an ahead FFmpeg process is paused.
 pub const DEFAULT_AHEAD_SEGMENTS: u32 = 10;
@@ -82,6 +82,10 @@ pub struct CreateSessionReq {
 
 struct SessionState {
     child: Option<Child>,
+    last_exit_failed: bool,
+    last_spawn_at: Instant,
+    active_backend: Backend,
+    fallback_backends: Vec<Backend>,
     paused: bool,
     current_start_segment: u32,
     ffmpeg_head_segment: u32,
@@ -104,6 +108,8 @@ pub struct HlsSession {
     ahead_segments: u32,
     segment_wait_timeout: Duration,
     fast_start_segments: bool,
+    bad_backends: Arc<RwLock<HashMap<(Backend, String), Instant>>>,
+    bad_backend_ttl: Duration,
     state: Mutex<SessionState>,
 }
 
@@ -165,7 +171,7 @@ impl HlsSession {
         {
             let mut st = self.state.lock().await;
             st.last_access = Instant::now();
-            let running = is_child_running(&mut st.child);
+            let running = poll_child_state(&mut st);
             if is_init_complete(&rendition_dir, running) {
                 return Ok(init_path);
             }
@@ -176,6 +182,12 @@ impl HlsSession {
                 }
             } else {
                 let start_seg = st.last_requested_segment;
+                if st.last_exit_failed
+                    && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
+                    && !st.fallback_backends.is_empty()
+                {
+                    self.advance_fallback_locked(&mut st);
+                }
                 self.spawn_at_segment_locked(&mut st, start_seg).await?;
             }
         }
@@ -184,14 +196,23 @@ impl HlsSession {
         loop {
             {
                 let mut st = self.state.lock().await;
-                let running = is_child_running(&mut st.child);
+                let running = poll_child_state(&mut st);
                 if is_init_complete(&rendition_dir, running) {
                     return Ok(init_path);
                 }
                 if !running {
-                    return Err(Error::Unavailable(
-                        "FFmpeg exited before producing init.mp4".into(),
-                    ));
+                    if st.last_exit_failed
+                        && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
+                        && !st.fallback_backends.is_empty()
+                    {
+                        let start_seg = st.last_requested_segment;
+                        self.advance_fallback_locked(&mut st);
+                        self.spawn_at_segment_locked(&mut st, start_seg).await?;
+                    } else {
+                        return Err(Error::Unavailable(
+                            "FFmpeg exited before producing init.mp4".into(),
+                        ));
+                    }
                 }
             }
             if Instant::now() >= deadline {
@@ -201,10 +222,11 @@ impl HlsSession {
         }
     }
 
-    /// Resolve `<rendition>/<segment_num>.m4s` according to M2.5 rules:
+    /// Resolve `<rendition>/<segment_num>.m4s` according to M2.5 and M4.9 rules:
     /// 1. If the segment exists and is complete, serve it immediately.
     /// 2. If it is within 3 segments of the FFmpeg head, wait (up to timeout).
     /// 3. Otherwise restart FFmpeg at `segment_num` (`-ss`, `-start_number n`).
+    /// 4. If FFmpeg exits non-zero within 5 s, mark the backend bad and retry with the next fallback backend.
     pub async fn request_segment(&self, rendition: &str, segment_num: u32) -> Result<PathBuf> {
         validate_rendition_name(rendition)?;
         let rendition_dir = self.dir.join(rendition);
@@ -218,7 +240,7 @@ impl HlsSession {
             st.last_access = Instant::now();
             st.last_requested_segment = segment_num;
 
-            let running = is_child_running(&mut st.child);
+            let running = poll_child_state(&mut st);
             refresh_head_segment(&rendition_dir, &mut st, running);
 
             // Resume FFmpeg if it was paused and the client has caught up within `ahead_segments`.
@@ -243,7 +265,15 @@ impl HlsSession {
                     st.paused = false;
                 }
             } else {
-                st.restart_count = st.restart_count.saturating_add(1);
+                if !running
+                    && st.last_exit_failed
+                    && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
+                    && !st.fallback_backends.is_empty()
+                {
+                    self.advance_fallback_locked(&mut st);
+                } else {
+                    st.restart_count = st.restart_count.saturating_add(1);
+                }
                 self.spawn_at_segment_locked(&mut st, segment_num).await?;
             }
         }
@@ -252,15 +282,23 @@ impl HlsSession {
         loop {
             {
                 let mut st = self.state.lock().await;
-                let running = is_child_running(&mut st.child);
+                let running = poll_child_state(&mut st);
                 refresh_head_segment(&rendition_dir, &mut st, running);
                 if is_segment_complete(&rendition_dir, segment_num, running) {
                     return Ok(seg_path);
                 }
                 if !running {
-                    return Err(Error::Unavailable(format!(
-                        "FFmpeg exited before producing segment {segment_num}.m4s"
-                    )));
+                    if st.last_exit_failed
+                        && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
+                        && !st.fallback_backends.is_empty()
+                    {
+                        self.advance_fallback_locked(&mut st);
+                        self.spawn_at_segment_locked(&mut st, segment_num).await?;
+                    } else {
+                        return Err(Error::Unavailable(format!(
+                            "FFmpeg exited before producing segment {segment_num}.m4s"
+                        )));
+                    }
                 }
             }
             if Instant::now() >= deadline {
@@ -275,7 +313,7 @@ impl HlsSession {
     /// Evaluate ahead-segment distance and pause/resume FFmpeg accordingly.
     pub async fn tick_throttle(&self) {
         let mut st = self.state.lock().await;
-        let running = is_child_running(&mut st.child);
+        let running = poll_child_state(&mut st);
         if !running {
             st.paused = false;
             return;
@@ -307,6 +345,11 @@ impl HlsSession {
         }
     }
 
+    /// Active hardware or software backend currently driving this session.
+    pub async fn active_backend(&self) -> Backend {
+        self.state.lock().await.active_backend
+    }
+
     /// Whether the FFmpeg child process is currently paused via throttling.
     pub async fn is_paused(&self) -> bool {
         self.state.lock().await.paused
@@ -320,7 +363,7 @@ impl HlsSession {
     /// OS PID of the currently running FFmpeg child process, if any.
     pub async fn ffmpeg_pid(&self) -> Option<u32> {
         let mut st = self.state.lock().await;
-        if is_child_running(&mut st.child) { st.child.as_ref().and_then(Child::id) } else { None }
+        if poll_child_state(&mut st) { st.child.as_ref().and_then(Child::id) } else { None }
     }
 
     /// Last request timestamp on this session.
@@ -340,19 +383,51 @@ impl HlsSession {
         let _ = std::fs::remove_dir_all(self.dir.as_std_path());
     }
 
+    fn advance_fallback_locked(&self, st: &mut SessionState) {
+        let failed = st.active_backend;
+        let codec_name = match &self.base_pipeline.video {
+            VideoOp::Encode { codec, .. } => codec.as_str().to_owned(),
+            _ => "h264".to_owned(),
+        };
+        if let Ok(mut map) = self.bad_backends.write() {
+            map.insert((failed, codec_name.clone()), Instant::now() + self.bad_backend_ttl);
+        }
+        if !st.fallback_backends.is_empty() {
+            let next = st.fallback_backends.remove(0);
+            tracing::warn!(
+                session_id = %self.id,
+                failed_backend = ?failed,
+                next_backend = ?next,
+                codec = %codec_name,
+                "FFmpeg failed within 5s on hardware backend; falling back transparently"
+            );
+            st.active_backend = next;
+            st.last_exit_failed = false;
+        }
+    }
+
     async fn spawn_at_segment_locked(&self, st: &mut SessionState, segment_num: u32) -> Result<()> {
         kill_existing_child(st).await;
 
-        let rendition_dir = self.base_pipeline.output.rendition_dir(0);
-        std::fs::create_dir_all(rendition_dir.as_std_path())
-            .map_err(|e| Error::Internal(Box::new(e)))?;
+        let rendition_count = self.base_pipeline.output.renditions.len().max(1);
+        for idx in 0..rendition_count {
+            let rendition_dir = self.base_pipeline.output.rendition_dir(idx);
+            std::fs::create_dir_all(rendition_dir.as_std_path())
+                .map_err(|e| Error::Internal(Box::new(e)))?;
 
-        // Remove stale FFmpeg internal playlist and any half-written target segment before spawning.
-        let _ = std::fs::remove_file(rendition_dir.join("ffmpeg.m3u8").as_std_path());
-        let _ =
-            std::fs::remove_file(rendition_dir.join(format!("{segment_num}.m4s")).as_std_path());
+            // Remove stale FFmpeg internal playlist and any half-written target segment before spawning.
+            let _ = std::fs::remove_file(rendition_dir.join("ffmpeg.m3u8").as_std_path());
+            let _ = std::fs::remove_file(
+                rendition_dir.join(format!("{segment_num}.m4s")).as_std_path(),
+            );
+        }
 
         let mut p = self.base_pipeline.clone();
+        p.backend = st.active_backend;
+        // If we fell back to a non-GPU backend on a multi-rendition pipeline, collapse to primary rendition 0
+        if p.output.renditions.len() > 1 && !p.backend.is_gpu() {
+            p.output.renditions.truncate(1);
+        }
         p.start_ms = self.segment_start_ms(segment_num);
         p.output.start_number = segment_num;
 
@@ -369,6 +444,8 @@ impl HlsSession {
         st.current_start_segment = segment_num;
         st.ffmpeg_head_segment = segment_num;
         st.paused = false;
+        st.last_exit_failed = false;
+        st.last_spawn_at = Instant::now();
         st.child = Some(child);
         Ok(())
     }
@@ -387,22 +464,44 @@ impl HlsSession {
     }
 }
 
-/// Manages active HLS sessions, concurrency caps, inactivity cleanup, and disk quotas.
+/// Manages active HLS sessions, concurrency caps, inactivity cleanup, disk quotas, and bad-backend TTLs.
 #[derive(Clone, Debug)]
 pub struct SessionManager {
     config: Arc<SessionManagerConfig>,
     sessions: Arc<RwLock<HashMap<String, Arc<HlsSession>>>>,
+    bad_backends: Arc<RwLock<HashMap<(Backend, String), Instant>>>,
+    bad_backend_ttl: Duration,
 }
 
 impl SessionManager {
     pub fn new(config: SessionManagerConfig) -> Result<Self> {
         std::fs::create_dir_all(config.transcode_dir.as_std_path())
             .map_err(|e| Error::Internal(Box::new(e)))?;
-        Ok(Self { config: Arc::new(config), sessions: Arc::new(RwLock::new(HashMap::new())) })
+        Ok(Self {
+            config: Arc::new(config),
+            sessions: Arc::new(RwLock::new(HashMap::new())),
+            bad_backends: Arc::new(RwLock::new(HashMap::new())),
+            bad_backend_ttl: Duration::from_secs(600),
+        })
+    }
+
+    pub fn with_bad_backend_ttl(mut self, ttl: Duration) -> Self {
+        self.bad_backend_ttl = ttl;
+        self
     }
 
     pub fn config(&self) -> &SessionManagerConfig {
         &self.config
+    }
+
+    /// Check whether `(backend, codec)` is currently marked bad in the TTL tracker (M4.9).
+    pub fn is_backend_bad(&self, backend: Backend, codec: &str) -> bool {
+        let now = Instant::now();
+        let Ok(mut map) = self.bad_backends.write() else {
+            return false;
+        };
+        map.retain(|_, exp| *exp > now);
+        map.contains_key(&(backend, codec.to_ascii_lowercase()))
     }
 
     /// Number of active sessions (both video transcode and remux).
@@ -430,6 +529,20 @@ impl SessionManager {
 
     /// Create a new HLS session, write master and media playlists up front, and start FFmpeg.
     pub async fn create_session(&self, req: CreateSessionReq) -> Result<Arc<HlsSession>> {
+        let default_fallbacks = if req.pipeline.backend != Backend::Software {
+            vec![Backend::Software]
+        } else {
+            Vec::new()
+        };
+        self.create_session_with_fallbacks(req, default_fallbacks).await
+    }
+
+    /// Create a new HLS session with an explicit ordered list of fallback [`Backend`]s (M4.9).
+    pub async fn create_session_with_fallbacks(
+        &self,
+        req: CreateSessionReq,
+        mut fallback_backends: Vec<Backend>,
+    ) -> Result<Arc<HlsSession>> {
         // Reap any expired sessions first so their slots and disk space are reclaimed.
         self.run_maintenance_once().await;
 
@@ -479,6 +592,21 @@ impl SessionManager {
         base_pipeline.output.dir = session_dir.clone();
         let initial_segment = base_pipeline.output.start_number;
 
+        // Skip any primary or fallback backends already marked bad in the TTL tracker
+        let codec_name = match &base_pipeline.video {
+            VideoOp::Encode { codec, .. } => codec.as_str().to_owned(),
+            _ => "h264".to_owned(),
+        };
+        fallback_backends
+            .retain(|b| *b == Backend::Software || !self.is_backend_bad(*b, &codec_name));
+        let mut active_backend = base_pipeline.backend;
+        if active_backend != Backend::Software
+            && self.is_backend_bad(active_backend, &codec_name)
+            && !fallback_backends.is_empty()
+        {
+            active_backend = fallback_backends.remove(0);
+        }
+
         let session = Arc::new(HlsSession {
             id: session_id.clone(),
             user_id: req.user_id,
@@ -492,8 +620,14 @@ impl SessionManager {
             ahead_segments: self.config.ahead_segments,
             segment_wait_timeout: self.config.segment_wait_timeout,
             fast_start_segments: req.fast_start_segments,
+            bad_backends: self.bad_backends.clone(),
+            bad_backend_ttl: self.bad_backend_ttl,
             state: Mutex::new(SessionState {
                 child: None,
+                last_exit_failed: false,
+                last_spawn_at: Instant::now(),
+                active_backend,
+                fallback_backends,
                 paused: false,
                 current_start_segment: initial_segment,
                 ffmpeg_head_segment: initial_segment,
@@ -642,18 +776,20 @@ fn validate_rendition_name(rendition: &str) -> Result<()> {
     Ok(())
 }
 
-fn is_child_running(child_slot: &mut Option<Child>) -> bool {
-    let Some(child) = child_slot.as_mut() else {
+fn poll_child_state(st: &mut SessionState) -> bool {
+    let Some(child) = st.child.as_mut() else {
         return false;
     };
     match child.try_wait() {
-        Ok(Some(_status)) => {
-            *child_slot = None;
+        Ok(Some(status)) => {
+            st.last_exit_failed = !status.success();
+            st.child = None;
             false
         }
         Ok(None) => true,
         Err(_) => {
-            *child_slot = None;
+            st.last_exit_failed = true;
+            st.child = None;
             false
         }
     }

@@ -566,5 +566,64 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "get_hw_report",
+    "description": "Get full hardware acceleration report: platform fingerprint, NPU profile, Hailo cooperative sharing status, self-test capability matrix, transcode capacity, and recent backend failures.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get Hardware Report",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_transcode_capacity",
+    "description": "Get current transcode capacity, preferred backend, fallback chain, supported encode codecs, HDR tone-mapping support, ABR ladder support, and active/max video sessions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get Transcode Capacity",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "run_hw_selftest",
+    "description": "Run the functional hardware acceleration self-test across candidate backends and update the cached capability matrix and transcode capacity. Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "default": false,
+          "description": "Confirm running hardware self-test",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "default": false,
+          "description": "Preview candidate backends without executing FFmpeg self-tests",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Run Hardware Self-Test",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

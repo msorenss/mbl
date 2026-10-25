@@ -1,0 +1,29 @@
+[package]
+name = "mbl-hwaccel"
+description = "Hardware acceleration fingerprinting, FFmpeg capability probing, self-tests, capacity modeling, and cooperative Hailo NPU sharing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+camino.workspace = true
+mbl-core.workspace = true
+mbl-platform.workspace = true
+quick-xml.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+utoipa.workspace = true
+xxhash-rust.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -12,6 +12,7 @@ axum = { workspace = true, features = ["ws"] }
 governor.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-hwaccel.workspace = true
 mbl-images.workspace = true
 mbl-jobs.workspace = true
 mbl-platform.workspace = true

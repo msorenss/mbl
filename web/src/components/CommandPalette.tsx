@@ -110,6 +110,13 @@ export function CommandPalette(props: CommandPaletteProps) {
           icon: "🤖",
           run: () => navigate("/admin/ai-agents"),
         },
+        {
+          id: "admin-hw",
+          category: "Admin",
+          label: t("hardware"),
+          icon: "⚡",
+          run: () => navigate("/admin/hardware"),
+        },
       );
     }
 

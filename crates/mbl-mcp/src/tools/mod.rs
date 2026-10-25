@@ -1,5 +1,6 @@
 //! MCP Tool definitions and execution dispatch.
 
+pub mod hw;
 pub mod jobs;
 pub mod libraries;
 pub mod media;
@@ -25,6 +26,7 @@ pub fn all_tools() -> Vec<RegisteredTool> {
     tools.extend(watch::definitions());
     tools.extend(playback::definitions());
     tools.extend(jobs::definitions());
+    tools.extend(hw::definitions());
     tools
 }
 
@@ -55,6 +57,9 @@ pub async fn execute_tool(
             playback::execute(tool_name, args, caller, services).await
         }
         "list_jobs" | "get_job" => jobs::execute(tool_name, args, caller, db).await,
+        "get_hw_report" | "get_transcode_capacity" | "run_hw_selftest" => {
+            hw::execute(tool_name, args, caller, services).await
+        }
         _ => Err(JsonRpcError::invalid_params(format!("unknown tool: {tool_name}"))),
     }
 }

@@ -336,6 +336,27 @@ pub fn decide(media: &MediaInfo, profile: &DeviceProfile, ctx: &DecisionContext)
             if !ctx.can_transcode_video && ctx.hw.is_none() {
                 reasons.push(Reason::NoTranscodeCapacity);
             }
+            if (video_reasons.contains(&Reason::HdrUnsupported) || v.hdr.is_some())
+                && let Some(hw) = &ctx.hw
+                && !hw.can_tonemap
+            {
+                if matches!(
+                    hw.backend.as_str(),
+                    "piDrmDecode" | "v4l2m2m" | "pi5" | "pi4" | "genericArm"
+                ) {
+                    reasons.push(Reason::Other(
+                        "Software HDR tone mapping is disabled on Raspberry Pi profiles".into(),
+                    ));
+                } else {
+                    reasons.push(Reason::Other(format!(
+                        "Hardware backend '{}' does not support HDR tone mapping",
+                        hw.backend
+                    )));
+                }
+                if !reasons.contains(&Reason::NoTranscodeCapacity) {
+                    reasons.push(Reason::NoTranscodeCapacity);
+                }
+            }
             let target_codec = pick_video_transcode_codec(profile, ctx);
             let width = pick_video_width(v, profile, &target_codec, effective_max_bitrate);
             let bitrate = pick_video_bitrate(v, width, effective_max_bitrate);
@@ -528,6 +549,21 @@ fn canonical_container(media_container: &str, video: Option<&StreamInfo>) -> Str
 
 fn pick_video_transcode_codec(profile: &DeviceProfile, ctx: &DecisionContext) -> String {
     if let Some(hw) = &ctx.hw {
+        // M4.14: For remote connections (Tailnet / WAN), prefer AV1 then HEVC when both the client
+        // profile and the hardware encoder support it.
+        if ctx.network.is_remote() {
+            for preferred in ["av1", "hevc"] {
+                let profile_allows = profile
+                    .transcode_target
+                    .video_codecs
+                    .iter()
+                    .any(|c| c.eq_ignore_ascii_case(preferred));
+                let hw_allows = hw.encode_codecs.iter().any(|c| c.eq_ignore_ascii_case(preferred));
+                if profile_allows && hw_allows {
+                    return preferred.to_owned();
+                }
+            }
+        }
         for wanted in &profile.transcode_target.video_codecs {
             if hw.encode_codecs.iter().any(|c| c.eq_ignore_ascii_case(wanted)) {
                 return wanted.clone();

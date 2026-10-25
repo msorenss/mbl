@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod events;
+pub mod hw;
 pub mod images;
 pub mod items;
 pub mod libraries;
@@ -25,6 +26,7 @@ pub use auth::{
     DeviceInfo, LoginResult,
 };
 pub use events::EventService;
+pub use hw::{HwReport, HwSelftestResponse, HwService};
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
@@ -55,6 +57,7 @@ pub struct Services {
     pub watch: WatchService,
     pub playback: PlaybackService,
     pub mcp: McpService,
+    pub hw: HwService,
 }
 
 impl Services {
@@ -67,8 +70,10 @@ impl Services {
         let auth = AuthService::new(db.clone());
         let stream = StreamService::new(db.clone());
         let watch = WatchService::new(db.clone(), events.clone());
+        let hw = HwService::new(db.clone(), stream.clone());
         let playback =
-            PlaybackService::new(db.clone(), auth.clone(), stream.clone(), watch.clone());
+            PlaybackService::new(db.clone(), auth.clone(), stream.clone(), watch.clone())
+                .with_hw(hw.clone());
         let mcp = McpService::new(db.clone(), Arc::new(RwLock::new(McpConfig::default())));
         Self {
             auth,
@@ -81,6 +86,7 @@ impl Services {
             watch,
             playback,
             mcp,
+            hw,
         }
     }
 

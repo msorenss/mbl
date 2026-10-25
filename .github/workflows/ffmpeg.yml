@@ -1,0 +1,165 @@
+name: Build mbl-ffmpeg
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg_tag:
+        description: "FFmpeg release tag to build (e.g. n7.1.1)"
+        required: false
+        default: "n7.1.1"
+      rpi_ffmpeg_ref:
+        description: "jc-kynesim/rpi-ffmpeg branch/commit for Raspberry Pi 4/5 V4L2/DRM HEVC patches"
+        required: false
+        default: "dev/7.1/rpi_import_1"
+  push:
+    tags:
+      - "ffmpeg-v*"
+
+permissions:
+  contents: write
+
+env:
+  FFMPEG_VERSION: ${{ inputs.ffmpeg_tag || 'n7.1.1' }}
+  RPI_FFMPEG_REF: ${{ inputs.rpi_ffmpeg_ref || 'dev/7.1/rpi_import_1' }}
+
+jobs:
+  linux-amd64:
+    name: mbl-ffmpeg (linux-amd64 / VAAPI + QSV + NVENC + Vulkan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            autoconf automake build-essential cmake git libass-dev \
+            libdav1d-dev libdrm-dev libfreetype6-dev libgnutls28-dev \
+            libmp3lame-dev libnuma-dev libogg-dev libopus-dev \
+            libplacebo-dev libsvtav1enc-dev libtool libudev-dev \
+            libva-dev libvorbis-dev libvpl-dev libvpx-dev \
+            libvulkan-dev libx264-dev libx265-dev libzimg-dev \
+            meson ninja-build pkg-config texinfo wget yasm zlib1g-dev
+      - name: Install nv-codec-headers
+        run: |
+          git clone --depth 1 --branch n12.2.72.0 https://github.com/FFmpeg/nv-codec-headers.git /tmp/nv-codec-headers
+          sudo make -C /tmp/nv-codec-headers install PREFIX=/usr
+      - name: Clone and build FFmpeg (linux-amd64)
+        run: |
+          git clone --depth 1 --branch "${FFMPEG_VERSION}" https://github.com/FFmpeg/FFmpeg.git /tmp/ffmpeg
+          mkdir -p /tmp/ffmpeg-build /tmp/mbl-ffmpeg-linux-amd64
+          cd /tmp/ffmpeg-build
+          /tmp/ffmpeg/configure \
+            --prefix=/tmp/mbl-ffmpeg-linux-amd64 \
+            --pkg-config-flags="--static" \
+            --extra-version="mbl-linux-amd64" \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-gnutls \
+            --enable-libass \
+            --enable-libdav1d \
+            --enable-libdrm \
+            --enable-libfreetype \
+            --enable-libmp3lame \
+            --enable-libopus \
+            --enable-libplacebo \
+            --enable-libsvtav1 \
+            --enable-libvorbis \
+            --enable-libvpl \
+            --enable-libvpx \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libzimg \
+            --enable-vaapi \
+            --enable-vulkan \
+            --enable-nvenc \
+            --enable-nvdec \
+            --enable-ffnvcodec \
+            --disable-doc \
+            --disable-ffplay
+          make -j"$(nproc)"
+          make install
+      - name: Package artifact and checksum
+        run: |
+          mkdir -p dist
+          tar -C /tmp/mbl-ffmpeg-linux-amd64/bin -czf dist/mbl-ffmpeg-linux-amd64.tar.gz ffmpeg ffprobe
+          sha256sum dist/mbl-ffmpeg-linux-amd64.tar.gz > dist/mbl-ffmpeg-linux-amd64.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mbl-ffmpeg-linux-amd64
+          path: dist/mbl-ffmpeg-linux-amd64.tar.gz*
+
+  linux-arm64:
+    name: mbl-ffmpeg (linux-arm64 / Raspberry Pi 4 V4L2M2M + Pi 5 DRM HEVC)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            autoconf automake build-essential cmake git libass-dev \
+            libdav1d-dev libdrm-dev libfreetype6-dev libgnutls28-dev \
+            libmp3lame-dev libogg-dev libopus-dev libtool libudev-dev \
+            libv4l-dev libvorbis-dev libvpx-dev libx264-dev libx265-dev \
+            libzimg-dev meson ninja-build pkg-config texinfo wget yasm zlib1g-dev
+      - name: Clone and build rpi-ffmpeg (linux-arm64)
+        run: |
+          git clone --depth 1 --branch "${RPI_FFMPEG_REF}" https://github.com/jc-kynesim/rpi-ffmpeg.git /tmp/rpi-ffmpeg
+          mkdir -p /tmp/ffmpeg-build /tmp/mbl-ffmpeg-linux-arm64
+          cd /tmp/ffmpeg-build
+          /tmp/rpi-ffmpeg/configure \
+            --prefix=/tmp/mbl-ffmpeg-linux-arm64 \
+            --extra-version="mbl-linux-arm64-rpi" \
+            --arch=aarch64 \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-gnutls \
+            --enable-libass \
+            --enable-libdav1d \
+            --enable-libdrm \
+            --enable-libfreetype \
+            --enable-libmp3lame \
+            --enable-libopus \
+            --enable-libv4l2 \
+            --enable-libvorbis \
+            --enable-libvpx \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libzimg \
+            --enable-v4l2-m2m \
+            --enable-v4l2-request \
+            --enable-sand \
+            --disable-doc \
+            --disable-ffplay
+          make -j"$(nproc)"
+          make install
+      - name: Package artifact and checksum
+        run: |
+          mkdir -p dist
+          tar -C /tmp/mbl-ffmpeg-linux-arm64/bin -czf dist/mbl-ffmpeg-linux-arm64.tar.gz ffmpeg ffprobe
+          sha256sum dist/mbl-ffmpeg-linux-arm64.tar.gz > dist/mbl-ffmpeg-linux-arm64.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mbl-ffmpeg-linux-arm64
+          path: dist/mbl-ffmpeg-linux-arm64.tar.gz*
+
+  windows-amd64:
+    name: mbl-ffmpeg (windows-amd64 / D3D11VA + NVENC + QSV + AMF)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned BtbN GPL shared/static Windows build (D3D11VA/NVENC/QSV/AMF)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-gpl-7.1.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\ffmpeg-win64.zip"
+          Expand-Archive -Path "$env:TEMP\ffmpeg-win64.zip" -DestinationPath "$env:TEMP\ffmpeg-win64" -Force
+          $binDir = Get-ChildItem -Path "$env:TEMP\ffmpeg-win64" -Directory | Select-Object -First 1
+          Compress-Archive -Path "$($binDir.FullName)\bin\ffmpeg.exe", "$($binDir.FullName)\bin\ffprobe.exe" -DestinationPath "dist\mbl-ffmpeg-windows-amd64.zip" -Force
+          $hash = (Get-FileHash -Path "dist\mbl-ffmpeg-windows-amd64.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  mbl-ffmpeg-windows-amd64.zip" | Out-File -FilePath "dist\mbl-ffmpeg-windows-amd64.zip.sha256" -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mbl-ffmpeg-windows-amd64
+          path: dist/mbl-ffmpeg-windows-amd64.zip*

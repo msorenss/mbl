@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use mbl_db::Db;
+use mbl_hwaccel::NpuProfile;
 use mbl_platform::PlatformProfile;
 use mbl_service::Services;
 use serde::Serialize;
@@ -44,16 +45,19 @@ pub struct ServerInfo {
     pub os: &'static str,
     pub arch: &'static str,
     pub platform_profile: PlatformProfile,
+    pub npu_profile: NpuProfile,
 }
 
 impl ServerInfo {
     pub fn current(version: &'static str, platform_profile: PlatformProfile) -> Self {
+        let npu_profile = mbl_hwaccel::detect_fingerprint().npu_profile;
         Self {
             name: "MBL",
             version,
             os: std::env::consts::OS,
             arch: std::env::consts::ARCH,
             platform_profile,
+            npu_profile,
         }
     }
 }

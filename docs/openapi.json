@@ -251,6 +251,70 @@
         }
       }
     },
+    "/api/v1/hw/capacity": {
+      "get": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Get live hardware/software transcode capacity and available video transcode slots.",
+        "operationId": "get_capacity",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscodeCapacity"
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/hw/report": {
+      "get": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Get hardware acceleration report, self-test capabilities, Hailo NPU sharing state, and recent failures.",
+        "operationId": "get_report",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HwReport"
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/hw/test": {
+      "post": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Run functional decode/encode self-tests across candidate hardware backends (admin only).",
+        "operationId": "run_test",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HwSelftestResponse"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {}
+        }
+      }
+    },
     "/api/v1/images/{id}": {
       "get": {
         "tags": [
@@ -1870,6 +1934,36 @@
           }
         }
       },
+      "BadBackendFailure": {
+        "type": "object",
+        "description": "Record of a runtime transcode backend failure tracked with a TTL (M4.9).",
+        "required": [
+          "backend",
+          "codec",
+          "reason",
+          "failedAt",
+          "expiresAt"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "CreateApiTokenRequest": {
         "type": "object",
         "required": [
@@ -2042,6 +2136,335 @@
           }
         }
       },
+      "DrmDevice": {
+        "type": "object",
+        "description": "Linux DRM/KMS device node (`/dev/dri/card*`, `/dev/dri/renderD*`).",
+        "required": [
+          "card"
+        ],
+        "properties": {
+          "card": {
+            "type": "string"
+          },
+          "deviceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "driver": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "renderNode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vendorId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DxgiAdapter": {
+        "type": "object",
+        "description": "Windows DXGI display/compute adapter.",
+        "required": [
+          "name",
+          "vendorId",
+          "deviceId",
+          "dedicatedVideoMemoryBytes"
+        ],
+        "properties": {
+          "dedicatedVideoMemoryBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "deviceId": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "vendorId": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "FfmpegProbeCaps": {
+        "type": "object",
+        "description": "Discovered capabilities of an `ffmpeg` binary (M4.2).",
+        "required": [
+          "binaryHash",
+          "version",
+          "hwaccels",
+          "encoders",
+          "decoders",
+          "filters",
+          "supportsTonemapVaapi",
+          "supportsTonemapCuda",
+          "supportsTonemapOpencl",
+          "supportsLibplacebo",
+          "supportsVppQsv",
+          "supportsZscaleTonemap"
+        ],
+        "properties": {
+          "binaryHash": {
+            "type": "string"
+          },
+          "decoders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "encoders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hwaccels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportsLibplacebo": {
+            "type": "boolean"
+          },
+          "supportsTonemapCuda": {
+            "type": "boolean"
+          },
+          "supportsTonemapOpencl": {
+            "type": "boolean"
+          },
+          "supportsTonemapVaapi": {
+            "type": "boolean"
+          },
+          "supportsVppQsv": {
+            "type": "boolean"
+          },
+          "supportsZscaleTonemap": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "HailoDeviceInfo": {
+        "type": "object",
+        "description": "Detected Hailo NPU device details (`/dev/h1x-*` or `/dev/hailo*`).",
+        "required": [
+          "deviceNode",
+          "boardName",
+          "architecture",
+          "profile"
+        ],
+        "properties": {
+          "architecture": {
+            "type": "string"
+          },
+          "boardName": {
+            "type": "string"
+          },
+          "deviceNode": {
+            "type": "string"
+          },
+          "driverVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pciAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profile": {
+            "$ref": "#/components/schemas/NpuProfile"
+          }
+        }
+      },
+      "HailoPipelineCapability": {
+        "type": "string",
+        "description": "AI media pipelines accelerated by Hailo-8 / Hailo-8L / Hailo-10H.",
+        "enum": [
+          "whisperAsr",
+          "videoSuperResolution",
+          "sceneIntroDetection",
+          "clipSemanticIndexing",
+          "genAiLlm"
+        ]
+      },
+      "HailoRuntimeStatus": {
+        "type": "object",
+        "description": "Live runtime status and co-tenant sharing state of the Hailo NPU.",
+        "required": [
+          "npuProfile",
+          "sharingMode",
+          "vdeviceGroupId",
+          "dutyCyclePercent",
+          "deviceBusyOrLocked",
+          "activeCoTenants",
+          "supportedPipelines"
+        ],
+        "properties": {
+          "activeCoTenants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deviceBusyOrLocked": {
+            "type": "boolean"
+          },
+          "dutyCyclePercent": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "externalInferenceUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "npuProfile": {
+            "$ref": "#/components/schemas/NpuProfile"
+          },
+          "sharingMode": {
+            "$ref": "#/components/schemas/HailoSharingMode"
+          },
+          "supportedPipelines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HailoPipelineCapability"
+            }
+          },
+          "vdeviceGroupId": {
+            "type": "string"
+          }
+        }
+      },
+      "HailoSharingMode": {
+        "type": "string",
+        "description": "Cooperative NPU sharing mode (`[hw.hailo] mode` in config, ADR 0006).",
+        "enum": [
+          "auto",
+          "exclusive",
+          "offload_only",
+          "disabled"
+        ]
+      },
+      "HardwareFingerprint": {
+        "type": "object",
+        "description": "Complete hardware fingerprint of the host machine.",
+        "required": [
+          "profile",
+          "npuProfile",
+          "arch",
+          "os",
+          "cpuModel",
+          "cpuCores",
+          "drmDevices",
+          "v4l2Devices",
+          "nvidiaGpus",
+          "dxgiAdapters",
+          "hailoDevices",
+          "driverFingerprint"
+        ],
+        "properties": {
+          "arch": {
+            "type": "string"
+          },
+          "boardModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cpuCores": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "cpuModel": {
+            "type": "string"
+          },
+          "driverFingerprint": {
+            "type": "string",
+            "description": "Stable SHA-256 hex digest of the hardware + driver state so self-tests re-run on driver changes."
+          },
+          "drmDevices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DrmDevice"
+            }
+          },
+          "dxgiAdapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DxgiAdapter"
+            }
+          },
+          "hailoDevices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HailoDeviceInfo"
+            }
+          },
+          "npuProfile": {
+            "$ref": "#/components/schemas/NpuProfile"
+          },
+          "nvidiaGpus": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NvidiaGpu"
+            }
+          },
+          "os": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/PlatformProfile"
+          },
+          "totalMemoryBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "v4l2Devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V4l2Device"
+            }
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
@@ -2106,6 +2529,117 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "HwCapEntry": {
+        "type": "object",
+        "description": "One row in `hw_capabilities` recording the result of a functional decode/encode self-test (M4.3).",
+        "required": [
+          "backend",
+          "codec",
+          "operation",
+          "ok",
+          "ffmpegHash",
+          "driverFingerprint",
+          "testedAt"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "codec": {
+            "type": "string"
+          },
+          "driverFingerprint": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ffmpegHash": {
+            "type": "string"
+          },
+          "fps": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "testedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "HwReport": {
+        "type": "object",
+        "description": "Complete hardware acceleration report returned by `GET /api/v1/hw/report`, `get_hw_report`,\nand `mbl://hw/report` (M4.15, M4.16).",
+        "required": [
+          "fingerprint",
+          "ffmpeg",
+          "capabilities",
+          "capacity",
+          "recentFailures",
+          "hailo"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HwCapEntry"
+            }
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/TranscodeCapacity"
+          },
+          "ffmpeg": {
+            "$ref": "#/components/schemas/FfmpegProbeCaps"
+          },
+          "fingerprint": {
+            "$ref": "#/components/schemas/HardwareFingerprint"
+          },
+          "hailo": {
+            "$ref": "#/components/schemas/HailoRuntimeStatus"
+          },
+          "recentFailures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BadBackendFailure"
+            }
+          }
+        }
+      },
+      "HwSelftestResponse": {
+        "type": "object",
+        "description": "Response returned when triggering a hardware self-test (`POST /api/v1/hw/test` and `run_hw_selftest`).",
+        "required": [
+          "jobId",
+          "capabilities",
+          "capacity"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HwCapEntry"
+            }
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/TranscodeCapacity"
+          },
+          "jobId": {
+            "$ref": "#/components/schemas/JobId"
           }
         }
       },
@@ -2653,6 +3187,60 @@
           "extra"
         ]
       },
+      "NpuProfile": {
+        "type": "string",
+        "description": "Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).",
+        "enum": [
+          "none",
+          "hailo8L",
+          "hailo8",
+          "hailo10H"
+        ]
+      },
+      "NvidiaGpu": {
+        "type": "object",
+        "description": "NVIDIA GPU discovered via `nvidia-smi -q -x` or `/proc/driver/nvidia/gpus`.",
+        "required": [
+          "index",
+          "name",
+          "maxEncSessions"
+        ],
+        "properties": {
+          "driverVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxEncSessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "memoryTotalMib": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Paginated_ItemSummary": {
         "type": "object",
         "required": [
@@ -2833,7 +3421,7 @@
       },
       "PlatformProfile": {
         "type": "string",
-        "description": "Hardware platform class used to pick defaults. Real detection arrives in M4.1.",
+        "description": "Hardware platform class used to pick defaults and hardware transcode pipelines (M4.1).",
         "enum": [
           "pi5",
           "pi4",
@@ -3201,7 +3789,8 @@
           "version",
           "os",
           "arch",
-          "platformProfile"
+          "platformProfile",
+          "npuProfile"
         ],
         "properties": {
           "arch": {
@@ -3209,6 +3798,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "npuProfile": {
+            "$ref": "#/components/schemas/NpuProfile"
           },
           "os": {
             "type": "string"
@@ -3555,6 +4147,59 @@
           }
         }
       },
+      "TranscodeCapacity": {
+        "type": "object",
+        "description": "Live transcode capacity summary derived from hardware profile, self-test FPS, and active sessions (M4.11).",
+        "required": [
+          "preferredBackend",
+          "fallbackBackends",
+          "encodeCodecs",
+          "canTonemap",
+          "supportsAbrLadder",
+          "maxVideoSessions",
+          "activeVideoSessions",
+          "availableVideoSessions",
+          "canTranscodeVideo"
+        ],
+        "properties": {
+          "activeVideoSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "availableVideoSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "canTonemap": {
+            "type": "boolean"
+          },
+          "canTranscodeVideo": {
+            "type": "boolean"
+          },
+          "encodeCodecs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fallbackBackends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxVideoSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "preferredBackend": {
+            "type": "string"
+          },
+          "supportsAbrLadder": {
+            "type": "boolean"
+          }
+        }
+      },
       "UpdateLibraryRequest": {
         "type": "object",
         "properties": {
@@ -3792,6 +4437,32 @@
             "type": "boolean"
           },
           "username": {
+            "type": "string"
+          }
+        }
+      },
+      "V4l2Device": {
+        "type": "object",
+        "description": "Linux V4L2 video device (`/dev/video*`).",
+        "required": [
+          "path",
+          "name",
+          "isM2m"
+        ],
+        "properties": {
+          "driver": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isM2m": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
             "type": "string"
           }
         }

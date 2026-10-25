@@ -345,3 +345,80 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
     assert!(mgr.get_session(&s1.id).is_none(), "oldest session must be evicted when over quota");
     let _ = mgr.stop_session(&remux.id).await;
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn fallback_chain_transparently_retries_on_fake_ffmpeg_hw_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let media_file = tmp.path().join("fake_source.mkv");
+    std::fs::write(&media_file, b"synthetic").unwrap();
+
+    // Fake FFmpeg script: exits non-zero (code 1) when `-hwaccel vaapi` or `-hwaccel qsv` is passed,
+    // and writes valid dummy `init.mp4`, `0.m4s`, and `ffmpeg.m3u8` when run in software mode.
+    let fake_ffmpeg = tmp.path().join("fake-ffmpeg.sh");
+    let script = r##"#!/usr/bin/env sh
+for arg in "$@"; do
+    if [ "$arg" = "vaapi" ] || [ "$arg" = "qsv" ]; then
+        exit 1
+    fi
+done
+# Last argument is `<rendition_dir>/ffmpeg.m3u8`
+for last; do true; done
+out_dir=$(dirname "$last")
+mkdir -p "$out_dir"
+printf "DUMMY_INIT" > "$out_dir/init.mp4"
+printf "DUMMY_SEG0" > "$out_dir/0.m4s"
+printf "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:2.0,\n0.m4s\n" > "$last"
+exit 0
+"##;
+    std::fs::write(&fake_ffmpeg, script).unwrap();
+    let mut perms = std::fs::metadata(&fake_ffmpeg).unwrap().permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&fake_ffmpeg, perms).unwrap();
+
+    let transcode_dir = Utf8PathBuf::from_path_buf(tmp.path().join("transcode")).unwrap();
+    let cfg = SessionManagerConfig::new(fake_ffmpeg, transcode_dir, PlatformProfile::X86Intel);
+    let mgr = SessionManager::new(cfg).unwrap();
+
+    let mut p = sample_pipeline(
+        &media_file,
+        2,
+        VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(1280),
+            max_bitrate: 2_000_000,
+            deinterlace: false,
+            tonemap: false,
+        },
+    );
+    p.backend = Backend::Qsv;
+
+    let session = mgr
+        .create_session_with_fallbacks(
+            CreateSessionReq {
+                user_id: UserId(1),
+                part_id: PartId(99),
+                duration_ms: 10_000,
+                pipeline: p,
+                master_playlist: "#EXTM3U\n".to_owned(),
+                media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
+                fast_start_segments: false,
+            },
+            vec![Backend::Vaapi, Backend::Software],
+        )
+        .await
+        .unwrap();
+
+    // Requesting init and segment 0 must transparently fail over from Qsv -> Vaapi -> Software
+    let init = session.request_init("0").await.unwrap();
+    assert!(init.exists());
+    let seg0 = session.request_segment("0", 0).await.unwrap();
+    assert!(seg0.exists());
+    assert_eq!(session.active_backend().await, Backend::Software);
+    assert!(mgr.is_backend_bad(Backend::Qsv, "h264"));
+    assert!(mgr.is_backend_bad(Backend::Vaapi, "h264"));
+
+    mgr.shutdown_all().await;
+}

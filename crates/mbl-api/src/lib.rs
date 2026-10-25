@@ -28,6 +28,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::playback::router())
         .merge(routes::stream::router())
         .merge(routes::mcp::router())
+        .merge(routes::hw::router())
         .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
