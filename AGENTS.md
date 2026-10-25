@@ -88,7 +88,8 @@ När en milstolpe är färdig och alla tester är gröna:
 - **Releasekontroll:** GitHub-releasen var fortfarande ett opublicerat utkast. Båda Debian-paketen saknade serverbinären och innehöll bara systemd-fil och licensinformation.
 - **Korrigering:** `crates/mbl-server/Cargo.toml` inkluderar nu `usr/bin/mbl-server` med läge `755`. Release-workflowen verifierar binärens närvaro i både amd64- och ARM64-paketen. `CHANGELOG.md` beskriver paketfixen och Windows-städningen.
 - **Godkänt av användaren:** Flytta den befintliga `v0.3.0`-taggen till korrigerad releasecommit och bygg om utkastets artefakter innan publicering, i stället för att skapa `v0.3.1`. Detta ersätter tidigare beslut nedan att lämna taggen oförändrad.
-- **Nästa steg:** Kontrollera ny CI och releasebyggen, verifiera paketinnehåll och checksummor, och publicera därefter utkastet med releaseanteckningar. Fortsätt sedan med M5.1.
+- **Slutresultat:** `v0.3.0` publicerad som senaste GitHub-release från `3ad44cb`. Alla sex CI-jobb i `40240087820` och samtliga releasejobb i `40240088240` lyckades. SHA-256 verifierad för alla tre paket; Debian-binärernas ELF-arkitektur och körbehörighet samt Windows-binärens PE-arkitektur och README kontrollerade.
+- **Nästa steg:** Fortsätt med M5.1.
 
 ### 2026-10-25 — Windows-städning av transkodningssessioner
 - **CI-status:** PCI-fixturfixen passerade på Windows. Därefter föll timeout-testet eftersom sessionskatalogen fanns kvar efter FFmpeg-avslut; övriga fem CI-jobb lyckades.
