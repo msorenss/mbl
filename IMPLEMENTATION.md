@@ -843,6 +843,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M2.7 | Playback API (`POST /api/v1/playback`, `/progress`, `/stop`), watch state thresholds (watched >=90% or <3 min left, resume 1 min..90%, `watch_history` on stop), cascading `POST/DELETE /api/v1/items/{id}/watched`, and `ActivityProbe` hook pausing idle jobs during playback | feat(playback) M2.7
 2026-10-24 | M2.11 | `mbl-mcp` server (`ServerHandler`, `MblMcp`, `McpClient`), `/mcp` Streamable HTTP transport with `Origin` and WAN guards (`mcp.enabled`, `mcp.allow_wan`, `mcp.allowed_origins`), `mbl-cli mcp --server <url>` stdio proxy, and `just mcp-inspect` | feat(mcp) M2.11
 2026-10-24 | M2.12 | `0002_mcp.sql` (`api_tokens`, `mcp_audit`), `mbl-auth::tokens` (`Scope`, `ScopeSet`, `mbl_` tokens, sha256), `POST/GET/DELETE /api/v1/auth/tokens` with non-admin scope cap, `Caller` resolution (API token → scoped, session/cookie → full), per-caller `tools/list` filtering + `tools/call` scope re-check, per-token rate limits (120/min; scan 2/min), `mcp_audit` with arg redaction, `mcp.audit_prune` 90-day job, kill switch 503 | feat(mcp) M2.12
+2026-10-25 | M3 | Modern UI v1: tokens, themes, component library, navigation, playback, command palette, profiles/i18n, and bundle budget | fec714f
 ```
 
 ---
