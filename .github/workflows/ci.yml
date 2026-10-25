@@ -90,7 +90,6 @@ jobs:
 
   web:
     runs-on: ubuntu-24.04
-    if: ${{ hashFiles('web/package.json') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
