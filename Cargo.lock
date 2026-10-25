@@ -1667,7 +1667,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "mbl-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "governor",
@@ -1689,7 +1689,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-auth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -1703,7 +1703,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1713,7 +1713,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1726,7 +1726,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "camino",
  "mbl-core",
@@ -1741,7 +1741,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-images"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blurhash",
  "image",
@@ -1758,7 +1758,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-jobs"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "camino",
@@ -1776,7 +1776,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -1807,7 +1807,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-metadata"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "camino",
@@ -1831,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-parser"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "regex",
@@ -1843,7 +1843,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-platform"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "camino",
  "serde",
@@ -1854,7 +1854,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-playback"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "insta",
  "mbl-core",
@@ -1867,7 +1867,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-probe"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "insta",
  "mbl-core",
@@ -1879,7 +1879,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-scanner"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "camino",
@@ -1902,7 +1902,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1943,7 +1943,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "camino",
@@ -1969,7 +1969,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-stream"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "http-body-util",
@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-transcode"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "camino",
  "getrandom 0.4.3",
@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-ui-kit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4306,7 +4306,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "camino",

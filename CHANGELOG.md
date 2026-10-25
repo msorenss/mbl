@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+### Added
+- M3 Modern UI v1: generated design tokens, four themes with user accents, reusable UI components, responsive desktop/mobile/TV navigation, and an updated home experience.
+- Refreshed media details and player with playback prediction, quality and subtitle controls, night mode, playback statistics, and Up Next.
+- Command palette, profile picker, English translations with Swedish and German scaffolds, and initial bundle-size budget enforcement.
+
+### Fixed
+- Normalize HLS output paths on Windows and make filesystem-path tests platform-independent.
+
+### Changed
+- Install FFmpeg in Linux, ARM64, and Windows CI test jobs.
+
+## [0.1.0] - 2026-10-25
+
 ### Added
 - Cargo workspace, tooling (`just`, CI) and crate skeletons.
 - `mbl-server` boots with `/health` and `/api/v1/system/info`, layered configuration, and logging to stdout and a file.
