@@ -767,8 +767,8 @@ mod tests {
         write_file(root, "proc/meminfo", "MemTotal:        8249504 kB\n");
         write_file(root, "dev/h1x-0", "");
         write_file(root, "sys/module/hailo1x_pci/version", "5.4.0\n");
-        write_file(root, "sys/bus/pci/devices/0001:01:00.0/vendor", "0x1e60\n");
-        write_file(root, "sys/bus/pci/devices/0001:01:00.0/device", "0x45c4\n");
+        write_file(root, "sys/bus/pci/devices/0001_01_00.0/vendor", "0x1e60\n");
+        write_file(root, "sys/bus/pci/devices/0001_01_00.0/device", "0x45c4\n");
         write_file(root, "sys/class/video4linux/video19/name", "rpi-hevc-dec\n");
 
         let fp = detect_fingerprint_from_root(root, "aarch64", None);
