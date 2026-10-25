@@ -386,11 +386,12 @@ impl HlsSession {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
                 Err(error)
                     if attempt < 4
-                        && matches!(
+                        && (matches!(
                             error.kind(),
                             std::io::ErrorKind::PermissionDenied
                                 | std::io::ErrorKind::DirectoryNotEmpty
-                        ) =>
+                        ) || cfg!(windows)
+                            && matches!(error.raw_os_error(), Some(32 | 33))) =>
                 {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                 }

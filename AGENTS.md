@@ -86,6 +86,7 @@ När en milstolpe är färdig och alla tester är gröna:
 ### 2026-10-25 — Windows-städning av transkodningssessioner
 - **CI-status:** PCI-fixturfixen passerade på Windows. Därefter föll timeout-testet eftersom sessionskatalogen fanns kvar efter FFmpeg-avslut; övriga fem CI-jobb lyckades.
 - **Ändring:** `crates/mbl-transcode/src/session.rs` använder asynkron katalogradering med upp till fem försök vid tillfälliga filspärrar eller kvarvarande kataloginnehåll. Slutliga fel loggas i stället för att ignoreras.
+- **Uppföljning:** Första återförsöksfixen missade Windows-felkoderna 32/33 (`ERROR_SHARING_VIOLATION` / `ERROR_LOCK_VIOLATION`), som Rust inte mappar till `PermissionDenied`. Dessa fångas nu uttryckligen på Windows. Regressionstestet verifierar att den avsiktliga filspärren ger kod 32 och visar kvarvarande kataloginnehåll vid fel.
 - **Regressionstest:** Befintligt timeout-test i `crates/mbl-transcode/tests/session.rs` håller en fil tillfälligt låst på Windows och verifierar även att FFmpeg stoppats.
 - **Verifiering:** Alla fem sessionstester och Rust-formateringen godkända lokalt. Windows-regressionen verifieras i ny CI efter push; releasetaggen lämnas oförändrad.
 - **Nästa steg:** Kontrollera den nya CI-körningen och fortsätt sedan med M5.1.

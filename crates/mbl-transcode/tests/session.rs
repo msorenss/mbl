@@ -256,6 +256,8 @@ async fn inactivity_timeout_kills_ffmpeg_and_deletes_session_dir() {
             .share_mode(0)
             .open(session_dir.join("master.m3u8"))
             .unwrap();
+        let error = std::fs::remove_file(session_dir.join("master.m3u8")).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(32));
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(150)).await;
             drop(file);
@@ -267,7 +269,13 @@ async fn inactivity_timeout_kills_ffmpeg_and_deletes_session_dir() {
 
     assert!(mgr.get_session(&session_id).is_none(), "expired session must be removed");
     assert!(session.ffmpeg_pid().await.is_none(), "expired session FFmpeg must be stopped");
-    assert!(!session_dir.exists(), "expired session directory must be deleted");
+    assert!(
+        !session_dir.exists(),
+        "expired session directory must be deleted: entries={:?}",
+        std::fs::read_dir(&session_dir).map(|entries| entries
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<Vec<_>>())
+    );
 }
 
 #[tokio::test]
