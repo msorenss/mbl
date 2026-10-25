@@ -580,7 +580,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 
 ## 6. Milestone M4: Hardware acceleration
 
-- [ ] **M4.1 Platform fingerprint** (`mbl-hwaccel`, new crate): detect the Pi model (`/proc/device-tree/model`), CPU, RAM, `/dev/dri/*`, `/dev/video*` V4L2 caps (ioctl via `nix`), Hailo NPU (`/dev/hailo*`), NVIDIA (`/dev/nvidia*`, `nvidia-smi -q -x` if present), and Windows DXGI adapters (`windows` crate). Output a `PlatformProfile` (`Pi5`, `Pi4`, `GenericArm`, `X86Intel`, `X86Nvidia`, `X86Amd`, `Generic`). *Accept:* unit tests with fixture sysfs trees; `GET /system/info` shows the profile.
+- [ ] **M4.1 Platform fingerprint** (`mbl-hwaccel`, new crate): detect the Pi model (`/proc/device-tree/model`), CPU, RAM, `/dev/dri/*`, `/dev/video*` V4L2 caps (ioctl via `nix`), Hailo NPU (`/dev/hailo*`, detecting and distinguishing `Hailo-8`, `Hailo-8L` (13/26 TOPS) and `Hailo-10H` (40 TOPS GenAI) via `/sys/class/hailo_chardev/`), NVIDIA (`/dev/nvidia*`, `nvidia-smi -q -x` if present), and Windows DXGI adapters (`windows` crate). Output a `PlatformProfile` (`Pi5`, `Pi4`, `GenericArm`, `X86Intel`, `X86Nvidia`, `X86Amd`, `Generic`) and `NpuProfile` (`None`, `Hailo8L`, `Hailo8`, `Hailo10H`). *Accept:* unit tests with fixture sysfs trees; `GET /system/info` shows the profile.
 - [ ] **M4.2 FFmpeg capability probe:** parse `-hwaccels/-encoders/-decoders/-filters` into `FfmpegCaps`, cached per FFmpeg binary hash. *Accept:* snapshot tests over captured outputs from several builds.
 - [ ] **M4.3 Functional self-test:** for each candidate backend, run a 2 s decode test per codec (bundled tiny samples in `assets/hwtest/`) and a 2 s 1080p encode test, recording `ok` and fps into `hw_capabilities`. Re-run when the FFmpeg hash or driver fingerprint changes, or via `POST /hw/test`. *Accept:* runs on CI Linux in software mode; `[~]` until run on the HW lab.
 - [ ] **M4.4 Backend: VAAPI** (Intel/AMD Linux) full-GPU pipeline (`-hwaccel vaapi -hwaccel_output_format vaapi`, `scale_vaapi`, `*_vaapi` encode). *Accept:* snapshot args + HW lab verification.
@@ -596,6 +596,13 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 - [ ] **M4.14 HEVC/AV1 output for remote** when the client profile supports it and the HW can encode it. *Accept:* decision tests + HW lab.
 - [ ] **M4.15 HW report UI:** an admin page shows detected HW, self-test results, capacity and the last failures. *Accept:* E2E with a fixture API response.
 - [ ] **M4.16 MCP tools: hardware.** `get_hw_report`, `run_hw_selftest` (admin, rate-limited, returns `job_id`), `get_transcode_capacity`; resource `mbl://hw/report`. *Accept:* `rmcp` client tests + `tools/list` snapshot updated.
+- [ ] **M4.17 Hailo NPU media & AI acceleration (Hailo-8 / Hailo-8L / Hailo-10H):**
+  - **Clarification:** Hailo-8 and Hailo-10H are NPUs (neural network inference accelerators), not fixed-function video codec ASICs (traditional H.264/HEVC transcode uses GPU/DRM/V4L2). They are leveraged for AI media pipelines:
+  - **Whisper ASR Speech-to-Text (`hailo-whisper`):** hardware-accelerated automatic subtitle generation on Hailo-8 (13–26 TOPS) and Hailo-10H (40 TOPS) with ~0% Pi 5 CPU usage.
+  - **AI Video Super Resolution / Upscaling:** compiled `.hef` model (lightweight Real-ESRGAN / sub-pixel CNN) for offline upscaling of SD/720p anime and older series into 1080p.
+  - **AI Intro & Credits Scene Detection:** visual scene classification and OCR on NPU to instantly pinpoint intro/credits boundaries without heavy CPU decoding.
+  - **Hailo-10H GenAI & Local MCP Agent:** runs local 8B LLMs (Llama 3 / Phi-3 / Qwen) directly on the Pi 5 via Hailo-10H for semantic media search, conversational recommendations, and the live "AI Co-watching Companion" (M7.16) without needing cloud API keys.
+  - *Accept:* detection of Hailo NPU model in self-test and sysinfo; fallback to CPU/worker when NPU is absent.
 
 **Gate M4:** on the HW lab (Pi 4, Pi 5, Intel N100 Linux, NVIDIA Linux, Windows + NVIDIA, Windows + Intel), the conformance suite (PLAN §15.4) passes for every tier-1 backend; no `[~]` remains in M4.
 
