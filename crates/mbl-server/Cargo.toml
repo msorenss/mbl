@@ -64,5 +64,6 @@ Features direct play, HLS streaming with hardware acceleration, audio transcode,
 and Model Context Protocol (MCP) support."""
 maintainer-scripts = "../../packaging/deb"
 assets = [
+    ["target/release/mbl-server", "usr/bin/mbl-server", "755"],
     ["../../packaging/systemd/mbl.service", "lib/systemd/system/mbl.service", "644"],
 ]

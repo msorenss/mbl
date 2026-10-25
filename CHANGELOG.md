@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format is based on 
 - Hardware capacity model (`GET /api/v1/system/hw`, `POST /api/v1/system/hw/retest`, `GET /api/v1/system/transcode-capacity`), Admin Hardware & NPU UI (`web/src/pages/admin/Hardware.tsx`), and MCP hardware tools (`get_hw_report`, `get_transcode_capacity`, `run_hw_selftest`) plus `mbl://hw/report` resource.
 - Hailo-8 / Hailo-10H NPU detection and cooperative multi-process `VDevice` sharing (`hailo.mode`, `hailo.vdevice_group_id`) for co-tenant setups (such as Frigate, `hailo-ollama`, or GStreamer pipelines), plus `.github/workflows/ffmpeg.yml` custom FFmpeg build pipeline.
 
+### Fixed
+- Retry temporary Windows file-sharing and locking failures when deleting expired transcode sessions after FFmpeg exits.
+- Include the server executable in Linux Debian packages and verify its presence during release builds.
+
 ## [0.2.0] - 2026-10-25
 
 ### Added

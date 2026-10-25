@@ -6,7 +6,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.3.0` (taggad på `main`, commit `d6c2f19`)
+- **Senaste release:** `v0.3.0` (taggad på `main`; ombyggd efter Windows- och paketeringsfixar)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
@@ -82,6 +82,13 @@ När en milstolpe är färdig och alla tester är gröna:
 ## 5. Sessions- och Handoff-logg
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
+
+### 2026-10-25 — Färdigställande av GitHub-release v0.3.0
+- **Verifierad CI:** Alla sex jobb i körning `40239141501` passerade för `cb2fe56`, inklusive Windows-regressionen med filspärr.
+- **Releasekontroll:** GitHub-releasen var fortfarande ett opublicerat utkast. Båda Debian-paketen saknade serverbinären och innehöll bara systemd-fil och licensinformation.
+- **Korrigering:** `crates/mbl-server/Cargo.toml` inkluderar nu `usr/bin/mbl-server` med läge `755`. Release-workflowen verifierar binärens närvaro i både amd64- och ARM64-paketen. `CHANGELOG.md` beskriver paketfixen och Windows-städningen.
+- **Godkänt av användaren:** Flytta den befintliga `v0.3.0`-taggen till korrigerad releasecommit och bygg om utkastets artefakter innan publicering, i stället för att skapa `v0.3.1`. Detta ersätter tidigare beslut nedan att lämna taggen oförändrad.
+- **Nästa steg:** Kontrollera ny CI och releasebyggen, verifiera paketinnehåll och checksummor, och publicera därefter utkastet med releaseanteckningar. Fortsätt sedan med M5.1.
 
 ### 2026-10-25 — Windows-städning av transkodningssessioner
 - **CI-status:** PCI-fixturfixen passerade på Windows. Därefter föll timeout-testet eftersom sessionskatalogen fanns kvar efter FFmpeg-avslut; övriga fem CI-jobb lyckades.

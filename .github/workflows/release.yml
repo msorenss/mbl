@@ -37,6 +37,8 @@ jobs:
         with:
           tool: cargo-deb
       - run: cargo deb -p mbl-server
+      - name: Verify Debian server binary
+        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server
       - uses: actions/upload-artifact@v4
         with:
           name: mbl-deb-x86_64
@@ -64,6 +66,8 @@ jobs:
         with:
           tool: cargo-deb
       - run: cargo deb -p mbl-server
+      - name: Verify Debian server binary
+        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server
       - uses: actions/upload-artifact@v4
         with:
           name: mbl-deb-arm64
