@@ -19,13 +19,15 @@ clippy:
     cargo clippy --workspace --all-targets -- -D warnings
 
 test:
-    cargo nextest run --workspace --no-tests=pass
+    NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost cargo nextest run --workspace --no-tests=pass
 
 web-check:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -d web ]; then
-        pnpm -C web install --frozen-lockfile
+        if [ ! -d web/node_modules ]; then
+            pnpm -C web install --frozen-lockfile
+        fi
         pnpm -C web lint
         pnpm -C web test
         pnpm -C web build
@@ -66,3 +68,9 @@ build-pi:
 
 deb:
     cargo deb -p mbl-server
+
+# Launch MCP Inspector against the dev server
+mcp-inspect:
+    # In the Inspector UI choose "Streamable HTTP" and URL http://localhost:8420/mcp
+    npx @modelcontextprotocol/inspector
+

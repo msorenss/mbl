@@ -74,7 +74,7 @@ pub fn device_info(
     }
 }
 
-fn bearer_token(headers: &HeaderMap) -> Option<String> {
+pub(crate) fn bearer_token(headers: &HeaderMap) -> Option<String> {
     let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     let (scheme, token) = value.split_once(' ')?;
     (scheme.eq_ignore_ascii_case("bearer") && !token.trim().is_empty())

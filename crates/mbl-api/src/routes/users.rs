@@ -16,7 +16,7 @@ pub fn router() -> Router<AppState> {
 }
 
 /// All users (admin).
-#[utoipa::path(get, path = "/api/v1/users", tag = "users",
+#[utoipa::path(get, path = "/api/v1/users", tag = "users", operation_id = "list_users",
     responses((status = 200, body = Vec<UserDto>), (status = 403)))]
 async fn list(
     State(state): State<AppState>,
@@ -27,7 +27,8 @@ async fn list(
 }
 
 /// Create a user (admin).
-#[utoipa::path(post, path = "/api/v1/users", tag = "users", request_body = CreateUserRequest,
+#[utoipa::path(post, path = "/api/v1/users", tag = "users", operation_id = "create_user",
+    request_body = CreateUserRequest,
     responses((status = 201, body = UserDto), (status = 403), (status = 409)))]
 async fn create(
     State(state): State<AppState>,
@@ -45,7 +46,8 @@ async fn create(
 }
 
 /// A user (admins, or the user themselves).
-#[utoipa::path(get, path = "/api/v1/users/{id}", tag = "users", params(("id" = i64, Path)),
+#[utoipa::path(get, path = "/api/v1/users/{id}", tag = "users", operation_id = "get_user",
+    params(("id" = i64, Path)),
     responses((status = 200, body = UserDto), (status = 404)))]
 async fn get_one(
     State(state): State<AppState>,
@@ -56,7 +58,8 @@ async fn get_one(
 }
 
 /// Update a user; only admins may change `isAdmin`.
-#[utoipa::path(patch, path = "/api/v1/users/{id}", tag = "users", params(("id" = i64, Path)),
+#[utoipa::path(patch, path = "/api/v1/users/{id}", tag = "users", operation_id = "update_user",
+    params(("id" = i64, Path)),
     request_body = UpdateUserRequest,
     responses((status = 200, body = UserDto), (status = 403), (status = 404)))]
 async fn update(
@@ -74,7 +77,8 @@ async fn update(
 }
 
 /// Delete a user (admin).
-#[utoipa::path(delete, path = "/api/v1/users/{id}", tag = "users", params(("id" = i64, Path)),
+#[utoipa::path(delete, path = "/api/v1/users/{id}", tag = "users", operation_id = "delete_user",
+    params(("id" = i64, Path)),
     responses((status = 204), (status = 403), (status = 404)))]
 async fn remove(
     State(state): State<AppState>,

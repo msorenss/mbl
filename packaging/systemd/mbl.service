@@ -1,0 +1,21 @@
+[Unit]
+Description=MBL Media Server
+After=network.target
+
+[Service]
+Type=simple
+User=mbl
+Group=mbl
+ExecStart=/usr/bin/mbl-server --config /etc/mbl/mbl.toml
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening (IMPLEMENTATION.md §2.10)
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/mbl
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,7 @@
 //! Media items, versions, parts and streams. Write helpers take a connection so the scanner can
 //! batch many files into one transaction on the write pool.
 
-use mbl_core::{ItemId, LibraryId, MediaKind, PartId, Result, VersionId};
+use mbl_core::{ItemId, LibraryId, MediaKind, PartId, Result, StreamKind, VersionId};
 use sqlx::SqliteConnection;
 
 use crate::Db;
@@ -444,4 +444,101 @@ pub async fn count_items(db: &Db, library_id: LibraryId, kind: MediaKind) -> Res
     )
     .fetch_one(&db.read)
     .await?)
+}
+
+/// Part metadata needed for streaming and playback decisions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamPart {
+    pub id: PartId,
+    pub version_id: VersionId,
+    pub item_id: ItemId,
+    pub library_id: LibraryId,
+    pub path: String,
+    pub size: i64,
+    pub duration_ms: Option<i64>,
+    pub container: Option<String>,
+    pub probe: String,
+    pub missing_since: Option<i64>,
+}
+
+/// Look up a single part and its owning item/library for streaming.
+pub async fn part_for_stream(db: &Db, part_id: PartId) -> Result<Option<StreamPart>> {
+    Ok(sqlx::query_as!(
+        StreamPart,
+        r#"SELECT p.id AS "id!: PartId",
+                  p.version_id AS "version_id!: VersionId",
+                  i.id AS "item_id!: ItemId",
+                  i.library_id AS "library_id!: LibraryId",
+                  p.path,
+                  p.size,
+                  p.duration_ms,
+                  v.container,
+                  p.probe,
+                  p.missing_since
+           FROM media_parts p
+           JOIN media_versions v ON v.id = p.version_id
+           JOIN media_items i ON i.id = v.item_id
+           WHERE p.id = ?"#,
+        part_id
+    )
+    .fetch_optional(&db.read)
+    .await?)
+}
+
+/// Look up all parts for a media item (including multi-episode shared versions).
+pub async fn parts_for_item(db: &Db, item_id: ItemId) -> Result<Vec<StreamPart>> {
+    Ok(sqlx::query_as!(
+        StreamPart,
+        r#"SELECT p.id AS "id!: PartId",
+                  p.version_id AS "version_id!: VersionId",
+                  i.id AS "item_id!: ItemId",
+                  i.library_id AS "library_id!: LibraryId",
+                  p.path,
+                  p.size,
+                  p.duration_ms,
+                  v.container,
+                  p.probe,
+                  p.missing_since
+           FROM media_parts p
+           JOIN media_versions v ON v.id = p.version_id
+           JOIN media_items i ON i.id = ?1
+           WHERE v.item_id = ?1
+              OR v.id IN (SELECT version_id FROM item_versions WHERE item_id = ?1)
+           ORDER BY v.is_optimized DESC, v.id, p.part_index, p.id"#,
+        item_id
+    )
+    .fetch_all(&db.read)
+    .await?)
+}
+
+/// Stream row stored in `streams`, including `external_path` for sidecar subtitles.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct PartStream {
+    pub idx: i64,
+    pub kind: StreamKind,
+    pub codec: String,
+    pub language: Option<String>,
+    pub title: Option<String>,
+    pub is_default: bool,
+    pub is_forced: bool,
+    pub external_path: Option<String>,
+}
+
+/// Look up all streams for a media part ordered by stream index.
+pub async fn streams_for_part(db: &Db, part_id: PartId) -> Result<Vec<PartStream>> {
+    Ok(sqlx::query_as::<_, PartStream>(
+        "SELECT idx, kind, codec, language, title, is_default, is_forced, external_path
+         FROM streams WHERE part_id = ? ORDER BY idx",
+    )
+    .bind(part_id)
+    .fetch_all(&db.read)
+    .await?)
+}
+
+/// Fetch the raw `chapters` JSON string for `part_id`.
+pub async fn part_chapters(db: &Db, part_id: PartId) -> Result<Option<String>> {
+    Ok(sqlx::query_scalar::<_, String>("SELECT chapters FROM media_parts WHERE id = ?")
+        .bind(part_id)
+        .fetch_optional(&db.read)
+        .await?)
 }

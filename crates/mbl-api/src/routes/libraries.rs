@@ -56,7 +56,7 @@ pub struct BrowseQuery {
 }
 
 /// Libraries the user can access.
-#[utoipa::path(get, path = "/api/v1/libraries", tag = "libraries",
+#[utoipa::path(get, path = "/api/v1/libraries", tag = "libraries", operation_id = "list_libraries",
     responses((status = 200, body = Vec<LibraryDto>)))]
 async fn list(
     State(state): State<AppState>,
@@ -67,7 +67,7 @@ async fn list(
 }
 
 /// One library.
-#[utoipa::path(get, path = "/api/v1/libraries/{id}", tag = "libraries",
+#[utoipa::path(get, path = "/api/v1/libraries/{id}", tag = "libraries", operation_id = "get_library",
     params(("id" = i64, Path)), responses((status = 200, body = LibraryDto), (status = 404)))]
 async fn get_one(
     State(state): State<AppState>,
@@ -78,7 +78,7 @@ async fn get_one(
 }
 
 /// Create a library (admin). Roots must exist and must not overlap other libraries.
-#[utoipa::path(post, path = "/api/v1/libraries", tag = "libraries",
+#[utoipa::path(post, path = "/api/v1/libraries", tag = "libraries", operation_id = "create_library",
     request_body = CreateLibraryRequest,
     responses((status = 201, body = LibraryDto), (status = 409), (status = 422)))]
 async fn create(
@@ -92,7 +92,7 @@ async fn create(
 }
 
 /// Update a library (admin).
-#[utoipa::path(patch, path = "/api/v1/libraries/{id}", tag = "libraries",
+#[utoipa::path(patch, path = "/api/v1/libraries/{id}", tag = "libraries", operation_id = "update_library",
     params(("id" = i64, Path)), request_body = UpdateLibraryRequest,
     responses((status = 200, body = LibraryDto), (status = 404)))]
 async fn update(
@@ -106,7 +106,7 @@ async fn update(
 }
 
 /// Delete a library and its items (admin).
-#[utoipa::path(delete, path = "/api/v1/libraries/{id}", tag = "libraries",
+#[utoipa::path(delete, path = "/api/v1/libraries/{id}", tag = "libraries", operation_id = "delete_library",
     params(("id" = i64, Path)), responses((status = 204), (status = 404)))]
 async fn remove(
     State(state): State<AppState>,
@@ -118,7 +118,7 @@ async fn remove(
 }
 
 /// List server directories for picking library roots (admin).
-#[utoipa::path(get, path = "/api/v1/system/browse", tag = "libraries",
+#[utoipa::path(get, path = "/api/v1/system/browse", tag = "libraries", operation_id = "browse_directories",
     params(("path" = Option<String>, Query)),
     responses((status = 200, body = DirListing), (status = 403)))]
 async fn browse(
@@ -136,7 +136,7 @@ pub struct JobAccepted {
 }
 
 /// Queue a library scan (admin).
-#[utoipa::path(post, path = "/api/v1/libraries/{id}/scan", tag = "libraries",
+#[utoipa::path(post, path = "/api/v1/libraries/{id}/scan", tag = "libraries", operation_id = "scan_library",
     params(("id" = i64, Path)), responses((status = 202, body = JobAccepted), (status = 404)))]
 async fn scan(
     State(state): State<AppState>,

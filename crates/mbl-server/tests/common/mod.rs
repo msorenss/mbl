@@ -22,11 +22,15 @@ pub struct Res {
 
 impl TestApp {
     pub async fn new() -> Self {
+        Self::new_with_services().await.0
+    }
+
+    pub async fn new_with_services() -> (Self, mbl_db::Db, mbl_service::Services) {
         let dir = tempfile::tempdir().unwrap();
         let mut config = Config::default();
         config.paths.data_dir = dir.path().join("data").to_str().unwrap().to_owned();
         let server = mbl_server::build(config).await.unwrap();
-        Self { router: server.router, dir }
+        (Self { router: server.router, dir }, server.db, server.services)
     }
 
     pub async fn send(&self, req: Request<Body>) -> Res {
@@ -109,4 +113,214 @@ impl TestApp {
         std::fs::create_dir_all(&path).unwrap();
         path.to_str().unwrap().to_owned()
     }
+}
+
+pub struct SeededShow {
+    pub show_id: i64,
+    pub season_id: i64,
+    pub ep1_id: i64,
+    pub ep1_part_id: i64,
+    pub ep2_id: i64,
+    pub movie_id: i64,
+    pub movie_part_id: i64,
+}
+
+pub async fn seed_playback_fixtures(app: &TestApp, db: &mbl_db::Db, admin: &str) -> SeededShow {
+    let movies_dir = app.media_dir("Movies");
+    let movie_path = std::path::Path::new(&movies_dir).join("Heat (1995).mp4");
+    std::fs::write(&movie_path, b"synthetic mp4 content").unwrap();
+
+    let lib = app
+        .call(
+            Method::POST,
+            "/api/v1/libraries",
+            Some(admin),
+            Some(json!({ "name": "Movies", "kind": "movie", "paths": [movies_dir] })),
+        )
+        .await;
+    assert_eq!(lib.status, StatusCode::CREATED);
+    let lib_id = lib.body["id"].as_i64().unwrap();
+
+    // 100-minute movie (6_000_000 ms) with H.264 + AAC + external SRT + chapters
+    let movie_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_items (library_id, kind, title, sort_title, duration_ms, added_at, updated_at)
+         VALUES (?, 'movie', 'Heat', 'heat', 6000000, 100, 100) RETURNING id",
+    )
+    .bind(lib_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let movie_ver_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_versions (item_id, container, video_codec, audio_codec, width, height)
+         VALUES (?, 'mp4', 'h264', 'aac', 1920, 1080) RETURNING id",
+    )
+    .bind(movie_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let chapters_json = serde_json::to_string(&vec![
+        json!({ "startMs": 0, "endMs": 90000, "title": "Opening Credits" }),
+        json!({ "startMs": 5700000, "endMs": 6000000, "title": "End Credits" }),
+    ])
+    .unwrap();
+
+    let movie_probe = serde_json::to_string(&json!({
+        "container": "mp4",
+        "durationMs": 6_000_000,
+        "bitrate": 5_000_000,
+        "size": 1024,
+        "streams": [
+            {
+                "index": 0,
+                "kind": "video",
+                "codec": "h264",
+                "profile": "high",
+                "level": 41,
+                "default": true,
+                "forced": false,
+                "width": 1920,
+                "height": 1080,
+                "bitDepth": 8,
+                "interlaced": false
+            },
+            {
+                "index": 1,
+                "kind": "audio",
+                "codec": "aac",
+                "language": "en",
+                "default": true,
+                "forced": false,
+                "channels": 2,
+                "interlaced": false
+            },
+            {
+                "index": 2,
+                "kind": "subtitle",
+                "codec": "srt",
+                "language": "en",
+                "title": "English",
+                "default": true,
+                "forced": false,
+                "interlaced": false
+            }
+        ],
+        "chapters": [
+            { "startMs": 0, "endMs": 90000, "title": "Opening" },
+            { "startMs": 5700000, "endMs": 6000000, "title": "End Credits" }
+        ]
+    }))
+    .unwrap();
+
+    let movie_part_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_parts (version_id, path, size, mtime, duration_ms, probe, chapters, part_index)
+         VALUES (?, ?, 1024, 1, 6000000, ?, ?, 0) RETURNING id",
+    )
+    .bind(movie_ver_id)
+    .bind(movie_path.to_str().unwrap())
+    .bind(&movie_probe)
+    .bind(&chapters_json)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    // Show -> Season 1 -> Episode 1 (25 min = 1_500_000 ms, MKV + HEVC) & Episode 2
+    let show_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_items (library_id, kind, title, sort_title, added_at, updated_at)
+         VALUES (?, 'show', 'Show', 'show', 100, 100) RETURNING id",
+    )
+    .bind(lib_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let season_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_items (library_id, kind, parent_id, idx, title, sort_title, added_at, updated_at)
+         VALUES (?, 'season', ?, 1, 'Season 1', 'season 1', 100, 100) RETURNING id",
+    )
+    .bind(lib_id)
+    .bind(show_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let ep1_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_items (library_id, kind, parent_id, idx, parent_idx, title, sort_title, duration_ms, added_at, updated_at)
+         VALUES (?, 'episode', ?, 1, 1, 'Ep 1', 'ep 1', 1500000, 100, 100) RETURNING id",
+    )
+    .bind(lib_id)
+    .bind(season_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let ep2_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_items (library_id, kind, parent_id, idx, parent_idx, title, sort_title, duration_ms, added_at, updated_at)
+         VALUES (?, 'episode', ?, 2, 1, 'Ep 2', 'ep 2', 1500000, 100, 100) RETURNING id",
+    )
+    .bind(lib_id)
+    .bind(season_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let ep1_path = std::path::Path::new(&movies_dir).join("Show - S01E01.mkv");
+    std::fs::write(&ep1_path, b"synthetic mkv content").unwrap();
+
+    let ep1_probe = serde_json::to_string(&json!({
+        "container": "mkv",
+        "durationMs": 1_500_000,
+        "bitrate": 8_000_000,
+        "size": 2048,
+        "streams": [
+            {
+                "index": 0,
+                "kind": "video",
+                "codec": "hevc",
+                "profile": "main10",
+                "level": 150,
+                "default": true,
+                "forced": false,
+                "width": 3840,
+                "height": 2160,
+                "bitDepth": 10,
+                "interlaced": false
+            },
+            {
+                "index": 1,
+                "kind": "audio",
+                "codec": "ac3",
+                "language": "en",
+                "default": true,
+                "forced": false,
+                "channels": 6,
+                "interlaced": false
+            }
+        ],
+        "chapters": []
+    }))
+    .unwrap();
+
+    let ep1_ver_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_versions (item_id, container, video_codec, audio_codec, width, height)
+         VALUES (?, 'mkv', 'hevc', 'ac3', 3840, 2160) RETURNING id",
+    )
+    .bind(ep1_id)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    let ep1_part_id: i64 = sqlx::query_scalar(
+        "INSERT INTO media_parts (version_id, path, size, mtime, duration_ms, probe, chapters, part_index)
+         VALUES (?, ?, 2048, 1, 1500000, ?, '[]', 0) RETURNING id",
+    )
+    .bind(ep1_ver_id)
+    .bind(ep1_path.to_str().unwrap())
+    .bind(&ep1_probe)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+
+    SeededShow { show_id, season_id, ep1_id, ep1_part_id, ep2_id, movie_id, movie_part_id }
 }

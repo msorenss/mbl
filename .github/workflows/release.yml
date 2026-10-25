@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: "true"
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build-deb-linux-x86_64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm -C web install --frozen-lockfile
+      - run: pnpm -C web build
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+      - run: cargo deb -p mbl-server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mbl-deb-x86_64
+          path: target/debian/*.deb
+
+  build-deb-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm -C web install --frozen-lockfile
+      - run: pnpm -C web build
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb
+      - run: cargo deb -p mbl-server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mbl-deb-arm64
+          path: target/debian/*.deb
+
+  build-windows-x86_64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm -C web install --frozen-lockfile
+      - run: pnpm -C web build
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p mbl-server
+      - name: Package Windows Zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path staging
+          Copy-Item target\release\mbl-server.exe staging\
+          Copy-Item packaging\windows\README.txt staging\
+          $version = "${{ github.ref_name }}"
+          if (-not $version) { $version = "v0.1.0" }
+          $zipName = "mbl-$version-windows-x86_64.zip"
+          Compress-Archive -Path staging\* -DestinationPath $zipName
+          Move-Item $zipName dist-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mbl-windows-x86_64
+          path: dist-windows.zip
+
+  create-release:
+    needs: [build-deb-linux-x86_64, build-deb-linux-arm64, build-windows-x86_64]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-dist
+          merge-multiple: true
+      - name: Rename Windows zip if needed
+        run: |
+          cd release-dist
+          if [ -f dist-windows.zip ]; then
+            TAG="${{ github.ref_name }}"
+            [ -z "$TAG" ] && TAG="v0.1.0"
+            mv dist-windows.zip "mbl-${TAG}-windows-x86_64.zip"
+          fi
+      - name: Generate SHA-256 Checksums
+        working-directory: release-dist
+        run: |
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Create Draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: release-dist/*

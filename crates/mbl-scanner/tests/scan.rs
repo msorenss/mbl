@@ -181,3 +181,57 @@ async fn multi_part_movie_is_one_version() {
         .unwrap();
     assert_eq!(versions, 1);
 }
+
+#[tokio::test]
+async fn scans_external_sidecar_subtitles() {
+    let Some((db, scanner, dir)) = setup().await else { return };
+    let cancel = CancellationToken::new();
+    let root = dir.path().join("lib");
+    let movie = copy_movie(&root, "Movie (2020)/Movie.mp4");
+    let movie_dir = movie.parent().unwrap();
+    std::fs::write(
+        movie_dir.join("Movie.en.srt"),
+        b"1\n00:00:01,000 --> 00:00:02,000\nEnglish subtitle\n",
+    )
+    .unwrap();
+    std::fs::write(
+        movie_dir.join("Movie.en.forced.srt"),
+        b"1\n00:00:01,000 --> 00:00:02,000\nForced subtitle\n",
+    )
+    .unwrap();
+    std::fs::write(
+        movie_dir.join("Movie.eng.sdh.srt"),
+        b"1\n00:00:01,000 --> 00:00:02,000\n[SDH subtitle]\n",
+    )
+    .unwrap();
+
+    let lib = library(&db, LibraryKind::Movie, &root).await;
+    let stats = scanner.scan(lib, &cancel, |_| {}).await.unwrap();
+    assert_eq!(stats.added, 1, "{stats:?}");
+
+    let parts = media::parts_for_library(&db, lib).await.unwrap();
+    assert_eq!(parts.len(), 1);
+    let rows: Vec<_> = media::streams_for_part(&db, parts[0].id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|s| s.external_path.is_some())
+        .collect();
+
+    assert_eq!(rows.len(), 3, "{rows:?}");
+    assert_eq!(rows[0].codec, "srt");
+    assert_eq!(rows[0].language.as_deref(), Some("en"));
+    assert!(rows[0].is_forced);
+    assert!(rows[0].external_path.as_deref().unwrap().ends_with("Movie.en.forced.srt"));
+
+    assert_eq!(rows[1].codec, "srt");
+    assert_eq!(rows[1].language.as_deref(), Some("en"));
+    assert!(!rows[1].is_forced);
+    assert!(rows[1].external_path.as_deref().unwrap().ends_with("Movie.en.srt"));
+
+    assert_eq!(rows[2].codec, "srt");
+    assert_eq!(rows[2].language.as_deref(), Some("eng"));
+    assert_eq!(rows[2].title.as_deref(), Some("SDH"));
+    assert!(!rows[2].is_forced);
+    assert!(rows[2].external_path.as_deref().unwrap().ends_with("Movie.eng.sdh.srt"));
+}

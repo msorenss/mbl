@@ -1,7 +1,8 @@
 //! Browse, detail, search and hubs.
 
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
+use axum::http::StatusCode;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use mbl_core::{Cursor, ItemId, LibraryId, MediaKind, Paginated};
 use mbl_db::repo::items::{ItemDetail, ItemSummary, ListQuery, SortField, SortOrder};
@@ -17,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/libraries/{id}/items", get(list))
         .route("/api/v1/items/{id}", get(detail))
         .route("/api/v1/items/{id}/children", get(children))
+        .route("/api/v1/items/{id}/watched", post(mark_watched).delete(mark_unwatched))
         .route("/api/v1/search", get(search))
         .route("/api/v1/hubs/home", get(home))
 }
@@ -43,7 +45,7 @@ pub struct SearchParams {
 }
 
 /// Items of a library, paginated.
-#[utoipa::path(get, path = "/api/v1/libraries/{id}/items", tag = "browse",
+#[utoipa::path(get, path = "/api/v1/libraries/{id}/items", tag = "browse", operation_id = "list_library_items",
     params(("id" = i64, Path), ListParams),
     responses((status = 200, body = Paginated<ItemSummary>), (status = 404)))]
 async fn list(
@@ -108,4 +110,30 @@ async fn home(
     AuthUser(auth): AuthUser,
 ) -> Result<Json<Vec<Hub>>, ApiError> {
     Ok(Json(state.services.items.home(&auth.actor).await?))
+}
+
+/// Mark an item (or show/season, cascading to episodes) watched.
+#[utoipa::path(post, path = "/api/v1/items/{id}/watched", tag = "watch",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Marked watched"), (status = 404)))]
+pub async fn mark_watched(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+) -> Result<StatusCode, ApiError> {
+    state.services.watch.mark_watched(&auth.actor, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Mark an item (or show/season, cascading to episodes) unwatched.
+#[utoipa::path(delete, path = "/api/v1/items/{id}/watched", tag = "watch",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Marked unwatched"), (status = 404)))]
+pub async fn mark_unwatched(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+) -> Result<StatusCode, ApiError> {
+    state.services.watch.mark_unwatched(&auth.actor, id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

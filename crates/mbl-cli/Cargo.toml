@@ -10,6 +10,8 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+mbl-mcp.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

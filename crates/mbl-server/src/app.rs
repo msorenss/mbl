@@ -18,6 +18,7 @@ pub struct Server {
     pub config: Config,
     pub paths: Paths,
     pub db: Db,
+    pub services: mbl_service::Services,
     pub events: EventBus,
     pub router: Router,
     runner: JobRunner,
@@ -51,6 +52,19 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         }
     };
 
+    let ffmpeg_bin = tools
+        .as_ref()
+        .map(|t| t.ffmpeg.clone())
+        .unwrap_or_else(|| std::path::PathBuf::from("ffmpeg"));
+    let mut hls_cfg =
+        mbl_transcode::SessionManagerConfig::new(ffmpeg_bin, paths.transcode.clone(), profile);
+    if config.transcode.max_sessions > 0 {
+        hls_cfg.max_video_sessions = usize::try_from(config.transcode.max_sessions).unwrap_or(1);
+    }
+    hls_cfg.ahead_segments = config.transcode.ahead_segments.max(1);
+    hls_cfg.temp_quota_bytes = config.transcode.temp_quota_mb.saturating_mul(1024 * 1024);
+    let hls_manager = mbl_transcode::SessionManager::new(hls_cfg)?;
+
     let events = EventBus::default();
     let mut runner =
         JobRunner::new(db.clone(), events.clone(), RunnerConfig { profile, ..Default::default() });
@@ -79,19 +93,33 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     runner.register(Arc::new(mbl_service::ArtworkFetchHandler {
         images: mbl_service::ImageService::new(db.clone(), images.clone()),
     }));
+    runner.register(Arc::new(mbl_mcp::McpAuditPruneHandler { db: db.clone() }));
 
     let info = ServerInfo::current(env!("CARGO_PKG_VERSION"), profile);
     let secure_cookies = config.server.public_url.starts_with("https://");
-    let router = mbl_api::router(AppState::new(
+    let mut state =
+        AppState::new(db.clone(), runner.queue(), images, events.clone(), info, secure_cookies);
+    state.services.stream =
+        state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
+    state.services.playback = state.services.playback.with_stream(state.services.stream.clone());
+    runner.set_activity_probe(Arc::new(state.services.playback.clone()));
+    let services = state.services.clone();
+    let mcp_state = mbl_mcp::McpState::new(
         db.clone(),
-        runner.queue(),
-        images,
-        events.clone(),
-        info,
-        secure_cookies,
-    ));
+        services.clone(),
+        mbl_mcp::McpConfig {
+            enabled: config.mcp.enabled,
+            allow_wan: config.mcp.allow_wan,
+            allowed_origins: config.mcp.allowed_origins.clone(),
+        },
+    )
+    .with_logs_dir(Some(paths.logs.clone()))
+    .with_jobs(Some(runner.queue()));
+    let router = mbl_api::router(state)
+        .merge(mbl_mcp::router(mcp_state))
+        .fallback(crate::web::static_handler);
 
-    Ok(Server { config, paths, db, events, router, runner })
+    Ok(Server { config, paths, db, services, events, router, runner })
 }
 
 fn default_probe_concurrency(profile: PlatformProfile, cpus: usize) -> usize {

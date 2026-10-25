@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create mbl system user and group if not existing
+        if ! getent passwd mbl >/dev/null; then
+            useradd --system --user-group --shell /usr/sbin/nologin --home-dir /var/lib/mbl --no-create-home mbl
+        fi
+
+        # Add mbl to video and render groups for HW access (M2.10)
+        for grp in video render; do
+            if getent group "$grp" >/dev/null; then
+                usermod -a -G "$grp" mbl || true
+            fi
+        done
+
+        # Ensure directories exist with proper ownership and permissions
+        mkdir -p /var/lib/mbl /etc/mbl
+        chown -R mbl:mbl /var/lib/mbl
+        chmod 750 /var/lib/mbl
+
+        # Reload systemd and enable/restart if available
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+            systemctl enable mbl.service || true
+            systemctl restart mbl.service || true
+        fi
+        ;;
+esac
+
+exit 0

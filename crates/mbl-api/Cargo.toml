@@ -16,6 +16,7 @@ mbl-images.workspace = true
 mbl-jobs.workspace = true
 mbl-platform.workspace = true
 mbl-service.workspace = true
+mbl-stream.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true

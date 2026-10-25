@@ -697,6 +697,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
+name = "dirs-sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
+dependencies = [
+ "libc",
+ "option-ext",
+ "redox_users",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1451,6 +1472,7 @@ checksum = "b67d3d2e287e4b86c10b3f3b641033d1f89b74bdb39d05f34952e2b9a6fe21cd"
 dependencies = [
  "console",
  "once_cell",
+ "serde",
  "similar",
  "tempfile",
 ]
@@ -1576,6 +1598,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
+name = "libredox"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61ff90caf6077a803a240f62fdbe88645a890bbca49ef8174c3cb0404362171d"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "libsqlite3-sys"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1646,6 +1677,7 @@ dependencies = [
  "mbl-jobs",
  "mbl-platform",
  "mbl-service",
+ "mbl-stream",
  "serde",
  "serde_json",
  "sqlx",
@@ -1663,7 +1695,10 @@ dependencies = [
  "base64 0.23.1",
  "getrandom 0.4.3",
  "mbl-core",
+ "serde",
+ "serde_json",
  "sha2 0.11.1",
+ "utoipa",
 ]
 
 [[package]]
@@ -1672,6 +1707,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "mbl-mcp",
+ "tokio",
 ]
 
 [[package]]
@@ -1735,6 +1772,37 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "mbl-mcp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "camino",
+ "getrandom 0.4.3",
+ "governor",
+ "http-body-util",
+ "insta",
+ "mbl-auth",
+ "mbl-core",
+ "mbl-db",
+ "mbl-jobs",
+ "mbl-platform",
+ "mbl-playback",
+ "mbl-service",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+ "tower",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]
@@ -1849,11 +1917,16 @@ dependencies = [
  "mbl-db",
  "mbl-images",
  "mbl-jobs",
+ "mbl-mcp",
  "mbl-metadata",
  "mbl-platform",
  "mbl-probe",
  "mbl-scanner",
  "mbl-service",
+ "mbl-stream",
+ "mbl-transcode",
+ "mime_guess",
+ "rust-embed",
  "serde",
  "serde_json",
  "sqlx",
@@ -1874,12 +1947,17 @@ dependencies = [
  "async-trait",
  "camino",
  "dunce",
+ "getrandom 0.4.3",
  "mbl-auth",
  "mbl-core",
  "mbl-db",
  "mbl-images",
  "mbl-jobs",
  "mbl-platform",
+ "mbl-playback",
+ "mbl-probe",
+ "mbl-stream",
+ "mbl-transcode",
  "serde",
  "serde_json",
  "tempfile",
@@ -1891,10 +1969,31 @@ dependencies = [
 [[package]]
 name = "mbl-stream"
 version = "0.1.0"
+dependencies = [
+ "axum",
+ "http-body-util",
+ "mbl-core",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
 
 [[package]]
 name = "mbl-transcode"
 version = "0.1.0"
+dependencies = [
+ "camino",
+ "getrandom 0.4.3",
+ "insta",
+ "mbl-core",
+ "mbl-platform",
+ "mbl-probe",
+ "proptest",
+ "serde",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "md-5"
@@ -1917,6 +2016,16 @@ name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
+
+[[package]]
+name = "mime_guess"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
+dependencies = [
+ "mime",
+ "unicase",
+]
 
 [[package]]
 name = "miniz_oxide"
@@ -2044,6 +2153,12 @@ name = "openssl-probe"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
+
+[[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "parking"
@@ -2434,6 +2549,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_users"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60dc65c0ff1a7ae1294b0c67b9f14baf70b644404010370171787bfac1038fc0"
+dependencies = [
+ "libredox",
+ "thiserror",
+]
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2513,6 +2638,42 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rust-embed"
+version = "8.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19afa5b4b6a611de00bd1bdae6ae6f39084c9399f0679c3f52d8469cf335cc23"
+dependencies = [
+ "rust-embed-impl",
+ "rust-embed-utils",
+ "walkdir",
+]
+
+[[package]]
+name = "rust-embed-impl"
+version = "8.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0d8afda6374eac59e066abee06d265247ebbaf3006cf878e2879e8356e34053"
+dependencies = [
+ "mime_guess",
+ "proc-macro2",
+ "quote",
+ "rust-embed-utils",
+ "shellexpand",
+ "syn 2.0.119",
+ "walkdir",
+]
+
+[[package]]
+name = "rust-embed-utils"
+version = "8.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d84e8ba78bd384263e5922f084cbe1b081c3b7e69add59c8fb097b879ba968a"
+dependencies = [
+ "sha2 0.11.1",
+ "walkdir",
 ]
 
 [[package]]
@@ -2830,6 +2991,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shellexpand"
+version = "3.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32824fab5e16e6c4d86dc1ba84489390419a39f97699852b66480bb87d297ed8"
+dependencies = [
+ "dirs",
 ]
 
 [[package]]
@@ -3640,6 +3810,12 @@ checksum = "e1b88fcfe09e89d3866a5c11019378088af2d24c3fbd4f0543f96b479ec90697"
 dependencies = [
  "version_check",
 ]
+
+[[package]]
+name = "unicase"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357cc3acc6a036009fd6c973ed009037c732d60d0b4f6c673e9041497482a28f"
 
 [[package]]
 name = "unicode-bidi"

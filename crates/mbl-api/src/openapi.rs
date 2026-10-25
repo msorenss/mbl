@@ -8,7 +8,7 @@ use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder
 use utoipa::{Modify, OpenApi};
 
 use crate::AppState;
-use crate::routes::{auth, events, images, items, libraries, system, users};
+use crate::routes::{auth, events, images, items, libraries, mcp, playback, stream, system, users};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -16,12 +16,21 @@ use crate::routes::{auth, events, images, items, libraries, system, users};
     paths(
         system::health, system::info, system::setup_status, system::setup,
         auth::login, auth::logout, auth::me, auth::list_sessions, auth::revoke_session,
+        auth::create_token, auth::list_tokens, auth::revoke_token,
         users::list, users::create, users::get_one, users::update, users::remove,
         libraries::list, libraries::get_one, libraries::create, libraries::update,
         libraries::remove, libraries::scan, libraries::browse,
         items::list, items::detail, items::children, items::search, items::home,
-        images::image, events::events,
+        items::mark_watched, items::mark_unwatched,
+        playback::start, playback::progress, playback::stop,
+        images::image, events::events, stream::direct, stream::hls_master,
+        stream::hls_rendition_file, stream::subtitle,
+        mcp::list_audit, mcp::get_status, mcp::update_status, mcp::create_snippets, mcp::list_presets,
     ),
+    components(schemas(
+        mbl_db::repo::items::SortField,
+        mbl_db::repo::items::SortOrder,
+    )),
     modifiers(&Security),
     security(("bearer" = []), ("cookie" = [])),
 )]

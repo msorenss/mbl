@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+camino.workspace = true
 ignore.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
@@ -25,7 +26,6 @@ tracing.workspace = true
 xxhash-rust.workspace = true
 
 [dev-dependencies]
-camino.workspace = true
 tempfile.workspace = true
 
 [lints]

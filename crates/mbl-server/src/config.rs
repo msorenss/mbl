@@ -14,6 +14,21 @@ pub struct Config {
     pub metadata: MetadataConfig,
     pub transcode: TranscodeConfig,
     pub log: LogConfig,
+    pub mcp: McpConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct McpConfig {
+    pub enabled: bool,
+    pub allow_wan: bool,
+    pub allowed_origins: Vec<String>,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self { enabled: true, allow_wan: false, allowed_origins: Vec::new() }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

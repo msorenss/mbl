@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id AS \"id!: PartId\",\n                  p.version_id AS \"version_id!: VersionId\",\n                  i.id AS \"item_id!: ItemId\",\n                  i.library_id AS \"library_id!: LibraryId\",\n                  p.path,\n                  p.size,\n                  p.duration_ms,\n                  v.container,\n                  p.probe,\n                  p.missing_since\n           FROM media_parts p\n           JOIN media_versions v ON v.id = p.version_id\n           JOIN media_items i ON i.id = v.item_id\n           WHERE p.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: PartId",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "version_id!: VersionId",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "item_id!: ItemId",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "library_id!: LibraryId",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_items",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "container",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_versions",
+            "name": "container"
+          }
+        }
+      },
+      {
+        "name": "probe",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "probe"
+          }
+        }
+      },
+      {
+        "name": "missing_since",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "media_parts",
+            "name": "missing_since"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "6f4ba751e32d9855e6aa68a296cd305870823d92787a5c789290f288e5986460"
+}

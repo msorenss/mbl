@@ -5,6 +5,7 @@
 //! transactions, and marks vanished files as missing (never deleting them).
 
 mod hash;
+pub mod subtitles;
 mod walk;
 pub mod watch;
 mod write;
@@ -369,8 +370,15 @@ impl Scanner {
                             .flatten()
                     }
                 };
-                let info =
+                let mut info =
                     tools.probe(std::path::Path::new(&file.path), DEFAULT_PROBE_TIMEOUT).await;
+                if let Ok(media_info) = &mut info {
+                    let next_idx =
+                        media_info.streams.iter().map(|s| s.index + 1).max().unwrap_or(0);
+                    let sidecars =
+                        subtitles::discover_sidecars(std::path::Path::new(&file.path), next_idx);
+                    media_info.streams.extend(sidecars);
+                }
                 (i, Probed { file, existing, hash, info })
             });
         }

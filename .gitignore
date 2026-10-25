@@ -2,6 +2,7 @@
 /.dev/
 /test-media/out/
 node_modules/
+.pnpm-store/
 /web/dist/
 *.log
 *.db

@@ -3,5 +3,8 @@ pub mod events;
 pub mod images;
 pub mod items;
 pub mod libraries;
+pub mod mcp;
+pub mod playback;
+pub mod stream;
 pub mod system;
 pub mod users;

@@ -1,7 +1,14 @@
-use mbl_core::{Actor, Error, LibraryAccess, Result, SessionId, time::now_ms};
+use std::sync::Arc;
+
+use mbl_auth::tokens::{ScopeSet, new_api_token, validate_allowed_networks};
+use mbl_auth::{STREAM_TOKEN_TTL_MS, StreamTokenClaims};
+use mbl_core::{Actor, Error, LibraryAccess, PartId, Result, SessionId, UserId, time::now_ms};
 use mbl_db::Db;
+use mbl_db::repo::mcp::{self, ApiTokenInfo, NewApiToken};
 use mbl_db::repo::sessions::{NewSession, SessionInfo, SessionsRepo};
 use mbl_db::repo::users::{NewUser, User, UsersRepo};
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::{blocking, validate};
 
@@ -29,15 +36,51 @@ pub struct Authenticated {
     pub session_id: SessionId,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateApiTokenRequest {
+    pub name: String,
+    pub scopes: Vec<String>,
+    #[serde(default)]
+    pub expires_at: Option<i64>,
+    #[serde(default)]
+    pub allowed_networks: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedApiToken {
+    /// Shown once upon creation; never stored in plaintext.
+    pub token: String,
+    #[serde(flatten)]
+    pub info: ApiTokenInfo,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthenticatedApiToken {
+    pub token_id: i64,
+    pub token_name: String,
+    pub actor: Actor,
+    pub scopes: ScopeSet,
+}
+
 #[derive(Debug, Clone)]
 pub struct AuthService {
+    db: Db,
     users: UsersRepo,
     sessions: SessionsRepo,
+    stream_secret: Arc<[u8; 32]>,
 }
 
 impl AuthService {
     pub fn new(db: Db) -> Self {
-        Self { users: UsersRepo::new(db.clone()), sessions: SessionsRepo::new(db) }
+        let secret = mbl_auth::new_secret_key().unwrap_or([0x5au8; 32]);
+        Self {
+            users: UsersRepo::new(db.clone()),
+            sessions: SessionsRepo::new(db.clone()),
+            db,
+            stream_secret: Arc::new(secret),
+        }
     }
 
     pub async fn needs_setup(&self) -> Result<bool> {
@@ -112,7 +155,7 @@ impl AuthService {
         Ok(LoginResult { token: token.value, session_id, user })
     }
 
-    /// Resolve a bearer/cookie token to an actor. Expired or unknown tokens are `Unauthorized`.
+    /// Resolve a bearer/cookie session token to an actor. Expired or unknown tokens are `Unauthorized`.
     pub async fn authenticate(&self, token: &str) -> Result<Authenticated> {
         let hash = mbl_auth::hash_token(token);
         let session = self.sessions.find_by_token_hash(&hash).await?.ok_or(Error::Unauthorized)?;
@@ -158,5 +201,133 @@ impl AuthService {
 
     pub async fn purge_expired_sessions(&self) -> Result<u64> {
         self.sessions.delete_expired(now_ms()).await
+    }
+
+    /// Create a scoped API token (`POST /api/v1/auth/tokens`).
+    /// Scopes are capped by the user's own rights; non-admins cannot get `admin`, `users`, or `remote`.
+    pub async fn create_api_token(
+        &self,
+        actor: &Actor,
+        req: CreateApiTokenRequest,
+    ) -> Result<CreatedApiToken> {
+        let name = req.name.trim();
+        if name.is_empty() || name.chars().count() > 100 {
+            return Err(Error::Validation("token name must be 1..=100 characters".into()));
+        }
+
+        let scope_set = ScopeSet::parse_list(&req.scopes)?;
+        scope_set.validate_for_user(actor.is_admin)?;
+
+        let allowed_networks = validate_allowed_networks(req.allowed_networks.as_deref())?;
+        let now = now_ms();
+        if let Some(exp) = req.expires_at
+            && exp <= now
+        {
+            return Err(Error::Validation("expiresAt must be in the future".into()));
+        }
+
+        let minted = new_api_token()?;
+        let scopes_json = serde_json::to_string(&scope_set.to_strings())
+            .map_err(|e| Error::Internal(Box::new(e)))?;
+        let networks_json =
+            serde_json::to_string(&allowed_networks).map_err(|e| Error::Internal(Box::new(e)))?;
+
+        let info = mcp::insert_token(
+            &self.db,
+            &NewApiToken {
+                user_id: actor.user_id,
+                name,
+                token_hash: &minted.hash,
+                scopes_json: &scopes_json,
+                allowed_networks_json: &networks_json,
+                created_at: now,
+                expires_at: req.expires_at,
+            },
+        )
+        .await?;
+
+        Ok(CreatedApiToken { token: minted.value, info })
+    }
+
+    /// List active API tokens owned by `actor.user_id` (`GET /api/v1/auth/tokens`).
+    pub async fn list_api_tokens(&self, actor: &Actor) -> Result<Vec<ApiTokenInfo>> {
+        mcp::list_tokens_for_user(&self.db, actor.user_id).await
+    }
+
+    /// List all API tokens across all users (`GET /api/v1/auth/tokens?all=true`, admin only).
+    pub async fn list_all_api_tokens(&self, actor: &Actor) -> Result<Vec<ApiTokenInfo>> {
+        actor.require_admin()?;
+        mcp::list_all_tokens(&self.db).await
+    }
+
+    /// Revoke an API token (`DELETE /api/v1/auth/tokens/{id}`).
+    pub async fn revoke_api_token(&self, actor: &Actor, id: i64) -> Result<()> {
+        if mcp::revoke_token(&self.db, actor.user_id, actor.is_admin, id, now_ms()).await? {
+            Ok(())
+        } else {
+            Err(Error::NotFound)
+        }
+    }
+
+    /// Authenticate a bearer token against `api_tokens`, verifying expiry, revocation, and network allowlist.
+    /// Returns `Ok(None)` if the hash is not in `api_tokens` (allowing fallback to session tokens).
+    pub async fn authenticate_api_token(
+        &self,
+        token: &str,
+        network: &str,
+    ) -> Result<Option<AuthenticatedApiToken>> {
+        let hash = mbl_auth::hash_token(token);
+        let Some(row) = mcp::find_by_token_hash(&self.db, &hash).await? else {
+            return Ok(None);
+        };
+        let now = now_ms();
+        if row.revoked_at.is_some() || row.expires_at.is_some_and(|exp| exp <= now) {
+            return Err(Error::Unauthorized);
+        }
+        if !row.allowed_networks.iter().any(|n| n.eq_ignore_ascii_case(network)) {
+            return Err(Error::Forbidden);
+        }
+        let scopes = ScopeSet::parse_list(&row.scopes)?.capped_for_user(row.is_admin);
+        if scopes.is_empty() {
+            return Err(Error::Forbidden);
+        }
+        if row.last_used_at.is_none_or(|last| now - last >= 60_000) {
+            let _ = mcp::touch_token(&self.db, row.id, now).await;
+        }
+        Ok(Some(AuthenticatedApiToken {
+            token_id: row.id,
+            token_name: row.name,
+            actor: Actor {
+                user_id: row.user_id,
+                is_admin: row.is_admin,
+                library_access: LibraryAccess::All,
+            },
+            scopes,
+        }))
+    }
+
+    /// Mint a 6-hour HMAC-signed `?token=` scoped to `actor.user_id` and `part_id`.
+    pub fn sign_stream_token(&self, actor: &Actor, part_id: PartId) -> String {
+        self.sign_stream_token_with_ttl(actor.user_id, part_id, STREAM_TOKEN_TTL_MS)
+    }
+
+    /// Mint a signed `?token=` with a custom TTL in milliseconds.
+    pub fn sign_stream_token_with_ttl(
+        &self,
+        user_id: UserId,
+        part_id: PartId,
+        ttl_ms: i64,
+    ) -> String {
+        mbl_auth::sign_stream_token(
+            &self.stream_secret,
+            StreamTokenClaims { user_id, part_id, expires_at_ms: now_ms().saturating_add(ttl_ms) },
+        )
+    }
+
+    /// Verify a signed `?token=` for `part_id` and resolve the owning user to an [`Actor`].
+    pub async fn authenticate_stream_token(&self, token: &str, part_id: PartId) -> Result<Actor> {
+        let claims = mbl_auth::verify_stream_token(&self.stream_secret, token, part_id, now_ms())?;
+        let user = self.users.get(claims.user_id).await?.ok_or(Error::Unauthorized)?;
+        Ok(Actor { user_id: user.id, is_admin: user.is_admin, library_access: LibraryAccess::All })
     }
 }

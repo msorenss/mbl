@@ -9,13 +9,19 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+camino.workspace = true
 dunce.workspace = true
+getrandom.workspace = true
 mbl-auth.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
 mbl-jobs.workspace = true
 mbl-images.workspace = true
 mbl-platform.workspace = true
+mbl-playback.workspace = true
+mbl-probe.workspace = true
+mbl-stream.workspace = true
+mbl-transcode.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
@@ -23,7 +29,6 @@ tracing.workspace = true
 utoipa.workspace = true
 
 [dev-dependencies]
-camino.workspace = true
 tempfile.workspace = true
 
 [lints]

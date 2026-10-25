@@ -387,7 +387,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: table-driven tests, ≥ 60 cases (media fixture × profile → expected decision + reasons), plus insta snapshots of the reasons.
   - Ref: PLAN §8.3
 
-- [ ] **M2.3 Direct play endpoint**
+- [x] **M2.3 Direct play endpoint**
   - Depends: M1.9
   - Do:
     1. `GET /api/v1/stream/direct/{partId}` supports `Range` (single range), correct `Content-Type` and `Accept-Ranges`, and `HEAD`.
@@ -395,7 +395,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     3. The file path comes from the DB only. Assert it is under a library root (path traversal guard).
   - Accept: tests for ranges (start, middle, suffix, invalid → 416), unauthorized access, and the traversal guard.
 
-- [ ] **M2.4 FFmpeg pipeline builder (software + copy)**
+- [x] **M2.4 FFmpeg pipeline builder (software + copy)**
   - Depends: M2.2
   - Crates/paths: `mbl-transcode/src/{pipeline.rs,args.rs,escape.rs}`
   - Do:
@@ -408,7 +408,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     3. The filter-path escaper handles `\ : ' [ ] , ;` and Windows drive letters. Add a fuzz/proptest that the output never breaks the filter graph.
   - Accept: insta snapshot tests of the args for ≥ 20 pipelines; an integration test transcodes 10 s of test media and checks the result with ffprobe.
 
-- [ ] **M2.5 HLS session manager**
+- [x] **M2.5 HLS session manager**
   - Depends: M2.4, M2.2
   - Crates/paths: `mbl-stream/src/hls/*`, `mbl-transcode/src/session.rs`
   - Do:
@@ -424,7 +424,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: integration tests for seek-far restart, timeout cleanup, quota enforcement, and pause/resume; manual check that the web player (M2.9) can seek anywhere.
   - Ref: PLAN §8.4
 
-- [ ] **M2.6 Subtitles**
+- [x] **M2.6 Subtitles**
   - Depends: M2.4
   - Do:
     1. `GET /stream/subtitles/{partId}/{streamIndex}.vtt` converts embedded or external SRT/ASS/VTT to WebVTT via FFmpeg and caches the result.
@@ -432,7 +432,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     3. `.../{streamIndex}.ass` serves raw ASS for clients that render it.
   - Accept: tests for conversion and sidecar detection.
 
-- [ ] **M2.7 Playback API and watch state**
+- [x] **M2.7 Playback API and watch state**
   - Depends: M2.5, M2.3, M2.6
   - Do:
     1. `POST /api/v1/playback` with body `{itemId, partId?, profile?, maxBitrate?, audioStreamIndex?, subtitleStreamIndex?, startMs?}`. Response: `{sessionId, method, reasons[], url, subtitles[], startMs, markers[], durationMs}`.
@@ -445,8 +445,8 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     5. Connect the "playback active" hook to M1.5 so idle jobs pause.
   - Accept: integration tests for the decision → URL flow, progress → resume, and the watched thresholds.
 
-- [ ] **M2.8 Web client bootstrap**
-  - Depends: M1.9
+- [x] **M2.8 Web client bootstrap**
+  - Depends: M1.1
   - Crates/paths: `web/`
   - Do:
     1. `pnpm create vite` (solid-ts). Add `@solidjs/router`, `@tanstack/solid-query`, `@tanstack/solid-virtual`, `openapi-fetch`, `openapi-typescript`, `hls.js`, `@kobalte/core`, Biome and Vitest.
@@ -455,7 +455,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     4. In dev, the Vite proxy forwards `/api` to `localhost:8420`.
   - Accept: `pnpm -C web build && pnpm -C web test` pass; `just check` includes the web checks.
 
-- [ ] **M2.9 Web MVP screens**
+- [x] **M2.9 Web MVP screens**
   - Depends: M2.8, M2.7
   - Do:
     1. **Setup wizard:** create admin, then add libraries (folder picker using `/system/browse`), then a TMDB key hint, then finish and start the scan.
@@ -468,10 +468,10 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
        - Build a dynamic `DeviceProfile` from `MediaSource.isTypeSupported` and `MediaCapabilities`.
        - Call `/playback`. Use direct play via `<video src>` or HLS via hls.js (native HLS on Safari).
        - Controls: play/pause, seek, volume, fullscreen, audio and subtitle selection (VTT tracks), progress reporting, resume prompt.
-    8. **Users** (admin): list, create, delete.
+       8. **Users** (admin): list, create, delete.
   - Accept: Playwright E2E against a server with the synthetic library and a mocked TMDB covers setup → scan → browse → play direct → play transcoded (HEVC in Firefox) → resume.
 
-- [ ] **M2.10 Packaging v0.1**
+- [x] **M2.10 Packaging v0.1**
   - Depends: M2.9
   - Do:
     1. Release builds embed `web/dist` via `rust-embed`, with SPA fallback to `index.html`.
@@ -483,7 +483,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     4. `release.yml` workflow on tag `v*`: build, checksums, GitHub release (draft).
   - Accept: a fresh Pi 5 (Raspberry Pi OS 64-bit) runs `apt install ./mbl_0.1.0_arm64.deb`, the service runs, and the UI loads at `http://pi:8420`.
 
-- [ ] **M2.11 MCP server bootstrap and transports**
+- [x] **M2.11 MCP server bootstrap and transports**
   - Depends: M1.9, M2.7
   - Crates/paths: `crates/mbl-mcp` (new), `mbl-server/src/app.rs`, `mbl-cli/src/mcp.rs`
   - Do:
@@ -500,7 +500,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     - The stdio proxy round-trip test passes.
   - Ref: PLAN §9.5.2
 
-- [ ] **M2.12 API tokens, scopes, caller identity, audit**
+- [x] **M2.12 API tokens, scopes, caller identity, audit**
   - Depends: M2.11
   - Crates/paths: `mbl-db/migrations/0002_mcp.sql` (Appendix B), `mbl-auth/src/tokens.rs`, `mbl-mcp/src/{caller.rs,audit.rs}`
   - Do:
@@ -522,7 +522,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Accept: tests for scope filtering of `tools/list`, scope escalation attempts, redaction, rate limiting and the kill switch.
   - Ref: PLAN §9.5.6
 
-- [ ] **M2.13 MCP tools v0, resources, untrusted-data hygiene**
+- [x] **M2.13 MCP tools v0, resources, untrusted-data hygiene**
   - Depends: M2.12
   - Crates/paths: `mbl-mcp/src/tools/{system,libraries,media,watch,playback,jobs}.rs`, `mbl-mcp/src/resources.rs`, `mbl-mcp/src/sanitize.rs`
   - Do:
@@ -547,7 +547,7 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     - Snapshots committed.
   - Ref: PLAN §9.5.3–9.5.4
 
-- [ ] **M2.14 "Connect an AI agent" page and audit view**
+- [x] **M2.14 "Connect an AI agent" page and audit view**
   - Depends: M2.13, M2.9
   - Crates/paths: `web/src/routes/admin/ai-agents/*`
   - Do:
@@ -740,7 +740,14 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M1.9 | repo items (ItemFilter::for_user ACL on every query, list sort/filter/cursor, detail with versions/parts/streams/people/genres/artwork/watch state, children, FTS5 search with quoted prefix terms, continue watching/up next/recently added), ItemService, /libraries/{id}/items, /items/{id}, /items/{id}/children, /search, /hubs/home; utoipa 6 spec for all routes, /api/openapi.json + Scalar /api/docs, `mbl-server openapi`, `cargo xtask openapi-check` in CI | feat(api) M1.9
 2026-10-24 | M1.11 | LibraryWatcher (notify, 5 s debounce, size-settled check 3 s apart, partial `library.scan` with `folders`), network roots (Linux /proc/self/mounts fstype, Windows UNC/DRIVE_REMOTE) polled every `scanner.poll_interval_secs`, `scanner.watch` toggle; unavailable roots still never mark files missing | feat(scanner) M1.11
 2026-10-24 | M2.1 | DeviceProfile + built-in TOML profiles (chrome, firefox, safari, edge, generic-hls), validation and dynamic DeviceProfileOverlay merging | 97b3d08
-2026-10-24 | M2.2 | Pure playback decision engine (`decide`): direct play, remux, audio-only/video transcode, subtitle delivery (sidecar/embed/burn-in), HDR/DV fallback, bitrate/resolution scaling, capacity check, 71 test cases + insta snapshots | feat(playback) M2.2
+2026-10-24 | M2.2 | Pure playback decision engine (`decide`): direct play, remux, audio-only/video transcode, subtitle delivery (sidecar/embed/burn-in), HDR/DV fallback, bitrate/resolution scaling, capacity check, 71 test cases + insta snapshots | c785798
+2026-10-24 | M2.3 | Direct play endpoint `GET/HEAD /api/v1/stream/direct/{partId}` with single-range 206/416, `Accept-Ranges: bytes`, 6 h HMAC `?token=` auth, library ACL + canonical root path-traversal guard (`StreamService`, `mbl-stream`) | feat(stream) M2.3
+2026-10-24 | M2.4 | FFmpeg pipeline builder (`mbl-transcode`: `Pipeline`, `build_args`, `escape_filter_path`, `validate_filter_graph`), copy/audio/SW video/burn-in, fMP4 HLS + `-copyts` seek, proptest + 22 insta snapshots + 10 s live FFmpeg transcode test | feat(transcode) M2.4
+2026-10-24 | M2.5 | HLS session manager (`mbl-stream/src/hls/*`, `mbl-transcode/src/session.rs`), upfront master/media playlists (3 s fast-start + 6 s), `/api/v1/stream/hls/{session}/...` routes, segment wait vs seek-far restart, SIGSTOP/SIGCONT ahead-throttling, 60 s timeout cleanup, disk quota & concurrency caps | feat(transcode) M2.5
+2026-10-24 | M2.6 | Sidecar subtitle discovery during scan (`Movie.en.srt`, `.en.forced.srt`, `.eng.sdh.srt`) and `GET /api/v1/stream/subtitles/{partId}/{streamIndex}.{vtt,ass}` with FFmpeg WebVTT conversion, raw ASS delivery, and disk caching | feat(subtitles) M2.6
+2026-10-24 | M2.7 | Playback API (`POST /api/v1/playback`, `/progress`, `/stop`), watch state thresholds (watched >=90% or <3 min left, resume 1 min..90%, `watch_history` on stop), cascading `POST/DELETE /api/v1/items/{id}/watched`, and `ActivityProbe` hook pausing idle jobs during playback | feat(playback) M2.7
+2026-10-24 | M2.11 | `mbl-mcp` server (`ServerHandler`, `MblMcp`, `McpClient`), `/mcp` Streamable HTTP transport with `Origin` and WAN guards (`mcp.enabled`, `mcp.allow_wan`, `mcp.allowed_origins`), `mbl-cli mcp --server <url>` stdio proxy, and `just mcp-inspect` | feat(mcp) M2.11
+2026-10-24 | M2.12 | `0002_mcp.sql` (`api_tokens`, `mcp_audit`), `mbl-auth::tokens` (`Scope`, `ScopeSet`, `mbl_` tokens, sha256), `POST/GET/DELETE /api/v1/auth/tokens` with non-admin scope cap, `Caller` resolution (API token → scoped, session/cookie → full), per-caller `tools/list` filtering + `tools/call` scope re-check, per-token rate limits (120/min; scan 2/min), `mcp_audit` with arg redaction, `mcp.audit_prune` 90-day job, kill switch 503 | feat(mcp) M2.12
 ```
 
 ---
@@ -826,6 +833,11 @@ temp_quota_mb = 4096
 [log]
 level = "info"
 json = false
+
+[mcp]
+enabled = true
+allow_wan = false
+allowed_origins = []
 ```
 
 ### A.3 Parser outputs

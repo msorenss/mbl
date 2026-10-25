@@ -122,6 +122,98 @@
         }
       }
     },
+    "/api/v1/auth/tokens": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List active API tokens owned by the current user (or all tokens across users if admin and ?all=true).",
+        "operationId": "list_tokens",
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "description": "List tokens across all users (admin only)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiTokenInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mint a new scoped API / MCP token. The plaintext token is returned only once.",
+        "operationId": "create_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedApiToken"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requested scopes exceed user permissions"
+          },
+          "422": {
+            "description": "Invalid token request"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/tokens/{id}": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Revoke an API token.",
+        "operationId": "revoke_token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {}
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -284,13 +376,63 @@
         }
       }
     },
+    "/api/v1/items/{id}/watched": {
+      "post": {
+        "tags": [
+          "watch"
+        ],
+        "summary": "Mark an item (or show/season, cascading to episodes) watched.",
+        "operationId": "mark_watched",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Marked watched"
+          },
+          "404": {}
+        }
+      },
+      "delete": {
+        "tags": [
+          "watch"
+        ],
+        "summary": "Mark an item (or show/season, cascading to episodes) unwatched.",
+        "operationId": "mark_unwatched",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Marked unwatched"
+          },
+          "404": {}
+        }
+      }
+    },
     "/api/v1/libraries": {
       "get": {
         "tags": [
           "libraries"
         ],
         "summary": "Libraries the user can access.",
-        "operationId": "list",
+        "operationId": "list_libraries",
         "responses": {
           "200": {
             "content": {
@@ -311,7 +453,7 @@
           "libraries"
         ],
         "summary": "Create a library (admin). Roots must exist and must not overlap other libraries.",
-        "operationId": "create",
+        "operationId": "create_library",
         "requestBody": {
           "content": {
             "application/json": {
@@ -343,7 +485,7 @@
           "libraries"
         ],
         "summary": "One library.",
-        "operationId": "get_one",
+        "operationId": "get_library",
         "parameters": [
           {
             "name": "id",
@@ -373,7 +515,7 @@
           "libraries"
         ],
         "summary": "Delete a library and its items (admin).",
-        "operationId": "remove",
+        "operationId": "delete_library",
         "parameters": [
           {
             "name": "id",
@@ -395,7 +537,7 @@
           "libraries"
         ],
         "summary": "Update a library (admin).",
-        "operationId": "update",
+        "operationId": "update_library",
         "parameters": [
           {
             "name": "id",
@@ -437,7 +579,7 @@
           "browse"
         ],
         "summary": "Items of a library, paginated.",
-        "operationId": "list",
+        "operationId": "list_library_items",
         "parameters": [
           {
             "name": "id",
@@ -538,7 +680,7 @@
           "libraries"
         ],
         "summary": "Queue a library scan (admin).",
-        "operationId": "scan",
+        "operationId": "scan_library",
         "parameters": [
           {
             "name": "id",
@@ -561,6 +703,320 @@
             }
           },
           "404": {}
+        }
+      }
+    },
+    "/api/v1/mcp/audit": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Query the Model Context Protocol audit log with optional filters (admin only).",
+        "operationId": "list_audit",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "in": "query",
+            "description": "Filter by token ID",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "tool",
+            "in": "query",
+            "description": "Filter by tool name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "description": "Filter by outcome ('ok', 'error', 'forbidden', 'rate_limited')",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows to return (default 50, max 500)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpAuditEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden (admin only)"
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/presets": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "List built-in scope presets for the AI agent Token Wizard.",
+        "operationId": "list_presets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpPreset"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/snippets": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Generate client configuration snippets for VS Code, Claude Desktop, Cursor, and stdio.",
+        "operationId": "create_snippets",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpSnippetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpConfigSnippets"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/status": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Inspect the MCP subsystem status and kill switch (admin only).",
+        "operationId": "get_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden (admin only)"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Toggle the global MCP kill switch (admin only).",
+        "operationId": "update_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden (admin only)"
+          }
+        }
+      }
+    },
+    "/api/v1/playback": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Start a playback session for a media item (`decide` -> DirectPlay or fMP4 HLS).",
+        "operationId": "start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Item or part not found"
+          },
+          "422": {
+            "description": "Invalid playback request"
+          }
+        }
+      }
+    },
+    "/api/v1/playback/{session}/progress": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Report playback progress (`playing` | `paused` | `buffering`) every ~10 seconds.",
+        "operationId": "progress",
+        "parameters": [
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Progress recorded"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/api/v1/playback/{session}/stop": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Stop an active playback session, recording `watch_history` and tearing down any HLS session.",
+        "operationId": "stop",
+        "parameters": [
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PlaybackStopRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Session stopped"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Session not found"
+          }
         }
       }
     },
@@ -597,13 +1053,200 @@
         }
       }
     },
+    "/api/v1/stream/direct/{partId}": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Stream a media part directly with HTTP `Range` (`206` / `416`) and `HEAD` support.",
+        "operationId": "direct",
+        "parameters": [
+          {
+            "name": "partId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Short-lived HMAC-signed stream token (6 h) for players that cannot set headers.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full media stream"
+          },
+          "206": {
+            "description": "Partial byte-range stream"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Path outside library roots"
+          },
+          "404": {
+            "description": "Part not found"
+          },
+          "416": {
+            "description": "Range not satisfiable"
+          }
+        }
+      }
+    },
+    "/api/v1/stream/hls/{session}/master.m3u8": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Serve the upfront HLS master playlist (`master.m3u8`) for an active transcode/remux session.",
+        "operationId": "hls_master",
+        "parameters": [
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HLS master playlist",
+            "content": {
+              "application/vnd.apple.mpegurl": {}
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/api/v1/stream/hls/{session}/{rendition}/{file}": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Serve a rendition's media playlist (`index.m3u8`), fMP4 initialization segment (`init.mp4`),\nor numbered media segment (`{n}.m4s`).",
+        "operationId": "hls_rendition_file",
+        "parameters": [
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rendition",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "description": "`index.m3u8`, `init.mp4`, or `{n}.m4s`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HLS media playlist or fMP4 segment"
+          },
+          "404": {
+            "description": "Session or rendition not found"
+          },
+          "422": {
+            "description": "Invalid segment filename"
+          },
+          "503": {
+            "description": "Transcoder unavailable or timed out"
+          }
+        }
+      }
+    },
+    "/api/v1/stream/subtitles/{partId}/{target}": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Convert an embedded or external subtitle stream to WebVTT (`{streamIndex}.vtt`) or serve raw\nASS (`{streamIndex}.ass`), caching converted files on disk.",
+        "operationId": "subtitle",
+        "parameters": [
+          {
+            "name": "partId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "target",
+            "in": "path",
+            "description": "`{streamIndex}.vtt` or `{streamIndex}.ass`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Short-lived HMAC-signed stream token (6 h) for players that cannot set headers.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Converted WebVTT or raw ASS subtitle track"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Path outside library roots"
+          },
+          "404": {
+            "description": "Part or subtitle stream not found"
+          },
+          "422": {
+            "description": "Unsupported subtitle target or image subtitle"
+          },
+          "503": {
+            "description": "FFmpeg conversion failed"
+          }
+        }
+      }
+    },
     "/api/v1/system/browse": {
       "get": {
         "tags": [
           "libraries"
         ],
         "summary": "List server directories for picking library roots (admin).",
-        "operationId": "browse",
+        "operationId": "browse_directories",
         "parameters": [
           {
             "name": "path",
@@ -706,7 +1349,7 @@
           "users"
         ],
         "summary": "All users (admin).",
-        "operationId": "list",
+        "operationId": "list_users",
         "responses": {
           "200": {
             "content": {
@@ -728,7 +1371,7 @@
           "users"
         ],
         "summary": "Create a user (admin).",
-        "operationId": "create",
+        "operationId": "create_user",
         "requestBody": {
           "content": {
             "application/json": {
@@ -760,7 +1403,7 @@
           "users"
         ],
         "summary": "A user (admins, or the user themselves).",
-        "operationId": "get_one",
+        "operationId": "get_user",
         "parameters": [
           {
             "name": "id",
@@ -790,7 +1433,7 @@
           "users"
         ],
         "summary": "Delete a user (admin).",
-        "operationId": "remove",
+        "operationId": "delete_user",
         "parameters": [
           {
             "name": "id",
@@ -813,7 +1456,7 @@
           "users"
         ],
         "summary": "Update a user; only admins may change `isAdmin`.",
-        "operationId": "update",
+        "operationId": "update_user",
         "parameters": [
           {
             "name": "id",
@@ -875,6 +1518,66 @@
   },
   "components": {
     "schemas": {
+      "ApiTokenInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "name",
+          "scopes",
+          "allowedNetworks",
+          "createdAt"
+        ],
+        "properties": {
+          "allowedNetworks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expiresAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastUsedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
       "ArtworkId": {
         "type": "integer",
         "format": "int64"
@@ -932,6 +1635,40 @@
           }
         }
       },
+      "CreateApiTokenRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "scopes"
+        ],
+        "properties": {
+          "allowedNetworks": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "CreateLibraryRequest": {
         "type": "object",
         "required": [
@@ -977,6 +1714,25 @@
             "type": "string"
           }
         }
+      },
+      "CreatedApiToken": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiTokenInfo"
+          },
+          {
+            "type": "object",
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "Shown once upon creation; never stored in plaintext."
+              }
+            }
+          }
+        ]
       },
       "Credit": {
         "type": "object",
@@ -1465,6 +2221,165 @@
           }
         }
       },
+      "McpAuditEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "ts",
+          "tool",
+          "args",
+          "outcome",
+          "durationMs",
+          "dryRun"
+        ],
+        "properties": {
+          "args": {
+            "type": "string"
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "ts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "McpConfigSnippets": {
+        "type": "object",
+        "description": "Ready-to-copy configuration snippets for popular AI agents and IDEs.",
+        "required": [
+          "vscode",
+          "claudeDesktop",
+          "cursor",
+          "stdio"
+        ],
+        "properties": {
+          "claudeDesktop": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "stdio": {
+            "type": "string"
+          },
+          "vscode": {
+            "type": "string"
+          }
+        }
+      },
+      "McpPreset": {
+        "type": "object",
+        "description": "Preset permission bundle for the Token Wizard.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "scopes"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "McpSnippetsRequest": {
+        "type": "object",
+        "description": "Request to generate client configuration snippets for connecting an AI agent.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "serverUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "McpStatus": {
+        "type": "object",
+        "description": "Administrative status and toggle for the MCP subsystem.",
+        "required": [
+          "enabled",
+          "allowWan",
+          "allowedOrigins"
+        ],
+        "properties": {
+          "allowWan": {
+            "type": "boolean"
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "MediaKind": {
         "type": "string",
         "enum": [
@@ -1671,6 +2586,244 @@
           "generic"
         ]
       },
+      "PlayMethod": {
+        "type": "string",
+        "description": "Overall delivery method chosen by the decision engine.",
+        "enum": [
+          "directPlay",
+          "directStream",
+          "transcode"
+        ]
+      },
+      "PlaybackMarker": {
+        "type": "object",
+        "description": "Timeline marker (intro, credits, chapter) returned in [`PlaybackResponse`].",
+        "required": [
+          "kind",
+          "startMs",
+          "endMs"
+        ],
+        "properties": {
+          "endMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "kind": {
+            "type": "string"
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PlaybackProgressRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/playback/{session}/progress`.",
+        "required": [
+          "positionMs"
+        ],
+        "properties": {
+          "positionMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "state": {
+            "$ref": "#/components/schemas/PlaybackState"
+          }
+        }
+      },
+      "PlaybackRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/playback`.",
+        "required": [
+          "itemId"
+        ],
+        "properties": {
+          "audioStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "maxBitrate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "startMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "subtitleStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "PlaybackResponse": {
+        "type": "object",
+        "description": "Response body for `POST /api/v1/playback`.",
+        "required": [
+          "sessionId",
+          "method",
+          "reasons",
+          "url",
+          "subtitles",
+          "startMs",
+          "markers",
+          "durationMs"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaybackMarker"
+            }
+          },
+          "method": {
+            "$ref": "#/components/schemas/PlayMethod"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "subtitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaybackSubtitleTrack"
+            }
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "PlaybackState": {
+        "type": "string",
+        "description": "Client playback state reported to `POST /api/v1/playback/{session}/progress`.",
+        "enum": [
+          "playing",
+          "paused",
+          "buffering"
+        ]
+      },
+      "PlaybackStopRequest": {
+        "type": "object",
+        "description": "Optional request body for `POST /api/v1/playback/{session}/stop`.",
+        "properties": {
+          "positionMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "PlaybackSubtitleTrack": {
+        "type": "object",
+        "description": "Subtitle track descriptor returned in [`PlaybackResponse`].",
+        "required": [
+          "index",
+          "codec",
+          "isDefault",
+          "isForced",
+          "format",
+          "url"
+        ],
+        "properties": {
+          "codec": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "isForced": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "SearchGroup": {
         "type": "object",
         "required": [
@@ -1806,6 +2959,22 @@
           }
         }
       },
+      "SortField": {
+        "type": "string",
+        "enum": [
+          "title",
+          "added",
+          "year",
+          "rating"
+        ]
+      },
+      "SortOrder": {
+        "type": "string",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      },
       "Stream": {
         "type": "object",
         "required": [
@@ -1899,6 +3068,18 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "UpdateMcpStatusRequest": {
+        "type": "object",
+        "description": "Request payload to update MCP status (e.g. kill-switch toggle).",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
           }
         }
       },
