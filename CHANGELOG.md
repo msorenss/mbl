@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-26
+
+### Added
+- M6 Users, sharing, remote access, and Windows:
+  - Per-user library access control lists (`user_library_access`) enforced via `ItemFilter` across all items, search, and playback routes, treating unpermitted libraries as 404 Not Found.
+  - Managed user profiles with parental PIN protection (Argon2id) and age content-rating ceilings (G, PG, PG-13, R, NC-17, TV-MA).
+  - Share invites (`invites`, `POST /api/v1/invites`, `GET /api/v1/invites/inspect/{code}`, `POST /api/v1/auth/register-invite`) with expiration, pre-assigned library access, and content rating ceilings.
+  - Time-based One-Time Password (TOTP) 2FA (`totp-rs`, RFC 6238) via `/api/v1/auth/totp/setup`, `/verify`, `/disable`, strictly required for administrators connecting over WAN.
+  - Network classification (`mbl-remote::network`) distinguishing LAN subnets, Tailscale CGNAT ranges (`100.64.0.0/10`), Loopback, and WAN, with trusted proxy forward header resolution (`X-Forwarded-For`).
+  - Remote bandwidth management (`mbl-remote::bandwidth`) with per-client throughput feedback and fair-share allocation under the server's WAN upload limit.
+  - Tailscale integration (`mbl-remote::tailscale`) with LocalAPI client for node status, MagicDNS names, cert retrieval, and loopback-verified identity authentication (`POST /api/v1/auth/tailscale`) with spoofing rejection.
+  - CGNAT reachability diagnostics (`mbl-remote::reachability`) recommending Tailscale vs. Port-Forwarding/TLS.
+  - Admin endpoints guarded by default against WAN connections (`admin_lan_only` policy).
+  - Windows packaging: WiX MSI installer (`packaging/windows/mbl.wxs`) with Server, Worker, and TV Client components, Windows service and tray icon support, bundled FFmpeg, Windows Firewall rule, and `winget` manifest (`packaging/windows/mbl.yaml`).
+  - Docker images: multi-arch Dockerfile (`packaging/docker/Dockerfile`), VAAPI and NVIDIA hardware-accelerated variants, and `docker-compose.tailscale.yml` with Tailscale sidecar.
+  - MCP mutation framework: `MutationOpts { dry_run, confirm }` on all state-modifying tools, requiring explicit confirmation or MCP elicitation for destructive operations.
+  - 15 new MCP tools across `Users`, `Remote`, and `Admin` scopes: `list_users`, `create_user`, `update_user_permissions`, `create_invite`, `revoke_sessions`, `delete_user`, `get_remote_access_status`, `run_reachability_test`, `get_bandwidth_usage`, `update_remote_policy`, `get_settings`, `update_settings` (with MCP security immutability), `create_backup`, `list_backups`, `restart_server`, and prompt `setup_remote_access` (expanding admin scope to 42 tools).
+  - OAuth 2.1 authorization code flow with PKCE (RFC 7636, S256) and Dynamic Client Registration for MCP clients (`/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`).
+
 ## [0.4.0] - 2026-10-26
 
 ### Added

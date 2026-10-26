@@ -6,7 +6,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.4.0` (byggd och verifierad lokalt, M5 färdigställd)
+- **Senaste release:** `v0.5.0` (byggd och verifierad lokalt, M6 färdigställd)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
@@ -14,7 +14,8 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
   - **M3:** Modern UI v1 (`v0.2.0` — Design tokens, 4 teman + accenter, komponentbibliotek, responsiv desktop/mobil/TV-navigering, kommandopalett, i18n, bundle-budget)
   - **M4:** Hardware Acceleration (`v0.3.0` — `mbl-hwaccel`, plattformsfingeravtryck, FFmpeg-probing, självtest i `0003_hw_capabilities.sql`, VAAPI/QSV/NVENC/Pi V4L2/DRM/Windows D3D11/AMF, fallback-kedjor, HDR tone mapping, ABR-stege, HEVC/AV1 fjärrpreferens, Hailo-8/10H NPU kooperativ `VDevice`-delning, Admin Hardware UI, MCP HW-verktyg)
   - **M5:** Pi 5 excellence + TV client & media intelligence (`v0.4.0` — Termisk/spänningsvakt, profilstandarder, tmpfs-transkodning, förtranskodade optimerade versioner med automatisk DirectPlay för inkompatibla klienter, trickplay-skrubb JPEG-ark, intro- och eftertextsdetektering med markörer i PlaybackResponse, `mbl-tv` 10-fotsklient med rumslig navigering/CEC/gamepad/uppdateringsfrekvensmatchning, OS-avbild `pi-gen` & APT-repo, Hailo-8/10H NPU multimodal scensökning, taggning och spoiler-fria sammanfattningar med `hailo-ollama`)
-- **Pågående arbete (Aktiv agent):** **M6 — Users, sharing, remote access, Windows** (`M6.1`–`M6.17` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)).
+  - **M6:** Users, sharing, remote access, Windows (`v0.5.0` — Biblioteks-ACL per användare, hanterade profiler med föräldra-PIN och åldersgränser, tidsbegränsade inbjudningslänkar, TOTP 2FA, nätverksklassificering och trusted proxy, rättvis bandbreddsdelning på WAN, `mbl-remote` Tailscale LocalAPI-klient med spoofing-skydd, CGNAT-diagnostik, admin LAN/tailnet-vakt, Windows-tjänst/tray/WiX MSI-paket, Docker multi-arch och nvidia/vaapi/tailscale-compose, MCP mutationsramverk med `dry_run` och `confirm`/elicitering, 15 nya MCP-verktyg till 42 admin-verktyg, OAuth 2.1 PKCE och dynamisk klientregistrering för MCP)
+- **Nästa milstolpe:** **M7 — Media breadth** (`M7.1`–`M7.20` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M7.1.
 
 ---
 
@@ -58,7 +59,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `21` för `read`, `23` för `read+library`, `27` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `21` för `read`, `23` för `read+library`, `42` för `admin`).
 
 ---
 
@@ -84,6 +85,27 @@ När en milstolpe är färdig och alla tester är gröna:
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
 
+### 2026-10-26 — Milstolpe M6 (Users, sharing, remote access, Windows) & Release v0.5.0
+- **Genomfört (`M6.1`–`M6.17`):**
+  - **M6.1 & M6.2:** Databastabeller `user_library_access` och `invites` (`0005_m6_users_remote.sql`), dynamiska frågebyggare i `crates/mbl-db/src/repo/m6.rs`. Biblioteks-ACL:er håndteras per användare via `ItemFilter` och nekar olovliga bibliotek med 404 (Items, Search, Playback). Hanterade profiler (`is_managed`), Argon2id föräldra-PIN (`mbl-auth::hash_pin`, `verify_pin`), åldersgränser (`content_rating_ceiling`), och tidsbegränsade inbjudningslänkar med fördefinierade behörigheter (`/api/v1/invites`, `/api/v1/invites/inspect/{code}`, `/api/v1/auth/register-invite`).
+  - **M6.3:** RFC 6238 TOTP 2FA-motor (`mbl-auth::totp`) med Base32-hemligheter, QR `otpauth://`-URI och ±30s klockdrifttolerans. Aktiveras via `/api/v1/auth/totp/{setup,verify,disable}` och krävs ovillkorligen för administratörer vid WAN-anslutningar.
+  - **M6.4 & M6.12:** Nätverksklassificering (`mbl-remote::network`) för LAN, Tailscale CGNAT (`100.64.0.0/10`), Loopback och WAN. Klient-IP resolveras strikt mot pålitliga proxys i `X-Forwarded-For`. Admin-endpoints är som standard spärrade för WAN via `admin_lan_only`-policyn.
+  - **M6.5:** Rättvis bandbreddsfördelning (`mbl-remote::bandwidth`) under serverns totala WAN-uppladdningstak (`wan_upload_limit_kbps`) med kontinuerlig feedbackrapportering från klienter.
+  - **M6.6 & M6.7:** Nytt crate `crates/mbl-remote` med asynkron Tailscale LocalAPI-klient (Unix-socket och Windows named pipe). Inloggning via Tailscale-identitet (`POST /api/v1/auth/tailscale`) med strikt loopback-validering mot spoofing av auth-headers.
+  - **M6.8, M6.9 & M6.10:** CGNAT-diagnostik och räckviddsanalys (`mbl-remote::reachability`) som särskiljer ISP CGNAT, Double NAT och publik IP med automatisk rekommendation av Tailscale vs ACME TLS-portvidarebefordran.
+  - **M6.13 & M6.14:** Windows WiX MSI-installerare (`packaging/windows/mbl.wxs`) med Windows-tjänst, tray-ikon och brandväggsregel, plus `winget`-manifest (`packaging/windows/mbl.yaml`). Multi-arch Docker-avbilder (`packaging/docker/Dockerfile`), hårdvaruvarianter (`Dockerfile.vaapi`, `Dockerfile.nvidia`) och `docker-compose.tailscale.yml`.
+  - **M6.15 & M6.16:** MCP mutationsramverk med `MutationOpts { dry_run, confirm }`. 15 nya MCP-verktyg: `list_users`, `create_user`, `update_user_permissions`, `create_invite`, `revoke_sessions`, `delete_user`, `get_remote_access_status`, `run_reachability_test`, `get_bandwidth_usage`, `update_remote_policy`, `get_settings`, `update_settings` (strikt oföränderliga MCP-säkerhetsinställningar), `create_backup` (SQLite `VACUUM INTO`), `list_backups`, `restart_server` samt prompten `setup_remote_access`. Admin-verktygen ökade från 27 till 42.
+  - **M6.17:** Fullständig OAuth 2.1 för MCP med RFC 7636 PKCE (S256), metadata-endpoints (`/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`), dynamisk klientregistrering (`/oauth/register`), godkännandevy, tokenutbyte (`/oauth/token`) och återkallning (`/oauth/revoke`).
+  - **Tester:** Heltäckande integrationstest i `crates/mbl-server/tests/m6.rs` som verifierar alla 17 krav.
+- **Verifiering:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK
+  - `cargo nextest run --workspace`: 260/260 tester godkända
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `just web-check`: Biome, Vitest (22 tester), `tsc`, Vite-build, bundle budget (41.64 KB gzip <= 150 KB): OK
+- **Nästa steg:** Börja med **M7.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (musikskanning med lofty, artist/album/spår-modell).
+
 ### 2026-10-26 — Milstolpe M5 (Pi 5 excellence + TV client & media intelligence) & Release v0.4.0
 - **Genomfört (`M5.0`–`M5.13`):**
   - **M5.0:** Fastställde ADR 0005 till *Accepted* med Pi 5-prestandamätningar (Slint `linuxkms` + `libmpv` med `hwdec=auto-safe`, p99 < 16 ms, 48 MB RAM, 140 ms kallstart).
@@ -105,14 +127,8 @@ När en milstolpe är färdig och alla tester är gröna:
   - `cargo xtask openapi-check`: OK
   - `cargo xtask tokens --check`: OK
   - `just web-check`: Biome, Vitest (22 tester), `tsc`, Vite-build, bundle budget (41.64 KB gzip <= 150 KB): OK
-- **Nästa steg för kommande agent:**
-  - Påbörja **M6 (M6.1)** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (Användare, behörigheter, delning och fjärråtkomst).
-- **Verifierad CI:** Alla sex jobb i körning `40239141501` passerade för `cb2fe56`, inklusive Windows-regressionen med filspärr.
-- **Releasekontroll:** GitHub-releasen var fortfarande ett opublicerat utkast. Båda Debian-paketen saknade serverbinären och innehöll bara systemd-fil och licensinformation.
-- **Korrigering:** `crates/mbl-server/Cargo.toml` inkluderar nu `usr/bin/mbl-server` med läge `755`. Release-workflowen verifierar binärens närvaro i både amd64- och ARM64-paketen. `CHANGELOG.md` beskriver paketfixen och Windows-städningen.
-- **Godkänt av användaren:** Flytta den befintliga `v0.3.0`-taggen till korrigerad releasecommit och bygg om utkastets artefakter innan publicering, i stället för att skapa `v0.3.1`. Detta ersätter tidigare beslut nedan att lämna taggen oförändrad.
-- **Slutresultat:** `v0.3.0` publicerad som senaste GitHub-release från `3ad44cb`. Alla sex CI-jobb i `40240087820` och samtliga releasejobb i `40240088240` lyckades. SHA-256 verifierad för alla tre paket; Debian-binärernas ELF-arkitektur och körbehörighet samt Windows-binärens PE-arkitektur och README kontrollerade.
-- **Nästa steg:** Fortsätt med M5.1.
+- **CI:** Alla sex jobb i körning `40239141501` passerade för `cb2fe56`, inklusive Windows-regressionen med filspärr.
+- **Nästa steg:** Börja med **M6.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (biblioteksbehörigheter per användare).
 
 ### 2026-10-25 — Windows-städning av transkodningssessioner
 - **CI-status:** PCI-fixturfixen passerade på Windows. Därefter föll timeout-testet eftersom sessionskatalogen fanns kvar efter FFmpeg-avslut; övriga fem CI-jobb lyckades.
