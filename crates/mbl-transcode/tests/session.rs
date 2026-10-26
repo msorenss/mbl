@@ -202,8 +202,20 @@ async fn ahead_throttling_pauses_and_resumes_ffmpeg() {
             assert_eq!(state_char, 'T', "Linux process state must be T (stopped)");
         }
 
-        // Now catch up by requesting segment 3 -> must resume FFmpeg.
-        let _ = session.request_segment("0", 3).await.unwrap();
+        // Catch up to the actual FFmpeg head; fixed segment numbers race on faster runners.
+        let latest_segment = std::fs::read_dir(session.dir.join("0"))
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .and_then(|name| name.strip_suffix(".m4s"))
+                    .and_then(|number| number.parse::<u32>().ok())
+            })
+            .max()
+            .expect("FFmpeg must have written at least one segment");
+        let _ = session.request_segment("0", latest_segment).await.unwrap();
         assert!(
             !session.is_paused().await,
             "FFmpeg must resume once client catches up within ahead_segments"
