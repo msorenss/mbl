@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-26
+
+### Added
+- M8 Distributed nodes (Transcode workers & Remote library nodes):
+  - Worker protocol specification (`docs/worker-protocol.md`) and typed data structures (`WorkerJobSpec`, `WorkerCapabilities`, `WorkerHeartbeat`, `WorkerControl`) in `mbl-core`.
+  - Distributed transcode worker CLI binary `mbl-worker` with pairing code registration, hardware capability probing via `mbl-hwaccel`, periodic heartbeat loop, and pause-while-gaming logic.
+  - Signed source media range chunk streaming (`/api/v1/stream/worker/source/{partId}`) with HMAC-SHA256 source tokens (`WorkerSourceTokenClaims`) guarding against directory traversal.
+  - Encoded segment upload endpoint (`PUT /api/v1/stream/hls/{sessionId}/segments/{filename}`) storing chunks directly in the central server's session directory for zero-latency client serving.
+  - Scheduler integration with Wake-on-LAN (UDP magic packet on port 9) to awaken sleeping GPU workers, idle worker selection, and seamless local fallback on worker loss.
+  - Batch offload support for optimized versions, trickplay scrubbing sheets, and intro analysis with worker time windows and dry-run estimation.
+  - Windows worker tray application support with pause-while-gaming GPU load threshold detection.
+  - Admin Web UI for distributed nodes (`/admin/workers`) featuring pairing code modals for workers and storage nodes, active session and capability views, and Wake-on-LAN and revocation controls.
+  - 5 new MCP tools (`list_workers`, `wake_worker`, `pair_worker`, `revoke_worker`, `list_remote_nodes`) expanding the admin toolset to 67 tools with 100% OpenAPI coverage parity.
+  - Standalone Library Node daemon `mbl-node` for federated storage (NAS, remote mini-PCs, or secondary servers) with one-time pairing and periodic delta catalog synchronization (`POST /api/v1/nodes/{id}/sync-catalog`).
+  - Remote Node Streaming & Smart Handover (`GET /api/v1/nodes/{id}/stream/handover/{itemId}`) detecting client IP to grant direct local play handover URLs on LAN subnets while maintaining relay fallbacks for WAN connections.
+
 ## [0.6.0] - 2026-10-26
 
 ### Added

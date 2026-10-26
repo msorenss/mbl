@@ -6,7 +6,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.6.0` (publicerad 2026-10-26, M7 färdigställd)
+- **Senaste release:** `v0.7.0` (publicerad 2026-10-26, M8 färdigställd)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
@@ -16,7 +16,8 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
   - **M5:** Pi 5 excellence + TV client & media intelligence (`v0.4.0` — Termisk/spänningsvakt, profilstandarder, tmpfs-transkodning, förtranskodade optimerade versioner med automatisk DirectPlay för inkompatibla klienter, trickplay-skrubb JPEG-ark, intro- och eftertextsdetektering med markörer i PlaybackResponse, `mbl-tv` 10-fotsklient med rumslig navigering/CEC/gamepad/uppdateringsfrekvensmatchning, OS-avbild `pi-gen` & APT-repo, Hailo-8/10H NPU multimodal scensökning, taggning och spoiler-fria sammanfattningar med `hailo-ollama`)
   - **M6:** Users, sharing, remote access, Windows (`v0.5.0` — Biblioteks-ACL per användare, hanterade profiler med föräldra-PIN och åldersgränser, tidsbegränsade inbjudningslänkar, TOTP 2FA, nätverksklassificering och trusted proxy, rättvis bandbreddsdelning på WAN, `mbl-remote` Tailscale LocalAPI-klient med spoofing-skydd, CGNAT-diagnostik, admin LAN/tailnet-vakt, Windows-tjänst/tray/WiX MSI-paket, Docker multi-arch och nvidia/vaapi/tailscale-compose, MCP mutationsramverk med `dry_run` och `confirm`/elicitering, 15 nya MCP-verktyg till 42 admin-verktyg, OAuth 2.1 PKCE och dynamisk klientregistrering för MCP)
   - **M7:** Media breadth (`v0.6.0` — Musikskanning med `lofty` och MusicBrainz, EBU R128 loudness-analys och progressiv audiotranskodning, OpenSubsonic `/rest/*`-kompatibilitet, foto-EXIF och tidslinje, samlingar och spellistor, fältlåsning i metadata, OpenSubtitles-nedladdning, DLNA UPnP SSDP och ContentDirectory, PlayerRegistry och fjärrstyrning, webhooks med HMAC-SHA256, Home Assistant MQTT Discovery och telemetri, AI Watch Companion co-watching med realtidsdialogcues och reaktioner, Subtitle Auto-Sync `mbl-subsync`, Scene X-Ray, spoiler-fria recaps med strikt tittarhistorik, Movie Night Matchmaker swipe-sessions, inbyggda Media Requests med Radarr/Sonarr-brygga och hardlink-lagringsanalys, 20 nya MCP-verktyg till 62 verktyg med 100% OpenAPI-paritet, samt fullständig WiX MSI-installerare på Windows)
-- **Nästa milstolpe:** **M8 — Distributed nodes (Transcode workers & Remote library nodes)** (`M8.1`–`M8.11` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M8.1.
+  - **M8:** Distributed nodes (`v0.7.0` — Transcode workers & Remote library storage nodes, worker-protokollspecifikation och typade `WorkerJobSpec`, HMAC-signerade source range URL:er, segment `PUT`-uppladdning i sessionskatalog, Wake-on-LAN magic packet, sömlös lokal fallback vid worker-bortfall, Windows worker-tray med pause-while-gaming GPU-vakt, admin worker & node dashboard i SolidJS, 5 nya MCP-verktyg till 67 admin-verktyg med 100% OpenAPI-paritet, `mbl-node` federerad lagringsnod med delta catalog sync, och Smart Handover för LAN direktuppspelning vs WAN relay)
+- **Nästa milstolpe:** **M9 — Live TV, Channels and Online Streaming Plugins** (`M9.1`–`M9.7` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M9.1.
 
 ---
 
@@ -30,6 +31,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 | [`CHANGELOG.md`](CHANGELOG.md) | Användarsynliga ändringar per release (`v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.4.0`, …). |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records (t.ex. `0005-tv-ui-stack.md`, `0006-hailo-npu-resource-sharing.md`). |
 | [`docs/openapi.json`](docs/openapi.json) | Genererat OpenAPI 3.1-schema (verifieras med `cargo xtask openapi-check`). |
+| [`docs/worker-protocol.md`](docs/worker-protocol.md) | Protokollspecifikation för distribuerade transkodningsarbetare och federerade lagringsnoder. |
 
 ---
 
@@ -60,7 +62,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `28` för `read`, `33` för `read+library`, `62` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `28` för `read`, `33` för `read+library`, `67` för `admin`).
 
 ---
 
@@ -85,6 +87,30 @@ När en milstolpe är färdig och alla tester är gröna:
 ## 5. Sessions- och Handoff-logg
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
+
+### 2026-10-26 — Milstolpe M8 (Distributed nodes) & Release v0.7.0
+- **Genomfört (`M8.1`–`M8.11`):**
+  - **M8.1:** Fullständig ratificerad protokollspecifikation i `docs/worker-protocol.md` med typade datastrukturer i `mbl-core` (`WorkerJobSpec`, `WorkerCapabilities`, `WorkerStatus`, `WorkerControl`, `WorkerHeartbeat`, `WorkerPairRequest`, `WorkerPairResponse`, `WorkerPathMapping` med sökvägsöversättningsenhetstester).
+  - **M8.2:** Skapade `crates/mbl-worker` CLI-binär med parningsflöde (`mbl-worker pair --server <url> --code <CODE>`), hårdvarufingeravtryck via `mbl-hwaccel`, 5-sekunders heartbeat-slinga och mockad gaming-detektering.
+  - **M8.3:** HMAC-SHA256-signerade kortlivade käll-URL:er (`/api/v1/stream/worker/source/{partId}?token=...`) för chunkad HTTP range streaming, skyddad mot katalogtraversering via `WorkerSourceTokenClaims`.
+  - **M8.4:** Segmentuppladdningsendpoint (`PUT /api/v1/stream/hls/{sessionId}/segments/{filename}`) som sparar genererade `.m4s`-bitar direkt i serverns sessionskatalog och gör dem omedelbart tillgängliga för uppspelning.
+  - **M8.5:** Schemaläggarintegration i `WorkerService` (`select_transcode_worker`) med Wake-on-LAN UDP broadcast magic packet (`6x 0xFF + 16x MAC`), och automatisk sömlös fallback till lokal transkodning vid utebliven heartbeat eller fel.
+  - **M8.6:** Batch offload (`estimate_batch_offload` och integration i `create_optimized_versions`) för nattjobb och GPU-avlastning av optimerade versioner, trickplay-skrubbark och introanalys.
+  - **M8.7:** Windows worker tray-stöd med pause-while-gaming detektering som markerar worker-status som `paused_gaming` vid hög icke-transkodande GPU-last.
+  - **M8.8:** SolidJS Admin UI för noder och workers (`web/src/pages/admin/Workers.tsx`) med modal för 6-siffriga engångskoder, live-översikt, GPU-kapabiliteter, Wake-on-LAN och återkallningskontroller.
+  - **M8.9:** 5 nya MCP-verktyg (`list_workers`, `wake_worker`, `pair_worker`, `revoke_worker`, `list_remote_nodes`) med totalt 67 admin-verktyg och 100% paritet mot OpenAPI.
+  - **M8.10:** `mbl-node` binär för fristående federerade lagringsnoder (NAS/minidatorer) med parningsflöde, lokal metadata- och katalogindexering och periodisk deltasynkronisering (`POST /api/v1/nodes/{id}/sync-catalog`).
+  - **M8.11:** Smart Handover (`GET /api/v1/nodes/{id}/stream/handover/{itemId}`) som känner av om klienten befinner sig på samma LAN/privata subnät och dirigerar uppspelningen direkt till nodens streamingserver, eller faller tillbaka på relay över WAN.
+  - **Tester:** Omfattande integrationstester i `crates/mbl-server/tests/m8.rs` som täcker alla M8-krav.
+- **Verifiering:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK
+  - `cargo nextest run --workspace`: 288/288 tester godkända (0 failed, 0 skipped)
+  - `cargo xtask mcp-parity`: OK (115/115 endpoints täckta, 100.0%)
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `just web-check`: Biome, Vitest (22 tester), `tsc`, Vite-build, bundle budget (40.99 KB gzip <= 150 KB): OK
+- **Nästa steg:** Börja med **M9.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (HDHomeRun discovery, M3U- och XMLTV-parsning för Live TV).
 
 ### 2026-10-26 — Milstolpe M7 (Media breadth & Windows WiX MSI) & Release v0.6.0
 - **Genomfört (`M7.1`–`M7.20`):**

@@ -8,7 +8,7 @@ An open source, Plex-inspired media center written in Rust. It is built first fo
 
 ## Status
 
-Milestone M7 (Media breadth) is complete; MBL remains in active development.
+Milestone M8 (Distributed nodes) is complete; MBL remains in active development.
 
 ## Development
 
