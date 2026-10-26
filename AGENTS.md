@@ -6,7 +6,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.5.0` (byggd och verifierad lokalt, M6 färdigställd)
+- **Senaste release:** `v0.6.0` (publicerad 2026-10-26, M7 färdigställd)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
@@ -15,7 +15,8 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
   - **M4:** Hardware Acceleration (`v0.3.0` — `mbl-hwaccel`, plattformsfingeravtryck, FFmpeg-probing, självtest i `0003_hw_capabilities.sql`, VAAPI/QSV/NVENC/Pi V4L2/DRM/Windows D3D11/AMF, fallback-kedjor, HDR tone mapping, ABR-stege, HEVC/AV1 fjärrpreferens, Hailo-8/10H NPU kooperativ `VDevice`-delning, Admin Hardware UI, MCP HW-verktyg)
   - **M5:** Pi 5 excellence + TV client & media intelligence (`v0.4.0` — Termisk/spänningsvakt, profilstandarder, tmpfs-transkodning, förtranskodade optimerade versioner med automatisk DirectPlay för inkompatibla klienter, trickplay-skrubb JPEG-ark, intro- och eftertextsdetektering med markörer i PlaybackResponse, `mbl-tv` 10-fotsklient med rumslig navigering/CEC/gamepad/uppdateringsfrekvensmatchning, OS-avbild `pi-gen` & APT-repo, Hailo-8/10H NPU multimodal scensökning, taggning och spoiler-fria sammanfattningar med `hailo-ollama`)
   - **M6:** Users, sharing, remote access, Windows (`v0.5.0` — Biblioteks-ACL per användare, hanterade profiler med föräldra-PIN och åldersgränser, tidsbegränsade inbjudningslänkar, TOTP 2FA, nätverksklassificering och trusted proxy, rättvis bandbreddsdelning på WAN, `mbl-remote` Tailscale LocalAPI-klient med spoofing-skydd, CGNAT-diagnostik, admin LAN/tailnet-vakt, Windows-tjänst/tray/WiX MSI-paket, Docker multi-arch och nvidia/vaapi/tailscale-compose, MCP mutationsramverk med `dry_run` och `confirm`/elicitering, 15 nya MCP-verktyg till 42 admin-verktyg, OAuth 2.1 PKCE och dynamisk klientregistrering för MCP)
-- **Nästa milstolpe:** **M7 — Media breadth** (`M7.1`–`M7.20` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M7.1.
+  - **M7:** Media breadth (`v0.6.0` — Musikskanning med `lofty` och MusicBrainz, EBU R128 loudness-analys och progressiv audiotranskodning, OpenSubsonic `/rest/*`-kompatibilitet, foto-EXIF och tidslinje, samlingar och spellistor, fältlåsning i metadata, OpenSubtitles-nedladdning, DLNA UPnP SSDP och ContentDirectory, PlayerRegistry och fjärrstyrning, webhooks med HMAC-SHA256, Home Assistant MQTT Discovery och telemetri, AI Watch Companion co-watching med realtidsdialogcues och reaktioner, Subtitle Auto-Sync `mbl-subsync`, Scene X-Ray, spoiler-fria recaps med strikt tittarhistorik, Movie Night Matchmaker swipe-sessions, inbyggda Media Requests med Radarr/Sonarr-brygga och hardlink-lagringsanalys, 20 nya MCP-verktyg till 62 verktyg med 100% OpenAPI-paritet, samt fullständig WiX MSI-installerare på Windows)
+- **Nästa milstolpe:** **M8 — Distributed nodes (Transcode workers & Remote library nodes)** (`M8.1`–`M8.11` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M8.1.
 
 ---
 
@@ -59,7 +60,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `21` för `read`, `23` för `read+library`, `42` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `28` för `read`, `33` för `read+library`, `62` för `admin`).
 
 ---
 
@@ -85,8 +86,32 @@ När en milstolpe är färdig och alla tester är gröna:
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
 
-### 2026-10-26 — Milstolpe M6 (Users, sharing, remote access, Windows) & Release v0.5.0
-- **Genomfört (`M6.1`–`M6.17`):**
+### 2026-10-26 — Milstolpe M7 (Media breadth & Windows WiX MSI) & Release v0.6.0
+- **Genomfört (`M7.1`–`M7.20`):**
+  - **M7.1 & M7.2:** Musikskanning (`mbl-scanner`) med `lofty`-taggar (artist, album, spår, disk, MusicBrainz ID, ReplayGain, synkade/osynkade låttexter). MusicBrainz rate-limited klient (`mbl-metadata::musicbrainz`) med Cover Art Archive. EBU R128 loudness-analys (`mbl-analysis::loudness`) via FFmpeg `ebur128` med parsing av LUFS, LRA och True Peak. Progressiv audiotranskodningsström (`/api/v1/stream/audio/{partId}`) med dynamisk omkodning till Opus, AAC och MP3 direkt till klientens stdout.
+  - **M7.4:** OpenSubsonic API (`/rest/*`) med stöd för standardklienter (Symfonium, Feishin, DSub etc.), token/salt MD5-autentisering, `ping`, `getLicense`, `getMusicFolders`, `getArtists`, `getArtist`, `getAlbum`, `getSong`, `stream`, `search2/3`, `getPlaylists`, `scrobble`.
+  - **M7.5:** Foto-metadataextraktion (`mbl-scanner` med `kamadak-exif`), EXIF-datum, kameramärke/-modell, GPS-koordinater och tidslinjeindelning per år och månad (`/api/v1/libraries/{id}/timeline`).
+  - **M7.6 & M7.7:** Samlingar och spellistor (`crates/mbl-api/src/routes/{collections,playlists}.rs`) med full CRUD, sorteringsordning och smart samlingsmetadata. Metadatafältlåsning (`item_metadata_locks`) som skyddar manuellt verifierade fält mot överksrivning vid framtida skanningar.
+  - **M7.8:** OpenSubtitles REST API-klient (`mbl-metadata::opensubtitles`) med sökning på hash/IMDb/TMDB/språk och nedladdning av undertexter.
+  - **M7.9 & M7.15:** DLNA UPnP Media Server (`mbl-remote::dlna`) med enhetsbeskrivnings-XML, ContentDirectory DIDL-Lite trädbygge och smart-TV-profiler (Samsung, LG WebOS/Web0S, Sony Bravia). Home Assistant MQTT Discovery (`mbl-remote::mqtt`) för mediespelare och serversensorer, samt livscykelhändelsetriggers för biografrumsbelysning.
+  - **M7.10 & M7.13:** Central spelarregistertjänst (`PlayerRegistry`) som spårar aktiva spelare och dirigerar kommandon (play, pause, stop, seek, setVolume, setTracks).
+  - **M7.11:** Webhook-system (`crates/mbl-service/src/webhooks.rs`) med händelsefiltrering och HMAC-SHA256-signering i headern `X-MBL-Signature`.
+  - **M7.16:** AI Watch Companion-protokoll (`/api/v1/companion/sessions/{id}/*`) med realtidsresurs `mbl://sessions/{id}/live-context`, sändning av live VTT-dialogcues, känsloreaktioner (`send_companion_reaction`), scenförklaringar (`explain_scene`) och uppspelningssynkronisering (`sync_playback`).
+  - **M7.17:** Subtitle Auto-Sync (`mbl-analysis::subsync`) med VAD-röstaktivitetsanalys, energi-envelope och dynamisk programmeringsjustering för synkronisering av externa undertexter (inom ±100 ms precision).
+  - **M7.18:** Scene X-Ray, AI "Previously On..."-sammanfattningar som strikt utesluter oseeda avsnitt, Binge Sleep Guard som känner av inaktivitet och bokmärker sista vakna avsnittet, samt MP4/WebM/GIF-klippgenerator med inbrända undertexter.
+  - **M7.19:** Movie Night Matchmaker (`/api/v1/matchmaker/sessions`) för "Swipe to Match" med QR-kodsanslutning, filterkonfiguration och automatisk uppspelningsstart vid match.
+  - **M7.20:** Inbyggda Media Requests (`/api/v1/requests`) med Radarr/Sonarr-integration, kontroll av saknade avsnitt i säsonger, och hardlink-medveten lagringsanalys (`st_nlink`) som visar verkligt frigjort utrymme innan radering.
+  - **Windows WiX MSI:** Skript `packaging/windows/build-msi.ps1`, uppdaterad `packaging/windows/mbl.wxs` med dynamisk versionshantering och integration i `.github/workflows/release.yml` som producerar `mbl-setup-x64.msi`.
+  - **MCP-verktyg:** 20 nya verktyg (totalt 62 admin-verktyg, 33 read+library, 28 read), 5 nya promptar och `resources/subscribe` för event-streamad kontext. Nytt verktyg `cargo xtask mcp-parity` verifierar 100.0% paritet mot OpenAPI-specifikationen.
+- **Verifiering:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK
+  - `cargo nextest run --workspace`: 282/282 tester godkända (0 failed, 0 skipped)
+  - `cargo xtask mcp-parity`: OK (100/100 endpoints täckta, 100.0%)
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `just web-check`: Biome, Vitest (22 tester), `tsc`, Vite-build, bundle budget (41.64 KB gzip <= 150 KB): OK
+- **Nästa steg:** Börja med **M8.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (protokollspecifikation för transcode-workers och typed `JobSpec`).
   - **M6.1 & M6.2:** Databastabeller `user_library_access` och `invites` (`0005_m6_users_remote.sql`), dynamiska frågebyggare i `crates/mbl-db/src/repo/m6.rs`. Biblioteks-ACL:er håndteras per användare via `ItemFilter` och nekar olovliga bibliotek med 404 (Items, Search, Playback). Hanterade profiler (`is_managed`), Argon2id föräldra-PIN (`mbl-auth::hash_pin`, `verify_pin`), åldersgränser (`content_rating_ceiling`), och tidsbegränsade inbjudningslänkar med fördefinierade behörigheter (`/api/v1/invites`, `/api/v1/invites/inspect/{code}`, `/api/v1/auth/register-invite`).
   - **M6.3:** RFC 6238 TOTP 2FA-motor (`mbl-auth::totp`) med Base32-hemligheter, QR `otpauth://`-URI och ±30s klockdrifttolerans. Aktiveras via `/api/v1/auth/totp/{setup,verify,disable}` och krävs ovillkorligen för administratörer vid WAN-anslutningar.
   - **M6.4 & M6.12:** Nätverksklassificering (`mbl-remote::network`) för LAN, Tailscale CGNAT (`100.64.0.0/10`), Loopback och WAN. Klient-IP resolveras strikt mot pålitliga proxys i `X-Forwarded-For`. Admin-endpoints är som standard spärrade för WAN via `admin_lan_only`-policyn.
@@ -104,6 +129,7 @@ När en milstolpe är färdig och alla tester är gröna:
   - `cargo xtask openapi-check`: OK
   - `cargo xtask tokens --check`: OK
   - `just web-check`: Biome, Vitest (22 tester), `tsc`, Vite-build, bundle budget (41.64 KB gzip <= 150 KB): OK
+- **Releasepublicering:** GitHub-releasen `v0.5.0` publicerad. Taggen pekar på `4082e8f`, som även innehåller Windows named-pipe-fixen för Tailscale LocalAPI.
 - **Nästa steg:** Börja med **M7.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (musikskanning med lofty, artist/album/spår-modell).
 
 ### 2026-10-26 — Milstolpe M5 (Pi 5 excellence + TV client & media intelligence) & Release v0.4.0

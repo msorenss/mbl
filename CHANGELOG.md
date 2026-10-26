@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-26
+
+### Added
+- M7 Media breadth:
+  - Music scanning (`mbl-scanner`) with `lofty` metadata extraction (artist, album, track, disk, lyrics, ReplayGain, MusicBrainz IDs) and rate-limited MusicBrainz + Cover Art Archive client (`mbl-metadata::musicbrainz`).
+  - EBU R128 audio loudness analysis (`mbl-analysis::loudness`) and progressive audio transcode streaming endpoint (`/api/v1/stream/audio/{partId}` in Opus, AAC, or MP3 with direct stdout piping).
+  - OpenSubsonic API compatibility layer (`/rest/*`) supporting standard Subsonic mobile and desktop apps (Symfonium, Feishin, DSub, etc.).
+  - Photos timeline and EXIF extraction (`mbl-scanner`, `/api/v1/libraries/{id}/timeline`) grouping photos by year and month.
+  - Collections and Playlists (`/api/v1/collections`, `/api/v1/playlists`) with automatic and manual item curation.
+  - Item metadata field locking (`item_metadata_locks`) preventing automatic scrapers from overwriting manually verified fields.
+  - OpenSubtitles REST client (`mbl-metadata::opensubtitles`) for automatic and on-demand subtitle retrieval.
+  - DLNA / UPnP Media Server (`mbl-remote::dlna`) with root device description XML, ContentDirectory DIDL-Lite browse trees, and Smart TV renderer profiles (Samsung, LG WebOS, Sony Bravia).
+  - Player Registry and Remote Control (`mbl-service::players`, `/api/v1/players`) tracking web, TV, DLNA, and Cast players.
+  - Webhook dispatch system (`/api/v1/webhooks`) with HMAC-SHA256 signature verification for cinema automation and notification bots.
+  - Home Assistant MQTT Integration (`mbl-remote::mqtt`) with MQTT Discovery payloads for media players and diagnostic sensors, plus playback lifecycle event triggers.
+  - AI Watch Companion protocol (`mbl://sessions/{id}/live-context`, `/api/v1/companion/sessions/{id}/*`) enabling AI agents (e.g. Hermes) to co-watch movies with users, receive live VTT dialogue cues, send commentary reactions, and explain scenes.
+  - Subtitle Auto-Sync (`mbl-analysis::subsync`) with voice energy envelope detection and dynamic programming alignment for drifting subtitles.
+  - Scene X-Ray on Pause, Spoiler-Free "Previously On..." AI recaps bounded strictly by watch history, Binge Sleep Guard, and shareable clip/GIF creation logic.
+  - Movie Night Matchmaker ("Swipe to Match") real-time session engine (`/api/v1/matchmaker/sessions`).
+  - Native Media Requests (`/api/v1/requests`) with Radarr/Sonarr integration, missing episodes inspector, and hardlink-aware storage analysis (`st_nlink`).
+  - 20 new MCP tools (expanding total tool count to 62, 100% OpenAPI coverage parity), 5 new prompt templates (`diagnose_playback`, `library_health_check`, `optimize_for_remote`, `weekly_report`, `curate_collection`), and `resources/subscribe` live streaming.
+  - Windows WiX MSI packaging script (`packaging/windows/build-msi.ps1`) and GitHub Actions release workflow integration producing `mbl-setup-x64.msi`.
+
 ## [0.5.0] - 2026-10-26
 
 ### Added
