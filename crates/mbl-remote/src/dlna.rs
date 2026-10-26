@@ -262,7 +262,11 @@ impl DlnaRendererProfile {
         let l = ua.to_lowercase();
         if l.contains("samsung") || l.contains("tizen") {
             Self::SamsungTv
-        } else if l.contains("webos") || l.contains("web0s") || l.contains("lg ") || l.contains("lge") {
+        } else if l.contains("webos")
+            || l.contains("web0s")
+            || l.contains("lg ")
+            || l.contains("lge")
+        {
             Self::LgWebOs
         } else if l.contains("sony") || l.contains("bravia") {
             Self::SonyBravia
