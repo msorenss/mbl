@@ -12,12 +12,14 @@ pub mod images;
 pub mod intelligence;
 pub mod items;
 pub mod libraries;
+pub mod livetv;
 pub mod matchmaker;
 pub mod mcp;
 pub mod nodes;
 pub mod paths;
 pub mod playback;
 pub mod players;
+pub mod plugins;
 pub mod remote;
 pub mod requests;
 pub mod stream;
@@ -51,6 +53,7 @@ pub use intelligence::{
 };
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
+pub use livetv::LiveTvService;
 pub use matchmaker::{
     CreateMatchmakerSessionRequest, MatchmakerMatchResult, MatchmakerService, MatchmakerSessionRow,
     MatchmakerVoteRequest,
@@ -67,6 +70,7 @@ pub use playback::{
     PlaybackStopRequest, PlaybackSubtitleTrack,
 };
 pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
+pub use plugins::PluginService;
 pub use remote::{
     BandwidthUsageResponse, RemoteService, RemoteStatusResponse, UpdateRemotePolicyRequest,
 };
@@ -108,6 +112,8 @@ pub struct Services {
     pub matchmaker: MatchmakerService,
     pub workers: WorkerService,
     pub nodes: RemoteNodeService,
+    pub livetv: LiveTvService,
+    pub plugins: PluginService,
 }
 
 impl Services {
@@ -140,6 +146,8 @@ impl Services {
         let matchmaker = MatchmakerService::new(db_arc.clone());
         let workers = WorkerService::new(db_arc.clone());
         let nodes = RemoteNodeService::new(db_arc.clone());
+        let livetv = LiveTvService::new(db_arc.clone());
+        let plugins = PluginService::new(db_arc.clone());
 
         Self {
             auth,
@@ -164,6 +172,8 @@ impl Services {
             matchmaker,
             workers,
             nodes,
+            livetv,
+            plugins,
         }
     }
 

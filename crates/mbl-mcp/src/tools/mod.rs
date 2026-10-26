@@ -4,6 +4,7 @@ pub mod curation;
 pub mod hw;
 pub mod jobs;
 pub mod libraries;
+pub mod livetv;
 pub mod media;
 pub mod playback;
 pub mod players;
@@ -39,6 +40,7 @@ pub fn all_tools() -> Vec<RegisteredTool> {
     tools.extend(curation::definitions());
     tools.extend(players::definitions());
     tools.extend(workers::definitions());
+    tools.extend(livetv::definitions());
     tools
 }
 
@@ -110,6 +112,8 @@ pub async fn execute_tool(
         "list_workers" | "wake_worker" | "pair_worker" | "revoke_worker" | "list_remote_nodes" => {
             workers::execute(tool_name, args, caller, services).await
         }
+        "search_guide" | "list_recordings" | "schedule_recording" | "create_series_rule"
+        | "cancel_recording" => livetv::execute(tool_name, args, caller, services).await,
         _ => Err(JsonRpcError::invalid_params(format!("unknown tool: {tool_name}"))),
     }
 }

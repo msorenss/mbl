@@ -1959,6 +1959,1100 @@
         ]
       }
     },
+    "/api/v1/livetv/channels": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "list_channels",
+        "parameters": [
+          {
+            "name": "includeHidden",
+            "in": "query",
+            "description": "Include hidden channels",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List all channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/channels/{id}": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Channel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "delete_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "update_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Channel updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Channel"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/epg": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_epg_grid",
+        "parameters": [
+          {
+            "name": "startTime",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "endTime",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "includeHidden",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "EPG 2-axis grid response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpgGridResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/epg/search": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "search_guide",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "endTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search programs across guide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EpgProgram"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/epg/xmltv": {
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "import_xmltv",
+        "responses": {
+          "200": {
+            "description": "XMLTV programs imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportCountResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/recordings": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "list_recordings",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List recordings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Recording"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "schedule_recording",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRecordingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recording scheduled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Tuner conflict"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/recordings/{id}": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_recording",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recording ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recording details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recording not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "cancel_recording",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Recording ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recording cancelled or deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/rules": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "list_recording_rules",
+        "responses": {
+          "200": {
+            "description": "List series recording rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordingRule"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "create_series_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecordingRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Series recording rule created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingRule"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/rules/{id}": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_recording_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rule ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingRule"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rule not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "delete_recording_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rule ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/stream/{channelId}": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "resolve_live_stream",
+        "parameters": [
+          {
+            "name": "channelId",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved live stream with deinterlacing flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveStreamInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Channel not found"
+          },
+          "409": {
+            "description": "Tuner concurrency limit reached"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/stream/{channelId}/release": {
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "release_live_stream",
+        "parameters": [
+          {
+            "name": "channelId",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream released and tuner freed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/tuners": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "list_tuners",
+        "responses": {
+          "200": {
+            "description": "List configured tuners",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Tuner"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "add_tuner",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTunerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tuner added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tuner"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/tuners/discover": {
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "discover_tuners",
+        "responses": {
+          "200": {
+            "description": "Discovered tuners on local network",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CreateTunerRequest"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/tuners/m3u": {
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "import_m3u",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportM3uRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "M3U playlist imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tuner"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/tuners/{id}": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_tuner",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tuner ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tuner details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tuner"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tuner not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "delete_tuner",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Tuner ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tuner deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/virtual-channels": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "list_virtual_channels",
+        "responses": {
+          "200": {
+            "description": "List virtual linear channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VirtualChannel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "create_virtual_channel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVirtualChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Virtual channel created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualChannel"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/virtual-channels/{id}": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_virtual_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Virtual Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Virtual channel details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualChannel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "delete_virtual_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Virtual Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Virtual channel deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/virtual-channels/{id}/playhead": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "get_virtual_playhead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Virtual Channel ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active playhead calculated on the fly (zero background CPU)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualPlayhead"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/matchmaker/sessions": {
       "post": {
         "tags": [
@@ -3090,6 +4184,306 @@
         "responses": {
           "204": {
             "description": "Item removed from playlist"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plugins": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "list_plugins",
+        "responses": {
+          "200": {
+            "description": "List installed plugins and manifests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginManifest"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plugins/{id}": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "get_plugin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Plugin identifier (e.g. youtube, spotify, webdrama)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin configuration and status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginConfig"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Plugin not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "update_plugin_config",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Plugin identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePluginConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin configuration updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginConfig"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plugins/{id}/channels": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "get_plugin_channels",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Plugin identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available feeds/channels from plugin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginChannelFeed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plugins/{id}/channels/{feedId}": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "get_feed_items",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Plugin identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feedId",
+            "in": "path",
+            "description": "Feed identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media items in feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PluginItem"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plugins/{id}/items/{itemId}": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "get_plugin_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Plugin identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "description": "Item identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin item metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plugins/{id}/stream/{itemId}": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "operationId": "resolve_plugin_stream",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Plugin identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "description": "Item identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved plugin media stream URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginStreamUrlResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stream not found"
           }
         },
         "security": [
@@ -5172,6 +6566,103 @@
           }
         }
       },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "id",
+          "channelNumber",
+          "name",
+          "streamUrl",
+          "isFavorite",
+          "isHidden",
+          "isVirtual",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "callsign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "channelNumber": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currentProgram": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EpgProgram"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "epgChannelId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "isHidden": {
+            "type": "boolean"
+          },
+          "isVirtual": {
+            "type": "boolean"
+          },
+          "logoUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "nextProgram": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EpgProgram"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "streamUrl": {
+            "type": "string"
+          },
+          "tunerId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TunerId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ChannelId": {
+        "type": "integer",
+        "format": "int64"
+      },
       "CollectionId": {
         "type": "integer",
         "format": "int64"
@@ -5530,6 +7021,98 @@
           }
         }
       },
+      "CreateRecordingRuleRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "autoDeleteWatched": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "channelId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endPaddingSecs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "keepMax": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "newOnly": {
+            "type": "boolean"
+          },
+          "seasonNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "seriesOnly": {
+            "type": "boolean"
+          },
+          "startPaddingSecs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateTunerRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "url"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TunerKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tunerCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "CreateUserRequest": {
         "type": "object",
         "required": [
@@ -5568,6 +7151,35 @@
             "type": "string"
           },
           "username": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateVirtualChannelRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "channelNumber",
+          "mode",
+          "itemIds"
+        ],
+        "properties": {
+          "channelNumber": {
+            "type": "string"
+          },
+          "insertCommercials": {
+            "type": "boolean"
+          },
+          "itemIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemId"
+            }
+          },
+          "mode": {
+            "$ref": "#/components/schemas/VirtualChannelMode"
+          },
+          "name": {
             "type": "string"
           }
         }
@@ -5755,6 +7367,131 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "EpgGridChannel": {
+        "type": "object",
+        "required": [
+          "channel",
+          "programs"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EpgProgram"
+            }
+          }
+        }
+      },
+      "EpgGridResponse": {
+        "type": "object",
+        "required": [
+          "startTime",
+          "endTime",
+          "channels"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EpgGridChannel"
+            }
+          },
+          "endTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "startTime": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EpgProgram": {
+        "type": "object",
+        "required": [
+          "id",
+          "epgChannelId",
+          "title",
+          "startTime",
+          "endTime",
+          "isNew"
+        ],
+        "properties": {
+          "channelId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "epgChannelId": {
+            "type": "string"
+          },
+          "episodeNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/ProgramId"
+          },
+          "isNew": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seasonNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "startTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -6250,6 +7987,34 @@
           }
         }
       },
+      "ImportCountResponse": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "ImportM3uRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "IndexScenesRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13).",
@@ -6706,6 +8471,33 @@
             "type": "string"
           },
           "title": {
+            "type": "string"
+          }
+        }
+      },
+      "LiveStreamInfo": {
+        "type": "object",
+        "required": [
+          "channelId",
+          "channelName",
+          "streamUrl",
+          "isDeinterlacingRequired",
+          "targetFormat"
+        ],
+        "properties": {
+          "channelId": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "isDeinterlacingRequired": {
+            "type": "boolean"
+          },
+          "streamUrl": {
+            "type": "string"
+          },
+          "targetFormat": {
             "type": "string"
           }
         }
@@ -8478,6 +10270,210 @@
           }
         }
       },
+      "PluginCapability": {
+        "type": "string",
+        "enum": [
+          "live_tv_channel",
+          "media_scraper",
+          "audio_source"
+        ]
+      },
+      "PluginChannelFeed": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "items"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginItem"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginConfig": {
+        "type": "object",
+        "required": [
+          "id",
+          "pluginId",
+          "name",
+          "enabled",
+          "settings",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "$ref": "#/components/schemas/PluginId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pluginId": {
+            "type": "string"
+          },
+          "settings": {},
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PluginId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "PluginItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "pluginId",
+          "title",
+          "kind"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pluginId": {
+            "type": "string"
+          },
+          "streamUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subtitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginSubtitle"
+            }
+          },
+          "thumbnailUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginManifest": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "description",
+          "author",
+          "capabilities"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginCapability"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginStreamUrlResponse": {
+        "type": "object",
+        "required": [
+          "streamUrl"
+        ],
+        "properties": {
+          "streamUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginSubtitle": {
+        "type": "object",
+        "required": [
+          "language",
+          "label",
+          "url"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "ProgramId": {
+        "type": "integer",
+        "format": "int64"
+      },
       "QuickConnectAuthorizeRequest": {
         "type": "object",
         "description": "Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8).",
@@ -8616,6 +10612,190 @@
             ]
           }
         }
+      },
+      "Recording": {
+        "type": "object",
+        "required": [
+          "id",
+          "channelId",
+          "title",
+          "startTime",
+          "endTime",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "channelId": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "channelName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "endTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/RecordingId"
+          },
+          "outputPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "programId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProgramId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ruleId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecordingRuleId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "startTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RecordingStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordingId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "RecordingRule": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "title",
+          "seriesOnly",
+          "newOnly",
+          "startPaddingSecs",
+          "endPaddingSecs",
+          "autoDeleteWatched",
+          "createdAt"
+        ],
+        "properties": {
+          "autoDeleteWatched": {
+            "type": "boolean"
+          },
+          "channelId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "endPaddingSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "$ref": "#/components/schemas/RecordingRuleId"
+          },
+          "keepMax": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "newOnly": {
+            "type": "boolean"
+          },
+          "seasonNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "seriesOnly": {
+            "type": "boolean"
+          },
+          "startPaddingSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
+      "RecordingRuleId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "RecordingStatus": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "recording",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
       },
       "RegisterClientRequest": {
         "type": "object",
@@ -8974,6 +11154,57 @@
           "timestampMs": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ScheduleRecordingRequest": {
+        "type": "object",
+        "required": [
+          "channelId",
+          "title",
+          "startTime",
+          "endTime"
+        ],
+        "properties": {
+          "channelId": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "endPaddingSecs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "endTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "programId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProgramId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startPaddingSecs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "startTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -9458,6 +11689,17 @@
           "size": {
             "type": "string",
             "description": "`\"sm\" | \"md\" | \"lg\" | \"xl\"`, default `\"md\"`."
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
           }
         }
       },
@@ -9965,6 +12207,103 @@
           }
         }
       },
+      "Tuner": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "url",
+          "status",
+          "tunerCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/TunerId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TunerKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TunerStatus"
+          },
+          "tunerCount": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "TunerId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "TunerKind": {
+        "type": "string",
+        "enum": [
+          "hdhomerun",
+          "m3u"
+        ]
+      },
+      "TunerStatus": {
+        "type": "string",
+        "enum": [
+          "online",
+          "offline",
+          "scanning"
+        ]
+      },
+      "UpdateChannelRequest": {
+        "type": "object",
+        "properties": {
+          "channelNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "epgChannelId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isFavorite": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "isHidden": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateCollectionRequest": {
         "type": "object",
         "required": [
@@ -10027,6 +12366,18 @@
           "name": {
             "type": "string"
           }
+        }
+      },
+      "UpdatePluginConfigRequest": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "settings": {}
         }
       },
       "UpdateRemotePolicyRequest": {
@@ -10471,6 +12822,136 @@
       "VersionId": {
         "type": "integer",
         "format": "int64"
+      },
+      "VirtualChannel": {
+        "type": "object",
+        "required": [
+          "id",
+          "channelId",
+          "name",
+          "mode",
+          "items",
+          "insertCommercials",
+          "totalDurationMs",
+          "createdAt"
+        ],
+        "properties": {
+          "channelId": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/VirtualChannelId"
+          },
+          "insertCommercials": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VirtualChannelItem"
+            }
+          },
+          "mode": {
+            "$ref": "#/components/schemas/VirtualChannelMode"
+          },
+          "name": {
+            "type": "string"
+          },
+          "totalDurationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "VirtualChannelId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "VirtualChannelItem": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "title",
+          "durationMs",
+          "mediaPath"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "mediaPath": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "VirtualChannelMode": {
+        "type": "string",
+        "enum": [
+          "linear_loop",
+          "shuffle",
+          "smart_filter"
+        ]
+      },
+      "VirtualPlayhead": {
+        "type": "object",
+        "required": [
+          "channelId",
+          "channelName",
+          "currentItemId",
+          "currentTitle",
+          "mediaPath",
+          "offsetSecs",
+          "durationSecs",
+          "calculatedAt"
+        ],
+        "properties": {
+          "calculatedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "channelId": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "channelName": {
+            "type": "string"
+          },
+          "currentItemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "currentTitle": {
+            "type": "string"
+          },
+          "durationSecs": {
+            "type": "number",
+            "format": "double"
+          },
+          "mediaPath": {
+            "type": "string"
+          },
+          "nextTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "offsetSecs": {
+            "type": "number",
+            "format": "double"
+          }
+        }
       },
       "WatchState": {
         "type": "object",

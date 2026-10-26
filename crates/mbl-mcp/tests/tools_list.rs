@@ -29,8 +29,8 @@ async fn snapshot_tools_list_read_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Verify all tools have Read scope (21 M6 + 7 M7: list_collections, list_playlists, create_playlist, add_to_playlist, create_media_request, list_media_requests, explain_scene)
-    assert_eq!(tools.len(), 28);
+    // Verify all tools have Read scope (28 M8 + 2 M9: search_guide, list_recordings)
+    assert_eq!(tools.len(), 30);
     insta::assert_json_snapshot!("tools_list_read", tools);
 }
 
@@ -43,8 +43,8 @@ async fn snapshot_tools_list_read_library_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Read (28) + Library (5: scan_library, refresh_metadata, create_collection, add_to_collection, create_smart_collection) = 33
-    assert_eq!(tools.len(), 33);
+    // Read (30) + Library (5: scan_library, refresh_metadata, create_collection, add_to_collection, create_smart_collection) = 35
+    assert_eq!(tools.len(), 35);
     insta::assert_json_snapshot!("tools_list_read_library", tools);
 }
 
@@ -57,7 +57,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // All tools = 67 (62 M7 + 5 M8 worker and remote node tools)
-    assert_eq!(tools.len(), 67);
+    // All tools = 72 (67 M8 + 5 M9 Live TV & DVR tools)
+    assert_eq!(tools.len(), 72);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

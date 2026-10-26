@@ -164,6 +164,36 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             | "/api/v1/nodes/{id}/stream/handover/{itemId}" => {
                 mcp_tool_names.contains("list_remote_nodes")
             }
+            "/api/v1/livetv/tuners"
+            | "/api/v1/livetv/tuners/discover"
+            | "/api/v1/livetv/tuners/{id}"
+            | "/api/v1/livetv/tuners/m3u"
+            | "/api/v1/livetv/channels"
+            | "/api/v1/livetv/channels/{id}"
+            | "/api/v1/livetv/epg"
+            | "/api/v1/livetv/epg/search"
+            | "/api/v1/livetv/epg/xmltv"
+            | "/api/v1/livetv/stream/{channelId}"
+            | "/api/v1/livetv/stream/{channelId}/release"
+            | "/api/v1/livetv/recordings"
+            | "/api/v1/livetv/recordings/{id}"
+            | "/api/v1/livetv/rules"
+            | "/api/v1/livetv/rules/{id}"
+            | "/api/v1/livetv/virtual-channels"
+            | "/api/v1/livetv/virtual-channels/{id}"
+            | "/api/v1/livetv/virtual-channels/{id}/playhead" => {
+                mcp_tool_names.contains("search_guide")
+                    && mcp_tool_names.contains("list_recordings")
+                    && mcp_tool_names.contains("schedule_recording")
+                    && mcp_tool_names.contains("create_series_rule")
+                    && mcp_tool_names.contains("cancel_recording")
+            }
+            "/api/v1/plugins"
+            | "/api/v1/plugins/{id}"
+            | "/api/v1/plugins/{id}/channels"
+            | "/api/v1/plugins/{id}/channels/{feedId}"
+            | "/api/v1/plugins/{id}/items/{itemId}"
+            | "/api/v1/plugins/{id}/stream/{itemId}" => true,
             _ => false,
         };
 

@@ -38,6 +38,13 @@ id_newtype!(
     RequestId,
     WorkerId,
     NodeId,
+    TunerId,
+    ChannelId,
+    ProgramId,
+    RecordingId,
+    RecordingRuleId,
+    PluginId,
+    VirtualChannelId,
 );
 
 #[cfg(test)]

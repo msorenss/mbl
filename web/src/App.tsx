@@ -20,6 +20,7 @@ const Users = lazy(() => import("./pages/admin/Users"));
 const AiAgents = lazy(() => import("./pages/admin/AiAgents"));
 const Hardware = lazy(() => import("./pages/admin/Hardware"));
 const Workers = lazy(() => import("./pages/admin/Workers"));
+const LiveTv = lazy(() => import("./pages/LiveTv"));
 
 export function App() {
   return (
@@ -43,6 +44,7 @@ export function App() {
                 <Route path="/library/:id" component={LibraryDetail} />
                 <Route path="/item/:id" component={ItemDetail} />
                 <Route path="/search" component={Search} />
+                <Route path="/livetv" component={LiveTv} />
                 <Route path="/profiles" component={Profiles} />
                 <Route
                   path="/admin/users"

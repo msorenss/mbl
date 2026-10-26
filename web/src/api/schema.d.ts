@@ -817,6 +817,294 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/livetv/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_channel"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_channel"];
+        options?: never;
+        head?: never;
+        patch: operations["update_channel"];
+        trace?: never;
+    };
+    "/api/v1/livetv/epg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_epg_grid"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/epg/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_guide"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/epg/xmltv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_xmltv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_recordings"];
+        put?: never;
+        post: operations["schedule_recording"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/recordings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_recording"];
+        put?: never;
+        post?: never;
+        delete: operations["cancel_recording"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_recording_rules"];
+        put?: never;
+        post: operations["create_series_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_recording_rule"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_recording_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/stream/{channelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["resolve_live_stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/stream/{channelId}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["release_live_stream"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/tuners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_tuners"];
+        put?: never;
+        post: operations["add_tuner"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/tuners/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["discover_tuners"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/tuners/m3u": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_m3u"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/tuners/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_tuner"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_tuner"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/virtual-channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_virtual_channels"];
+        put?: never;
+        post: operations["create_virtual_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/virtual-channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_virtual_channel"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_virtual_channel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/virtual-channels/{id}/playhead": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_virtual_playhead"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/matchmaker/sessions": {
         parameters: {
             query?: never;
@@ -1188,6 +1476,102 @@ export interface paths {
         put?: never;
         post: operations["add_item_to_playlist"];
         delete: operations["remove_item_from_playlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_plugins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_plugin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update_plugin_config"];
+        trace?: never;
+    };
+    "/api/v1/plugins/{id}/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_plugin_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{id}/channels/{feedId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_feed_items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{id}/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_plugin_item"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{id}/stream/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["resolve_plugin_stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1995,6 +2379,27 @@ export interface components {
             /** Format: int64 */
             perStreamFairShareKbps: number;
         };
+        Channel: {
+            callsign?: string | null;
+            channelNumber: string;
+            /** Format: int64 */
+            createdAt: number;
+            currentProgram?: components["schemas"]["EpgProgram"] | null;
+            epgChannelId?: string | null;
+            id: components["schemas"]["ChannelId"];
+            isFavorite: boolean;
+            isHidden: boolean;
+            isVirtual: boolean;
+            logoUrl?: string | null;
+            name: string;
+            nextProgram?: components["schemas"]["EpgProgram"] | null;
+            streamUrl: string;
+            tunerId?: components["schemas"]["TunerId"] | null;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        /** Format: int64 */
+        ChannelId: number;
         /** Format: int64 */
         CollectionId: number;
         CollectionRow: {
@@ -2083,6 +2488,28 @@ export interface components {
             name: string;
             smartFilter?: string | null;
         };
+        CreateRecordingRuleRequest: {
+            autoDeleteWatched?: boolean | null;
+            channelId?: components["schemas"]["ChannelId"] | null;
+            /** Format: int32 */
+            endPaddingSecs?: number | null;
+            /** Format: int32 */
+            keepMax?: number | null;
+            newOnly?: boolean;
+            /** Format: int32 */
+            seasonNumber?: number | null;
+            seriesOnly?: boolean;
+            /** Format: int32 */
+            startPaddingSecs?: number | null;
+            title: string;
+        };
+        CreateTunerRequest: {
+            kind: components["schemas"]["TunerKind"];
+            name: string;
+            /** Format: int32 */
+            tunerCount?: number | null;
+            url: string;
+        };
         CreateUserRequest: {
             contentRatingCeiling?: string | null;
             displayName?: string | null;
@@ -2091,6 +2518,13 @@ export interface components {
             libraryIds?: components["schemas"]["LibraryId"][] | null;
             password: string;
             username: string;
+        };
+        CreateVirtualChannelRequest: {
+            channelNumber: string;
+            insertCommercials?: boolean;
+            itemIds: components["schemas"]["ItemId"][];
+            mode: components["schemas"]["VirtualChannelMode"];
+            name: string;
         };
         CreateWebhookRequest: {
             events: string[];
@@ -2137,6 +2571,36 @@ export interface components {
             name: string;
             /** Format: int32 */
             vendorId: number;
+        };
+        EpgGridChannel: {
+            channel: components["schemas"]["Channel"];
+            programs: components["schemas"]["EpgProgram"][];
+        };
+        EpgGridResponse: {
+            channels: components["schemas"]["EpgGridChannel"][];
+            /** Format: int64 */
+            endTime: number;
+            /** Format: int64 */
+            startTime: number;
+        };
+        EpgProgram: {
+            channelId?: components["schemas"]["ChannelId"] | null;
+            description?: string | null;
+            /** Format: int64 */
+            endTime: number;
+            epgChannelId: string;
+            /** Format: int32 */
+            episodeNumber?: number | null;
+            genres?: string[];
+            iconUrl?: string | null;
+            id: components["schemas"]["ProgramId"];
+            isNew: boolean;
+            rating?: string | null;
+            /** Format: int32 */
+            seasonNumber?: number | null;
+            /** Format: int64 */
+            startTime: number;
+            title: string;
         };
         /** @description Discovered capabilities of an `ffmpeg` binary (M4.2). */
         FfmpegProbeCaps: {
@@ -2264,6 +2728,14 @@ export interface components {
             capacity: components["schemas"]["TranscodeCapacity"];
             jobId: components["schemas"]["JobId"];
         };
+        ImportCountResponse: {
+            /** Format: int32 */
+            count: number;
+        };
+        ImportM3uRequest: {
+            content: string;
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13). */
         IndexScenesRequest: {
             scenes?: components["schemas"]["SceneHintInput"][];
@@ -2378,6 +2850,13 @@ export interface components {
             positionMs: number;
             sessionId: string;
             title: string;
+        };
+        LiveStreamInfo: {
+            channelId: components["schemas"]["ChannelId"];
+            channelName: string;
+            isDeinterlacingRequired: boolean;
+            streamUrl: string;
+            targetFormat: string;
         };
         LoginRequest: {
             clientName?: string | null;
@@ -2861,6 +3340,58 @@ export interface components {
             updatedAt: number;
             userId: components["schemas"]["UserId"];
         };
+        /** @enum {string} */
+        PluginCapability: "live_tv_channel" | "media_scraper" | "audio_source";
+        PluginChannelFeed: {
+            description?: string | null;
+            id: string;
+            items: components["schemas"]["PluginItem"][];
+            title: string;
+        };
+        PluginConfig: {
+            /** Format: int64 */
+            createdAt: number;
+            enabled: boolean;
+            id: components["schemas"]["PluginId"];
+            name: string;
+            pluginId: string;
+            settings: unknown;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        /** Format: int64 */
+        PluginId: number;
+        PluginItem: {
+            /** Format: int64 */
+            durationMs?: number | null;
+            id: string;
+            kind: string;
+            overview?: string | null;
+            pluginId: string;
+            streamUrl?: string | null;
+            subtitles?: components["schemas"]["PluginSubtitle"][];
+            thumbnailUrl?: string | null;
+            title: string;
+        };
+        PluginManifest: {
+            author: string;
+            capabilities: components["schemas"]["PluginCapability"][];
+            description: string;
+            iconUrl?: string | null;
+            id: string;
+            name: string;
+            version: string;
+        };
+        PluginStreamUrlResponse: {
+            streamUrl: string;
+        };
+        PluginSubtitle: {
+            label: string;
+            language: string;
+            url: string;
+        };
+        /** Format: int64 */
+        ProgramId: number;
         /** @description Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8). */
         QuickConnectAuthorizeRequest: {
             code: string;
@@ -2899,6 +3430,52 @@ export interface components {
         ReachabilityTestRequest: {
             publicIpOverride?: string | null;
         };
+        Recording: {
+            channelId: components["schemas"]["ChannelId"];
+            channelName?: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            durationMs?: number | null;
+            /** Format: int64 */
+            endTime: number;
+            errorMessage?: string | null;
+            id: components["schemas"]["RecordingId"];
+            outputPath?: string | null;
+            programId?: components["schemas"]["ProgramId"] | null;
+            ruleId?: components["schemas"]["RecordingRuleId"] | null;
+            /** Format: int64 */
+            sizeBytes?: number | null;
+            /** Format: int64 */
+            startTime: number;
+            status: components["schemas"]["RecordingStatus"];
+            title: string;
+        };
+        /** Format: int64 */
+        RecordingId: number;
+        RecordingRule: {
+            autoDeleteWatched: boolean;
+            channelId?: components["schemas"]["ChannelId"] | null;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int32 */
+            endPaddingSecs: number;
+            id: components["schemas"]["RecordingRuleId"];
+            /** Format: int32 */
+            keepMax?: number | null;
+            newOnly: boolean;
+            /** Format: int32 */
+            seasonNumber?: number | null;
+            seriesOnly: boolean;
+            /** Format: int32 */
+            startPaddingSecs: number;
+            title: string;
+            userId: components["schemas"]["UserId"];
+        };
+        /** Format: int64 */
+        RecordingRuleId: number;
+        /** @enum {string} */
+        RecordingStatus: "scheduled" | "recording" | "completed" | "failed" | "cancelled";
         RegisterClientRequest: {
             client_name: string;
             grant_types?: string[] | null;
@@ -2991,6 +3568,19 @@ export interface components {
             tags: string[];
             /** Format: int64 */
             timestampMs: number;
+        };
+        ScheduleRecordingRequest: {
+            channelId: components["schemas"]["ChannelId"];
+            /** Format: int32 */
+            endPaddingSecs?: number | null;
+            /** Format: int64 */
+            endTime: number;
+            programId?: components["schemas"]["ProgramId"] | null;
+            /** Format: int32 */
+            startPaddingSecs?: number | null;
+            /** Format: int64 */
+            startTime: number;
+            title: string;
         };
         SearchGroup: {
             items: components["schemas"]["ItemSummary"][];
@@ -3116,6 +3706,9 @@ export interface components {
             color: string;
             /** @description `"sm" | "md" | "lg" | "xl"`, default `"md"`. */
             size: string;
+        };
+        SuccessResponse: {
+            success: boolean;
         };
         /** @description System health snapshot including thermal/power monitoring and platform defaults (M5.1, M5.2). */
         SystemHealthReport: {
@@ -3261,6 +3854,32 @@ export interface components {
             /** Format: int32 */
             y: number;
         };
+        Tuner: {
+            /** Format: int64 */
+            createdAt: number;
+            id: components["schemas"]["TunerId"];
+            kind: components["schemas"]["TunerKind"];
+            name: string;
+            status: components["schemas"]["TunerStatus"];
+            /** Format: int32 */
+            tunerCount: number;
+            /** Format: int64 */
+            updatedAt: number;
+            url: string;
+        };
+        /** Format: int64 */
+        TunerId: number;
+        /** @enum {string} */
+        TunerKind: "hdhomerun" | "m3u";
+        /** @enum {string} */
+        TunerStatus: "online" | "offline" | "scanning";
+        UpdateChannelRequest: {
+            channelNumber?: string | null;
+            epgChannelId?: string | null;
+            isFavorite?: boolean | null;
+            isHidden?: boolean | null;
+            name?: string | null;
+        };
         UpdateCollectionRequest: {
             name: string;
             overview?: string | null;
@@ -3276,6 +3895,10 @@ export interface components {
         UpdatePlaylistRequest: {
             isPublic: boolean;
             name: string;
+        };
+        UpdatePluginConfigRequest: {
+            enabled: boolean;
+            settings?: unknown;
         };
         UpdateRemotePolicyRequest: {
             adminLanOnly?: boolean | null;
@@ -3412,6 +4035,43 @@ export interface components {
         };
         /** Format: int64 */
         VersionId: number;
+        VirtualChannel: {
+            channelId: components["schemas"]["ChannelId"];
+            /** Format: int64 */
+            createdAt: number;
+            id: components["schemas"]["VirtualChannelId"];
+            insertCommercials: boolean;
+            items: components["schemas"]["VirtualChannelItem"][];
+            mode: components["schemas"]["VirtualChannelMode"];
+            name: string;
+            /** Format: int64 */
+            totalDurationMs: number;
+        };
+        /** Format: int64 */
+        VirtualChannelId: number;
+        VirtualChannelItem: {
+            /** Format: int64 */
+            durationMs: number;
+            itemId: components["schemas"]["ItemId"];
+            mediaPath: string;
+            title: string;
+        };
+        /** @enum {string} */
+        VirtualChannelMode: "linear_loop" | "shuffle" | "smart_filter";
+        VirtualPlayhead: {
+            /** Format: int64 */
+            calculatedAt: number;
+            channelId: components["schemas"]["ChannelId"];
+            channelName: string;
+            currentItemId: components["schemas"]["ItemId"];
+            currentTitle: string;
+            /** Format: double */
+            durationSecs: number;
+            mediaPath: string;
+            nextTitle?: string | null;
+            /** Format: double */
+            offsetSecs: number;
+        };
         WatchState: {
             /** Format: int64 */
             lastViewedAt?: number | null;
@@ -5235,6 +5895,828 @@ export interface operations {
             };
         };
     };
+    list_channels: {
+        parameters: {
+            query?: {
+                /** @description Include hidden channels */
+                includeHidden?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List all channels */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Channel"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Channel"];
+                };
+            };
+            /** @description Channel not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channel deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateChannelRequest"];
+            };
+        };
+        responses: {
+            /** @description Channel updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Channel"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_epg_grid: {
+        parameters: {
+            query: {
+                startTime: number;
+                endTime: number;
+                includeHidden?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description EPG 2-axis grid response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpgGridResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_guide: {
+        parameters: {
+            query: {
+                query: string;
+                startTime?: number;
+                endTime?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Search programs across guide */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpgProgram"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    import_xmltv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description XMLTV programs imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportCountResponse"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_recordings: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List recordings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    schedule_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRecordingRequest"];
+            };
+        };
+        responses: {
+            /** @description Recording scheduled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Tuner conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recording ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recording details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Recording not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cancel_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Recording ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recording cancelled or deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    list_recording_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List series recording rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingRule"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_series_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecordingRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Series recording rule created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingRule"];
+                };
+            };
+        };
+    };
+    get_recording_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Rule ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingRule"];
+                };
+            };
+            /** @description Rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_recording_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Rule ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    resolve_live_stream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel ID */
+                channelId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved live stream with deinterlacing flags */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveStreamInfo"];
+                };
+            };
+            /** @description Channel not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tuner concurrency limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    release_live_stream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel ID */
+                channelId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stream released and tuner freed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    list_tuners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List configured tuners */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tuner"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    add_tuner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTunerRequest"];
+            };
+        };
+        responses: {
+            /** @description Tuner added */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tuner"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    discover_tuners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Discovered tuners on local network */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateTunerRequest"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    import_m3u: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportM3uRequest"];
+            };
+        };
+        responses: {
+            /** @description M3U playlist imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tuner"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_tuner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tuner ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tuner details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tuner"];
+                };
+            };
+            /** @description Tuner not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_tuner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tuner ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tuner deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_virtual_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List virtual linear channels */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VirtualChannel"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_virtual_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVirtualChannelRequest"];
+            };
+        };
+        responses: {
+            /** @description Virtual channel created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VirtualChannel"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_virtual_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Virtual Channel ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Virtual channel details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VirtualChannel"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_virtual_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Virtual Channel ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Virtual channel deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_virtual_playhead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Virtual Channel ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active playhead calculated on the fly (zero background CPU) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VirtualPlayhead"];
+                };
+            };
+            /** @description Channel not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     create_matchmaker_session: {
         parameters: {
             query?: never;
@@ -6149,6 +7631,209 @@ export interface operations {
         responses: {
             /** @description Item removed from playlist */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_plugins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List installed plugins and manifests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginManifest"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_plugin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plugin identifier (e.g. youtube, spotify, webdrama) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plugin configuration and status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginConfig"];
+                };
+            };
+            /** @description Plugin not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_plugin_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plugin identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePluginConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description Plugin configuration updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginConfig"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_plugin_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plugin identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available feeds/channels from plugin */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginChannelFeed"][];
+                };
+            };
+        };
+    };
+    get_feed_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plugin identifier */
+                id: string;
+                /** @description Feed identifier */
+                feedId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Media items in feed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginItem"][];
+                };
+            };
+        };
+    };
+    get_plugin_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plugin identifier */
+                id: string;
+                /** @description Item identifier */
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plugin item metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginItem"];
+                };
+            };
+            /** @description Item not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    resolve_plugin_stream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plugin identifier */
+                id: string;
+                /** @description Item identifier */
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolved plugin media stream URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginStreamUrlResponse"];
+                };
+            };
+            /** @description Stream not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

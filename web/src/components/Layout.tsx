@@ -153,6 +153,10 @@ export function Layout(props: { children?: JSX.Element }) {
             <span>🔍</span>
             <span>{t("search")}</span>
           </A>
+          <A href="/livetv" style={navLinkStyle("/livetv")}>
+            <span>📺</span>
+            <span>{t("liveTv")}</span>
+          </A>
 
           <Show when={user()?.isAdmin}>
             <div
@@ -428,6 +432,19 @@ export function Layout(props: { children?: JSX.Element }) {
           >
             <span style={{ "font-size": "18px" }}>🔍</span>
             <span>{t("search")}</span>
+          </A>
+          <A
+            href="/livetv"
+            style={{
+              display: "flex",
+              "flex-direction": "column",
+              "align-items": "center",
+              "font-size": "11px",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <span style={{ "font-size": "18px" }}>📺</span>
+            <span>{t("liveTv")}</span>
           </A>
           <A
             href="/profiles"

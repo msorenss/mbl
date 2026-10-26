@@ -45,6 +45,8 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::subsonic::router())
         .merge(routes::workers::router())
         .merge(routes::nodes::router())
+        .merge(routes::livetv::router())
+        .merge(routes::plugins::router())
         .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state)

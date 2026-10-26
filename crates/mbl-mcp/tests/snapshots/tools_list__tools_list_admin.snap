@@ -1860,5 +1860,216 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "search_guide",
+    "description": "Search EPG program schedules across all TV channels by title, category, or description.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "description": "Maximum number of search results (default 50)",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search keyword for program title or description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Search TV Guide (EPG)",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_recordings",
+    "description": "List scheduled, in-progress, completed, or failed TV recordings.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "description": "Filter recordings by status",
+          "enum": [
+            "scheduled",
+            "recording",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List DVR Recordings",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "schedule_recording",
+    "description": "Schedule a one-off TV broadcast recording on a given channel.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "channel_id": {
+          "description": "Channel ID",
+          "type": "integer"
+        },
+        "confirm": {
+          "description": "Explicit confirmation for scheduling",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Simulate scheduling without writing to database",
+          "type": "boolean"
+        },
+        "end_padding_secs": {
+          "description": "Extra seconds after scheduled end",
+          "type": "integer"
+        },
+        "end_time": {
+          "description": "End timestamp in Unix milliseconds",
+          "type": "integer"
+        },
+        "program_id": {
+          "description": "Optional EPG program ID",
+          "type": "integer"
+        },
+        "start_padding_secs": {
+          "description": "Extra seconds before scheduled start",
+          "type": "integer"
+        },
+        "start_time": {
+          "description": "Start timestamp in Unix milliseconds",
+          "type": "integer"
+        },
+        "title": {
+          "description": "Recording title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel_id",
+        "title",
+        "start_time",
+        "end_time"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Schedule Recording",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_series_rule",
+    "description": "Create an automatic series recording rule to record all upcoming matching episodes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "auto_delete_watched": {
+          "description": "Automatically delete watched recordings",
+          "type": "boolean"
+        },
+        "channel_id": {
+          "description": "Optional channel ID (leave null for all channels)",
+          "type": "integer"
+        },
+        "confirm": {
+          "description": "Explicit confirmation for rule creation",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Simulate rule creation without creating recordings",
+          "type": "boolean"
+        },
+        "end_padding_secs": {
+          "description": "Extra seconds after broadcast",
+          "type": "integer"
+        },
+        "keep_max": {
+          "description": "Maximum number of recorded episodes to keep",
+          "type": "integer"
+        },
+        "new_only": {
+          "description": "Only record first-run / new broadcasts",
+          "type": "boolean"
+        },
+        "season_number": {
+          "description": "Optional specific season to record",
+          "type": "integer"
+        },
+        "series_only": {
+          "description": "Only record series programs",
+          "type": "boolean"
+        },
+        "start_padding_secs": {
+          "description": "Extra seconds before broadcast",
+          "type": "integer"
+        },
+        "title": {
+          "description": "Program/series title to match in guide",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Series Recording Rule",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "cancel_recording",
+    "description": "Cancel or remove a scheduled or completed TV recording.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "description": "Explicit confirmation for deletion",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Simulate cancellation without deleting",
+          "type": "boolean"
+        },
+        "recording_id": {
+          "description": "Recording ID to cancel or delete",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "recording_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Cancel Recording",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

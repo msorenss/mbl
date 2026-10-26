@@ -758,19 +758,19 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - *Accept:* integration tests for direct handover URLs and relay fallback for node-hosted media.
 
 ### M9: Live TV, Channels and Online Streaming Plugins
-- [ ] **M9.1** HDHomeRun discovery + lineup + stream; M3U parser; streaming XMLTV parser.
-- [ ] **M9.2** Channel mapping UI, EPG grid (two-axis virtualization).
-- [ ] **M9.3** Live playback (remux/transcode with deinterlace).
-- [ ] **M9.4** Recording scheduler (one-off and series rules, padding, conflicts, keep policies); recorder; post-processing (remux to MKV, optional comskip).
-- [ ] **M9.5 MCP tools: Live TV:** `search_guide`, `list_recordings`, `schedule_recording`, `create_series_rule`, `cancel_recording` (D).
-- [ ] **M9.6 Streaming & Online Media Plugins (YouTube, Spotify, Web/K-Drama channels):**
+- [x] **M9.1** HDHomeRun discovery + lineup + stream; M3U parser; streaming XMLTV parser.
+- [x] **M9.2** Channel mapping UI, EPG grid (two-axis virtualization).
+- [x] **M9.3** Live playback (remux/transcode with deinterlace).
+- [x] **M9.4** Recording scheduler (one-off and series rules, padding, conflicts, keep policies); recorder; post-processing (remux to MKV, optional comskip).
+- [x] **M9.5 MCP tools: Live TV:** `search_guide`, `list_recordings`, `schedule_recording`, `create_series_rule`, `cancel_recording` (D).
+- [x] **M9.6 Streaming & Online Media Plugins (YouTube, Spotify, Web/K-Drama channels):**
   - Plugin provider framework for online media sources (`mbl-plugins`):
     - **YouTube channel plugin:** channel subscriptions, trending, playlists, search, and dynamic DASH/HLS stream extraction.
     - **Spotify audio plugin:** user library, playlists, artist discovery, and audio playback integration (with Spotify Connect support).
     - **Online Drama & Web Series scrapers (e.g. K-drama, anime, web channels):** manifest-driven or WASM scrapers that discover online series, scrape episode listings, and resolve direct HLS/MP4 stream URLs with multi-language subtitle tracks.
   - Unified Item abstraction: online content items integrate into standard `MediaItem` models with `source: Plugin(id)`, allowing them to appear in unified search, watch history, and resume tracking.
   - *Accept:* unit tests for the plugin channel resolver, mock YouTube/Spotify feed parsers, and stream resolution tests.
-- [ ] **M9.7 Virtual 24/7 Channels & TV UI Integration (ErsatzTV-style):**
+- [x] **M9.7 Virtual 24/7 Channels & TV UI Integration (ErsatzTV-style):**
   - Depends: M9.6, M5.9
   - Dedicated "Channels" / "Online" section in the TV and Web navigation:
     - Hub rows for YouTube subscriptions, Spotify playlists, and K-Drama/web streaming feeds.
@@ -859,6 +859,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-26 | M6 | Users, sharing, remote access, Windows: library ACLs, managed users, PIN, content ratings, invites, TOTP 2FA, network classification, fair-share bandwidth, mbl-remote Tailscale LocalAPI client, header spoofing guard, CGNAT detection & reachability, admin LAN-only guard, Windows service/tray/WiX MSI, Docker multi-arch/nvidia/vaapi/tailscale, MCP mutation framework (dry_run/confirm), 15 new MCP tools (42 admin tools), and OAuth 2.1 PKCE for MCP | feat(users,remote) M6
 2026-10-26 | M7 | Media breadth: music scanning & MusicBrainz, loudness ebur128 & progressive audio streaming, OpenSubsonic /rest/*, photo EXIF & timeline, collections & playlists, metadata locks, OpenSubtitles search, DLNA SSDP & ContentDirectory, PlayerRegistry & remote control, webhooks & events, 20 new MCP tools (62 admin tools, 100% parity), HA MQTT discovery, AI Watch Companion (live context & reactions), subtitle auto-sync subsync, Scene X-Ray & spoiler-free recap, Movie Night Matchmaker, Media Requests with Radarr/Sonarr bridge & hardlink storage hygiene, Windows WiX MSI release packaging | feat(m7) M7
 2026-10-26 | M8 | Distributed nodes: worker protocol spec & typed JobSpec, mbl-worker daemon with capability reporting & heartbeat, signed source media range streaming & PUT segment upload, scheduler integration with Wake-on-LAN & local fallback, batch offload estimation, Windows worker tray & pause-while-gaming, Admin UI for workers & nodes, 5 new MCP tools (67 admin tools, 100% parity), mbl-node federated storage daemon with delta catalog sync, and smart handover for LAN direct play vs WAN relay | feat(m8) M8
+2026-10-26 | M9 | Live TV, channels and streaming plugins: HDHomeRun discovery & lineup, M3U & streaming XMLTV parsers, 2-axis EPG grid, live playback engine & concurrency control, DVR recording scheduler & series rules, 5 new MCP tools (72 admin tools, 100% parity), online media plugins (YouTube, Spotify, WebDrama), virtual 24/7 channels with zero-CPU live playhead calculation, SolidJS Live TV UI with EPG guide, tuners, DVR recordings and plugin browser | feat(livetv) M9
 ```
 
 ---
