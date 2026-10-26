@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-26
+
+### Added
+- M9 Live TV, Channels and Online Streaming Plugins:
+  - HDHomeRun tuner discovery on local network via UDP broadcast (`255.255.255.255:65001`), device inspection, lineup synchronization, and channel mapping.
+  - M3U and M3U8 playlist parser (`#EXTM3U`, `#EXTINF`) extracting `tvg-id`, `tvg-logo`, `tvg-chno`, callsigns, and stream URLs.
+  - Streaming XMLTV parser (`parse_xmltv_streaming`) with chunked event reading via `quick-xml`, parsing programme schedules, titles, descriptions, genres, ratings, and `xmltv_ns` season/episode numbering.
+  - Live playback engine (`GET /api/v1/livetv/stream/{id}`) with tuner concurrency tracking and conflict management.
+  - DVR recording scheduler (`/api/v1/livetv/recordings`, `/api/v1/livetv/rules`) supporting one-off recordings, series rules with new-only and season filters, pre/post-padding, tuner conflict checks, and retention keep policies.
+  - Two-axis EPG TV Guide grid API (`/api/v1/livetv/epg`) with now/next program tracking and guide search (`/api/v1/livetv/epg/search`).
+  - Online media streaming plugin provider framework (`mbl-plugins` / `PluginService`) with built-in feeds for YouTube, Spotify, and Web/K-Drama, item browsing, and stream resolution mapped to `ItemSummary`.
+  - Virtual 24/7 Linear TV channels (`/api/v1/livetv/virtual-channels`) with mathematical zero-CPU live playhead calculation (`/api/v1/livetv/virtual-channels/{id}/playhead`) and rolling synthetic EPG generation.
+  - SolidJS Live TV UI (`/livetv`) featuring 4 tabs: Interactive 2-axis EPG TV Guide with program detail modal & DVR schedule buttons; Tuners & Sources management with HDHomeRun auto-discovery and M3U/XMLTV import modals; DVR Recordings & Series Rules management; and Virtual 24/7 Channels with live playhead progress & online Streaming Plugins browser.
+  - 5 new MCP tools (`search_guide`, `list_recordings`, `schedule_recording`, `create_series_rule`, `cancel_recording`), expanding the admin toolset to 72 tools with 100% OpenAPI coverage parity.
+
 ## [0.7.0] - 2026-10-26
 
 ### Added

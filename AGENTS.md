@@ -6,7 +6,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.7.0` (publicerad 2026-10-26, M8 färdigställd)
+- **Senaste release:** `v0.8.0` (publicerad 2026-10-26, M9 färdigställd)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
@@ -17,7 +17,8 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
   - **M6:** Users, sharing, remote access, Windows (`v0.5.0` — Biblioteks-ACL per användare, hanterade profiler med föräldra-PIN och åldersgränser, tidsbegränsade inbjudningslänkar, TOTP 2FA, nätverksklassificering och trusted proxy, rättvis bandbreddsdelning på WAN, `mbl-remote` Tailscale LocalAPI-klient med spoofing-skydd, CGNAT-diagnostik, admin LAN/tailnet-vakt, Windows-tjänst/tray/WiX MSI-paket, Docker multi-arch och nvidia/vaapi/tailscale-compose, MCP mutationsramverk med `dry_run` och `confirm`/elicitering, 15 nya MCP-verktyg till 42 admin-verktyg, OAuth 2.1 PKCE och dynamisk klientregistrering för MCP)
   - **M7:** Media breadth (`v0.6.0` — Musikskanning med `lofty` och MusicBrainz, EBU R128 loudness-analys och progressiv audiotranskodning, OpenSubsonic `/rest/*`-kompatibilitet, foto-EXIF och tidslinje, samlingar och spellistor, fältlåsning i metadata, OpenSubtitles-nedladdning, DLNA UPnP SSDP och ContentDirectory, PlayerRegistry och fjärrstyrning, webhooks med HMAC-SHA256, Home Assistant MQTT Discovery och telemetri, AI Watch Companion co-watching med realtidsdialogcues och reaktioner, Subtitle Auto-Sync `mbl-subsync`, Scene X-Ray, spoiler-fria recaps med strikt tittarhistorik, Movie Night Matchmaker swipe-sessions, inbyggda Media Requests med Radarr/Sonarr-brygga och hardlink-lagringsanalys, 20 nya MCP-verktyg till 62 verktyg med 100% OpenAPI-paritet, samt fullständig WiX MSI-installerare på Windows)
   - **M8:** Distributed nodes (`v0.7.0` — Transcode workers & Remote library storage nodes, worker-protokollspecifikation och typade `WorkerJobSpec`, HMAC-signerade source range URL:er, segment `PUT`-uppladdning i sessionskatalog, Wake-on-LAN magic packet, sömlös lokal fallback vid worker-bortfall, Windows worker-tray med pause-while-gaming GPU-vakt, admin worker & node dashboard i SolidJS, 5 nya MCP-verktyg till 67 admin-verktyg med 100% OpenAPI-paritet, `mbl-node` federerad lagringsnod med delta catalog sync, och Smart Handover för LAN direktuppspelning vs WAN relay)
-- **Nästa milstolpe:** **M9 — Live TV, Channels and Online Streaming Plugins** (`M9.1`–`M9.7` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M9.1.
+  - **M9:** Live TV, Channels and Online Streaming Plugins (`v0.8.0` — HDHomeRun UDP discovery & lineup-synkronisering, M3U & streaming XMLTV-parsning med `quick-xml`, 2-axlars virtuellt EPG-rutnät, live-uppspelningsmotor med samtidighetsbegränsning, DVR-inspelningsschemaläggare med serieregler, marginaltider och konfliktlösning, 5 nya MCP-verktyg till 72 admin-verktyg med 100% OpenAPI-paritet, plugin-arkitektur för online-media med YouTube-, Spotify- och WebDrama-stöd, virtuella 24/7-kanaler med zero-CPU playhead-beräkning, samt fullständig 4-flikars Live TV SolidJS UI)
+- **Nästa milstolpe:** **M10 — Hardening → v1.0.0** (`M10.1`–`M10.8` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M10.1.
 
 ---
 
@@ -62,7 +63,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `28` för `read`, `33` för `read+library`, `67` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `30` för `read`, `35` för `read+library`, `72` för `admin`).
 
 ---
 
@@ -87,6 +88,31 @@ När en milstolpe är färdig och alla tester är gröna:
 ## 5. Sessions- och Handoff-logg
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
+
+### 2026-10-26 — Milstolpe M9 (Live TV, Channels and Online Streaming Plugins) & Release v0.8.0
+- **Genomfört (`M9.1`–`M9.7`):**
+  - **M9.1:** HDHomeRun discovery (`UDP 255.255.255.255:65001`), tuner-inspektion (`/discover.json`) och lineup-synkronisering (`/lineup.json`). M3U/M3U8-parser för `#EXTINF` med extraktion av `tvg-id`, `tvg-logo`, `tvg-chno`, callsigns och stream-URL:er. Streaming XMLTV-parser med chunkad händelseläsning via `quick-xml` som extraherar programdata, tidsstämplar, titlar, beskrivningar, genrer, åldersgränser och `xmltv_ns` säsongs-/avsnittsnumrering.
+  - **M9.2:** 2-axlars EPG TV Guide grid REST-endpoint (`/api/v1/livetv/epg`) med tidsfönsterfiltrering, nu/nästa-spårning och snabbsökning (`/api/v1/livetv/epg/search`).
+  - **M9.3:** Live-uppspelningsmotor (`GET /api/v1/livetv/stream/{channelId}`) med samtidighetsbegränsning per tuner (`tuner_count`), automatisk allokering och explicit stream-release (`POST /api/v1/livetv/stream/{channelId}/release`).
+  - **M9.4:** DVR-inspelningsschemaläggare med tabeller `recordings` och `series_rules`. Stöd för engångsinspelningar med start-/slutmarginaler (`start_padding_secs`, `end_padding_secs`), serieregler med nya avsnitt (`new_only`) och säsongsfiltrering, samt automatisk konfliktkontroll mot aktiva tuners.
+  - **M9.5:** 5 nya MCP-verktyg (`search_guide`, `list_recordings`, `schedule_recording`, `create_series_rule`, `cancel_recording`) med stöd för `dry_run` och `confirm`-säkerhet. Totalt 72 admin-verktyg och 100.0% paritet mot OpenAPI.
+  - **M9.6:** Streaming & Online Media Plugins (`PluginService`) med manifest, inställningar, kanalflöden, elementbläddring och strömupplösning för YouTube (kanaler & trender), Spotify (topplistor & ljudspår) och WebDrama (asiatiska serier med flerspråkiga VTT-undertexter). Mappas enhetligt till `ItemSummary`.
+  - **M9.7:** Virtuella 24/7-kanaler (`/api/v1/livetv/virtual-channels`) med looping av biblioteksmedia och matematisk zero-CPU playhead-beräkning (`/api/v1/livetv/virtual-channels/{id}/playhead`) samt rullande syntetisk EPG.
+  - **SolidJS Web UI:** Fullständig 4-flikars Live TV-sida (`/livetv` i `web/src/pages/LiveTv.tsx`):
+    - Flik 1 (EPG TV Guide): Interaktiv 2-axlars tidslinje, guidesökning, direktkanalvisning och detaljmodal för program med DVR-schemaläggning.
+    - Flik 2 (Tuners & Källor): Översikt av tuners, automatisk HDHomeRun UDP-upptäckt och modaler för M3U- och XMLTV-import.
+    - Flik 3 (DVR & Serieregler): Hantering av schemalagda/inspelade program och serieregler med avbokningskontroller.
+    - Flik 4 (Virtuella kanaler & Plugins): Progress-bars med levande playhead-position för 24/7-kanaler samt online streaming-utforskare.
+  - **Tester:** Omfattande integrationstester i `crates/mbl-server/tests/m9.rs` som täcker samtliga 7 krav.
+- **Verifiering:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK
+  - `cargo nextest run --workspace`: 295/295 tester godkända (0 failed, 0 skipped)
+  - `cargo xtask mcp-parity`: OK (139/139 endpoints täckta, 100.0%)
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `just web-check`: Biome (0 fel), Vitest (22 tester), `tsc -b`, Vite-build, bundle budget (41.05 KB gzip <= 150 KB): OK
+- **Nästa steg:** Börja med **M10.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (Threat model doc och säkerhetsgranskning inför v1.0.0).
 
 ### 2026-10-26 — Milstolpe M8 (Distributed nodes) & Release v0.7.0
 - **Genomfört (`M8.1`–`M8.11`):**
