@@ -23,8 +23,8 @@ async fn snapshot_tools_list_read_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Verify all tools have Read scope (17 M2 + 2 M4: get_hw_report, get_transcode_capacity)
-    assert_eq!(tools.len(), 19);
+    // Verify all tools have Read scope (17 M2 + 2 M4 + 2 M5: search_scenes, get_spoiler_free_recap)
+    assert_eq!(tools.len(), 21);
     insta::assert_json_snapshot!("tools_list_read", tools);
 }
 
@@ -37,8 +37,8 @@ async fn snapshot_tools_list_read_library_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Read (19) + Library (2: scan_library, refresh_metadata) = 21
-    assert_eq!(tools.len(), 21);
+    // Read (21) + Library (2: scan_library, refresh_metadata) = 23
+    assert_eq!(tools.len(), 23);
     insta::assert_json_snapshot!("tools_list_read_library", tools);
 }
 
@@ -51,7 +51,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // All tools = 24 (19 read + 2 library + 2 playback + 1 admin: run_hw_selftest)
-    assert_eq!(tools.len(), 24);
+    // All tools = 27 (21 read + 2 library + 2 playback + 2 admin: run_hw_selftest, create_optimized_versions)
+    assert_eq!(tools.len(), 27);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

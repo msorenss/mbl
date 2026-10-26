@@ -1,0 +1,44 @@
+# MCP Tool Parity Exclusions (IMPLEMENTATION.md §0.1 Rule 13)
+#
+# Endpoints listed here are binary media streams, interactive browser/TV auth handshakes,
+# or MCP security administration endpoints intentionally not exposed as MCP tools.
+
+[[exclusions]]
+path = "/api/v1/stream/direct/{partId}"
+reason = "Binary media byte-range stream for video/audio players."
+
+[[exclusions]]
+path = "/api/v1/stream/hls/{session}/master.m3u8"
+reason = "HLS playback manifest consumed by video players."
+
+[[exclusions]]
+path = "/api/v1/stream/hls/{session}/{rendition}/{file}"
+reason = "Binary fMP4 HLS segments consumed by video players."
+
+[[exclusions]]
+path = "/api/v1/stream/subtitles/{partId}/{file}"
+reason = "WebVTT / ASS subtitle stream consumed by video players."
+
+[[exclusions]]
+path = "/api/v1/stream/trickplay/{partId}/index.json"
+reason = "Player scrubber sprite-sheet index."
+
+[[exclusions]]
+path = "/api/v1/stream/trickplay/{partId}/{sprite}"
+reason = "Binary JPEG sprite sheet for player timeline scrubbing."
+
+[[exclusions]]
+path = "/api/v1/auth/quick-connect"
+reason = "Interactive 6-digit TV pairing flow."
+
+[[exclusions]]
+path = "/api/v1/auth/quick-connect/authorize"
+reason = "Interactive 6-digit TV pairing authorization."
+
+[[exclusions]]
+path = "/api/v1/auth/quick-connect/poll"
+reason = "Interactive 6-digit TV pairing poll."
+
+[[exclusions]]
+path = "/api/v1/mcp/status"
+reason = "MCP security kill-switch cannot be modified over MCP (PLAN §9.5.3)."

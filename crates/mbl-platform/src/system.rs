@@ -35,6 +35,64 @@ impl PlatformProfile {
     pub const fn is_pi_or_arm(self) -> bool {
         matches!(self, Self::Pi4 | Self::Pi5 | Self::GenericArm)
     }
+
+    /// Default concurrency, cache sizes, segment lengths and transcode limits for this platform profile (M5.2).
+    pub const fn defaults(self) -> PlatformDefaults {
+        match self {
+            Self::Pi4 => PlatformDefaults {
+                probe_concurrency: 2,
+                segment_secs: 3,
+                ahead_segments: 6,
+                max_transcode_sessions: 1,
+                image_cache_mb: 512,
+                metadata_cache_mb: 128,
+            },
+            Self::Pi5 => PlatformDefaults {
+                probe_concurrency: 2,
+                segment_secs: 3,
+                ahead_segments: 6,
+                max_transcode_sessions: 1,
+                image_cache_mb: 1024,
+                metadata_cache_mb: 256,
+            },
+            Self::GenericArm => PlatformDefaults {
+                probe_concurrency: 2,
+                segment_secs: 4,
+                ahead_segments: 8,
+                max_transcode_sessions: 1,
+                image_cache_mb: 512,
+                metadata_cache_mb: 128,
+            },
+            Self::X86Intel | Self::X86Nvidia | Self::X86Amd => PlatformDefaults {
+                probe_concurrency: 8,
+                segment_secs: 6,
+                ahead_segments: 10,
+                max_transcode_sessions: 4,
+                image_cache_mb: 2048,
+                metadata_cache_mb: 512,
+            },
+            Self::Generic => PlatformDefaults {
+                probe_concurrency: 4,
+                segment_secs: 6,
+                ahead_segments: 10,
+                max_transcode_sessions: 2,
+                image_cache_mb: 1024,
+                metadata_cache_mb: 256,
+            },
+        }
+    }
+}
+
+/// Default tuning parameters per [`PlatformProfile`] (M5.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformDefaults {
+    pub probe_concurrency: u32,
+    pub segment_secs: u32,
+    pub ahead_segments: u32,
+    pub max_transcode_sessions: u32,
+    pub image_cache_mb: u64,
+    pub metadata_cache_mb: u64,
 }
 
 /// Detect the [`PlatformProfile`] of the current host.

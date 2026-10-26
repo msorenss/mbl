@@ -184,9 +184,8 @@ impl JobRunner {
             if free.is_empty() {
                 return Ok(());
             }
-            let max_priority =
-                if self.activity.playback_active() { Priority::Normal } else { Priority::Idle }
-                    as i64;
+            let pause_idle = self.activity.playback_active() || self.activity.thermal_throttled();
+            let max_priority = if pause_idle { Priority::Normal } else { Priority::Idle } as i64;
             let kinds = serde_json::to_string(&free).unwrap_or_else(|_| "[]".into());
             let Some(job) = self.queue.repo.claim_next(&kinds, max_priority, now_ms()).await?
             else {

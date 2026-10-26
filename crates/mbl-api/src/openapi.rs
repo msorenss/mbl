@@ -9,14 +9,14 @@ use utoipa::{Modify, OpenApi};
 
 use crate::AppState;
 use crate::routes::{
-    auth, events, hw, images, items, libraries, mcp, playback, stream, system, users,
+    auth, events, hw, images, intelligence, items, libraries, mcp, playback, stream, system, users,
 };
 
 #[derive(OpenApi)]
 #[openapi(
     info(title = "MBL API", description = "MBL media server REST API."),
     paths(
-        system::health, system::info, system::setup_status, system::setup,
+        system::health, system::system_health, system::info, system::setup_status, system::setup,
         auth::login, auth::logout, auth::me, auth::list_sessions, auth::revoke_session,
         auth::create_token, auth::list_tokens, auth::revoke_token,
         users::list, users::create, users::get_one, users::update, users::remove,
@@ -31,6 +31,11 @@ use crate::routes::{
         stream::hls_rendition_file, stream::subtitle,
         mcp::list_audit, mcp::get_status, mcp::update_status, mcp::create_snippets, mcp::list_presets,
         hw::get_report, hw::get_capacity, hw::run_test,
+        intelligence::optimize_item, intelligence::get_markers, intelligence::detect_season_intros,
+        intelligence::trickplay_manifest, intelligence::trickplay_sprite,
+        intelligence::quick_connect_init, intelligence::quick_connect_authorize, intelligence::quick_connect_poll,
+        intelligence::index_item_scenes, intelligence::search_scenes, intelligence::spoiler_free_recap,
+        intelligence::hailo_benchmark,
     ),
     components(schemas(
         mbl_db::repo::items::SortField,
@@ -46,6 +51,29 @@ use crate::routes::{
         mbl_service::SubtitleDelivery,
         mbl_service::HwReport,
         mbl_service::HwSelftestResponse,
+        mbl_service::SystemHealthReport,
+        mbl_service::CreateOptimizedRequest,
+        mbl_service::CreateOptimizedResponse,
+        mbl_service::QuickConnectInitRequest,
+        mbl_service::QuickConnectInitResponse,
+        mbl_service::QuickConnectAuthorizeRequest,
+        mbl_service::QuickConnectPollRequest,
+        mbl_service::QuickConnectPollResponse,
+        mbl_service::SceneHintInput,
+        mbl_service::IndexScenesRequest,
+        mbl_service::SceneSearchHit,
+        intelligence::OptimizeItemBody,
+        mbl_platform::PlatformDefaults,
+        mbl_platform::ThermalStatus,
+        mbl_analysis::OptimizationProfile,
+        mbl_analysis::OptimizationEstimate,
+        mbl_analysis::TrickplayManifest,
+        mbl_analysis::TrickplaySprite,
+        mbl_analysis::TrickplayTile,
+        mbl_db::repo::m5::MarkerRow,
+        mbl_db::repo::m5::SceneEmbeddingRow,
+        mbl_hailo::SpoilerFreeRecap,
+        mbl_hailo::HailoEmbeddingBenchmark,
         mbl_hwaccel::HardwareFingerprint,
         mbl_hwaccel::NpuProfile,
         mbl_hwaccel::DrmDevice,

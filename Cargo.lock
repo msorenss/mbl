@@ -1666,13 +1666,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
+name = "mbl-analysis"
+version = "0.3.0"
+dependencies = [
+ "camino",
+ "image",
+ "mbl-core",
+ "mbl-probe",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "mbl-api"
 version = "0.3.0"
 dependencies = [
  "axum",
  "governor",
+ "mbl-analysis",
  "mbl-core",
  "mbl-db",
+ "mbl-hailo",
  "mbl-hwaccel",
  "mbl-images",
  "mbl-jobs",
@@ -1735,6 +1754,21 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tempfile",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
+name = "mbl-hailo"
+version = "0.3.0"
+dependencies = [
+ "image",
+ "mbl-core",
+ "mbl-hwaccel",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "utoipa",
@@ -1870,6 +1904,7 @@ dependencies = [
  "camino",
  "serde",
  "serde_json",
+ "tempfile",
  "utoipa",
  "windows-sys 0.61.2",
 ]
@@ -1927,6 +1962,7 @@ name = "mbl-server"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "camino",
  "clap",
@@ -1971,9 +2007,12 @@ dependencies = [
  "camino",
  "dunce",
  "getrandom 0.4.3",
+ "image",
+ "mbl-analysis",
  "mbl-auth",
  "mbl-core",
  "mbl-db",
+ "mbl-hailo",
  "mbl-hwaccel",
  "mbl-images",
  "mbl-jobs",
@@ -2017,6 +2056,22 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "mbl-tv"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "mbl-core",
+ "mbl-platform",
+ "mbl-ui-kit",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

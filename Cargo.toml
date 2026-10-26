@@ -29,6 +29,9 @@ mbl-platform = { path = "crates/mbl-platform" }
 mbl-hwaccel = { path = "crates/mbl-hwaccel" }
 mbl-mcp = { path = "crates/mbl-mcp" }
 mbl-ui-kit = { path = "crates/mbl-ui-kit" }
+mbl-analysis = { path = "crates/mbl-analysis" }
+mbl-hailo = { path = "crates/mbl-hailo" }
+mbl-tv = { path = "crates/mbl-tv" }
 
 # External crates (approved list: IMPLEMENTATION.md §1.4)
 anyhow = "1.0.104"

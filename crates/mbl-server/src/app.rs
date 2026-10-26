@@ -102,6 +102,11 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     state.services.stream =
         state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
     state.services.hw = mbl_service::HwService::new(db.clone(), state.services.stream.clone());
+    state.services.intelligence =
+        state.services.intelligence.with_stream(state.services.stream.clone());
+    runner.register(Arc::new(mbl_service::OptimizeJobHandler {
+        intelligence: state.services.intelligence.clone(),
+    }));
     state.services.playback = state
         .services
         .playback

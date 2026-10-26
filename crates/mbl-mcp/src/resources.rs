@@ -99,15 +99,8 @@ pub async fn read_resource(
             })
         }
         URI_SERVER_HEALTH => {
-            let profile: PlatformProfile = mbl_platform::system::detect_profile();
-            let total_mem = mbl_platform::system::total_memory_bytes();
             let active = services.playback.list_active(&caller.actor).len();
-            let body = json!({
-                "status": "ok",
-                "platformProfile": profile,
-                "totalMemoryBytes": total_mem,
-                "activePlaybackSessions": active,
-            });
+            let body = services.intelligence.system_health(active);
             Ok(ResourceContents {
                 uri: uri.into(),
                 mime_type: Some("application/json".into()),

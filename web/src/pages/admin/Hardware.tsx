@@ -4,19 +4,27 @@ import type { components } from "../../api/schema";
 import { useToast } from "../../context/ToastContext";
 
 type HwReport = components["schemas"]["HwReport"];
+type SystemHealthReport = components["schemas"]["SystemHealthReport"];
 
 export function Hardware() {
   const { showToast } = useToast();
   const [report, setReport] = createSignal<HwReport | null>(null);
+  const [sysHealth, setSysHealth] = createSignal<SystemHealthReport | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [testing, setTesting] = createSignal(false);
 
   const loadReport = async () => {
     setLoading(true);
     try {
-      const { data } = await client.GET("/api/v1/hw/report");
+      const [{ data }, healthRes] = await Promise.all([
+        client.GET("/api/v1/hw/report"),
+        client.GET("/api/v1/system/health").catch(() => ({ data: undefined })),
+      ]);
       if (data) {
         setReport(data);
+      }
+      if (healthRes.data) {
+        setSysHealth(healthRes.data);
       }
     } catch {
       showToast({
@@ -124,6 +132,37 @@ export function Hardware() {
       >
         {(rep) => (
           <div style={{ display: "flex", "flex-direction": "column", gap: "24px" }}>
+            {/* Thermal & Under-Voltage Warning Banner (M5.1) */}
+            <Show
+              when={
+                sysHealth()?.thermal.underVoltage ||
+                sysHealth()?.thermal.underVoltageOccurred ||
+                sysHealth()?.thermal.currentlyThrottled ||
+                sysHealth()?.thermal.idleJobsPaused
+              }
+            >
+              <div
+                data-testid="hw-thermal-warning"
+                style={{
+                  padding: "14px 18px",
+                  background: "rgba(239, 68, 68, 0.14)",
+                  border: "1px solid var(--danger)",
+                  "border-radius": "var(--radius-md)",
+                  color: "var(--danger)",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                }}
+              >
+                ⚠️ Power / Thermal Alert:{" "}
+                {sysHealth()?.thermal.underVoltage || sysHealth()?.thermal.underVoltageOccurred
+                  ? "Under-voltage detected on SoC rail (check 5V/5A USB-C PD power supply). "
+                  : ""}
+                {sysHealth()?.thermal.idleJobsPaused
+                  ? "Background Idle jobs are automatically paused due to high SoC temperature (>75 °C) or active thermal throttling."
+                  : ""}
+              </div>
+            </Show>
+
             {/* Top summary grid */}
             <div
               style={{
@@ -226,6 +265,23 @@ export function Hardware() {
                       {rep().fingerprint.hailoDevices.length} Hailo
                     </span>
                   </div>
+                  <Show when={sysHealth()?.thermal.temperatureC != null}>
+                    <div style={{ display: "flex", "justify-content": "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>SoC Temp:</span>
+                      <span
+                        data-testid="hw-soc-temp"
+                        style={{
+                          "font-weight": "600",
+                          color:
+                            (sysHealth()?.thermal.temperatureC ?? 0) >= 75
+                              ? "var(--danger)"
+                              : "var(--text-primary)",
+                        }}
+                      >
+                        {sysHealth()?.thermal.temperatureC?.toFixed(1)} °C
+                      </span>
+                    </div>
+                  </Show>
                 </div>
               </div>
 

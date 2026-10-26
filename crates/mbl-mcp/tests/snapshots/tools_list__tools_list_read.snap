@@ -461,5 +461,58 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "search_scenes",
+    "description": "Semantic visual scene search across indexed movie and episode keyframes using Hailo NPU / CLIP multimodal embeddings (e.g. 'find the scene with a car chase in the snow').",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 10,
+          "description": "Maximum number of matching scenes to return",
+          "type": "integer"
+        },
+        "query": {
+          "description": "Natural-language scene description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Semantic Scene Search",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_spoiler_free_recap",
+    "description": "Generate a 'Previously On...' story recap for a TV show or season strictly from the caller's watched episodes, guaranteeing zero spoilers from unwatched episodes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "description": "Show or Season item ID",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get Spoiler-Free Recap",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

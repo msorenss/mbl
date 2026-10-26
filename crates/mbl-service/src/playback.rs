@@ -177,6 +177,7 @@ pub struct PlaybackService {
     stream: StreamService,
     watch: WatchService,
     hw: Option<crate::hw::HwService>,
+    thermal_root: Option<std::path::PathBuf>,
     sessions: Arc<RwLock<HashMap<String, ActivePlaybackSession>>>,
 }
 
@@ -187,6 +188,13 @@ impl ActivityProbe for PlaybackService {
             return false;
         };
         map.values().any(|s| now.saturating_sub(s.last_updated_at) <= 60_000)
+    }
+
+    fn thermal_throttled(&self) -> bool {
+        let Some(root) = &self.thermal_root else {
+            return false;
+        };
+        mbl_platform::thermal::read_thermal_status_from_root(root).should_pause_idle_jobs()
     }
 }
 
@@ -199,6 +207,7 @@ impl PlaybackService {
             stream,
             watch,
             hw: None,
+            thermal_root: None,
             sessions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -213,6 +222,11 @@ impl PlaybackService {
 
     pub fn with_hw(mut self, hw: crate::hw::HwService) -> Self {
         self.hw = Some(hw);
+        self
+    }
+
+    pub fn with_thermal_root(mut self, root: impl Into<std::path::PathBuf>) -> Self {
+        self.thermal_root = Some(root.into());
         self
     }
 
@@ -239,20 +253,55 @@ impl PlaybackService {
         }
     }
 
+    /// Resolve the best part for playback: when `part_id` is omitted and the item has multiple
+    /// versions (e.g. an optimized H.264+AAC MP4 version from M5.4), prefer a version that can
+    /// `DirectPlay` on `profile` + `ctx` over one that requires transcoding.
+    async fn select_best_part(
+        &self,
+        req: &PlaybackRequest,
+        profile: &DeviceProfile,
+        ctx: &DecisionContext,
+    ) -> Result<(media::StreamPart, MediaInfo, Decision)> {
+        if let Some(pid) = req.part_id {
+            let part = media::part_for_stream(&self.db, pid).await?.ok_or(Error::NotFound)?;
+            let info = self.load_media_info(&part).await?;
+            let dec = decide(&info, profile, ctx);
+            return Ok((part, info, dec));
+        }
+
+        let parts = media::parts_for_item(&self.db, req.item_id).await?;
+        let available: Vec<media::StreamPart> =
+            parts.iter().filter(|p| p.missing_since.is_none()).cloned().collect();
+        let mut candidates = if available.is_empty() { parts } else { available };
+        candidates.sort_by_key(|p| p.path.contains(".optimized-"));
+        let first = candidates.first().cloned().ok_or(Error::NotFound)?;
+        let first_info = self.load_media_info(&first).await?;
+        let first_dec = decide(&first_info, profile, ctx);
+
+        if first_dec.method == PlayMethod::DirectPlay || candidates.len() == 1 {
+            return Ok((first, first_info, first_dec));
+        }
+
+        for cand in candidates.into_iter().skip(1) {
+            if let Ok(info) = self.load_media_info(&cand).await {
+                let dec = decide(&info, profile, ctx);
+                if dec.method == PlayMethod::DirectPlay {
+                    return Ok((cand, info, dec));
+                }
+            }
+        }
+
+        Ok((first, first_info, first_dec))
+    }
+
     /// Preview playback decision without creating an active session or updating watch state.
     pub async fn preview(&self, actor: &Actor, req: PlaybackRequest) -> Result<PlaybackPreview> {
-        let part = match req.part_id {
-            Some(pid) => media::part_for_stream(&self.db, pid).await?.ok_or(Error::NotFound)?,
-            None => {
-                let parts = media::parts_for_item(&self.db, req.item_id).await?;
-                parts
-                    .iter()
-                    .find(|p| p.missing_since.is_none())
-                    .or_else(|| parts.first())
-                    .cloned()
-                    .ok_or(Error::NotFound)?
-            }
+        let profile = match &req.profile {
+            Some(input) => input.resolve()?,
+            None => DeviceProfile::builtin("chrome")?,
         };
+        let ctx = self.build_decision_context(&req).await;
+        let (part, media_info, decision) = self.select_best_part(&req, &profile, &ctx).await?;
 
         if !actor.can_access_library(part.library_id) {
             return Err(Error::NotFound);
@@ -260,21 +309,11 @@ impl PlaybackService {
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let _ = verify_under_library_roots(&part.path, &lib.paths)?;
 
-        let media_info = self.load_media_info(&part).await?;
         let duration_ms = if media_info.duration_ms > 0 {
             media_info.duration_ms
         } else {
             part.duration_ms.and_then(|d| u64::try_from(d).ok()).unwrap_or(0)
         };
-
-        let profile = match &req.profile {
-            Some(input) => input.resolve()?,
-            None => DeviceProfile::builtin("chrome")?,
-        };
-
-        let ctx = self.build_decision_context(&req).await;
-
-        let decision = decide(&media_info, &profile, &ctx);
         let reasons: Vec<String> = decision.reasons.iter().map(Reason::message).collect();
 
         Ok(PlaybackPreview {
@@ -293,18 +332,12 @@ impl PlaybackService {
     /// Start a playback session: run the pure decision engine, create an HLS session when remuxing
     /// or transcoding, and return the stream URL, subtitle tracks, start offset, and markers.
     pub async fn start(&self, actor: &Actor, req: PlaybackRequest) -> Result<PlaybackResponse> {
-        let part = match req.part_id {
-            Some(pid) => media::part_for_stream(&self.db, pid).await?.ok_or(Error::NotFound)?,
-            None => {
-                let parts = media::parts_for_item(&self.db, req.item_id).await?;
-                parts
-                    .iter()
-                    .find(|p| p.missing_since.is_none())
-                    .or_else(|| parts.first())
-                    .cloned()
-                    .ok_or(Error::NotFound)?
-            }
+        let profile = match &req.profile {
+            Some(input) => input.resolve()?,
+            None => DeviceProfile::builtin("chrome")?,
         };
+        let ctx = self.build_decision_context(&req).await;
+        let (part, media_info, decision) = self.select_best_part(&req, &profile, &ctx).await?;
 
         if !actor.can_access_library(part.library_id) {
             return Err(Error::NotFound);
@@ -312,21 +345,11 @@ impl PlaybackService {
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let verified_path = verify_under_library_roots(&part.path, &lib.paths)?;
 
-        let media_info = self.load_media_info(&part).await?;
         let duration_ms = if media_info.duration_ms > 0 {
             media_info.duration_ms
         } else {
             part.duration_ms.and_then(|d| u64::try_from(d).ok()).unwrap_or(0)
         };
-
-        let profile = match &req.profile {
-            Some(input) => input.resolve()?,
-            None => DeviceProfile::builtin("chrome")?,
-        };
-
-        let ctx = self.build_decision_context(&req).await;
-
-        let decision = decide(&media_info, &profile, &ctx);
 
         let start_ms = match req.start_ms {
             Some(ms) => ms,
@@ -338,7 +361,7 @@ impl PlaybackService {
 
         let stream_token = self.auth.sign_stream_token(actor, part.id);
         let subtitles = build_subtitle_tracks(&media_info, &profile, part.id, &stream_token);
-        let markers = self.load_markers(part.id, &media_info).await;
+        let markers = self.load_markers(part.item_id, part.id, &media_info).await;
 
         let (session_id, url, is_hls) = match decision.method {
             PlayMethod::DirectPlay => {
@@ -630,7 +653,12 @@ impl PlaybackService {
         })
     }
 
-    async fn load_markers(&self, part_id: PartId, media_info: &MediaInfo) -> Vec<PlaybackMarker> {
+    async fn load_markers(
+        &self,
+        item_id: ItemId,
+        part_id: PartId,
+        media_info: &MediaInfo,
+    ) -> Vec<PlaybackMarker> {
         let chapters: Vec<Chapter> = if !media_info.chapters.is_empty() {
             media_info.chapters.clone()
         } else if let Ok(Some(raw)) = media::part_chapters(&self.db, part_id).await {
@@ -639,7 +667,7 @@ impl PlaybackService {
             Vec::new()
         };
 
-        chapters
+        let mut out: Vec<PlaybackMarker> = chapters
             .into_iter()
             .map(|c| {
                 let lower = c.title.as_deref().unwrap_or("").to_ascii_lowercase();
@@ -657,7 +685,21 @@ impl PlaybackService {
                     title: c.title,
                 }
             })
-            .collect()
+            .collect();
+
+        if let Ok(db_rows) =
+            mbl_db::repo::m5::MarkersRepo::new(self.db.clone()).list_for_item(item_id).await
+        {
+            for r in db_rows {
+                let start_ms = u64::try_from(r.start_ms.max(0)).unwrap_or(0);
+                let end_ms = u64::try_from(r.end_ms.max(0)).unwrap_or(0);
+                if !out.iter().any(|m| m.kind == r.kind && m.start_ms.abs_diff(start_ms) <= 1_000) {
+                    out.push(PlaybackMarker { kind: r.kind, start_ms, end_ms, title: r.title });
+                }
+            }
+        }
+        out.sort_by_key(|m| m.start_ms);
+        out
     }
 
     #[allow(clippy::too_many_arguments)]

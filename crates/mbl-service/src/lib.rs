@@ -7,6 +7,7 @@ pub mod auth;
 pub mod events;
 pub mod hw;
 pub mod images;
+pub mod intelligence;
 pub mod items;
 pub mod libraries;
 pub mod mcp;
@@ -28,6 +29,12 @@ pub use auth::{
 pub use events::EventService;
 pub use hw::{HwReport, HwSelftestResponse, HwService};
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
+pub use intelligence::{
+    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, MediaIntelligenceService,
+    OptimizeJobHandler, QuickConnectAuthorizeRequest, QuickConnectInitRequest,
+    QuickConnectInitResponse, QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput,
+    SceneSearchHit, SystemHealthReport,
+};
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
 pub use mbl_playback::{PlayMethod, StreamAction, SubtitleDelivery};
@@ -58,6 +65,7 @@ pub struct Services {
     pub playback: PlaybackService,
     pub mcp: McpService,
     pub hw: HwService,
+    pub intelligence: MediaIntelligenceService,
 }
 
 impl Services {
@@ -74,6 +82,8 @@ impl Services {
         let playback =
             PlaybackService::new(db.clone(), auth.clone(), stream.clone(), watch.clone())
                 .with_hw(hw.clone());
+        let intelligence =
+            MediaIntelligenceService::new(db.clone(), auth.clone(), stream.clone(), jobs.clone());
         let mcp = McpService::new(db.clone(), Arc::new(RwLock::new(McpConfig::default())));
         Self {
             auth,
@@ -87,6 +97,7 @@ impl Services {
             playback,
             mcp,
             hw,
+            intelligence,
         }
     }
 

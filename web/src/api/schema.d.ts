@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/api/v1/ai/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run a semantic frame embedding benchmark on the Hailo NPU / CLIP engine (M5.13). */
+        get: operations["hailo_benchmark"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/recap/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Generate a spoiler-free "Previously On..." recap strictly from the caller's watched episodes (M5.13). */
+        get: operations["spoiler_free_recap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/search-scenes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Natural-language semantic visual scene search across indexed movies and episodes (M5.13). */
+        get: operations["search_scenes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -49,6 +100,57 @@ export interface paths {
         get: operations["me"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/quick-connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Initiate a 6-digit Quick-Connect code flow for `mbl-tv` login (M5.8). */
+        post: operations["quick_connect_init"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/quick-connect/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authorize a 6-digit Quick-Connect TV code using the caller's active session (M5.8). */
+        post: operations["quick_connect_authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/quick-connect/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Poll whether a Quick-Connect secret has been authorized by a user (M5.8). */
+        post: operations["quick_connect_poll"];
         delete?: never;
         options?: never;
         head?: never;
@@ -254,6 +356,57 @@ export interface paths {
         get: operations["children"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/index-scenes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Index visual scenes and tags for a media item using the Hailo NPU multimodal engine (M5.13). */
+        post: operations["index_item_scenes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List intro, credits, and chapter markers for an item (M5.6, M5.7). */
+        get: operations["get_markers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/optimize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create or preview (`dry_run`) an optimized H.264 + AAC MP4 version for an item (M5.4). */
+        post: operations["optimize_item"];
         delete?: never;
         options?: never;
         head?: never;
@@ -504,6 +657,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasons/{id}/detect-intros": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Chromaprint-style audio intro detection and credits detection across all episodes in a season (M5.6, M5.7). */
+        post: operations["detect_season_intros"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stream/direct/{partId}": {
         parameters: {
             query?: never;
@@ -578,6 +748,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stream/trickplay/{partId}/index.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the trickplay sprite sheet manifest (`10x10` 320px tiles every 10s) for a media part (M5.5). */
+        get: operations["trickplay_manifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stream/trickplay/{partId}/{sprite}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serve a trickplay 10x10 JPEG sprite sheet (`sprite_000.jpg`) (M5.5). */
+        get: operations["trickplay_sprite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/browse": {
         parameters: {
             query?: never;
@@ -587,6 +791,23 @@ export interface paths {
         };
         /** List server directories for picking library roots (admin). */
         get: operations["browse_directories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detailed system health including SoC temperature, throttling/under-voltage flags, and platform profile defaults (M5.1, M5.2). */
+        get: operations["system_health"];
         put?: never;
         post?: never;
         delete?: never;
@@ -793,6 +1014,23 @@ export interface components {
             name: string;
             paths: string[];
         };
+        /** @description Request to create an optimized version for an item or library (M5.4). */
+        CreateOptimizedRequest: {
+            dryRun?: boolean;
+            itemId?: components["schemas"]["ItemId"] | null;
+            libraryId?: components["schemas"]["LibraryId"] | null;
+            nightWindowOnly?: boolean;
+            profile?: string;
+        };
+        /** @description Result of creating or previewing (`dry_run`) an optimized version (M5.4). */
+        CreateOptimizedResponse: {
+            dryRun: boolean;
+            estimate: components["schemas"]["OptimizationEstimate"];
+            partId?: components["schemas"]["PartId"] | null;
+            /** Format: int64 */
+            ruleId?: number | null;
+            versionId?: components["schemas"]["VersionId"] | null;
+        };
         CreateUserRequest: {
             displayName?: string | null;
             isAdmin?: boolean;
@@ -862,6 +1100,20 @@ export interface components {
             driverVersion?: string | null;
             pciAddress?: string | null;
             profile: components["schemas"]["NpuProfile"];
+        };
+        HailoEmbeddingBenchmark: {
+            activeCoTenants: number;
+            /** Format: double */
+            avgLatencyUs: number;
+            deviceNodes: string[];
+            /** Format: double */
+            elapsedMs: number;
+            /** Format: double */
+            framesPerSec: number;
+            iterations: number;
+            npuProfile: components["schemas"]["NpuProfile"];
+            sharingMode: string;
+            vdeviceGroupId: string;
         };
         /**
          * @description AI media pipelines accelerated by Hailo-8 / Hailo-8L / Hailo-10H.
@@ -950,6 +1202,10 @@ export interface components {
             capabilities: components["schemas"]["HwCapEntry"][];
             capacity: components["schemas"]["TranscodeCapacity"];
             jobId: components["schemas"]["JobId"];
+        };
+        /** @description Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13). */
+        IndexScenesRequest: {
+            scenes?: components["schemas"]["SceneHintInput"][];
         };
         ItemDetail: {
             /** Format: int64 */
@@ -1041,6 +1297,23 @@ export interface components {
             token: string;
             user: components["schemas"]["UserDto"];
         };
+        MarkerRow: {
+            /** Format: double */
+            confidence: number;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            endMs: number;
+            /** Format: int64 */
+            id: number;
+            itemId: components["schemas"]["ItemId"];
+            kind: string;
+            partId?: components["schemas"]["PartId"] | null;
+            source: string;
+            /** Format: int64 */
+            startMs: number;
+            title?: string | null;
+        };
         McpAuditEntry: {
             args: string;
             client?: string | null;
@@ -1102,6 +1375,23 @@ export interface components {
             name: string;
             uuid?: string | null;
         };
+        OptimizationEstimate: {
+            /** Format: int64 */
+            estimatedDurationSecs: number;
+            /** Format: int64 */
+            estimatedSizeBytes: number;
+            profile: components["schemas"]["OptimizationProfile"];
+        };
+        /**
+         * @description Pre-transcoded optimization target profiles (M5.4).
+         * @enum {string}
+         */
+        OptimizationProfile: "universal1080p" | "universal720p";
+        OptimizeItemBody: {
+            dryRun?: boolean;
+            nightWindowOnly?: boolean;
+            profile?: string;
+        };
         Paginated_ItemSummary: {
             items: {
                 /** Format: int64 */
@@ -1146,6 +1436,21 @@ export interface components {
         };
         /** Format: int64 */
         PartId: number;
+        /** @description Default tuning parameters per [`PlatformProfile`] (M5.2). */
+        PlatformDefaults: {
+            /** Format: int32 */
+            aheadSegments: number;
+            /** Format: int64 */
+            imageCacheMb: number;
+            /** Format: int32 */
+            maxTranscodeSessions: number;
+            /** Format: int64 */
+            metadataCacheMb: number;
+            /** Format: int32 */
+            probeConcurrency: number;
+            /** Format: int32 */
+            segmentSecs: number;
+        };
         /**
          * @description Hardware platform class used to pick defaults and hardware transcode pipelines (M4.1).
          * @enum {string}
@@ -1243,6 +1548,64 @@ export interface components {
             title?: string | null;
             url: string;
         };
+        /** @description Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8). */
+        QuickConnectAuthorizeRequest: {
+            code: string;
+        };
+        /** @description Request to initiate a Quick-Connect 6-digit login code for `mbl-tv` (M5.8). */
+        QuickConnectInitRequest: {
+            clientName?: string | null;
+            deviceName?: string | null;
+        };
+        /** @description Response from `POST /api/v1/auth/quick-connect` (M5.8). */
+        QuickConnectInitResponse: {
+            code: string;
+            /** Format: int64 */
+            expiresInSecs: number;
+            secret: string;
+        };
+        /** @description Request from the TV client polling whether its Quick-Connect secret has been authorized (M5.8). */
+        QuickConnectPollRequest: {
+            secret: string;
+        };
+        /** @description Response to Quick-Connect poll (M5.8). */
+        QuickConnectPollResponse: {
+            authorized: boolean;
+            token?: string | null;
+            userId?: components["schemas"]["UserId"] | null;
+        };
+        SceneEmbeddingRow: {
+            backend: string;
+            caption: string;
+            /** Format: int64 */
+            createdAt: number;
+            embedding: number[];
+            /** Format: int64 */
+            id: number;
+            itemId: components["schemas"]["ItemId"];
+            partId?: components["schemas"]["PartId"] | null;
+            tags: string[];
+            /** Format: int64 */
+            timestampMs: number;
+        };
+        /** @description Input scene hint for indexing keyframes on an item (M5.13). */
+        SceneHintInput: {
+            description: string;
+            /** Format: int64 */
+            timestampMs: number;
+        };
+        /** @description Semantic scene search match returned by `GET /api/v1/ai/search-scenes` (M5.13). */
+        SceneSearchHit: {
+            backend: string;
+            caption: string;
+            itemId: components["schemas"]["ItemId"];
+            itemTitle: string;
+            /** Format: float */
+            similarity: number;
+            tags: string[];
+            /** Format: int64 */
+            timestampMs: number;
+        };
         SearchGroup: {
             items: components["schemas"]["ItemSummary"][];
             kind: components["schemas"]["MediaKind"];
@@ -1283,6 +1646,13 @@ export interface components {
         SortField: "title" | "added" | "year" | "rating";
         /** @enum {string} */
         SortOrder: "asc" | "desc";
+        SpoilerFreeRecap: {
+            episodesIncluded: number;
+            modelBackend: string;
+            recapText: string;
+            showTitle: string;
+            spoilerProtectedUnwatchedExcluded: number;
+        };
         Stream: {
             /** Format: int64 */
             channels?: number | null;
@@ -1341,6 +1711,43 @@ export interface components {
             /** @description `"sm" | "md" | "lg" | "xl"`, default `"md"`. */
             size: string;
         };
+        /** @description System health snapshot including thermal/power monitoring and platform defaults (M5.1, M5.2). */
+        SystemHealthReport: {
+            activePlaybackSessions: number;
+            defaults: components["schemas"]["PlatformDefaults"];
+            platformProfile: components["schemas"]["PlatformProfile"];
+            status: string;
+            thermal: components["schemas"]["ThermalStatus"];
+            /** Format: int64 */
+            totalMemoryBytes?: number | null;
+        };
+        /** @description Snapshot of host thermal and power status. */
+        ThermalStatus: {
+            /** @description Currently thermally throttled (`bit 2` or `bit 3`). */
+            currentlyThrottled: boolean;
+            /** @description ARM frequency is currently capped (`bit 1`). */
+            frequencyCapped: boolean;
+            /** @description Whether background idle jobs (`Priority::Idle`) are paused due to high temperature (≥ 75 °C) or active throttling. */
+            idleJobsPaused: boolean;
+            /**
+             * Format: int32
+             * @description Raw Raspberry Pi `get_throttled` bitmask, if available.
+             */
+            rawThrottled?: number | null;
+            /**
+             * Format: float
+             * @description Current SoC / CPU temperature in degrees Celsius, if readable.
+             */
+            temperatureC?: number | null;
+            /** @description Thermal throttling has occurred since last boot (`bit 18` or `bit 19`). */
+            throttlingOccurred: boolean;
+            /** @description Currently experiencing under-voltage (`bit 0` or `rpi_volt/in0_lcrit_alarm`). */
+            underVoltage: boolean;
+            /** @description Under-voltage has occurred since last boot (`bit 16`). */
+            underVoltageOccurred: boolean;
+            /** @description Human-readable dashboard warnings for admins. */
+            warnings: string[];
+        };
         /** @description Live transcode capacity summary derived from hardware profile, self-test FPS, and active sessions (M4.11). */
         TranscodeCapacity: {
             activeVideoSessions: number;
@@ -1352,6 +1759,54 @@ export interface components {
             maxVideoSessions: number;
             preferredBackend: string;
             supportsAbrLadder: boolean;
+        };
+        TrickplayManifest: {
+            /** Format: int32 */
+            columns: number;
+            /** Format: int32 */
+            frameCount: number;
+            /** Format: int64 */
+            generatedMs: number;
+            /** Format: int64 */
+            intervalMs: number;
+            partId: components["schemas"]["PartId"];
+            /** Format: int32 */
+            rows: number;
+            sprites: components["schemas"]["TrickplaySprite"][];
+            /** Format: int32 */
+            tileHeight: number;
+            /** Format: int32 */
+            tileWidth: number;
+            tiles: components["schemas"]["TrickplayTile"][];
+        };
+        TrickplaySprite: {
+            /** Format: int64 */
+            endMs: number;
+            fileName: string;
+            /** Format: int32 */
+            index: number;
+            /** Format: int64 */
+            startMs: number;
+            /** Format: int32 */
+            tileCount: number;
+            url: string;
+        };
+        TrickplayTile: {
+            /** Format: int32 */
+            height: number;
+            /** Format: int32 */
+            index: number;
+            spriteFile: string;
+            /** Format: int32 */
+            spriteIndex: number;
+            /** Format: int64 */
+            timeMs: number;
+            /** Format: int32 */
+            width: number;
+            /** Format: int32 */
+            x: number;
+            /** Format: int32 */
+            y: number;
         };
         UpdateLibraryRequest: {
             name?: string | null;
@@ -1482,6 +1937,93 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    hailo_benchmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HailoEmbeddingBenchmark"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    spoiler_free_recap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Show or Season item ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpoilerFreeRecap"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_scenes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                q: string;
+                limit: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneSearchHit"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -1550,6 +2092,97 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserDto"];
                 };
+            };
+        };
+    };
+    quick_connect_init: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickConnectInitRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickConnectInitResponse"];
+                };
+            };
+        };
+    };
+    quick_connect_authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickConnectAuthorizeRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    quick_connect_poll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickConnectPollRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickConnectPollResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1884,6 +2517,122 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ItemSummary"][];
                 };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    index_item_scenes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Media item ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexScenesRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneEmbeddingRow"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_markers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Media item ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerRow"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    optimize_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Media item ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptimizeItemBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateOptimizedResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: {
                 headers: {
@@ -2521,6 +3270,46 @@ export interface operations {
             };
         };
     };
+    detect_season_intros: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Season item ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerRow"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     direct: {
         parameters: {
             query?: {
@@ -2712,6 +3501,76 @@ export interface operations {
             };
         };
     };
+    trickplay_manifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Media part ID */
+                partId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrickplayManifest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    trickplay_sprite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Media part ID */
+                partId: number;
+                /** @description Sprite file name (e.g. sprite_000.jpg) */
+                sprite: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     browse_directories: {
         parameters: {
             query?: {
@@ -2736,6 +3595,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    system_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemHealthReport"];
+                };
             };
         };
     };

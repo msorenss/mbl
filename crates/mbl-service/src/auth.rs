@@ -138,6 +138,17 @@ impl AuthService {
         }
     }
 
+    /// Issue a new session token for an already-authenticated user (used by Quick-Connect in M5.8).
+    pub async fn create_session_for_user(
+        &self,
+        user_id: UserId,
+        device: &DeviceInfo,
+    ) -> Result<String> {
+        let user = self.users.get(user_id).await?.ok_or(Error::NotFound)?;
+        let res = self.start_session(user, device).await?;
+        Ok(res.token)
+    }
+
     async fn start_session(&self, user: User, device: &DeviceInfo) -> Result<LoginResult> {
         let token = mbl_auth::new_token()?;
         let now = now_ms();

@@ -10,6 +10,104 @@
     "version": "0.3.0"
   },
   "paths": {
+    "/api/v1/ai/benchmark": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Run a semantic frame embedding benchmark on the Hailo NPU / CLIP engine (M5.13).",
+        "operationId": "hailo_benchmark",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HailoEmbeddingBenchmark"
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/ai/recap/{id}": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Generate a spoiler-free \"Previously On...\" recap strictly from the caller's watched episodes (M5.13).",
+        "operationId": "spoiler_free_recap",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Show or Season item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpoilerFreeRecap"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/ai/search-scenes": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Natural-language semantic visual scene search across indexed movies and episodes (M5.13).",
+        "operationId": "search_scenes",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SceneSearchHit"
+                  }
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -73,6 +171,94 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/auth/quick-connect": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Initiate a 6-digit Quick-Connect code flow for `mbl-tv` login (M5.8).",
+        "operationId": "quick_connect_init",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickConnectInitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickConnectInitResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/quick-connect/authorize": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Authorize a 6-digit Quick-Connect TV code using the caller's active session (M5.8).",
+        "operationId": "quick_connect_authorize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickConnectAuthorizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "401": {},
+          "404": {},
+          "409": {}
+        }
+      }
+    },
+    "/api/v1/auth/quick-connect/poll": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Poll whether a Quick-Connect secret has been authorized by a user (M5.8).",
+        "operationId": "quick_connect_poll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickConnectPollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickConnectPollResponse"
+                }
+              }
+            }
+          },
+          "404": {}
+        },
+        "security": []
       }
     },
     "/api/v1/auth/sessions": {
@@ -445,6 +631,135 @@
               }
             }
           },
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/index-scenes": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Index visual scenes and tags for a media item using the Hailo NPU multimodal engine (M5.13).",
+        "operationId": "index_item_scenes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Media item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexScenesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SceneEmbeddingRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/markers": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "List intro, credits, and chapter markers for an item (M5.6, M5.7).",
+        "operationId": "get_markers",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Media item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarkerRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/optimize": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Create or preview (`dry_run`) an optimized H.264 + AAC MP4 version for an item (M5.4).",
+        "operationId": "optimize_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Media item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateOptimizedResponse"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
           "404": {}
         }
       }
@@ -1245,6 +1560,44 @@
         }
       }
     },
+    "/api/v1/seasons/{id}/detect-intros": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Run Chromaprint-style audio intro detection and credits detection across all episodes in a season (M5.6, M5.7).",
+        "operationId": "detect_season_intros",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Season item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarkerRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "404": {}
+        }
+      }
+    },
     "/api/v1/stream/direct/{partId}": {
       "get": {
         "tags": [
@@ -1432,6 +1785,79 @@
         }
       }
     },
+    "/api/v1/stream/trickplay/{partId}/index.json": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Get the trickplay sprite sheet manifest (`10x10` 320px tiles every 10s) for a media part (M5.5).",
+        "operationId": "trickplay_manifest",
+        "parameters": [
+          {
+            "name": "partId",
+            "in": "path",
+            "description": "Media part ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrickplayManifest"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/stream/trickplay/{partId}/{sprite}": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Serve a trickplay 10x10 JPEG sprite sheet (`sprite_000.jpg`) (M5.5).",
+        "operationId": "trickplay_sprite",
+        "parameters": [
+          {
+            "name": "partId",
+            "in": "path",
+            "description": "Media part ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sprite",
+            "in": "path",
+            "description": "Sprite file name (e.g. sprite_000.jpg)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
     "/api/v1/system/browse": {
       "get": {
         "tags": [
@@ -1461,6 +1887,27 @@
           },
           "403": {}
         }
+      }
+    },
+    "/api/v1/system/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Detailed system health including SoC temperature, throttling/under-voltage flags, and platform profile defaults (M5.1, M5.2).",
+        "operationId": "system_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthReport"
+                }
+              }
+            }
+          }
+        },
+        "security": []
       }
     },
     "/api/v1/system/info": {
@@ -2020,6 +2467,84 @@
           }
         }
       },
+      "CreateOptimizedRequest": {
+        "type": "object",
+        "description": "Request to create an optimized version for an item or library (M5.4).",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ItemId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "libraryId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LibraryId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nightWindowOnly": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateOptimizedResponse": {
+        "type": "object",
+        "description": "Result of creating or previewing (`dry_run`) an optimized version (M5.4).",
+        "required": [
+          "dryRun",
+          "estimate"
+        ],
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/OptimizationEstimate"
+          },
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ruleId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "versionId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VersionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "CreateUserRequest": {
         "type": "object",
         "required": [
@@ -2303,6 +2828,57 @@
           },
           "profile": {
             "$ref": "#/components/schemas/NpuProfile"
+          }
+        }
+      },
+      "HailoEmbeddingBenchmark": {
+        "type": "object",
+        "required": [
+          "npuProfile",
+          "deviceNodes",
+          "sharingMode",
+          "vdeviceGroupId",
+          "activeCoTenants",
+          "iterations",
+          "elapsedMs",
+          "framesPerSec",
+          "avgLatencyUs"
+        ],
+        "properties": {
+          "activeCoTenants": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "avgLatencyUs": {
+            "type": "number",
+            "format": "double"
+          },
+          "deviceNodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "elapsedMs": {
+            "type": "number",
+            "format": "double"
+          },
+          "framesPerSec": {
+            "type": "number",
+            "format": "double"
+          },
+          "iterations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "npuProfile": {
+            "$ref": "#/components/schemas/NpuProfile"
+          },
+          "sharingMode": {
+            "type": "string"
+          },
+          "vdeviceGroupId": {
+            "type": "string"
           }
         }
       },
@@ -2640,6 +3216,18 @@
           },
           "jobId": {
             "$ref": "#/components/schemas/JobId"
+          }
+        }
+      },
+      "IndexScenesRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13).",
+        "properties": {
+          "scenes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SceneHintInput"
+            }
           }
         }
       },
@@ -3013,6 +3601,66 @@
           }
         }
       },
+      "MarkerRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "itemId",
+          "kind",
+          "startMs",
+          "endMs",
+          "source",
+          "confidence",
+          "createdAt"
+        ],
+        "properties": {
+          "confidence": {
+            "type": "number",
+            "format": "double"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "endMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "McpAuditEntry": {
         "type": "object",
         "required": [
@@ -3241,6 +3889,51 @@
           }
         }
       },
+      "OptimizationEstimate": {
+        "type": "object",
+        "required": [
+          "profile",
+          "estimatedSizeBytes",
+          "estimatedDurationSecs"
+        ],
+        "properties": {
+          "estimatedDurationSecs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "estimatedSizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "profile": {
+            "$ref": "#/components/schemas/OptimizationProfile"
+          }
+        }
+      },
+      "OptimizationProfile": {
+        "type": "string",
+        "description": "Pre-transcoded optimization target profiles (M5.4).",
+        "enum": [
+          "universal1080p",
+          "universal720p"
+        ]
+      },
+      "OptimizeItemBody": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "nightWindowOnly": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": "string"
+          }
+        }
+      },
       "Paginated_ItemSummary": {
         "type": "object",
         "required": [
@@ -3418,6 +4111,50 @@
       "PartId": {
         "type": "integer",
         "format": "int64"
+      },
+      "PlatformDefaults": {
+        "type": "object",
+        "description": "Default tuning parameters per [`PlatformProfile`] (M5.2).",
+        "required": [
+          "probeConcurrency",
+          "segmentSecs",
+          "aheadSegments",
+          "maxTranscodeSessions",
+          "imageCacheMb",
+          "metadataCacheMb"
+        ],
+        "properties": {
+          "aheadSegments": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "imageCacheMb": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "maxTranscodeSessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "metadataCacheMb": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "probeConcurrency": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "segmentSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "PlatformProfile": {
         "type": "string",
@@ -3764,6 +4501,215 @@
           }
         }
       },
+      "QuickConnectAuthorizeRequest": {
+        "type": "object",
+        "description": "Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8).",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "QuickConnectInitRequest": {
+        "type": "object",
+        "description": "Request to initiate a Quick-Connect 6-digit login code for `mbl-tv` (M5.8).",
+        "properties": {
+          "clientName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deviceName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "QuickConnectInitResponse": {
+        "type": "object",
+        "description": "Response from `POST /api/v1/auth/quick-connect` (M5.8).",
+        "required": [
+          "code",
+          "secret",
+          "expiresInSecs"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresInSecs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "QuickConnectPollRequest": {
+        "type": "object",
+        "description": "Request from the TV client polling whether its Quick-Connect secret has been authorized (M5.8).",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "QuickConnectPollResponse": {
+        "type": "object",
+        "description": "Response to Quick-Connect poll (M5.8).",
+        "required": [
+          "authorized"
+        ],
+        "properties": {
+          "authorized": {
+            "type": "boolean"
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "SceneEmbeddingRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "itemId",
+          "timestampMs",
+          "tags",
+          "caption",
+          "embedding",
+          "backend",
+          "createdAt"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "caption": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "embedding": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SceneHintInput": {
+        "type": "object",
+        "description": "Input scene hint for indexing keyframes on an item (M5.13).",
+        "required": [
+          "timestampMs",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SceneSearchHit": {
+        "type": "object",
+        "description": "Semantic scene search match returned by `GET /api/v1/ai/search-scenes` (M5.13).",
+        "required": [
+          "itemId",
+          "itemTitle",
+          "timestampMs",
+          "caption",
+          "tags",
+          "similarity",
+          "backend"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "caption": {
+            "type": "string"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "itemTitle": {
+            "type": "string"
+          },
+          "similarity": {
+            "type": "number",
+            "format": "float"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "SearchGroup": {
         "type": "object",
         "required": [
@@ -3918,6 +4864,35 @@
           "asc",
           "desc"
         ]
+      },
+      "SpoilerFreeRecap": {
+        "type": "object",
+        "required": [
+          "showTitle",
+          "episodesIncluded",
+          "spoilerProtectedUnwatchedExcluded",
+          "recapText",
+          "modelBackend"
+        ],
+        "properties": {
+          "episodesIncluded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelBackend": {
+            "type": "string"
+          },
+          "recapText": {
+            "type": "string"
+          },
+          "showTitle": {
+            "type": "string"
+          },
+          "spoilerProtectedUnwatchedExcluded": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       },
       "Stream": {
         "type": "object",
@@ -4147,6 +5122,106 @@
           }
         }
       },
+      "SystemHealthReport": {
+        "type": "object",
+        "description": "System health snapshot including thermal/power monitoring and platform defaults (M5.1, M5.2).",
+        "required": [
+          "status",
+          "platformProfile",
+          "defaults",
+          "activePlaybackSessions",
+          "thermal"
+        ],
+        "properties": {
+          "activePlaybackSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/PlatformDefaults"
+          },
+          "platformProfile": {
+            "$ref": "#/components/schemas/PlatformProfile"
+          },
+          "status": {
+            "type": "string"
+          },
+          "thermal": {
+            "$ref": "#/components/schemas/ThermalStatus"
+          },
+          "totalMemoryBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ThermalStatus": {
+        "type": "object",
+        "description": "Snapshot of host thermal and power status.",
+        "required": [
+          "underVoltage",
+          "frequencyCapped",
+          "currentlyThrottled",
+          "underVoltageOccurred",
+          "throttlingOccurred",
+          "idleJobsPaused",
+          "warnings"
+        ],
+        "properties": {
+          "currentlyThrottled": {
+            "type": "boolean",
+            "description": "Currently thermally throttled (`bit 2` or `bit 3`)."
+          },
+          "frequencyCapped": {
+            "type": "boolean",
+            "description": "ARM frequency is currently capped (`bit 1`)."
+          },
+          "idleJobsPaused": {
+            "type": "boolean",
+            "description": "Whether background idle jobs (`Priority::Idle`) are paused due to high temperature (≥ 75 °C) or active throttling."
+          },
+          "rawThrottled": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Raw Raspberry Pi `get_throttled` bitmask, if available.",
+            "minimum": 0
+          },
+          "temperatureC": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Current SoC / CPU temperature in degrees Celsius, if readable."
+          },
+          "throttlingOccurred": {
+            "type": "boolean",
+            "description": "Thermal throttling has occurred since last boot (`bit 18` or `bit 19`)."
+          },
+          "underVoltage": {
+            "type": "boolean",
+            "description": "Currently experiencing under-voltage (`bit 0` or `rpi_volt/in0_lcrit_alarm`)."
+          },
+          "underVoltageOccurred": {
+            "type": "boolean",
+            "description": "Under-voltage has occurred since last boot (`bit 16`)."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Human-readable dashboard warnings for admins."
+          }
+        }
+      },
       "TranscodeCapacity": {
         "type": "object",
         "description": "Live transcode capacity summary derived from hardware profile, self-test FPS, and active sessions (M4.11).",
@@ -4197,6 +5272,165 @@
           },
           "supportsAbrLadder": {
             "type": "boolean"
+          }
+        }
+      },
+      "TrickplayManifest": {
+        "type": "object",
+        "required": [
+          "partId",
+          "intervalMs",
+          "tileWidth",
+          "tileHeight",
+          "columns",
+          "rows",
+          "frameCount",
+          "generatedMs",
+          "sprites",
+          "tiles"
+        ],
+        "properties": {
+          "columns": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "frameCount": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "generatedMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "intervalMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sprites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrickplaySprite"
+            }
+          },
+          "tileHeight": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "tileWidth": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrickplayTile"
+            }
+          }
+        }
+      },
+      "TrickplaySprite": {
+        "type": "object",
+        "required": [
+          "index",
+          "fileName",
+          "url",
+          "startMs",
+          "endMs",
+          "tileCount"
+        ],
+        "properties": {
+          "endMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "tileCount": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "TrickplayTile": {
+        "type": "object",
+        "required": [
+          "index",
+          "timeMs",
+          "spriteIndex",
+          "spriteFile",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "spriteFile": {
+            "type": "string"
+          },
+          "spriteIndex": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "timeMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "x": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "y": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

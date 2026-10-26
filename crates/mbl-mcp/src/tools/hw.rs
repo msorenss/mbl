@@ -72,6 +72,76 @@ pub fn definitions() -> Vec<RegisteredTool> {
                 }),
             },
         },
+        RegisteredTool {
+            scope: Scope::Admin,
+            definition: ToolDefinition {
+                name: "create_optimized_versions".into(),
+                description: "Create an optimized H.264 High + AAC stereo MP4 version ('universal_1080p' or 'universal_720p') for an item or library so remote and incompatible clients can direct play. Supports dry_run size and duration estimate.".into(),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "item_id": { "type": "integer", "description": "Media item ID to optimize" },
+                        "library_id": { "type": "integer", "description": "Optional library ID to optimize" },
+                        "profile": { "type": "string", "default": "universal_1080p", "description": "Optimization profile ('universal_1080p' or 'universal_720p')" },
+                        "night_window_only": { "type": "boolean", "default": false, "description": "Queue optimization for the overnight idle window" },
+                        "dry_run": { "type": "boolean", "default": false, "description": "Return estimated output file size and duration without transcoding" }
+                    },
+                    "additionalProperties": false
+                }),
+                annotations: Some(ToolAnnotations {
+                    title: Some("Create Optimized Versions".into()),
+                    read_only_hint: Some(false),
+                    destructive_hint: Some(false),
+                    idempotent_hint: Some(true),
+                    open_world_hint: Some(false),
+                }),
+            },
+        },
+        RegisteredTool {
+            scope: Scope::Read,
+            definition: ToolDefinition {
+                name: "search_scenes".into(),
+                description: "Semantic visual scene search across indexed movie and episode keyframes using Hailo NPU / CLIP multimodal embeddings (e.g. 'find the scene with a car chase in the snow').".into(),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Natural-language scene description" },
+                        "limit": { "type": "integer", "default": 10, "description": "Maximum number of matching scenes to return" }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": false
+                }),
+                annotations: Some(ToolAnnotations {
+                    title: Some("Semantic Scene Search".into()),
+                    read_only_hint: Some(true),
+                    destructive_hint: Some(false),
+                    idempotent_hint: Some(true),
+                    open_world_hint: Some(false),
+                }),
+            },
+        },
+        RegisteredTool {
+            scope: Scope::Read,
+            definition: ToolDefinition {
+                name: "get_spoiler_free_recap".into(),
+                description: "Generate a 'Previously On...' story recap for a TV show or season strictly from the caller's watched episodes, guaranteeing zero spoilers from unwatched episodes.".into(),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "item_id": { "type": "integer", "description": "Show or Season item ID" }
+                    },
+                    "required": ["item_id"],
+                    "additionalProperties": false
+                }),
+                annotations: Some(ToolAnnotations {
+                    title: Some("Get Spoiler-Free Recap".into()),
+                    read_only_hint: Some(true),
+                    destructive_hint: Some(false),
+                    idempotent_hint: Some(true),
+                    open_world_hint: Some(false),
+                }),
+            },
+        },
     ]
 }
 
@@ -146,6 +216,86 @@ pub async fn execute(
                         res.capacity.max_video_sessions
                     );
                     Ok(CallToolResult::structured(&res, summary))
+                }
+                Err(err) => Ok(service_error_to_tool_result(err)),
+            }
+        }
+        "create_optimized_versions" => {
+            let item_id = args.get("item_id").and_then(Value::as_i64).map(mbl_core::ItemId);
+            let library_id =
+                args.get("library_id").and_then(Value::as_i64).map(mbl_core::LibraryId);
+            let profile =
+                args.get("profile").and_then(Value::as_str).unwrap_or("universal_1080p").to_owned();
+            let night_window_only =
+                args.get("night_window_only").and_then(Value::as_bool).unwrap_or(false);
+            let dry_run = crate::audit::extract_dry_run(args);
+
+            match services
+                .intelligence
+                .create_optimized(
+                    &caller.actor,
+                    mbl_service::CreateOptimizedRequest {
+                        item_id,
+                        library_id,
+                        profile,
+                        night_window_only,
+                        dry_run,
+                    },
+                )
+                .await
+            {
+                Ok(res) => {
+                    let summary = if res.dry_run {
+                        format!(
+                            "dry run: {:?} estimated at {} bytes (~{}s)",
+                            res.estimate.profile,
+                            res.estimate.estimated_size_bytes,
+                            res.estimate.estimated_duration_secs
+                        )
+                    } else {
+                        format!(
+                            "Optimized version created: version_id={:?}, part_id={:?}",
+                            res.version_id, res.part_id
+                        )
+                    };
+                    Ok(CallToolResult::structured(&res, summary))
+                }
+                Err(err) => Ok(service_error_to_tool_result(err)),
+            }
+        }
+        "search_scenes" => {
+            let query = args.get("query").and_then(Value::as_str).ok_or_else(|| {
+                JsonRpcError::invalid_params("missing required string parameter 'query'")
+            })?;
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(10) as usize;
+            match services.intelligence.search_scenes(&caller.actor, query, limit).await {
+                Ok(hits) => {
+                    let count = hits.len();
+                    Ok(CallToolResult::structured(
+                        &json!({ "hits": hits, "count": count }),
+                        format!("{count} matching scene(s) for '{query}'"),
+                    ))
+                }
+                Err(err) => Ok(service_error_to_tool_result(err)),
+            }
+        }
+        "get_spoiler_free_recap" => {
+            let item_id = args.get("item_id").and_then(Value::as_i64).ok_or_else(|| {
+                JsonRpcError::invalid_params("missing required integer parameter 'item_id'")
+            })?;
+            match services
+                .intelligence
+                .spoiler_free_recap(&caller.actor, mbl_core::ItemId(item_id))
+                .await
+            {
+                Ok(recap) => {
+                    let summary = format!(
+                        "Spoiler-free recap for '{}' ({} watched, {} unwatched excluded)",
+                        recap.show_title,
+                        recap.episodes_included,
+                        recap.spoiler_protected_unwatched_excluded
+                    );
+                    Ok(CallToolResult::structured(&recap, summary))
                 }
                 Err(err) => Ok(service_error_to_tool_result(err)),
             }

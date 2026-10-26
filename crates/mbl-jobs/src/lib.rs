@@ -25,6 +25,11 @@ pub mod kinds {
     pub const METADATA_MATCH: &str = "metadata.match";
     pub const METADATA_REFRESH: &str = "metadata.refresh";
     pub const ARTWORK_FETCH: &str = "artwork.fetch";
+    pub const MEDIA_OPTIMIZE: &str = "media.optimize";
+    pub const MEDIA_TRICKPLAY: &str = "media.trickplay";
+    pub const MEDIA_INTRO_DETECT: &str = "media.intro_detect";
+    pub const MEDIA_CREDITS_DETECT: &str = "media.credits_detect";
+    pub const MEDIA_SCENE_INDEX: &str = "media.scene_index";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,7 +37,7 @@ pub enum Priority {
     /// User-triggered work.
     High = 0,
     Normal = 1,
-    /// Background work; paused while any playback session is active.
+    /// Background work; paused while any playback session is active or SoC temperature >= 75 °C.
     Idle = 2,
 }
 
@@ -49,9 +54,14 @@ pub trait JobHandler: Send + Sync + 'static {
     async fn run(&self, ctx: JobCtx, payload: serde_json::Value) -> Result<()>;
 }
 
-/// Reports whether media is playing so idle jobs can yield (wired to playback in M2.7).
+/// Reports whether media is playing or the host is thermally throttled so idle jobs can yield (M2.7, M5.1).
 pub trait ActivityProbe: Send + Sync + 'static {
     fn playback_active(&self) -> bool;
+
+    /// True if SoC temperature is >= 75 °C or active thermal throttling is detected (M5.1).
+    fn thermal_throttled(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]

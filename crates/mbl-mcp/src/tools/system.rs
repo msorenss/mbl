@@ -116,18 +116,14 @@ pub async fn execute(
             ))
         }
         "get_health" => {
-            let profile: PlatformProfile = mbl_platform::system::detect_profile();
-            let total_mem = mbl_platform::system::total_memory_bytes();
             let active = services.playback.list_active(&caller.actor).len();
-            let health = json!({
-                "status": "ok",
-                "platformProfile": profile,
-                "totalMemoryBytes": total_mem,
-                "activePlaybackSessions": active,
-            });
+            let health = services.intelligence.system_health(active);
             Ok(CallToolResult::structured(
                 &health,
-                format!("Server health: ok, {active} active session(s)"),
+                format!(
+                    "Server health: {}, {active} active session(s), temp={:?} °C, idle_paused={}",
+                    health.status, health.thermal.temperature_c, health.thermal.idle_jobs_paused
+                ),
             ))
         }
         "get_logs" => {

@@ -62,6 +62,10 @@ impl StreamService {
         self.hls.as_ref()
     }
 
+    pub fn cache_dir(&self) -> Option<&Path> {
+        self.cache_dir.as_deref()
+    }
+
     pub fn hls_session(&self, session_id: &str) -> Result<Arc<HlsSession>> {
         let mgr = self
             .hls

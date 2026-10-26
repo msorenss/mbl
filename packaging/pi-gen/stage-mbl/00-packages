@@ -1,0 +1,10 @@
+ffmpeg
+avahi-daemon
+avahi-utils
+libnss-mdns
+ca-certificates
+curl
+gnupg
+udisks2
+libmpv2
+libcec6

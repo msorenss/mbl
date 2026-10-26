@@ -13,6 +13,7 @@ use crate::{ApiError, AppState, ServerInfo};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(health))
+        .route("/api/v1/system/health", get(system_health))
         .route("/api/v1/system/info", get(info))
         .route("/api/v1/system/setup", get(setup_status).post(setup))
 }
@@ -31,6 +32,19 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, ApiError>
         mbl_core::Error::Unavailable("database".into())
     })?;
     Ok(Json(Health { status: "ok" }))
+}
+
+/// Detailed system health including SoC temperature, throttling/under-voltage flags, and platform profile defaults (M5.1, M5.2).
+#[utoipa::path(get, path = "/api/v1/system/health", tag = "system", security(),
+    responses((status = 200, body = mbl_service::SystemHealthReport)))]
+async fn system_health(State(state): State<AppState>) -> Json<mbl_service::SystemHealthReport> {
+    let admin_actor = mbl_core::Actor {
+        user_id: mbl_core::UserId(0),
+        is_admin: true,
+        library_access: mbl_core::LibraryAccess::All,
+    };
+    let active = state.services.playback.list_active(&admin_actor).len();
+    Json(state.services.intelligence.system_health(active))
 }
 
 /// Server name, version and platform.

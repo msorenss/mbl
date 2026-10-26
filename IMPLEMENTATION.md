@@ -613,24 +613,24 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 
 ## 7. Milestone M5: Pi 5 excellence + TV client
 
-- [ ] **M5.0 TV UI stack decision:** build two prototypes on a Pi 5, Slint `linuxkms` + libmpv versus a WPE/Cog kiosk loading the web UI. Each shows a home screen with 5 hub rows of 20 posters, and video playback with an OSD. Measure p99 frame time, RAM and cold start. Update ADR 0005 to *Accepted*. *Accept:* ADR has numbers.
-- [ ] **M5.1 Thermal and power monitoring** (`mbl-platform`): read the temperature (`/sys/class/thermal/thermal_zone0/temp`) and throttling/under-voltage flags. Pause idle jobs above 75 °C. Expose the readings in `/system/health` and show dashboard warnings. *Accept:* tests with fixture sysfs.
-- [ ] **M5.2 Platform profile defaults:** concurrency, cache sizes, segment lengths and transcode limits per `PlatformProfile`, overridable in config. *Accept:* config tests.
-- [ ] **M5.3 tmpfs transcode dir:** when RAM ≥ 4 GB on Linux, use `/run/mbl/transcode`, size-capped at 25% of RAM. *Accept:* test the selection logic.
-- [ ] **M5.4 Optimized versions:**
+- [x] **M5.0 TV UI stack decision:** build two prototypes on a Pi 5, Slint `linuxkms` + libmpv versus a WPE/Cog kiosk loading the web UI. Each shows a home screen with 5 hub rows of 20 posters, and video playback with an OSD. Measure p99 frame time, RAM and cold start. Update ADR 0005 to *Accepted*. *Accept:* ADR has numbers.
+- [x] **M5.1 Thermal and power monitoring** (`mbl-platform`): read the temperature (`/sys/class/thermal/thermal_zone0/temp`) and throttling/under-voltage flags. Pause idle jobs above 75 °C. Expose the readings in `/system/health` and show dashboard warnings. *Accept:* tests with fixture sysfs.
+- [x] **M5.2 Platform profile defaults:** concurrency, cache sizes, segment lengths and transcode limits per `PlatformProfile`, overridable in config. *Accept:* config tests.
+- [x] **M5.3 tmpfs transcode dir:** when RAM ≥ 4 GB on Linux, use `/run/mbl/transcode`, size-capped at 25% of RAM. *Accept:* test the selection logic.
+- [x] **M5.4 Optimized versions:**
   - Per-item and per-library rules ("Universal 1080p", "Universal 720p" = H.264 High + AAC stereo MP4).
   - Jobs at idle priority within a night window, paused by the thermal monitor and during playback.
   - Results are stored as extra `media_versions` with `is_optimized`. The decision engine prefers them for remote clients and incompatible clients.
   - *Accept:* E2E: create an optimized version, then a remote playback shows a direct play of it.
-- [ ] **M5.5 Trickplay:** keyframe-only extraction (`-skip_frame nokey`), every 10 s, 320 px tiles in 10×10 sprites with a JSON index. Endpoint and player integration. *Accept:* timing logged on a Pi 5; the scrub shows thumbnails.
-- [ ] **M5.6 Intro detection:** Chromaprint over the first 10 min of each episode in a season; find the common segment; store it in `markers`. Chapter names take precedence. *Accept:* synthetic test (generate episodes with an identical 30 s intro tone pattern) gets detection within ±1 s.
-- [ ] **M5.7 Credits detection:** chapters first, then `blackdetect` + `silencedetect` heuristics in the last 10%. *Accept:* fixture tests.
-- [ ] **M5.8 `mbl-tv` bootstrap:** Slint app, `linuxkms` backend on the Pi, winit on Windows/Linux desktop; libmpv embedding (render API) with `hwdec=auto-safe`; server discovery via mDNS; quick-connect login (`POST /auth/quick-connect` code flow added server-side). *Accept:* plays a direct-play file on a Pi 5 at 4K HEVC HDR.
-- [ ] **M5.9 `mbl-tv` screens:** profile picker, home, library, detail, search (on-screen keyboard), player OSD, settings, all using `mbl-ui-kit`, with spatial focus navigation. *Accept:* the M5.0 performance budget holds on the Pi 5.
-- [ ] **M5.10 `mbl-tv` input and output:** HDMI-CEC via libcec, gamepad via `gilrs`, refresh-rate matching, HDR passthrough, audio passthrough (IEC958). *Accept:* manual HW checklist on a Pi 5 + TV.
-- [ ] **M5.11 MBL OS image:** `pi-gen` stage that installs `mbl-server` + `mbl-tv` + FFmpeg. First boot: mDNS `mbl.local`, setup wizard, optional appliance mode (boot into `mbl-tv`), TCP BBR + `fq`, journald volatile, log2ram. *Accept:* flash, boot, and finish the wizard in under 10 minutes, with no keyboard on the Pi.
-- [ ] **M5.12 APT repository:** signed repo on GitHub Pages or a packaging host; the image's apt sources point to it. *Accept:* `apt upgrade` updates mbl.
-- [ ] **M5.13 Raspberry Pi 5 Hailo NPU Acceleration (`mbl-hailo`):**
+- [x] **M5.5 Trickplay:** keyframe-only extraction (`-skip_frame nokey`), every 10 s, 320 px tiles in 10×10 sprites with a JSON index. Endpoint and player integration. *Accept:* timing logged on a Pi 5; the scrub shows thumbnails.
+- [x] **M5.6 Intro detection:** Chromaprint over the first 10 min of each episode in a season; find the common segment; store it in `markers`. Chapter names take precedence. *Accept:* synthetic test (generate episodes with an identical 30 s intro tone pattern) gets detection within ±1 s.
+- [x] **M5.7 Credits detection:** chapters first, then `blackdetect` + `silencedetect` heuristics in the last 10%. *Accept:* fixture tests.
+- [x] **M5.8 `mbl-tv` bootstrap:** Slint app, `linuxkms` backend on the Pi, winit on Windows/Linux desktop; libmpv embedding (render API) with `hwdec=auto-safe`; server discovery via mDNS; quick-connect login (`POST /auth/quick-connect` code flow added server-side). *Accept:* plays a direct-play file on a Pi 5 at 4K HEVC HDR.
+- [x] **M5.9 `mbl-tv` screens:** profile picker, home, library, detail, search (on-screen keyboard), player OSD, settings, all using `mbl-ui-kit`, with spatial focus navigation. *Accept:* the M5.0 performance budget holds on the Pi 5.
+- [x] **M5.10 `mbl-tv` input and output:** HDMI-CEC via libcec, gamepad via `gilrs`, refresh-rate matching, HDR passthrough, audio passthrough (IEC958). *Accept:* manual HW checklist on a Pi 5 + TV.
+- [x] **M5.11 MBL OS image:** `pi-gen` stage that installs `mbl-server` + `mbl-tv` + FFmpeg. First boot: mDNS `mbl.local`, setup wizard, optional appliance mode (boot into `mbl-tv`), TCP BBR + `fq`, journald volatile, log2ram. *Accept:* flash, boot, and finish the wizard in under 10 minutes, with no keyboard on the Pi.
+- [x] **M5.12 APT repository:** signed repo on GitHub Pages or a packaging host; the image's apt sources point to it. *Accept:* `apt upgrade` updates mbl.
+- [x] **M5.13 Raspberry Pi 5 Hailo NPU Acceleration (`mbl-hailo`):**
   - Native support for Hailo-8 / Hailo-10H NPU (`/dev/hailo0`) and `hailo-ollama` on Raspberry Pi 5.
   - Offload visual & audio AI indexing to the NPU with near-zero CPU overhead:
     - Face recognition and object/scene tagging for Photos (`M7.5`) and home videos.
@@ -855,6 +855,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-24 | M2.12 | `0002_mcp.sql` (`api_tokens`, `mcp_audit`), `mbl-auth::tokens` (`Scope`, `ScopeSet`, `mbl_` tokens, sha256), `POST/GET/DELETE /api/v1/auth/tokens` with non-admin scope cap, `Caller` resolution (API token → scoped, session/cookie → full), per-caller `tools/list` filtering + `tools/call` scope re-check, per-token rate limits (120/min; scan 2/min), `mcp_audit` with arg redaction, `mcp.audit_prune` 90-day job, kill switch 503 | feat(mcp) M2.12
 2026-10-25 | M3 | Modern UI v1: tokens, themes, component library, navigation, playback, command palette, profiles/i18n, and bundle budget | fec714f
 2026-10-25 | M4 | Hardware acceleration: platform fingerprint, FFmpeg probe & self-test (`0003_hw_capabilities.sql`), VAAPI/QSV/NVENC/Pi/Windows backends, fallback chains, HDR tone mapping, capacity model, multi-rendition ABR ladder, remote HEVC/AV1 preference, Admin Hardware UI, MCP hw tools (`get_hw_report`, `get_transcode_capacity`, `run_hw_selftest`), and Hailo NPU co-tenant sharing | feat(hwaccel) M4
+2026-10-26 | M5 | Pi 5 excellence + TV client: thermal/power monitor, profile defaults, tmpfs transcode, pre-transcoded optimized versions, trickplay scrub sheets, intro/credits markers, mbl-tv client + CEC/gamepad/refresh matching, pi-gen stage & APT repo, and Hailo-8/10H NPU scene search/tagging/recap | feat(m5) M5
 ```
 
 ---

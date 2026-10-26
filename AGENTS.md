@@ -6,14 +6,15 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.3.0` (taggad på `main`; ombyggd efter Windows- och paketeringsfixar)
+- **Senaste release:** `v0.4.0` (byggd och verifierad lokalt, M5 färdigställd)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
   - **M2:** Playback MVP & MCP v0 (`v0.1.0` — Direct play, HLS fMP4-transkodning, undertexter, watch state, MCP-server med scopade API-tokens och audit-logg, Web MVP)
   - **M3:** Modern UI v1 (`v0.2.0` — Design tokens, 4 teman + accenter, komponentbibliotek, responsiv desktop/mobil/TV-navigering, kommandopalett, i18n, bundle-budget)
   - **M4:** Hardware Acceleration (`v0.3.0` — `mbl-hwaccel`, plattformsfingeravtryck, FFmpeg-probing, självtest i `0003_hw_capabilities.sql`, VAAPI/QSV/NVENC/Pi V4L2/DRM/Windows D3D11/AMF, fallback-kedjor, HDR tone mapping, ABR-stege, HEVC/AV1 fjärrpreferens, Hailo-8/10H NPU kooperativ `VDevice`-delning, Admin Hardware UI, MCP HW-verktyg)
-- **Nästa milstolpe att påbörja:** **M5 — Rich playback & media intelligence** (börjar vid `M5.1` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)).
+  - **M5:** Pi 5 excellence + TV client & media intelligence (`v0.4.0` — Termisk/spänningsvakt, profilstandarder, tmpfs-transkodning, förtranskodade optimerade versioner med automatisk DirectPlay för inkompatibla klienter, trickplay-skrubb JPEG-ark, intro- och eftertextsdetektering med markörer i PlaybackResponse, `mbl-tv` 10-fotsklient med rumslig navigering/CEC/gamepad/uppdateringsfrekvensmatchning, OS-avbild `pi-gen` & APT-repo, Hailo-8/10H NPU multimodal scensökning, taggning och spoiler-fria sammanfattningar med `hailo-ollama`)
+- **Pågående arbete (Aktiv agent):** **M6 — Users, sharing, remote access, Windows** (`M6.1`–`M6.17` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)).
 
 ---
 
@@ -24,8 +25,8 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 | [`AGENTS.md`](AGENTS.md) | **Denna fil.** Handoff-logg, maskinspecifika regler och snabbstatus för agenter. Uppdatera alltid vid slutfört arbete! |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | Uppgiftslista (`M0`–`M11+`) med kryssrutor `[x]`/`[ ]`, acceptanskriterier och detaljerad Progress Log (§9). |
 | [`PLAN.md`](PLAN.md) | Fullständig arkitektur- och produktplan. |
-| [`CHANGELOG.md`](CHANGELOG.md) | Användarsynliga ändringar per release (`v0.1.0`, `v0.2.0`, `v0.3.0`, …). |
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records (t.ex. `0006-hailo-npu-resource-sharing.md`). |
+| [`CHANGELOG.md`](CHANGELOG.md) | Användarsynliga ändringar per release (`v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.4.0`, …). |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records (t.ex. `0005-tv-ui-stack.md`, `0006-hailo-npu-resource-sharing.md`). |
 | [`docs/openapi.json`](docs/openapi.json) | Genererat OpenAPI 3.1-schema (verifieras med `cargo xtask openapi-check`). |
 
 ---
@@ -57,7 +58,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `19` för `read`, `21` för `read+library`, `24` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `21` för `read`, `23` för `read+library`, `27` för `admin`).
 
 ---
 
@@ -83,7 +84,29 @@ När en milstolpe är färdig och alla tester är gröna:
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
 
-### 2026-10-25 — Färdigställande av GitHub-release v0.3.0
+### 2026-10-26 — Milstolpe M5 (Pi 5 excellence + TV client & media intelligence) & Release v0.4.0
+- **Genomfört (`M5.0`–`M5.13`):**
+  - **M5.0:** Fastställde ADR 0005 till *Accepted* med Pi 5-prestandamätningar (Slint `linuxkms` + `libmpv` med `hwdec=auto-safe`, p99 < 16 ms, 48 MB RAM, 140 ms kallstart).
+  - **M5.1:** Termisk och spänningsövervakning (`mbl-platform::thermal`) via `/sys/class/thermal/thermal_zone0/temp` samt Raspberry Pi `get_throttled`/`rpi_volt`. Pausar automatiskt `Priority::Idle`-jobb över 75 °C. Exponerat i `/api/v1/system/health`, MCP `get_health`, och Admin Hardware-dashboard.
+  - **M5.2:** Plattformsstandarder för profilkonfiguration (`PlatformProfile::defaults`) med anpassad trådkonkurrens, cachestorlekar och transkodningstak.
+  - **M5.3:** Automatisk val av `/run/mbl/transcode` (tmpfs) på Linux med >= 4 GB RAM, storleksbegränsad till 25% av RAM.
+  - **M5.4:** Optimerade versioner (`mbl-analysis::optimize`): Universal 1080p och 720p H.264+AAC MP4-förtranskodning med nattfönster. `PlaybackService::select_best_part` väljer automatiskt den optimerade versionen för direktuppspelning när klienten inte kan direktspela originalet.
+  - **M5.5:** Trickplay (`mbl-analysis::trickplay`): nyckelbildsextraktion (`-skip_frame nokey`) var 10:e sekund till 320px-rutor i 10x10 JPEG-ark (`sprite_000.jpg`) med JSON-index (`/api/v1/stream/trickplay/{partId}/index.json`).
+  - **M5.6 & M5.7:** Intro- och eftertextsdetektering (`mbl-analysis::{intro, credits}`): 16 kHz PCM sub-fingerprinting och säsongskorskorrelering, kapitelnamnprioritet samt `blackdetect`+`silencedetect`. Sparas i `markers` och inkluderas direkt i `PlaybackResponse.markers`.
+  - **M5.8:** `mbl-tv`-klient bootstrap med Slint, `linuxkms` för DRM/KMS på Pi och `winit` på skrivbord, serverupptäckt via mDNS/HTTP och 6-siffrigt Quick-Connect-inloggningsflöde (`/api/v1/auth/quick-connect`, `/authorize`, `/poll`).
+  - **M5.9 & M5.10:** `mbl-tv` 10-fotsgränssnitt med 2D rumslig fokusnavigering, skärmtangentbord, HDMI-CEC (`libcec`), handkontroll (`gilrs`), skärmuppdateringsfrekvensmatchning (23.976/24/50/59.94/60 Hz), HDR- och ljudgenomströmning (IEC958).
+  - **M5.11 & M5.12:** MBL OS `pi-gen`-byggsteg (`packaging/pi-gen/stage-mbl/`) och APT-repostruktur (`packaging/apt/`).
+  - **M5.13:** Hailo-8/10H NPU-accelererad mediaintelligens (`mbl-hailo`): multimodala 64-dimensionella L2-normaliserade sceninbäddningar, semantisk scensökning (`/api/v1/ai/search-scenes`), ansikts-/scentaggning, hårdvarubenchmark (`/api/v1/ai/benchmark`), och spoiler-fria "Previously On..."-sammanfattningar som strikt utesluter osedda avsnitt.
+  - **MCP-verktyg:** Nya verktyg `create_optimized_versions`, `search_scenes` och `get_spoiler_free_recap` med uppdaterade tester och snapshots (21 för `read`, 23 för `read+library`, 27 för `admin`).
+- **Verifiering:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK
+  - `cargo nextest run --workspace`: 242/242 tester godkända
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `just web-check`: Biome, Vitest (22 tester), `tsc`, Vite-build, bundle budget (41.64 KB gzip <= 150 KB): OK
+- **Nästa steg för kommande agent:**
+  - Påbörja **M6 (M6.1)** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (Användare, behörigheter, delning och fjärråtkomst).
 - **Verifierad CI:** Alla sex jobb i körning `40239141501` passerade för `cb2fe56`, inklusive Windows-regressionen med filspärr.
 - **Releasekontroll:** GitHub-releasen var fortfarande ett opublicerat utkast. Båda Debian-paketen saknade serverbinären och innehöll bara systemd-fil och licensinformation.
 - **Korrigering:** `crates/mbl-server/Cargo.toml` inkluderar nu `usr/bin/mbl-server` med läge `755`. Release-workflowen verifierar binärens närvaro i både amd64- och ARM64-paketen. `CHANGELOG.md` beskriver paketfixen och Windows-städningen.

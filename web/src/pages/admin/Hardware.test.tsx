@@ -119,6 +119,37 @@ describe("Admin Hardware Acceleration UI (M4.15)", () => {
           response: new Response(),
         } as any;
       }
+      if (path === "/api/v1/system/health") {
+        return {
+          data: {
+            status: "warning",
+            platformProfile: "pi5Hailo",
+            defaults: {
+              probeConcurrency: 2,
+              segmentSecs: 4,
+              aheadSegments: 4,
+              maxTranscodeSessions: 1,
+              imageCacheMb: 128,
+              metadataCacheMb: 64,
+            },
+            totalMemoryBytes: 8589934592,
+            activePlaybackSessions: 0,
+            thermal: {
+              temperatureC: 76.5,
+              rawThrottled: 327684,
+              underVoltage: false,
+              frequencyCapped: false,
+              currentlyThrottled: true,
+              underVoltageOccurred: true,
+              throttlingOccurred: true,
+              idleJobsPaused: true,
+              warnings: ["Under-voltage occurred since boot"],
+            },
+          },
+          error: undefined,
+          response: new Response(),
+        } as any;
+      }
       return { data: undefined, error: undefined, response: new Response() } as any;
     });
 
@@ -145,5 +176,8 @@ describe("Admin Hardware Acceleration UI (M4.15)", () => {
     expect(container.textContent).toContain("118.4 fps");
     expect(container.textContent).toContain("frigate");
     expect(container.textContent).toContain("Pi 5 lacks hardware H.264 encoder");
+    expect(container.textContent).toContain("76.5 °C");
+    expect(container.textContent).toContain("Power / Thermal Alert");
+    expect(container.textContent).toContain("Under-voltage detected");
   });
 });

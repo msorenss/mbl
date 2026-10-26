@@ -2,6 +2,7 @@ pub mod auth;
 pub mod events;
 pub mod hw;
 pub mod images;
+pub mod intelligence;
 pub mod items;
 pub mod libraries;
 pub mod mcp;

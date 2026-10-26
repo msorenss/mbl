@@ -57,9 +57,12 @@ pub async fn execute_tool(
             playback::execute(tool_name, args, caller, services).await
         }
         "list_jobs" | "get_job" => jobs::execute(tool_name, args, caller, db).await,
-        "get_hw_report" | "get_transcode_capacity" | "run_hw_selftest" => {
-            hw::execute(tool_name, args, caller, services).await
-        }
+        "get_hw_report"
+        | "get_transcode_capacity"
+        | "run_hw_selftest"
+        | "create_optimized_versions"
+        | "search_scenes"
+        | "get_spoiler_free_recap" => hw::execute(tool_name, args, caller, services).await,
         _ => Err(JsonRpcError::invalid_params(format!("unknown tool: {tool_name}"))),
     }
 }

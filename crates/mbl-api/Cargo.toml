@@ -10,8 +10,10 @@ publish.workspace = true
 [dependencies]
 axum = { workspace = true, features = ["ws"] }
 governor.workspace = true
+mbl-analysis.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
+mbl-hailo.workspace = true
 mbl-hwaccel.workspace = true
 mbl-images.workspace = true
 mbl-jobs.workspace = true

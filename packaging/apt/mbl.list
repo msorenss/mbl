@@ -1,0 +1,1 @@
+deb [arch=arm64,amd64 signed-by=/usr/share/keyrings/mbl-archive-keyring.gpg] https://msorenss.github.io/mbl/apt stable main

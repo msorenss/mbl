@@ -172,6 +172,49 @@ impl Config {
             non_empty(&self.paths.transcode_dir).unwrap_or_else(|| data.join("transcode"));
         Paths { logs: data.join("logs"), db_file: data.join("mbl.db"), data, cache, transcode }
     }
+
+    /// Resolve effective limits for the given [`mbl_platform::PlatformProfile`] (M5.2),
+    /// using profile defaults unless explicitly overridden in config.
+    pub fn effective_for_profile(
+        &self,
+        profile: mbl_platform::PlatformProfile,
+    ) -> mbl_platform::PlatformDefaults {
+        let mut out = profile.defaults();
+        if self.scanner.probe_concurrency > 0 {
+            out.probe_concurrency = self.scanner.probe_concurrency;
+        }
+        if self.transcode.max_sessions > 0 {
+            out.max_transcode_sessions = self.transcode.max_sessions;
+        }
+        if self.transcode.segment_secs > 0
+            && self.transcode.segment_secs != TranscodeConfig::default().segment_secs
+        {
+            out.segment_secs = self.transcode.segment_secs;
+        }
+        if self.transcode.ahead_segments > 0
+            && self.transcode.ahead_segments != TranscodeConfig::default().ahead_segments
+        {
+            out.ahead_segments = self.transcode.ahead_segments;
+        }
+        out
+    }
+
+    /// Resolve transcode directory and quota using M5.3 tmpfs rules (`/run/mbl/transcode` capped at 25% RAM when Linux RAM >= 4 GiB).
+    pub fn transcode_selection(
+        &self,
+        is_linux: bool,
+        total_ram_bytes: Option<u64>,
+    ) -> mbl_platform::TranscodeDirSelection {
+        let data =
+            non_empty(&self.paths.data_dir).unwrap_or_else(mbl_platform::dirs::default_data_dir);
+        mbl_platform::dirs::select_transcode_dir(
+            &self.paths.transcode_dir,
+            &data,
+            is_linux,
+            total_ram_bytes,
+            self.transcode.temp_quota_mb,
+        )
+    }
 }
 
 fn non_empty(s: &str) -> Option<Utf8PathBuf> {
@@ -181,6 +224,7 @@ fn non_empty(s: &str) -> Option<Utf8PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mbl_platform::PlatformProfile;
 
     fn no_env() -> Env {
         Env::prefixed("MBL_TEST_UNUSED_PREFIX_")
@@ -255,5 +299,41 @@ mod tests {
 
         cfg.paths.cache_dir = "/fast/cache".into();
         assert_eq!(cfg.paths().cache, "/fast/cache");
+    }
+
+    #[test]
+    fn profile_defaults_and_config_overrides_m5_2() {
+        let cfg = Config::default();
+        let pi5 = cfg.effective_for_profile(PlatformProfile::Pi5);
+        assert_eq!(pi5.probe_concurrency, 2);
+        assert_eq!(pi5.segment_secs, 3);
+        assert_eq!(pi5.ahead_segments, 6);
+        assert_eq!(pi5.max_transcode_sessions, 1);
+
+        let intel = cfg.effective_for_profile(PlatformProfile::X86Intel);
+        assert_eq!(intel.probe_concurrency, 8);
+        assert_eq!(intel.segment_secs, 6);
+        assert_eq!(intel.ahead_segments, 10);
+        assert_eq!(intel.max_transcode_sessions, 4);
+
+        let mut custom = Config::default();
+        custom.scanner.probe_concurrency = 5;
+        custom.transcode.max_sessions = 3;
+        custom.transcode.segment_secs = 4;
+        custom.transcode.ahead_segments = 12;
+        let overridden = custom.effective_for_profile(PlatformProfile::Pi5);
+        assert_eq!(overridden.probe_concurrency, 5);
+        assert_eq!(overridden.max_transcode_sessions, 3);
+        assert_eq!(overridden.segment_secs, 4);
+        assert_eq!(overridden.ahead_segments, 12);
+    }
+
+    #[test]
+    fn tmpfs_transcode_selection_m5_3() {
+        let cfg = Config::default();
+        let sel = cfg.transcode_selection(true, Some(8 * 1024 * 1024 * 1024));
+        assert_eq!(sel.path, "/run/mbl/transcode");
+        assert!(sel.is_tmpfs);
+        assert_eq!(sel.quota_bytes, 2 * 1024 * 1024 * 1024);
     }
 }
