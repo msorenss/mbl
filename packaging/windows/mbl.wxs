@@ -18,6 +18,7 @@
     <!-- Feature Tree: Server, Worker, TV Client -->
     <Feature Id="ProductFeature" Title="MBL Media Server" Level="1">
       <ComponentGroupRef Id="ServerComponents" />
+      <ComponentGroupRef Id="DataDirectoryComponents" />
       <Feature Id="WorkerFeature" Title="Transcode Worker" Level="1">
         <ComponentGroupRef Id="WorkerComponents" />
       </Feature>
@@ -66,7 +67,10 @@
                         Remove="uninstall"
                         Wait="yes" />
       </Component>
-      <Component Id="DataDirectoryComponent" Directory="DATA_SUBFOLDER" Guid="aabbccdd-1122-3344-5566-778899001122" Win64="yes">
+    </ComponentGroup>
+
+    <ComponentGroup Id="DataDirectoryComponents" Directory="DATA_SUBFOLDER">
+      <Component Id="DataDirectoryComponent" Guid="aabbccdd-1122-3344-5566-778899001122" Win64="yes">
         <CreateFolder />
       </Component>
     </ComponentGroup>
