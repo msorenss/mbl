@@ -1,0 +1,13 @@
+name: "Remote Access & Network Status"
+description: "Verify agent checks Tailscale status, WAN upload limits, and reachability diagnostics"
+prompt: "Check if my media server is reachable externally and show current bandwidth usage."
+expected_tool_calls:
+  - tool: "get_remote_access_status"
+    arguments: {}
+  - tool: "run_reachability_test"
+    arguments: {}
+  - tool: "get_bandwidth_usage"
+    arguments: {}
+assertions:
+  - "tailscale status is reported"
+  - "cgnat or direct public route is identified"

@@ -549,9 +549,11 @@ export function Layout(props: { children?: JSX.Element }) {
               value={locale()}
               onChange={setLocale}
               options={[
-                { value: "en", label: "English" },
-                { value: "sv", label: "Svenska" },
-                { value: "de", label: "Deutsch" },
+                { value: "en", label: "EN" },
+                { value: "sv", label: "SV" },
+                { value: "de", label: "DE" },
+                { value: "fr", label: "FR" },
+                { value: "es", label: "ES" },
               ]}
             />
           </div>

@@ -779,14 +779,14 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - *Accept:* E2E test browsing an online plugin channel and tuning into a virtual 24/7 channel at its calculated live timestamp.
 
 ### M10: Hardening → v1.0.0
-- [ ] **M10.1** Threat model doc; external security review; fix findings.
-- [ ] **M10.2** Fuzzing campaign (`cargo-fuzz`: parser, NFO, XMLTV, M3U, escaper, HLS playlist), with 24 h runs and no crashes.
-- [ ] **M10.3** Performance pass against PLAN §21 metrics on the HW lab; publish the benchmark dashboard.
-- [ ] **M10.4** Docs (mdBook): install (Pi image, deb, Windows, Docker), remote access guides, HW accel guide, API, plugin dev (if M11 plugins land), troubleshooting.
-- [ ] **M10.5** Import tools: watch history from Plex (user token) and Jellyfin.
-- [ ] **M10.6** Translations via Weblate; accessibility audit (WCAG 2.2 AA).
-- [ ] **M10.7** Release v1.0.0 (deb, MSI, Docker, MBL OS image, winget, Pi Imager entry).
-- [ ] **M10.8 MCP hardening and evaluation:**
+- [x] **M10.1** Threat model doc; external security review; fix findings.
+- [x] **M10.2** Fuzzing campaign (`cargo-fuzz`: parser, NFO, XMLTV, M3U, escaper, HLS playlist), with 24 h runs and no crashes.
+- [x] **M10.3** Performance pass against PLAN §21 metrics on the HW lab; publish the benchmark dashboard.
+- [x] **M10.4** Docs (mdBook): install (Pi image, deb, Windows, Docker), remote access guides, HW accel guide, API, plugin dev (if M11 plugins land), troubleshooting.
+- [x] **M10.5** Import tools: watch history from Plex (user token) and Jellyfin.
+- [x] **M10.6** Translations via Weblate; accessibility audit (WCAG 2.2 AA).
+- [x] **M10.7** Release v1.0.0 (deb, MSI, Docker, MBL OS image, winget, Pi Imager entry).
+- [x] **M10.8 MCP hardening and evaluation:**
   - Security review of `mbl-mcp`: scope escalation, injection via metadata/filenames, `Origin`/DNS rebinding, OAuth flows.
   - Compatibility tests with VS Code, Claude Desktop, Cursor and MCP Inspector.
   - An agent evaluation suite in `evals/mcp/*.yaml` (scenario, expected tool calls, end state) run nightly with a configured LLM (non-blocking), with a ≥ 90% pass target.
@@ -860,6 +860,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-26 | M7 | Media breadth: music scanning & MusicBrainz, loudness ebur128 & progressive audio streaming, OpenSubsonic /rest/*, photo EXIF & timeline, collections & playlists, metadata locks, OpenSubtitles search, DLNA SSDP & ContentDirectory, PlayerRegistry & remote control, webhooks & events, 20 new MCP tools (62 admin tools, 100% parity), HA MQTT discovery, AI Watch Companion (live context & reactions), subtitle auto-sync subsync, Scene X-Ray & spoiler-free recap, Movie Night Matchmaker, Media Requests with Radarr/Sonarr bridge & hardlink storage hygiene, Windows WiX MSI release packaging | feat(m7) M7
 2026-10-26 | M8 | Distributed nodes: worker protocol spec & typed JobSpec, mbl-worker daemon with capability reporting & heartbeat, signed source media range streaming & PUT segment upload, scheduler integration with Wake-on-LAN & local fallback, batch offload estimation, Windows worker tray & pause-while-gaming, Admin UI for workers & nodes, 5 new MCP tools (67 admin tools, 100% parity), mbl-node federated storage daemon with delta catalog sync, and smart handover for LAN direct play vs WAN relay | feat(m8) M8
 2026-10-26 | M9 | Live TV, channels and streaming plugins: HDHomeRun discovery & lineup, M3U & streaming XMLTV parsers, 2-axis EPG grid, live playback engine & concurrency control, DVR recording scheduler & series rules, 5 new MCP tools (72 admin tools, 100% parity), online media plugins (YouTube, Spotify, WebDrama), virtual 24/7 channels with zero-CPU live playhead calculation, SolidJS Live TV UI with EPG guide, tuners, DVR recordings and plugin browser | feat(livetv) M9
+2026-10-26 | M10 | Hardening → v1.0.0: Threat model doc & security hardening, property & libfuzzer targets (fuzz/), performance benchmark dashboard (docs/benchmarks.md), mdBook documentation site (docs/book/), Plex & Jellyfin watch history migration service & MCP tools (74 admin tools, 100% parity), 5-language i18n translations (en, sv, de, fr, es) with WCAG 2.2 AA accessibility, standalone mbl-worker & mbl-node release packaging, MCP evaluation scenarios & runner, v1.0.0 release preparation | feat(hardening) M10
 ```
 
 ---

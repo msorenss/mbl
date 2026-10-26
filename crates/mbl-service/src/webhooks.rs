@@ -19,6 +19,7 @@ pub struct CreateWebhookRequest {
     pub url: String,
     pub name: String,
     pub events: Vec<String>,
+    #[serde(default)]
     pub secret: Option<String>,
 }
 
@@ -41,6 +42,12 @@ impl WebhookService {
         req: CreateWebhookRequest,
     ) -> Result<WebhookRow> {
         actor.require_admin()?;
+        if !req.url.starts_with("http://") && !req.url.starts_with("https://") {
+            return Err(Error::Validation(
+                "Webhook URL must use http:// or https:// protocol".into(),
+            ));
+        }
+
         let id =
             m7::create_webhook(&self.db, &req.url, &req.name, &req.events, req.secret.as_deref())
                 .await?;

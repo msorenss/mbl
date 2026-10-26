@@ -1,0 +1,52 @@
+[package]
+name = "mbl-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mbl-parser = { path = "../crates/mbl-parser" }
+mbl-metadata = { path = "../crates/mbl-metadata" }
+mbl-service = { path = "../crates/mbl-service" }
+mbl-stream = { path = "../crates/mbl-stream" }
+mbl-transcode = { path = "../crates/mbl-transcode" }
+
+[[bin]]
+name = "fuzz_parser"
+path = "fuzz_targets/fuzz_parser.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_nfo"
+path = "fuzz_targets/fuzz_nfo.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_xmltv"
+path = "fuzz_targets/fuzz_xmltv.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_m3u"
+path = "fuzz_targets/fuzz_m3u.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_escaper"
+path = "fuzz_targets/fuzz_escaper.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_hls"
+path = "fuzz_targets/fuzz_hls.rs"
+test = false
+doc = false

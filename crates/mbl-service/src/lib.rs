@@ -9,6 +9,7 @@ pub mod companion;
 pub mod events;
 pub mod hw;
 pub mod images;
+pub mod import;
 pub mod intelligence;
 pub mod items;
 pub mod libraries;
@@ -45,6 +46,10 @@ pub use companion::{CompanionReaction, CompanionService, LiveSessionContext};
 pub use events::EventService;
 pub use hw::{HwReport, HwSelftestResponse, HwService};
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
+pub use import::{
+    ImportService, ImportSummary, JellyfinImportItem, JellyfinImportRequest, PlexImportItem,
+    PlexImportRequest,
+};
 pub use intelligence::{
     CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, MediaIntelligenceService,
     OptimizeJobHandler, QuickConnectAuthorizeRequest, QuickConnectInitRequest,
@@ -114,6 +119,7 @@ pub struct Services {
     pub nodes: RemoteNodeService,
     pub livetv: LiveTvService,
     pub plugins: PluginService,
+    pub import: ImportService,
 }
 
 impl Services {
@@ -148,6 +154,7 @@ impl Services {
         let nodes = RemoteNodeService::new(db_arc.clone());
         let livetv = LiveTvService::new(db_arc.clone());
         let plugins = PluginService::new(db_arc.clone());
+        let import = ImportService::new(db_arc.clone());
 
         Self {
             auth,
@@ -174,6 +181,7 @@ impl Services {
             nodes,
             livetv,
             plugins,
+            import,
         }
     }
 

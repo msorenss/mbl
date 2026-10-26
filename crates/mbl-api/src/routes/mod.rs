@@ -4,6 +4,7 @@ pub mod companion;
 pub mod events;
 pub mod hw;
 pub mod images;
+pub mod import;
 pub mod intelligence;
 pub mod invites;
 pub mod items;

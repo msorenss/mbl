@@ -1,0 +1,21 @@
+[Unit]
+Description=MBL Federated Storage Node
+After=network.target
+
+[Service]
+Type=simple
+User=mbl
+Group=mbl
+ExecStart=/usr/bin/mbl-node run
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/mbl-node
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

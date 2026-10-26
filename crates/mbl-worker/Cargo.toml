@@ -21,3 +21,19 @@ tracing-subscriber.workspace = true
 
 [lints]
 workspace = true
+
+[package.metadata.deb]
+name = "mbl-worker"
+maintainer = "MBL Contributors <dev@mbl.media>"
+copyright = "2026 MBL contributors"
+license-file = ["../../LICENSE", "4"]
+depends = "$auto, ffmpeg"
+section = "video"
+priority = "optional"
+extended-description = """\
+MBL Distributed Transcode Worker daemon offloading heavy transcoding and batch jobs \
+from the primary MBL media server."""
+assets = [
+    ["target/release/mbl-worker", "usr/bin/mbl-worker", "755"],
+    ["../../packaging/systemd/mbl-worker.service", "lib/systemd/system/mbl-worker.service", "644"],
+]

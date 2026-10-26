@@ -2071,5 +2071,125 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "import_plex_history",
+    "description": "Import watch history, play counts, and resume points from Plex export format into MBL.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "description": "List of Plex metadata items to match and import",
+          "items": {
+            "properties": {
+              "imdbId": {
+                "type": "string"
+              },
+              "lastViewedAt": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tmdbId": {
+                "type": "integer"
+              },
+              "tvdbId": {
+                "type": "integer"
+              },
+              "viewCount": {
+                "type": "integer"
+              },
+              "viewOffsetMs": {
+                "type": "integer"
+              },
+              "year": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "userId": {
+          "description": "Target user ID for the imported watch states (defaults to calling admin user)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Import Plex Watch History",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "import_jellyfin_history",
+    "description": "Import watch history, play counts, and playback progress ticks from Jellyfin user data into MBL.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "description": "List of Jellyfin UserData items to match and import",
+          "items": {
+            "properties": {
+              "lastPlayedDate": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "playCount": {
+                "type": "integer"
+              },
+              "playbackPositionTicks": {
+                "type": "integer"
+              },
+              "played": {
+                "type": "boolean"
+              },
+              "productionYear": {
+                "type": "integer"
+              },
+              "providerIds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "userId": {
+          "description": "Target user ID for the imported watch states (defaults to calling admin user)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Import Jellyfin Watch History",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

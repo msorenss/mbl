@@ -224,6 +224,154 @@ export const translations = {
     close: "Schließen",
     searchPlaceholder: "Filme, Serien, Musik suchen (Strg+K)...",
   },
+  fr: {
+    // Navigation
+    home: "Accueil",
+    libraries: "Médiathèques",
+    search: "Rechercher",
+    liveTv: "TV en direct",
+    admin: "Administration",
+    users: "Utilisateurs",
+    aiAgents: "Agents IA",
+    hardware: "Matériel",
+    settings: "Paramètres",
+    switchProfile: "Changer de profil",
+    logout: "Déconnexion",
+
+    // Home
+    continueWatching: "Reprendre la lecture",
+    upNext: "À suivre",
+    recentlyAdded: "Récemment ajoutés",
+    playNow: "Lire maintenant",
+    details: "Détails & Plus",
+
+    // Detail
+    play: "Lire",
+    resume: "Reprendre",
+    fromBeginning: "Depuis le début",
+    directPlay: "Lecture directe",
+    directStream: "Flux direct (Remux)",
+    transcode: "Transcodage",
+    endsAt: "Fin à",
+    seasons: "Saisons",
+    episodes: "Épisodes",
+    audio: "Audio",
+    subtitles: "Sous-titres",
+    cast: "Distribution & Équipe",
+
+    // Player
+    nightMode: "Mode nuit (Amplification vocale)",
+    statsForNerds: "Stats pour geeks",
+    speed: "Vitesse",
+    quality: "Qualité",
+    skipIntro: "Passer l'intro",
+    skipCredits: "Passer le générique",
+    auto: "Auto",
+
+    // Settings
+    theme: "Thème",
+    accent: "Couleur d'accent",
+    language: "Langue",
+    reducedMotion: "Réduction des mouvements",
+    subtitlesStyle: "Style des sous-titres",
+    size: "Taille",
+    background: "Arrière-plan",
+    color: "Couleur",
+
+    // Themes
+    dark: "Sombre",
+    oled: "Noir OLED",
+    light: "Clair",
+    highContrast: "Contraste élevé",
+
+    // Accents
+    amber: "Ambre",
+    indigo: "Indigo",
+    emerald: "Émeraude",
+    rose: "Rose",
+    cyan: "Cyan",
+    violet: "Violet",
+
+    // Actions
+    save: "Enregistrer",
+    cancel: "Annuler",
+    close: "Fermer",
+    searchPlaceholder: "Rechercher films, séries, musique (Ctrl+K)...",
+  },
+  es: {
+    // Navigation
+    home: "Inicio",
+    libraries: "Bibliotecas",
+    search: "Buscar",
+    liveTv: "TV en vivo",
+    admin: "Administración",
+    users: "Usuarios",
+    aiAgents: "Agentes IA",
+    hardware: "Hardware",
+    settings: "Configuración",
+    switchProfile: "Cambiar perfil",
+    logout: "Cerrar sesión",
+
+    // Home
+    continueWatching: "Continuar viendo",
+    upNext: "A continuación",
+    recentlyAdded: "Añadidos recientemente",
+    playNow: "Reproducir ahora",
+    details: "Detalles y más",
+
+    // Detail
+    play: "Reproducir",
+    resume: "Reanudar",
+    fromBeginning: "Desde el principio",
+    directPlay: "Reproducción directa",
+    directStream: "Transmisión directa (Remux)",
+    transcode: "Transcodificación",
+    endsAt: "Termina a las",
+    seasons: "Temporadas",
+    episodes: "Episodios",
+    audio: "Audio",
+    subtitles: "Subtítulos",
+    cast: "Reparto y equipo",
+
+    // Player
+    nightMode: "Modo nocturno (Mejora de diálogo)",
+    statsForNerds: "Datos para nerds",
+    speed: "Velocidad",
+    quality: "Calidad",
+    skipIntro: "Saltar introducción",
+    skipCredits: "Saltar créditos",
+    auto: "Automático",
+
+    // Settings
+    theme: "Tema",
+    accent: "Color de acento",
+    language: "Idioma",
+    reducedMotion: "Movimiento reducido",
+    subtitlesStyle: "Estilo de subtítulos",
+    size: "Tamaño",
+    background: "Fondo",
+    color: "Color",
+
+    // Themes
+    dark: "Oscuro",
+    oled: "Negro OLED",
+    light: "Claro",
+    highContrast: "Alto contraste",
+
+    // Accents
+    amber: "Ámbar",
+    indigo: "Índigo",
+    emerald: "Esmeralda",
+    rose: "Rosa",
+    cyan: "Cian",
+    violet: "Violeta",
+
+    // Actions
+    save: "Guardar",
+    cancel: "Cancelar",
+    close: "Cerrar",
+    searchPlaceholder: "Buscar películas, series, música (Ctrl+K)...",
+  },
 } as const;
 
 export type TranslationKey = keyof typeof translations.en;

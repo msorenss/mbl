@@ -38,12 +38,23 @@ jobs:
           tool: cargo-deb
       - run: cargo build --release -p mbl-worker -p mbl-node
       - run: cargo deb -p mbl-server
+      - run: cargo deb -p mbl-worker
+      - run: cargo deb -p mbl-node
+      - name: Package standalone Linux x86_64 tarballs
+        run: |
+          tar -czvf target/debian/mbl-worker-linux-x86_64.tar.gz -C target/release mbl-worker
+          tar -czvf target/debian/mbl-node-linux-x86_64.tar.gz -C target/release mbl-node
       - name: Verify Debian binaries
-        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server ./usr/bin/mbl-worker ./usr/bin/mbl-node
+        run: |
+          dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server
+          dpkg-deb --fsys-tarfile target/debian/mbl-worker_*.deb | tar -tf - ./usr/bin/mbl-worker
+          dpkg-deb --fsys-tarfile target/debian/mbl-node_*.deb | tar -tf - ./usr/bin/mbl-node
       - uses: actions/upload-artifact@v4
         with:
-          name: mbl-deb-x86_64
-          path: target/debian/*.deb
+          name: mbl-linux-x86_64
+          path: |
+            target/debian/*.deb
+            target/debian/*.tar.gz
 
   build-deb-linux-arm64:
     runs-on: ubuntu-24.04-arm
@@ -68,12 +79,23 @@ jobs:
           tool: cargo-deb
       - run: cargo build --release -p mbl-worker -p mbl-node
       - run: cargo deb -p mbl-server
+      - run: cargo deb -p mbl-worker
+      - run: cargo deb -p mbl-node
+      - name: Package standalone Linux arm64 tarballs
+        run: |
+          tar -czvf target/debian/mbl-worker-linux-arm64.tar.gz -C target/release mbl-worker
+          tar -czvf target/debian/mbl-node-linux-arm64.tar.gz -C target/release mbl-node
       - name: Verify Debian binaries
-        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server ./usr/bin/mbl-worker ./usr/bin/mbl-node
+        run: |
+          dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server
+          dpkg-deb --fsys-tarfile target/debian/mbl-worker_*.deb | tar -tf - ./usr/bin/mbl-worker
+          dpkg-deb --fsys-tarfile target/debian/mbl-node_*.deb | tar -tf - ./usr/bin/mbl-node
       - uses: actions/upload-artifact@v4
         with:
-          name: mbl-deb-arm64
-          path: target/debian/*.deb
+          name: mbl-linux-arm64
+          path: |
+            target/debian/*.deb
+            target/debian/*.tar.gz
 
   build-windows-x86_64:
     runs-on: windows-latest
@@ -94,7 +116,7 @@ jobs:
           toolchain: "1.99.1"
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p mbl-server -p mbl-tv -p mbl-worker -p mbl-node
-      - name: Build MSI Installer and Package Windows Zip
+      - name: Build MSI Installer and Package Windows Zips
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path staging
@@ -109,7 +131,7 @@ jobs:
           # Copy out MSI
           Copy-Item "staging\mbl-$version-windows-x86_64.msi" "dist-windows.msi"
 
-          # Package ZIP
+          # Package Full Server ZIP
           $zipName = "mbl-$rawTag-windows-x86_64.zip"
           $zipFiles = @(
             "staging\mbl-server.exe",
@@ -120,12 +142,28 @@ jobs:
           )
           Compress-Archive -Path $zipFiles -DestinationPath $zipName
           Move-Item $zipName dist-windows.zip
+
+          # Package Standalone Worker ZIP
+          $workerFiles = @(
+            "staging\mbl-worker.exe",
+            "packaging\windows\README-worker.txt"
+          )
+          Compress-Archive -Path $workerFiles -DestinationPath dist-worker-windows.zip
+
+          # Package Standalone Node ZIP
+          $nodeFiles = @(
+            "staging\mbl-node.exe",
+            "packaging\windows\README-node.txt"
+          )
+          Compress-Archive -Path $nodeFiles -DestinationPath dist-node-windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: mbl-windows-x86_64
           path: |
             dist-windows.zip
             dist-windows.msi
+            dist-worker-windows.zip
+            dist-node-windows.zip
 
   create-release:
     needs: [build-deb-linux-x86_64, build-deb-linux-arm64, build-windows-x86_64]
@@ -135,7 +173,7 @@ jobs:
         with:
           path: release-dist
           merge-multiple: true
-      - name: Rename Windows artifacts if needed
+      - name: Rename release artifacts if needed
         run: |
           cd release-dist
           TAG="${{ github.ref_name }}"
@@ -146,6 +184,24 @@ jobs:
           fi
           if [ -f dist-windows.msi ]; then
             mv dist-windows.msi "mbl-${VER}-windows-x86_64.msi"
+          fi
+          if [ -f dist-worker-windows.zip ]; then
+            mv dist-worker-windows.zip "mbl-worker-${TAG}-windows-x86_64.zip"
+          fi
+          if [ -f dist-node-windows.zip ]; then
+            mv dist-node-windows.zip "mbl-node-${TAG}-windows-x86_64.zip"
+          fi
+          if [ -f mbl-worker-linux-x86_64.tar.gz ]; then
+            mv mbl-worker-linux-x86_64.tar.gz "mbl-worker-${TAG}-linux-x86_64.tar.gz"
+          fi
+          if [ -f mbl-node-linux-x86_64.tar.gz ]; then
+            mv mbl-node-linux-x86_64.tar.gz "mbl-node-${TAG}-linux-x86_64.tar.gz"
+          fi
+          if [ -f mbl-worker-linux-arm64.tar.gz ]; then
+            mv mbl-worker-linux-arm64.tar.gz "mbl-worker-${TAG}-linux-arm64.tar.gz"
+          fi
+          if [ -f mbl-node-linux-arm64.tar.gz ]; then
+            mv mbl-node-linux-arm64.tar.gz "mbl-node-${TAG}-linux-arm64.tar.gz"
           fi
       - name: Generate SHA-256 Checksums
         working-directory: release-dist

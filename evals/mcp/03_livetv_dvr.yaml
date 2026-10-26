@@ -1,0 +1,15 @@
+name: "Live TV Guide & DVR Scheduling"
+description: "Verify agent searches EPG program guide and schedules a TV recording"
+prompt: "Find the upcoming episode of 'Bäst i test' on SVT 1 and schedule a recording for it."
+expected_tool_calls:
+  - tool: "search_guide"
+    arguments:
+      query: "Bäst i test"
+  - tool: "schedule_recording"
+    arguments:
+      channelId: 1
+      programId: "prog-svt1-100"
+      startPaddingSecs: 120
+      endPaddingSecs: 300
+assertions:
+  - "recording is created with status scheduled"

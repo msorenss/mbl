@@ -5,6 +5,7 @@ pub mod hw;
 pub mod items;
 pub mod jobs;
 pub mod libraries;
+pub mod m10;
 pub mod m5;
 pub mod m6;
 pub mod m7;

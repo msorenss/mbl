@@ -557,6 +557,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/import/jellyfin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Jellyfin watch history and playback state into the authenticated user's account. */
+        post: operations["import_jellyfin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import/plex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Plex watch history and view state into the authenticated user's account. */
+        post: operations["import_plex"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invites": {
         parameters: {
             query?: never;
@@ -2736,6 +2770,16 @@ export interface components {
             content: string;
             name: string;
         };
+        /** @description Summary of watch history import results. */
+        ImportSummary: {
+            /** Format: int32 */
+            matchedItems: number;
+            /** Format: int32 */
+            totalItems: number;
+            unmatched: string[];
+            /** Format: int32 */
+            updatedWatchState: number;
+        };
         /** @description Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13). */
         IndexScenesRequest: {
             scenes?: components["schemas"]["SceneHintInput"][];
@@ -2818,6 +2862,25 @@ export interface components {
             viewOffsetMs: number;
             /** Format: int64 */
             year?: number | null;
+        };
+        /** @description An item exported from Jellyfin or retrieved via Jellyfin API. */
+        JellyfinImportItem: {
+            lastPlayedDate?: string | null;
+            name: string;
+            /** Format: int64 */
+            playCount?: number | null;
+            /** Format: int64 */
+            playbackPositionTicks?: number | null;
+            played?: boolean | null;
+            /** Format: int32 */
+            productionYear?: number | null;
+            providerIds?: {
+                [key: string]: string;
+            } | null;
+        };
+        /** @description Request payload containing Jellyfin items. */
+        JellyfinImportRequest: {
+            items: components["schemas"]["JellyfinImportItem"][];
         };
         JobAccepted: {
             jobId: components["schemas"]["JobId"];
@@ -3339,6 +3402,27 @@ export interface components {
             /** Format: int64 */
             updatedAt: number;
             userId: components["schemas"]["UserId"];
+        };
+        /** @description An item exported from Plex or retrieved via Plex token. */
+        PlexImportItem: {
+            imdbId?: string | null;
+            /** Format: int64 */
+            lastViewedAt?: number | null;
+            title: string;
+            /** Format: int64 */
+            tmdbId?: number | null;
+            /** Format: int64 */
+            tvdbId?: number | null;
+            /** Format: int64 */
+            viewCount?: number | null;
+            /** Format: int64 */
+            viewOffsetMs?: number | null;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @description Request payload containing Plex history items. */
+        PlexImportRequest: {
+            items: components["schemas"]["PlexImportItem"][];
         };
         /** @enum {string} */
         PluginCapability: "live_tv_channel" | "media_scraper" | "audio_source";
@@ -5257,6 +5341,68 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    import_jellyfin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JellyfinImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Jellyfin watch history successfully imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    import_plex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlexImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Plex watch history successfully imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

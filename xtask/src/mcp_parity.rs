@@ -194,6 +194,10 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             | "/api/v1/plugins/{id}/channels/{feedId}"
             | "/api/v1/plugins/{id}/items/{itemId}"
             | "/api/v1/plugins/{id}/stream/{itemId}" => true,
+            "/api/v1/import/plex" | "/api/v1/import/jellyfin" => {
+                mcp_tool_names.contains("import_plex_history")
+                    && mcp_tool_names.contains("import_jellyfin_history")
+            }
             _ => false,
         };
 

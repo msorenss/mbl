@@ -10,7 +10,7 @@ import { client } from "../api/client";
 
 export type ThemeMode = "dark" | "oled" | "light" | "high-contrast";
 export type AccentColor = "amber" | "indigo" | "emerald" | "rose" | "cyan" | "violet";
-export type AppLocale = "en" | "sv" | "de";
+export type AppLocale = "en" | "sv" | "de" | "fr" | "es";
 
 export interface SubtitleStyle {
   size: "sm" | "md" | "lg" | "xl";

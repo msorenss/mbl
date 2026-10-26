@@ -47,6 +47,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::nodes::router())
         .merge(routes::livetv::router())
         .merge(routes::plugins::router())
+        .merge(routes::import::routes())
         .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state)

@@ -9,9 +9,9 @@ use utoipa::{Modify, OpenApi};
 
 use crate::AppState;
 use crate::routes::{
-    auth, collections, companion, events, hw, images, intelligence, invites, items, libraries,
-    livetv, matchmaker, mcp, media_audio, nodes, oauth, photos, playback, players, playlists,
-    plugins, remote, requests, stream, system, users, webhooks, workers,
+    auth, collections, companion, events, hw, images, import, intelligence, invites, items,
+    libraries, livetv, matchmaker, mcp, media_audio, nodes, oauth, photos, playback, players,
+    playlists, plugins, remote, requests, stream, system, users, webhooks, workers,
 };
 
 #[derive(OpenApi)]
@@ -74,6 +74,7 @@ use crate::routes::{
         livetv::delete_virtual_channel, livetv::get_virtual_playhead,
         plugins::list_plugins, plugins::get_plugin, plugins::update_plugin_config,
         plugins::get_plugin_channels, plugins::get_feed_items, plugins::get_plugin_item, plugins::resolve_plugin_stream,
+        import::import_plex, import::import_jellyfin,
     ),
     components(schemas(
         mbl_db::repo::items::SortField,
@@ -230,6 +231,11 @@ use crate::routes::{
         livetv::SuccessResponse,
         plugins::UpdatePluginConfigRequest,
         plugins::PluginStreamUrlResponse,
+        mbl_service::PlexImportRequest,
+        mbl_service::PlexImportItem,
+        mbl_service::JellyfinImportRequest,
+        mbl_service::JellyfinImportItem,
+        mbl_service::ImportSummary,
     )),
     modifiers(&Security),
     security(("bearer" = []), ("cookie" = [])),

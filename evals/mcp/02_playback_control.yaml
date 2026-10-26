@@ -1,0 +1,12 @@
+name: "Playback & Player Remote Control"
+description: "Verify agent discovers active playback devices and sends pause/resume commands"
+prompt: "Pause playback on the Living Room TV."
+expected_tool_calls:
+  - tool: "list_players"
+    arguments: {}
+  - tool: "control_player"
+    arguments:
+      playerId: "player-living-room"
+      command: "pause"
+assertions:
+  - "player status is updated to paused"

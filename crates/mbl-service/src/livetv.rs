@@ -222,6 +222,12 @@ impl LiveTvService {
     // -----------------------------------------------------------------------
 
     pub async fn import_m3u(&self, tuner_name: &str, content: &str) -> Result<TunerId> {
+        if content.len() > 50 * 1024 * 1024 {
+            return Err(Error::Validation(
+                "M3U playlist exceeds maximum size limit (50 MB)".into(),
+            ));
+        }
+
         let tuner_id = m9::create_tuner(
             &self.db,
             tuner_name,
@@ -256,6 +262,12 @@ impl LiveTvService {
     // -----------------------------------------------------------------------
 
     pub async fn import_xmltv(&self, xml_bytes: &[u8]) -> Result<u32> {
+        if xml_bytes.len() > 50 * 1024 * 1024 {
+            return Err(Error::Validation(
+                "XMLTV guide data exceeds maximum size limit (50 MB)".into(),
+            ));
+        }
+
         let programs = parse_xmltv_streaming(xml_bytes)?;
         let count = m9::batch_upsert_epg_programs(&self.db, &programs).await?;
         m9::auto_map_channels_to_epg(&self.db).await?;

@@ -161,6 +161,8 @@ export function CommandPalette(props: CommandPaletteProps) {
       { id: "en", label: "English" },
       { id: "sv", label: "Svenska" },
       { id: "de", label: "Deutsch" },
+      { id: "fr", label: "Français" },
+      { id: "es", label: "Español" },
     ];
     for (const loc of locales) {
       actions.push({

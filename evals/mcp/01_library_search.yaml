@@ -1,0 +1,13 @@
+name: "Library Search & Discovery"
+description: "Verify agent discovers media items via full-text search and retrieves item metadata"
+prompt: "Find any Christopher Nolan sci-fi movies in my library released around 2010 to 2014."
+expected_tool_calls:
+  - tool: "search_media"
+    arguments:
+      query: "Inception"
+  - tool: "get_item"
+    arguments:
+      item_id: 101
+assertions:
+  - "response contains title"
+  - "response contains release year"

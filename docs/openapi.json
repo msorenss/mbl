@@ -1161,6 +1161,90 @@
         }
       }
     },
+    "/api/v1/import/jellyfin": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "Import Jellyfin watch history and playback state into the authenticated user's account.",
+        "operationId": "import_jellyfin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JellyfinImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Jellyfin watch history successfully imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/import/plex": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "Import Plex watch history and view state into the authenticated user's account.",
+        "operationId": "import_plex",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlexImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plex watch history successfully imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/invites": {
       "get": {
         "tags": [
@@ -8015,6 +8099,39 @@
           }
         }
       },
+      "ImportSummary": {
+        "type": "object",
+        "description": "Summary of watch history import results.",
+        "required": [
+          "totalItems",
+          "matchedItems",
+          "updatedWatchState",
+          "unmatched"
+        ],
+        "properties": {
+          "matchedItems": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "totalItems": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "unmatched": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedWatchState": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "IndexScenesRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13).",
@@ -8353,6 +8470,78 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "JellyfinImportItem": {
+        "type": "object",
+        "description": "An item exported from Jellyfin or retrieved via Jellyfin API.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "lastPlayedDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "playCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "playbackPositionTicks": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "played": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "productionYear": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "providerIds": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "JellyfinImportRequest": {
+        "type": "object",
+        "description": "Request payload containing Jellyfin items.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JellyfinImportItem"
+            }
           }
         }
       },
@@ -10267,6 +10456,81 @@
           },
           "userId": {
             "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
+      "PlexImportItem": {
+        "type": "object",
+        "description": "An item exported from Plex or retrieved via Plex token.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "imdbId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastViewedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "tvdbId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "viewCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "viewOffsetMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PlexImportRequest": {
+        "type": "object",
+        "description": "Request payload containing Plex history items.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlexImportItem"
+            }
           }
         }
       },

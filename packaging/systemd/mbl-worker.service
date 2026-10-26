@@ -1,0 +1,21 @@
+[Unit]
+Description=MBL Distributed Transcode Worker
+After=network.target
+
+[Service]
+Type=simple
+User=mbl
+Group=mbl
+ExecStart=/usr/bin/mbl-worker run
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/mbl-worker /tmp
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
