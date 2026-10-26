@@ -122,7 +122,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path staging
           Copy-Item packaging\windows\README.txt staging\
           $rawTag = "${{ github.ref_name }}"
-          if (-not $rawTag) { $rawTag = "v0.8.0" }
+          if (-not $rawTag) { $rawTag = "v1.0.0" }
           $version = $rawTag.TrimStart('v')
 
           # Build MSI
@@ -177,7 +177,7 @@ jobs:
         run: |
           cd release-dist
           TAG="${{ github.ref_name }}"
-          [ -z "$TAG" ] && TAG="v0.8.0"
+          [ -z "$TAG" ] && TAG="v1.0.0"
           VER="${TAG#v}"
           if [ -f dist-windows.zip ]; then
             mv dist-windows.zip "mbl-${TAG}-windows-x86_64.zip"

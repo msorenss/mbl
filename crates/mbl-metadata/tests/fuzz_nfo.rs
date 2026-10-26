@@ -1,6 +1,6 @@
 //! Fuzzing and robustness test suite for NFO parser (M10.2).
 
-use mbl_metadata::nfo::parse_nfo;
+use mbl_metadata::parse_nfo;
 use proptest::prelude::*;
 
 proptest! {

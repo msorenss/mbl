@@ -1,4 +1,4 @@
-MBL Federated Storage Node for Windows (v0.8.0)
+MBL Federated Storage Node for Windows (v1.0.0)
 =================================================
 
 Welcome to mbl-node! This binary allows you to turn any secondary PC, server, or storage

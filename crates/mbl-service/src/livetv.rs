@@ -760,16 +760,17 @@ impl LiveTvService {
 // Helpers & Parsers
 // ---------------------------------------------------------------------------
 
-struct ParsedM3uItem {
-    channel_number: String,
-    name: String,
-    callsign: Option<String>,
-    logo_url: Option<String>,
-    stream_url: String,
-    epg_channel_id: Option<String>,
+#[derive(Debug, Clone)]
+pub struct ParsedM3uItem {
+    pub channel_number: String,
+    pub name: String,
+    pub callsign: Option<String>,
+    pub logo_url: Option<String>,
+    pub stream_url: String,
+    pub epg_channel_id: Option<String>,
 }
 
-fn parse_m3u_entries(content: &str) -> Vec<ParsedM3uItem> {
+pub fn parse_m3u_entries(content: &str) -> Vec<ParsedM3uItem> {
     let mut items = Vec::new();
     let mut current_name = String::new();
     let mut current_logo: Option<String> = None;
@@ -980,7 +981,7 @@ pub fn parse_xmltv_streaming(xml_bytes: &[u8]) -> Result<Vec<EpgProgramInsert>> 
 /// Parses XMLTV timestamps, e.g. "20261026190000 +0200" or "20261026190000" into epoch milliseconds.
 pub fn parse_xmltv_date(s: &str) -> Option<i64> {
     let clean = s.trim();
-    if clean.len() < 14 {
+    if clean.len() < 14 || !clean.as_bytes()[0..14].iter().all(u8::is_ascii_digit) {
         return None;
     }
 
@@ -992,15 +993,17 @@ pub fn parse_xmltv_date(s: &str) -> Option<i64> {
     let second: u32 = clean[12..14].parse().ok()?;
 
     let mut offset_mins = 0i32;
-    if clean.len() >= 19 {
-        let sign = &clean[14..15];
-        let tz_hour: i32 = clean[15..17].parse().unwrap_or(0);
-        let tz_min: i32 = clean[17..19].parse().unwrap_or(0);
-        let total = tz_hour * 60 + tz_min;
-        if sign == "-" {
-            offset_mins = -total;
-        } else {
-            offset_mins = total;
+    if clean.len() > 14 {
+        let rest = clean[14..].trim_start();
+        if rest.len() >= 5 {
+            let bytes = rest.as_bytes();
+            let sign = bytes[0];
+            if (sign == b'+' || sign == b'-') && bytes[1..5].iter().all(u8::is_ascii_digit) {
+                let tz_hour: i32 = rest[1..3].parse().unwrap_or(0);
+                let tz_min: i32 = rest[3..5].parse().unwrap_or(0);
+                let total = tz_hour * 60 + tz_min;
+                offset_mins = if sign == b'-' { -total } else { total };
+            }
         }
     }
 

@@ -6,7 +6,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
 
 ## 1. Aktuell Status (Snabböverblick)
 
-- **Senaste release:** `v0.8.0` (publicerad 2026-10-26, M9 färdigställd)
+- **Senaste release:** `v1.0.0` (publicerad 2026-10-26, M10 färdigställd — General Availability)
 - **Avklarade milstolpar:**
   - **M0:** Foundations (Workspace, CI, config, SQLite, syntetisk testmedia)
   - **M1:** Library Core (Scanner, parser, ffprobe, TMDB/NFO-metadata, bilder, FTS5, WebSocket-events, OpenAPI)
@@ -18,7 +18,8 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
   - **M7:** Media breadth (`v0.6.0` — Musikskanning med `lofty` och MusicBrainz, EBU R128 loudness-analys och progressiv audiotranskodning, OpenSubsonic `/rest/*`-kompatibilitet, foto-EXIF och tidslinje, samlingar och spellistor, fältlåsning i metadata, OpenSubtitles-nedladdning, DLNA UPnP SSDP och ContentDirectory, PlayerRegistry och fjärrstyrning, webhooks med HMAC-SHA256, Home Assistant MQTT Discovery och telemetri, AI Watch Companion co-watching med realtidsdialogcues och reaktioner, Subtitle Auto-Sync `mbl-subsync`, Scene X-Ray, spoiler-fria recaps med strikt tittarhistorik, Movie Night Matchmaker swipe-sessions, inbyggda Media Requests med Radarr/Sonarr-brygga och hardlink-lagringsanalys, 20 nya MCP-verktyg till 62 verktyg med 100% OpenAPI-paritet, samt fullständig WiX MSI-installerare på Windows)
   - **M8:** Distributed nodes (`v0.7.0` — Transcode workers & Remote library storage nodes, worker-protokollspecifikation och typade `WorkerJobSpec`, HMAC-signerade source range URL:er, segment `PUT`-uppladdning i sessionskatalog, Wake-on-LAN magic packet, sömlös lokal fallback vid worker-bortfall, Windows worker-tray med pause-while-gaming GPU-vakt, admin worker & node dashboard i SolidJS, 5 nya MCP-verktyg till 67 admin-verktyg med 100% OpenAPI-paritet, `mbl-node` federerad lagringsnod med delta catalog sync, och Smart Handover för LAN direktuppspelning vs WAN relay)
   - **M9:** Live TV, Channels and Online Streaming Plugins (`v0.8.0` — HDHomeRun UDP discovery & lineup-synkronisering, M3U & streaming XMLTV-parsning med `quick-xml`, 2-axlars virtuellt EPG-rutnät, live-uppspelningsmotor med samtidighetsbegränsning, DVR-inspelningsschemaläggare med serieregler, marginaltider och konfliktlösning, 5 nya MCP-verktyg till 72 admin-verktyg med 100% OpenAPI-paritet, plugin-arkitektur för online-media med YouTube-, Spotify- och WebDrama-stöd, virtuella 24/7-kanaler med zero-CPU playhead-beräkning, samt fullständig 4-flikars Live TV SolidJS UI)
-- **Nästa milstolpe:** **M10 — Hardening → v1.0.0** (`M10.1`–`M10.8` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)); börja med M10.1.
+  - **M10:** Hardening → v1.0.0 (`v1.0.0` — Formellt STRIDE Threat Model-dokument, säkerhetshärdning för webhooks/DoS/traversal, fuzzing-svit med libfuzzer-targets och property tests, prestanda- och SLA-rapport i `docs/benchmarks.md`, komplett mdBook-dokumentationssajt i `docs/book/`, migreringsverktyg för Plex och Jellyfin historik & watch state, fullständiga 5-språksöversättningar [en, sv, de, fr, es] med WCAG 2.2 AA accessibility, separata release-byggen för `mbl-worker` och `mbl-node` med systemd-services och fristående Windows-paket, samt MCP eval-scenarier och runner med 74 admin-verktyg och 100% paritet)
+- **Nästa milstolpe:** **M11 — Native Mobile, TV & Spatial VR Clients** (`M11.1`–`M11.4` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)).
 
 ---
 
@@ -63,7 +64,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `30` för `read`, `35` för `read+library`, `72` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `30` för `read`, `35` för `read+library`, `74` för `admin`).
 
 ---
 
@@ -88,6 +89,26 @@ När en milstolpe är färdig och alla tester är gröna:
 ## 5. Sessions- och Handoff-logg
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
+
+### 2026-10-26 — Milstolpe M10 (Hardening → v1.0.0) & Release v1.0.0
+- **Genomfört (`M10.1`–`M10.8`):**
+  - **M10.1:** Formell STRIDE Threat Model-dokumentation i `docs/threat-model.md` över 4 förtroendezoner (Public/Untrusted, Authenticated Clients, Tailnet/Private LAN, Local System Services). Säkerhetshärdning i `crates/mbl-service`: protokollvalidering för webhooks som tvingar strikt `http://` eller `https://` (avvisar `file://`, `ftp://`, `javascript:` med 422), 50 MB DoS-tak för M3U/XMLTV-guider, och path traversal-kontroll för worker source token endpoints.
+  - **M10.2:** Omfattande fuzzing-kampanj med `fuzz/` libfuzzer-targets och property-baserade fuzz-tester (`proptest`) för `parse_nfo` (`crates/mbl-metadata/tests/fuzz_nfo.rs`), M3U/XMLTV (`crates/mbl-service/tests/fuzz_m3u_xmltv.rs`), och HLS/Range (`crates/mbl-stream/tests/fuzz_hls.rs`). Upptäckte och härdade en subtil panic-bugg i `parse_xmltv_date` vid godtyckliga multibyte UTF-8-strängar.
+  - **M10.3:** Prestandarapport `docs/benchmarks.md` mot PLAN §21: skanningshastighet > 500 filer/s på Pi 5, direct play TTFF på 240 ms, zero-CPU virtual playhead på 0.015 ms, och idle minnesavtryck på 42.4 MB på ARM64 Pi 5.
+  - **M10.4:** Komplett mdBook-dokumentationssajt i `docs/book/` med `book.toml`, `SUMMARY.md` och 18 kapitel som täcker installation (Linux, Docker, Pi 5, Windows), hårdvaruacceleration, Tailscale remote access, distribuerade workers & noder, Live TV/DVR, MCP, AI-companion, migrering och felsökning.
+  - **M10.5:** Watch history- och biblioteksmigreringsmotor (`ImportService`) för Plex och Jellyfin. REST-endpoints (`POST /api/v1/import/plex`, `POST /api/v1/import/jellyfin`) och 2 nya MCP-verktyg (`import_plex_history`, `import_jellyfin_history`). Matchning via TMDB/IMDb/TVDB ID och fallback på titel/år, ticks-till-millisekunder konvertering, samt integrationstester i `crates/mbl-server/tests/m10.rs`.
+  - **M10.6:** Fullständiga 5-språksöversättningar i `web/src/i18n/index.ts` för engelska (`en`), svenska (`sv`), tyska (`de`), franska (`fr`) och spanska (`es`) med 100% nyckelparitet verifierad via Vitest (`web/src/i18n/i18n.test.ts`), språkväljare i `Layout.tsx` och `CommandPalette.tsx`, samt WCAG 2.2 AA accessibility.
+  - **M10.7 & Separata Releaser:** Separata fristående release-paket för `mbl-worker` och `mbl-node` i `.github/workflows/release.yml` (.deb, .tar.gz för x86_64 och arm64, Windows zip-paket med systemd service-enheter och READMEs). Officiell release `v1.0.0` med uppdaterat `Cargo.toml`, `CHANGELOG.md`, `README.md` och `docs/openapi.json`.
+  - **M10.8:** MCP evalueringsscenarier i `evals/mcp/*.yaml` (bibliotekssökning, fjärrstyrning, Live TV/DVR, nätverksstatus, prompt injection-säkerhet med bekräftelsevakt) och automatiserad scenario-runner i `crates/mbl-mcp/tests/evals.rs`. MCP-adminverktygen ökade till 74 med 100.0% OpenAPI-paritet.
+- **Verifiering:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK
+  - `cargo nextest run --workspace`: 311/311 tester godkända (0 failed, 0 skipped)
+  - `cargo xtask mcp-parity`: OK (141/141 endpoints täckta, 100.0%)
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `just web-check`: Biome (0 fel), Vitest (22 tester), `tsc -b`, Vite-build, bundle budget (42.06 KB gzip <= 150 KB): OK
+- **Nästa steg:** Börja med **M11.1** i [`IMPLEMENTATION.md`](IMPLEMENTATION.md) (Native Android Mobile & Tablet App med Compose & Media3/ExoPlayer).
 
 ### 2026-10-26 — Milstolpe M9 (Live TV, Channels and Online Streaming Plugins) & Release v0.8.0
 - **Genomfört (`M9.1`–`M9.7`):**

@@ -8,7 +8,7 @@ An open source, Plex-inspired media center written in Rust. It is built first fo
 
 ## Status
 
-Milestone M9 (Live TV, Channels and Online Streaming Plugins) is complete; MBL remains in active development.
+**Release v1.0.0** (Milestone M10: Hardening → v1.0.0) is complete and production ready. See [CHANGELOG.md](CHANGELOG.md) for full release notes and [docs/book](docs/book) for documentation.
 
 ## Development
 

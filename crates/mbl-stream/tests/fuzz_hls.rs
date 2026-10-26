@@ -22,9 +22,8 @@ proptest! {
     fn render_media_playlist_never_panics(
         total_duration_ms in 0u64..10_000_000,
         segment_secs in 1u32..60,
-        session_id in "\\PC{0,50}",
     ) {
-        let _ = render_media_playlist(total_duration_ms, segment_secs, &session_id, None);
+        let _ = render_media_playlist(total_duration_ms, segment_secs);
     }
 
     #[test]
@@ -37,12 +36,13 @@ proptest! {
         let renditions: Vec<_> = (0..rendition_count)
             .map(|i| HlsRendition {
                 name: format!("rend_{i}"),
-                bitrate,
-                width,
-                height,
-                codecs: "avc1.640028,mp4a.40.2".into(),
+                bandwidth: u64::from(bitrate),
+                width: Some(width),
+                height: Some(height),
+                video_codec: Some("h264".into()),
+                audio_codec: Some("aac".into()),
             })
             .collect();
-        let _ = render_master_playlist(&renditions, "sess-1");
+        let _ = render_master_playlist(&renditions);
     }
 }

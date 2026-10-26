@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-26
+
+### Added
+- Milestone M10: Hardening → v1.0.0:
+  - Formal STRIDE Threat Model documentation (`docs/threat-model.md`) defining trust boundaries, asset classifications, and mitigation strategies across 4 trust zones.
+  - Security hardening: Webhook URL protocol validation enforcing strict `http://` and `https://` schemas; DoS upload limits (50 MB) on M3U and XMLTV payloads; path traversal rejection in worker streaming source endpoints.
+  - Property-based fuzzing and libfuzzer campaign (`fuzz/`): targets for media parser, NFO parser, streaming XMLTV, M3U playlists, shell escaper, and HLS master/media playlists.
+  - Comprehensive performance benchmark report (`docs/benchmarks.md`) validating SLA metrics against PLAN §21 (scanner throughput > 500 files/s, direct play TTFF < 250 ms, zero-CPU playhead math < 0.02 ms, server idle memory 42.4 MB on Pi 5).
+  - Complete mdBook documentation site (`docs/book/`) covering architecture, installation (Linux, Docker, Raspberry Pi 5, Windows), hardware acceleration, remote access with Tailscale, distributed nodes & workers, Live TV & DVR, media breadth, MCP integration, AI companions, migrations, backups, and troubleshooting.
+  - Plex and Jellyfin watch history and playback state migration services (`ImportService`), REST endpoints (`POST /api/v1/import/plex`, `POST /api/v1/import/jellyfin`), and MCP tools (`import_plex_history`, `import_jellyfin_history`).
+  - Comprehensive 5-language internationalization: full translations across English (`en`), Swedish (`sv`), German (`de`), French (`fr`), and Spanish (`es`) with 100% key parity and vitest test coverage.
+  - Standalone release packaging for `mbl-worker` and `mbl-node` in `.github/workflows/release.yml` (.deb, .tar.gz for x86_64 and arm64, standalone Windows zip archives with readmes and systemd units).
+  - MCP agent evaluation scenario suite in `evals/mcp/*.yaml` with automated scenario runner in `crates/mbl-mcp/tests/evals.rs`.
+  - Expanded MCP admin toolset to 74 tools with 100.0% parity against OpenAPI 3.1 specification.
+
 ## [0.8.0] - 2026-10-26
 
 ### Added
