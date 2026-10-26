@@ -426,12 +426,42 @@ impl MblMcp {
                     Err(err) => Some(JsonRpcResponse::err(id, err)),
                 }
             }
+            "resources/subscribe" | "resources/unsubscribe" => {
+                Some(JsonRpcResponse::ok(id, json!({})))
+            }
             "prompts/list" => {
-                let prompts = vec![PromptDefinition {
-                    name: "setup_remote_access".into(),
-                    description: "Guided walkthrough to diagnose external reachability (CGNAT, public IP) and configure Tailscale or direct port forwarding.".into(),
-                    arguments: None,
-                }];
+                let prompts = vec![
+                    PromptDefinition {
+                        name: "setup_remote_access".into(),
+                        description: "Guided walkthrough to diagnose external reachability (CGNAT, public IP) and configure Tailscale or direct port forwarding.".into(),
+                        arguments: None,
+                    },
+                    PromptDefinition {
+                        name: "diagnose_playback".into(),
+                        description: "Diagnose a troubled or stuttering playback session by checking HW transcode capacity, network class, dropped frames, and fallback logs.".into(),
+                        arguments: None,
+                    },
+                    PromptDefinition {
+                        name: "library_health_check".into(),
+                        description: "Run a full media library health check: unprobed items, missing episodes, dead roots, and duplicate hardlinks.".into(),
+                        arguments: None,
+                    },
+                    PromptDefinition {
+                        name: "optimize_for_remote".into(),
+                        description: "Analyze WAN bandwidth constraints and client capabilities to suggest pre-transcoded versions for smooth remote playback.".into(),
+                        arguments: None,
+                    },
+                    PromptDefinition {
+                        name: "weekly_report".into(),
+                        description: "Generate a weekly media center report summarizing watched hours, most popular genres, new additions, and active users.".into(),
+                        arguments: None,
+                    },
+                    PromptDefinition {
+                        name: "curate_collection".into(),
+                        description: "Generate a curated smart or manual collection around a specific theme, director, or cinematic universe.".into(),
+                        arguments: None,
+                    },
+                ];
                 Some(JsonRpcResponse::ok(id, json!({ "prompts": prompts })))
             }
             "prompts/get" => {
@@ -443,8 +473,8 @@ impl MblMcp {
                         JsonRpcError::invalid_params("missing prompt 'name'"),
                     ));
                 };
-                if name == "setup_remote_access" {
-                    let res = GetPromptResult {
+                let prompt_res = match name {
+                    "setup_remote_access" => Some(GetPromptResult {
                         description: Some("Step-by-step remote access setup instructions".into()),
                         messages: vec![PromptMessage {
                             role: "user".into(),
@@ -452,13 +482,63 @@ impl MblMcp {
                                 "Help me set up remote access for MBL. Start by running the 'run_reachability_test' tool to determine if I am behind CGNAT, check 'get_remote_access_status', and advise whether Tailscale or direct port forwarding with ACME TLS is recommended.",
                             ),
                         }],
-                    };
-                    Some(JsonRpcResponse::ok(id, res))
-                } else {
-                    Some(JsonRpcResponse::err(
+                    }),
+                    "diagnose_playback" => Some(GetPromptResult {
+                        description: Some("Playback troubleshooting and diagnostics".into()),
+                        messages: vec![PromptMessage {
+                            role: "user".into(),
+                            content: ContentBlock::text(
+                                "Please help me diagnose a playback issue. Check the active session with 'explain_session', verify hardware transcoding capacity with 'get_transcode_capacity', inspect server health with 'get_health', and check recent logs for transcode fallback errors.",
+                            ),
+                        }],
+                    }),
+                    "library_health_check" => Some(GetPromptResult {
+                        description: Some("Library consistency and integrity check".into()),
+                        messages: vec![PromptMessage {
+                            role: "user".into(),
+                            content: ContentBlock::text(
+                                "Perform a library health check: inspect scan status with 'get_scan_status', check submitted media requests with 'list_media_requests', search for unprobed media items, and verify library storage health.",
+                            ),
+                        }],
+                    }),
+                    "optimize_for_remote" => Some(GetPromptResult {
+                        description: Some(
+                            "Remote bandwidth analysis and pre-transcode recommendations".into(),
+                        ),
+                        messages: vec![PromptMessage {
+                            role: "user".into(),
+                            content: ContentBlock::text(
+                                "Help me optimize my library for remote playback. Check current WAN upload bandwidth usage with 'get_bandwidth_usage', evaluate reachability with 'get_remote_access_status', and identify candidate titles for pre-transcoding using 'create_optimized_versions' with dry_run: true.",
+                            ),
+                        }],
+                    }),
+                    "weekly_report" => Some(GetPromptResult {
+                        description: Some("Weekly media server usage and activity report".into()),
+                        messages: vec![PromptMessage {
+                            role: "user".into(),
+                            content: ContentBlock::text(
+                                "Generate a comprehensive weekly report for MBL: summarize watch history using 'get_watch_history', list active users with 'list_users', browse recently added items with 'browse_items', and calculate total streaming activity.",
+                            ),
+                        }],
+                    }),
+                    "curate_collection" => Some(GetPromptResult {
+                        description: Some("Collection curation and smart filter assistant".into()),
+                        messages: vec![PromptMessage {
+                            role: "user".into(),
+                            content: ContentBlock::text(
+                                "Help me curate a new media collection. Search the library for related movies or shows, suggest a unifying theme or smart filter rule, and create the collection using 'create_collection' or 'create_smart_collection'.",
+                            ),
+                        }],
+                    }),
+                    _ => None,
+                };
+
+                match prompt_res {
+                    Some(res) => Some(JsonRpcResponse::ok(id, res)),
+                    None => Some(JsonRpcResponse::err(
                         id,
                         JsonRpcError::invalid_params(format!("unknown prompt: {name}")),
-                    ))
+                    )),
                 }
             }
             other => Some(JsonRpcResponse::err(id, JsonRpcError::method_not_found(other))),

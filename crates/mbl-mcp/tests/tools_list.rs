@@ -29,8 +29,8 @@ async fn snapshot_tools_list_read_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Verify all tools have Read scope (17 M2 + 2 M4 + 2 M5: search_scenes, get_spoiler_free_recap)
-    assert_eq!(tools.len(), 21);
+    // Verify all tools have Read scope (21 M6 + 7 M7: list_collections, list_playlists, create_playlist, add_to_playlist, create_media_request, list_media_requests, explain_scene)
+    assert_eq!(tools.len(), 28);
     insta::assert_json_snapshot!("tools_list_read", tools);
 }
 
@@ -43,8 +43,8 @@ async fn snapshot_tools_list_read_library_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Read (21) + Library (2: scan_library, refresh_metadata) = 23
-    assert_eq!(tools.len(), 23);
+    // Read (28) + Library (5: scan_library, refresh_metadata, create_collection, add_to_collection, create_smart_collection) = 33
+    assert_eq!(tools.len(), 33);
     insta::assert_json_snapshot!("tools_list_read_library", tools);
 }
 
@@ -57,7 +57,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // All tools = 42 (21 read + 2 library + 2 playback + 2 hw/opt + 6 users + 4 remote + 5 settings/backup/maintenance)
-    assert_eq!(tools.len(), 42);
+    // All tools = 62 (42 M6 + 20 M7 curation and player control tools)
+    assert_eq!(tools.len(), 62);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

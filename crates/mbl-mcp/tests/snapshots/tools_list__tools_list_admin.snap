@@ -1138,5 +1138,621 @@ expression: tools
       "idempotentHint": false,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "list_collections",
+    "description": "List all curated media collections on the server.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Collections",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_collection",
+    "description": "Create a new manual media collection.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "dry_run": {
+          "description": "Preview without writing",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Collection name",
+          "type": "string"
+        },
+        "overview": {
+          "description": "Optional collection overview/description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Collection",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "add_to_collection",
+    "description": "Add a media item to an existing collection.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "collection_id": {
+          "description": "Target collection ID",
+          "type": "integer"
+        },
+        "dry_run": {
+          "description": "Preview without writing",
+          "type": "boolean"
+        },
+        "item_id": {
+          "description": "Item ID to add",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "collection_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Add to Collection",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_smart_collection",
+    "description": "Create an auto-updating smart collection based on query filters (e.g. genre, year, actor).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "dry_run": {
+          "description": "Preview without writing",
+          "type": "boolean"
+        },
+        "filter_config": {
+          "description": "JSON filter rule string (e.g. {\"genre\":\"Sci-Fi\",\"minYear\":2000})",
+          "type": "string"
+        },
+        "name": {
+          "description": "Smart collection name",
+          "type": "string"
+        },
+        "overview": {
+          "description": "Optional description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "filter_config"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Smart Collection",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_playlists",
+    "description": "List personal playlists for the current authenticated user.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Playlists",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_playlist",
+    "description": "Create a new playlist for tracks, videos, or mixed media.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "is_public": {
+          "description": "Whether playlist is visible to other users (default false)",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Playlist name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Playlist",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "add_to_playlist",
+    "description": "Add an item to a playlist.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "description": "Media Item ID",
+          "type": "integer"
+        },
+        "playlist_id": {
+          "description": "Playlist ID",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "playlist_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Add to Playlist",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_webhooks",
+    "description": "List configured webhook notification endpoints (Admin only).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Webhooks",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_webhook",
+    "description": "Register a new outgoing webhook notification endpoint for events (Admin only).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "dry_run": {
+          "description": "Preview without creating",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "Events to listen for (e.g. [\"library.scan_finished\", \"playback.started\"])",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "Webhook descriptive name",
+          "type": "string"
+        },
+        "secret": {
+          "description": "Optional HMAC-SHA256 signature secret",
+          "type": "string"
+        },
+        "url": {
+          "description": "Destination HTTP(S) URL",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "url",
+        "events"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Webhook",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_media_request",
+    "description": "Submit a user request for a missing movie or TV show via TMDB ID.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Media kind",
+          "enum": [
+            "movie",
+            "show"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "description": "Media title",
+          "type": "string"
+        },
+        "tmdb_id": {
+          "description": "TMDB numeric ID",
+          "type": "integer"
+        },
+        "year": {
+          "description": "Release year",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "tmdb_id",
+        "title"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Media Request",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_media_requests",
+    "description": "List submitted media requests, optionally filtered by status ('pending', 'approved', 'available').",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "description": "Optional status filter",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Media Requests",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_players",
+    "description": "List active players (TV clients, web sessions, Chromecast, DLNA renderers) discoverable on the network.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Players",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "play_on_player",
+    "description": "Start playback of a media item on a remote player device.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "description": "Media item ID to play",
+          "type": "integer"
+        },
+        "player_id": {
+          "description": "Target player ID",
+          "type": "string"
+        },
+        "start_ms": {
+          "description": "Optional start offset in milliseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "player_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Play on Player",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "control_player",
+    "description": "Control playback state on a remote player (pause, resume, stop, seek, volume).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "description": "Control action",
+          "enum": [
+            "pause",
+            "resume",
+            "stop",
+            "seek",
+            "volume"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "description": "Optional display message when stopping",
+          "type": "string"
+        },
+        "player_id": {
+          "description": "Target player ID",
+          "type": "string"
+        },
+        "position_ms": {
+          "description": "Seek position in milliseconds (required for 'seek')",
+          "type": "integer"
+        },
+        "volume": {
+          "description": "Target volume 0..100 (required for 'volume')",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "player_id",
+        "action"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Control Player",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "set_player_tracks",
+    "description": "Switch active audio stream or subtitle track on a remote player.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_stream_index": {
+          "description": "Target audio stream index",
+          "type": "integer"
+        },
+        "player_id": {
+          "description": "Target player ID",
+          "type": "string"
+        },
+        "subtitle_stream_index": {
+          "description": "Target subtitle stream index (-1 to disable)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "player_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Set Player Tracks",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "stop_session",
+    "description": "Forcibly terminate an active playback stream or player session with an optional on-screen message (Admin only).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "description": "Explanation message displayed to the viewer",
+          "type": "string"
+        },
+        "session_id": {
+          "description": "Active playback session ID",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Stop Session",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "join_watch_session",
+    "description": "Connect an AI co-watching companion (e.g. Hermes) to a live playback session.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "bot_name": {
+          "description": "AI agent identity name (e.g. 'Hermes')",
+          "type": "string"
+        },
+        "session_id": {
+          "description": "Active playback session ID",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "bot_name"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Join Watch Session",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "send_companion_reaction",
+    "description": "Post a live commentary reaction, trivia fact, or plot explanation from the AI companion to the viewer's on-screen overlay.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "bot_name": {
+          "description": "Companion agent name",
+          "type": "string"
+        },
+        "commentary": {
+          "description": "Commentary text to display",
+          "type": "string"
+        },
+        "sentiment": {
+          "description": "Emotional reaction tone",
+          "enum": [
+            "funny",
+            "shocked",
+            "lore",
+            "trivia",
+            "sad"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "Active playback session ID",
+          "type": "string"
+        },
+        "timestamp_ms": {
+          "description": "Current playback position in milliseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "bot_name",
+        "commentary"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Send Companion Reaction",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "sync_playback",
+    "description": "Request a temporary pause or rewind during co-watching to allow conversation or explain a plot development.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "description": "Sync action",
+          "enum": [
+            "pause",
+            "resume",
+            "rewind"
+          ],
+          "type": "string"
+        },
+        "player_id": {
+          "description": "Player device ID",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Reason shown to the user",
+          "type": "string"
+        },
+        "rewind_ms": {
+          "description": "Milliseconds to rewind if action is 'rewind' (default 10000)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "player_id",
+        "action"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Sync Playback",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "explain_scene",
+    "description": "Get detailed contextual background on the current scene (actors on screen, chapter, spoken dialogue cues).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "description": "Active playback session ID",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Explain Scene",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

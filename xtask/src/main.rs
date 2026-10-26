@@ -1,6 +1,8 @@
 //! Developer automation. Run with `cargo xtask <command>`.
+#![allow(clippy::print_stdout)]
 
 mod gen_media;
+mod mcp_parity;
 mod tokens;
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -22,6 +24,8 @@ enum Command {
         #[arg(long)]
         write: bool,
     },
+    /// Compare OpenAPI operations with MCP tools plus EXCLUSIONS.toml and fail if < 95% parity.
+    McpParity,
     /// Generate CSS and Slint design tokens from `design/tokens.json` (`--check` verifies no drift).
     Tokens {
         #[arg(long)]
@@ -33,6 +37,7 @@ fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::GenMedia(args) => gen_media::run(&args),
         Command::OpenapiCheck { write } => openapi_check(write),
+        Command::McpParity => mcp_parity::run(&workspace_root()),
         Command::Tokens { check } => tokens::run(&workspace_root(), check),
     }
 }

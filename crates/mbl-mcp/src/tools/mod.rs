@@ -1,10 +1,12 @@
 //! MCP Tool definitions and execution dispatch.
 
+pub mod curation;
 pub mod hw;
 pub mod jobs;
 pub mod libraries;
 pub mod media;
 pub mod playback;
+pub mod players;
 pub mod remote;
 pub mod settings;
 pub mod system;
@@ -33,6 +35,8 @@ pub fn all_tools() -> Vec<RegisteredTool> {
     tools.extend(users::definitions());
     tools.extend(remote::definitions());
     tools.extend(settings::definitions());
+    tools.extend(curation::definitions());
+    tools.extend(players::definitions());
     tools
 }
 
@@ -81,6 +85,26 @@ pub async fn execute_tool(
         | "update_remote_policy" => remote::execute(tool_name, args, caller, services).await,
         "get_settings" | "update_settings" | "create_backup" | "list_backups"
         | "restart_server" => settings::execute(tool_name, args, caller, db, services).await,
+        "list_collections"
+        | "create_collection"
+        | "add_to_collection"
+        | "create_smart_collection"
+        | "list_playlists"
+        | "create_playlist"
+        | "add_to_playlist"
+        | "list_webhooks"
+        | "create_webhook"
+        | "create_media_request"
+        | "list_media_requests" => curation::execute(tool_name, args, caller, services).await,
+        "list_players"
+        | "play_on_player"
+        | "control_player"
+        | "set_player_tracks"
+        | "stop_session"
+        | "join_watch_session"
+        | "send_companion_reaction"
+        | "sync_playback"
+        | "explain_scene" => players::execute(tool_name, args, caller, services).await,
         _ => Err(JsonRpcError::invalid_params(format!("unknown tool: {tool_name}"))),
     }
 }

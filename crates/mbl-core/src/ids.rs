@@ -22,7 +22,21 @@ macro_rules! id_newtype {
     )* };
 }
 
-id_newtype!(UserId, LibraryId, ItemId, VersionId, PartId, StreamId, ArtworkId, JobId, SessionId,);
+id_newtype!(
+    UserId,
+    LibraryId,
+    ItemId,
+    VersionId,
+    PartId,
+    StreamId,
+    ArtworkId,
+    JobId,
+    SessionId,
+    CollectionId,
+    PlaylistId,
+    WebhookId,
+    RequestId,
+);
 
 #[cfg(test)]
 mod tests {

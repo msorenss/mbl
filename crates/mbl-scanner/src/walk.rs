@@ -13,6 +13,7 @@ pub const AUDIO_EXTS: &[&str] = &[
     "mp3", "flac", "m4a", "aac", "ogg", "oga", "opus", "wav", "wma", "aiff", "aif", "ape", "wv",
     "dsf", "dff", "mka",
 ];
+pub const PHOTO_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "bmp", "tiff", "tif"];
 
 /// Folders created by NAS software, OSes and recycle bins.
 const SKIP_DIRS: &[&str] =
@@ -37,8 +38,7 @@ pub fn extensions(kind: LibraryKind) -> &'static [&'static str] {
     match kind {
         LibraryKind::Movie | LibraryKind::Show | LibraryKind::HomeVideo => VIDEO_EXTS,
         LibraryKind::Music => AUDIO_EXTS,
-        // Photo libraries arrive in M7.5.
-        LibraryKind::Photo => &[],
+        LibraryKind::Photo => PHOTO_EXTS,
     }
 }
 

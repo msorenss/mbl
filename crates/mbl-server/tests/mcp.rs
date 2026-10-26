@@ -419,7 +419,7 @@ async fn scope_filtering_escalation_redaction_and_rate_limiting() {
     let mut cookie_client = McpClient::connect_router(app.router.clone(), None)
         .with_session_cookie(admin_session, "localhost:8420", "http://localhost:8420");
     let cookie_tools = cookie_client.list_tools().await.unwrap();
-    assert_eq!(cookie_tools.tools.len(), 42);
+    assert_eq!(cookie_tools.tools.len(), 62);
 
     // 6. Verify 90-day audit pruning.
     let now = now_ms();

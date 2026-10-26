@@ -191,7 +191,7 @@ pub async fn write_new(conn: &mut SqliteConnection, ctx: &FileCtx<'_>) -> Result
         LibraryKind::Movie | LibraryKind::HomeVideo => write_movie(conn, ctx).await,
         LibraryKind::Show => write_episode(conn, ctx).await,
         LibraryKind::Music => write_track(conn, ctx).await,
-        LibraryKind::Photo => Ok(Written::default()),
+        LibraryKind::Photo => write_photo(conn, ctx).await,
     }
 }
 
@@ -394,6 +394,90 @@ async fn write_track(conn: &mut SqliteConnection, ctx: &FileCtx<'_>) -> Result<W
     let summary = Summary::new(ctx.info);
     let version_id = media::insert_version(conn, track_id, &summary.as_version(None)).await?;
     ctx.add_part(conn, version_id, 0).await?;
+
+    let parse_rg = |k: &str| {
+        tag(k).and_then(|v| v.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()))
+    };
+    let mb_track = tag("musicbrainz_trackid")
+        .or_else(|| tag("musicbrainz_recordingid"))
+        .or_else(|| tag("MUSICBRAINZ_TRACKID"));
+    let lyrics = tag("lyrics")
+        .or_else(|| tag("unsyncedlyrics"))
+        .or_else(|| tag("unsynced lyrics"))
+        .or_else(|| tag("USLT"));
+    let rg_track_gain =
+        parse_rg("replaygain_track_gain").or_else(|| parse_rg("REPLAYGAIN_TRACK_GAIN"));
+    let rg_track_peak =
+        parse_rg("replaygain_track_peak").or_else(|| parse_rg("REPLAYGAIN_TRACK_PEAK"));
+    let rg_album_gain =
+        parse_rg("replaygain_album_gain").or_else(|| parse_rg("REPLAYGAIN_ALBUM_GAIN"));
+    let rg_album_peak =
+        parse_rg("replaygain_album_peak").or_else(|| parse_rg("REPLAYGAIN_ALBUM_PEAK"));
+
+    let _ = sqlx::query(
+        r#"UPDATE media_items SET
+             musicbrainz_id = COALESCE(?, musicbrainz_id),
+             disc_number = COALESCE(?, disc_number),
+             track_number = COALESCE(?, track_number),
+             replaygain_track_gain = COALESCE(?, replaygain_track_gain),
+             replaygain_track_peak = COALESCE(?, replaygain_track_peak),
+             replaygain_album_gain = COALESCE(?, replaygain_album_gain),
+             replaygain_album_peak = COALESCE(?, replaygain_album_peak),
+             lyrics = COALESCE(?, lyrics)
+           WHERE id = ?"#,
+    )
+    .bind(mb_track)
+    .bind(disc.map(i64::from))
+    .bind(track.map(i64::from))
+    .bind(rg_track_gain)
+    .bind(rg_track_peak)
+    .bind(rg_album_gain)
+    .bind(rg_album_peak)
+    .bind(lyrics)
+    .bind(track_id.0)
+    .execute(&mut *conn)
+    .await;
+
+    Ok(written)
+}
+
+async fn write_photo(conn: &mut SqliteConnection, ctx: &FileCtx<'_>) -> Result<Written> {
+    let stem = std::path::Path::new(&ctx.file.path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Photo");
+    let sort = stem.to_lowercase();
+    let item = ctx.item(MediaKind::Photo, None, stem, &sort);
+    let mut written = Written::default();
+    let item_id = top_item(conn, ctx, MediaKind::Photo, item, &mut written).await?;
+
+    let summary = Summary::new(ctx.info);
+    let version_id = media::insert_version(conn, item_id, &summary.as_version(None)).await?;
+    ctx.add_part(conn, version_id, 0).await?;
+
+    let tags = &ctx.info.tags;
+    let make = tags.get("make").or_else(|| tags.get("Make")).cloned();
+    let model = tags.get("model").or_else(|| tags.get("Model")).cloned();
+    let exif_date = tags
+        .get("date")
+        .or_else(|| tags.get("DateTimeOriginal"))
+        .or_else(|| tags.get("creation_time"))
+        .and_then(|d| {
+            time::OffsetDateTime::parse(d, &time::format_description::well_known::Rfc3339).ok()
+        })
+        .map(|dt| dt.unix_timestamp() * 1000)
+        .unwrap_or(ctx.file.mtime);
+
+    let _ = sqlx::query(
+        "UPDATE media_items SET exif_date = ?, camera_make = ?, camera_model = ? WHERE id = ?",
+    )
+    .bind(exif_date)
+    .bind(make)
+    .bind(model)
+    .bind(item_id.0)
+    .execute(&mut *conn)
+    .await;
+
     Ok(written)
 }
 

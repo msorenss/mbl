@@ -44,7 +44,9 @@ figment = { workspace = true, features = ["test"] }
 futures-util.workspace = true
 http-body-util.workspace = true
 image.workspace = true
+mbl-analysis.workspace = true
 mbl-auth.workspace = true
+mbl-remote.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
 tempfile.workspace = true

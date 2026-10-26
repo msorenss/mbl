@@ -4,14 +4,18 @@
 //! fills the rest. Locked fields are never overwritten.
 
 mod matcher;
+pub mod musicbrainz;
 mod nfo;
+pub mod opensubtitles;
 mod tmdb;
 mod worker;
 
 use mbl_db::repo::metadata::PersonCredit;
 
 pub use matcher::{normalize_title, score};
+pub use musicbrainz::{MbArtist, MbRelease, MbReleaseDetails, MbTrack, MusicBrainzClient};
 pub use nfo::{LocalArtwork, find_local_artwork, parse_nfo};
+pub use opensubtitles::{OpenSubtitlesClient, SubtitleCandidate};
 pub use tmdb::{TmdbClient, TmdbConfig};
 pub use worker::{MatchHandler, Matcher, RefreshHandler};
 

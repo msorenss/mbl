@@ -16,9 +16,23 @@ pub const SESSION_COOKIE: &str = "mbl_session";
 #[derive(Debug, Clone)]
 pub struct AuthUser(pub Authenticated);
 
+impl std::ops::Deref for AuthUser {
+    type Target = Authenticated;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// An authenticated admin.
 #[derive(Debug, Clone)]
 pub struct AdminUser(pub Authenticated);
+
+impl std::ops::Deref for AdminUser {
+    type Target = Authenticated;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = ApiError;

@@ -343,6 +343,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_collections"];
+        put?: never;
+        post: operations["create_collection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_collection"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_collection"];
+        options?: never;
+        head?: never;
+        patch: operations["update_collection"];
+        trace?: never;
+    };
+    "/api/v1/collections/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_collection_items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{id}/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["add_item_to_collection"];
+        delete: operations["remove_item_from_collection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_companion_context"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["join_companion_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["send_companion_reaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -689,6 +801,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/libraries/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_photo_timeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_matchmaker_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_matchmaker_session"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/sessions/{id}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["record_vote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp/audit": {
         parameters: {
             query?: never;
@@ -809,6 +985,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_players"];
+        put?: never;
+        post: operations["register_player"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/players/{id}/command": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["send_player_command"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/playlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_playlists"];
+        put?: never;
+        post: operations["create_playlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/playlists/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_playlist"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_playlist"];
+        options?: never;
+        head?: never;
+        patch: operations["update_playlist"];
+        trace?: never;
+    };
+    "/api/v1/playlists/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_playlist_items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/playlists/{id}/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["add_item_to_playlist"];
+        delete: operations["remove_item_from_playlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_requests"];
+        put?: never;
+        post: operations["create_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/hardlink-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["analyze_hardlinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/missing-episodes/{showId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["inspect_missing_episodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update_request_status"];
+        trace?: never;
+    };
     "/api/v1/search": {
         parameters: {
             query?: never;
@@ -837,6 +1173,22 @@ export interface paths {
         put?: never;
         /** Run Chromaprint-style audio intro detection and credits detection across all episodes in a season (M5.6, M5.7). */
         post: operations["detect_season_intros"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stream/audio/{partId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stream_audio"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1229,6 +1581,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_webhooks"];
+        put?: never;
+        post: operations["create_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_webhook"];
+        options?: never;
+        head?: never;
+        patch: operations["toggle_webhook"];
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1371,12 +1755,45 @@ export interface components {
             /** Format: int64 */
             perStreamFairShareKbps: number;
         };
+        /** Format: int64 */
+        CollectionId: number;
+        CollectionRow: {
+            backdropId?: components["schemas"]["ArtworkId"] | null;
+            /** Format: int64 */
+            createdAt: number;
+            id: components["schemas"]["CollectionId"];
+            isSmart: boolean;
+            /** Format: int64 */
+            itemCount: number;
+            name: string;
+            overview?: string | null;
+            posterId?: components["schemas"]["ArtworkId"] | null;
+            smartFilter?: string | null;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        CompanionReaction: {
+            botName: string;
+            commentary: string;
+            /** Format: int64 */
+            createdAt: number;
+            sentiment?: string | null;
+            sessionId: string;
+            /** Format: int64 */
+            timestampMs: number;
+        };
         CreateApiTokenRequest: {
             allowedNetworks?: string[] | null;
             /** Format: int64 */
             expiresAt?: number | null;
             name: string;
             scopes: string[];
+        };
+        CreateCollectionRequest: {
+            isSmart?: boolean | null;
+            name: string;
+            overview?: string | null;
+            smartFilter?: string | null;
         };
         CreateInviteRequest: {
             contentRatingCeiling?: string | null;
@@ -1391,6 +1808,17 @@ export interface components {
             kind: components["schemas"]["LibraryKind"];
             name: string;
             paths: string[];
+        };
+        CreateMatchmakerSessionRequest: {
+            filterConfig?: string | null;
+        };
+        CreateMediaRequest: {
+            kind: string;
+            title: string;
+            /** Format: int64 */
+            tmdbId: number;
+            /** Format: int32 */
+            year?: number | null;
         };
         /** @description Request to create an optimized version for an item or library (M5.4). */
         CreateOptimizedRequest: {
@@ -1409,6 +1837,12 @@ export interface components {
             ruleId?: number | null;
             versionId?: components["schemas"]["VersionId"] | null;
         };
+        CreatePlaylistRequest: {
+            isPublic?: boolean | null;
+            isSmart?: boolean | null;
+            name: string;
+            smartFilter?: string | null;
+        };
         CreateUserRequest: {
             contentRatingCeiling?: string | null;
             displayName?: string | null;
@@ -1417,6 +1851,12 @@ export interface components {
             libraryIds?: components["schemas"]["LibraryId"][] | null;
             password: string;
             username: string;
+        };
+        CreateWebhookRequest: {
+            events: string[];
+            name: string;
+            secret?: string | null;
+            url: string;
         };
         CreatedApiToken: components["schemas"]["ApiTokenInfo"] & {
             /** @description Shown once upon creation; never stored in plaintext. */
@@ -1672,6 +2112,9 @@ export interface components {
         };
         /** Format: int64 */
         JobId: number;
+        JoinSessionRequest: {
+            botName: string;
+        };
         LibraryDto: {
             /** Format: int64 */
             createdAt: number;
@@ -1684,6 +2127,18 @@ export interface components {
         LibraryId: number;
         /** @enum {string} */
         LibraryKind: "movie" | "show" | "music" | "photo" | "homevideo";
+        LiveSessionContext: {
+            connectedCompanions: string[];
+            currentChapter?: string | null;
+            currentSubtitleCue?: string | null;
+            /** Format: int64 */
+            durationMs: number;
+            itemId: components["schemas"]["ItemId"];
+            /** Format: int64 */
+            positionMs: number;
+            sessionId: string;
+            title: string;
+        };
         LoginRequest: {
             clientName?: string | null;
             deviceName?: string | null;
@@ -1711,6 +2166,25 @@ export interface components {
             /** Format: int64 */
             startMs: number;
             title?: string | null;
+        };
+        MatchmakerMatchResult: {
+            matched: boolean;
+            matchedItemId?: components["schemas"]["ItemId"] | null;
+        };
+        MatchmakerSessionRow: {
+            /** Format: int64 */
+            createdAt: number;
+            createdBy: components["schemas"]["UserId"];
+            filterConfig: string;
+            id: string;
+            matchedItemId?: components["schemas"]["ItemId"] | null;
+            status: string;
+        };
+        MatchmakerVoteRequest: {
+            itemId: components["schemas"]["ItemId"];
+            userName: string;
+            /** Format: int32 */
+            vote: number;
         };
         McpAuditEntry: {
             args: string;
@@ -1756,6 +2230,28 @@ export interface components {
         };
         /** @enum {string} */
         MediaKind: "movie" | "show" | "season" | "episode" | "artist" | "album" | "track" | "photo" | "collection" | "extra";
+        MediaRequestRow: {
+            /** Format: int64 */
+            arrId?: number | null;
+            /** Format: int64 */
+            createdAt: number;
+            id: components["schemas"]["RequestId"];
+            kind: string;
+            status: string;
+            title: string;
+            /** Format: int64 */
+            tmdbId: number;
+            /** Format: int64 */
+            updatedAt: number;
+            userId: components["schemas"]["UserId"];
+            /** Format: int32 */
+            year?: number | null;
+        };
+        MissingEpisodeInfo: {
+            missingEpisodeNumbers: number[];
+            /** Format: int64 */
+            seasonNumber: number;
+        };
         /**
          * @description The network environment from which a request originated.
          * @enum {string}
@@ -1867,6 +2363,14 @@ export interface components {
         };
         /** Format: int64 */
         PartId: number;
+        PhotoTimelineBucket: {
+            /** Format: int64 */
+            count: number;
+            /** Format: int32 */
+            month: number;
+            /** Format: int32 */
+            year: number;
+        };
         /** @description Default tuning parameters per [`PlatformProfile`] (M5.2). */
         PlatformDefaults: {
             /** Format: int32 */
@@ -1979,6 +2483,81 @@ export interface components {
             title?: string | null;
             url: string;
         };
+        PlayerCommand: {
+            /** @enum {string} */
+            action: "play";
+            params: {
+                item_id: components["schemas"]["ItemId"];
+                /** Format: int64 */
+                start_ms?: number | null;
+            };
+        } | {
+            /** @enum {string} */
+            action: "pause";
+        } | {
+            /** @enum {string} */
+            action: "resume";
+        } | {
+            /** @enum {string} */
+            action: "stop";
+            params: {
+                message?: string | null;
+            };
+        } | {
+            /** @enum {string} */
+            action: "seek";
+            params: {
+                /** Format: int64 */
+                position_ms: number;
+            };
+        } | {
+            /** @enum {string} */
+            action: "setVolume";
+            params: {
+                /** Format: int32 */
+                volume: number;
+            };
+        } | {
+            /** @enum {string} */
+            action: "setTracks";
+            params: {
+                /** Format: int64 */
+                audio_stream_index?: number | null;
+                /** Format: int64 */
+                subtitle_stream_index?: number | null;
+            };
+        };
+        PlayerInfo: {
+            deviceType: string;
+            /** Format: int64 */
+            durationMs: number;
+            id: string;
+            /** Format: int64 */
+            lastSeenAt: number;
+            name: string;
+            nowPlayingItemId?: components["schemas"]["ItemId"] | null;
+            /** Format: int64 */
+            positionMs: number;
+            state: string;
+            /** Format: int32 */
+            volume: number;
+        };
+        /** Format: int64 */
+        PlaylistId: number;
+        PlaylistRow: {
+            /** Format: int64 */
+            createdAt: number;
+            id: components["schemas"]["PlaylistId"];
+            isPublic: boolean;
+            isSmart: boolean;
+            /** Format: int64 */
+            itemCount: number;
+            name: string;
+            smartFilter?: string | null;
+            /** Format: int64 */
+            updatedAt: number;
+            userId: components["schemas"]["UserId"];
+        };
         /** @description Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8). */
         QuickConnectAuthorizeRequest: {
             code: string;
@@ -2047,6 +2626,8 @@ export interface components {
             /** Format: int64 */
             wanUploadLimitMbps: number;
         };
+        /** Format: int64 */
+        RequestId: number;
         RevokeForm: {
             token: string;
         };
@@ -2085,6 +2666,13 @@ export interface components {
         SearchGroup: {
             items: components["schemas"]["ItemSummary"][];
             kind: components["schemas"]["MediaKind"];
+        };
+        SendReactionRequest: {
+            botName: string;
+            commentary: string;
+            sentiment?: string | null;
+            /** Format: int64 */
+            timestampMs: number;
         };
         ServerInfo: {
             arch: string;
@@ -2132,6 +2720,15 @@ export interface components {
             recapText: string;
             showTitle: string;
             spoilerProtectedUnwatchedExcluded: number;
+        };
+        StorageHardlinkReport: {
+            /** Format: int64 */
+            estimatedNetFreedBytesIfDeleted: number;
+            hardlinkSharedFilesCount: number;
+            /** Format: int64 */
+            totalFileSizeBytes: number;
+            totalScannedFiles: number;
+            uniqueInodeCount: number;
         };
         Stream: {
             /** Format: int64 */
@@ -2335,6 +2932,10 @@ export interface components {
             /** Format: int32 */
             y: number;
         };
+        UpdateCollectionRequest: {
+            name: string;
+            overview?: string | null;
+        };
         UpdateLibraryRequest: {
             name?: string | null;
             paths?: string[] | null;
@@ -2343,11 +2944,20 @@ export interface components {
         UpdateMcpStatusRequest: {
             enabled: boolean;
         };
+        UpdatePlaylistRequest: {
+            isPublic: boolean;
+            name: string;
+        };
         UpdateRemotePolicyRequest: {
             adminLanOnly?: boolean | null;
             tailscaleAuthEnabled?: boolean | null;
             /** Format: int64 */
             wanUploadLimitMbps?: number | null;
+        };
+        UpdateRequestStatusInput: {
+            /** Format: int64 */
+            arrId?: number | null;
+            status: string;
         };
         UpdateUserPermissionsRequest: {
             contentRatingCeiling?: string | null;
@@ -2370,6 +2980,9 @@ export interface components {
             displayName?: string | null;
             isAdmin?: boolean | null;
             password?: string | null;
+        };
+        UpdateWebhookStateRequest: {
+            enabled: boolean;
         };
         UserDto: {
             /** Format: int64 */
@@ -2477,6 +3090,18 @@ export interface components {
             viewCount: number;
             /** Format: int64 */
             viewOffsetMs: number;
+        };
+        /** Format: int64 */
+        WebhookId: number;
+        WebhookRow: {
+            /** Format: int64 */
+            createdAt: number;
+            enabled: boolean;
+            events: string[];
+            id: components["schemas"]["WebhookId"];
+            name: string;
+            secret?: string | null;
+            url: string;
         };
     };
     responses: never;
@@ -3048,6 +3673,326 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_collections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List all collections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRow"][];
+                };
+            };
+        };
+    };
+    create_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCollectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Collection created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRow"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Collection detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionRow"];
+                };
+            };
+            /** @description Collection not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Collection deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Collection not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCollectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Collection updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Collection not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_collection_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item IDs in collection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
+                };
+            };
+        };
+    };
+    add_item_to_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection ID */
+                id: number;
+                /** @description Media Item ID */
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item added to collection */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_item_from_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection ID */
+                id: number;
+                /** @description Media Item ID */
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item removed from collection */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_companion_context: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Live playback context */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveSessionContext"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    join_companion_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Companion bot joined session */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    send_companion_reaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendReactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Companion reaction posted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionReaction"];
+                };
             };
         };
     };
@@ -3810,6 +4755,117 @@ export interface operations {
             };
         };
     };
+    get_photo_timeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Date timeline breakdown for photos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoTimelineBucket"][];
+                };
+            };
+            /** @description Library not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_matchmaker_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMatchmakerSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Matchmaker session started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerSessionRow"];
+                };
+            };
+        };
+    };
+    get_matchmaker_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Matchmaker session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerSessionRow"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    record_vote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Matchmaker session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatchmakerVoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Vote recorded and match evaluated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerMatchResult"];
+                };
+            };
+        };
+    };
     list_audit: {
         parameters: {
             query?: {
@@ -4098,6 +5154,426 @@ export interface operations {
             };
         };
     };
+    list_players: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List reachable players */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerInfo"][];
+                };
+            };
+        };
+    };
+    register_player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayerInfo"];
+            };
+        };
+        responses: {
+            /** @description Player heartbeat/registration accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    send_player_command: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Target player ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayerCommand"];
+            };
+        };
+        responses: {
+            /** @description Player command dispatched */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Player not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_playlists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List playlists for acting user plus public playlists */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistRow"][];
+                };
+            };
+        };
+    };
+    create_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlaylistRequest"];
+            };
+        };
+        responses: {
+            /** @description Playlist created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistRow"];
+                };
+            };
+        };
+    };
+    get_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Playlist detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistRow"];
+                };
+            };
+            /** @description Playlist not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Playlist deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Playlist not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlaylistRequest"];
+            };
+        };
+        responses: {
+            /** @description Playlist updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Playlist not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_playlist_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item IDs in playlist */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
+                };
+            };
+        };
+    };
+    add_item_to_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: number;
+                /** @description Media Item ID */
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item added to playlist */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_item_from_playlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist ID */
+                id: number;
+                /** @description Media Item ID */
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Item removed from playlist */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_requests: {
+        parameters: {
+            query?: {
+                /** @description Filter by status: pending, approved, available */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List media requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaRequestRow"][];
+                };
+            };
+        };
+    };
+    create_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMediaRequest"];
+            };
+        };
+        responses: {
+            /** @description Media request submitted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaRequestRow"];
+                };
+            };
+        };
+    };
+    analyze_hardlinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Hardlink-aware storage analysis */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageHardlinkReport"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    inspect_missing_episodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Show Media Item ID */
+                showId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Missing episodes detected across seasons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissingEpisodeInfo"][];
+                };
+            };
+        };
+    };
+    update_request_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRequestStatusInput"];
+            };
+        };
+        responses: {
+            /** @description Request status updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     search: {
         parameters: {
             query: {
@@ -4156,6 +5632,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    stream_audio: {
+        parameters: {
+            query?: {
+                /** @description Target audio codec: opus, aac, mp3 (default: opus) */
+                codec?: string;
+                /** @description Target bitrate in kbps (default: 160) */
+                bitrate?: number;
+                /** @description Seek offset in seconds (default: 0) */
+                seek?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Media Part ID */
+                partId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Progressive audio stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/ogg": unknown;
+                };
             };
         };
     };
@@ -5051,6 +6557,124 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_webhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List configured webhooks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookRow"][];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWebhookRequest"];
+            };
+        };
+        responses: {
+            /** @description Webhook registered */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookRow"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    toggle_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateWebhookStateRequest"];
+            };
+        };
+        responses: {
+            /** @description Webhook enabled state updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

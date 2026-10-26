@@ -562,6 +562,437 @@
         }
       }
     },
+    "/api/v1/collections": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "list_collections",
+        "responses": {
+          "200": {
+            "description": "List all collections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionRow"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "create_collection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCollectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Collection created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionRow"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/collections/{id}": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "get_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionRow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Collection not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "delete_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Collection deleted"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Collection not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "update_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Collection updated"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Collection not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/collections/{id}/items": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "get_collection_items",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item IDs in collection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/collections/{id}/items/{itemId}": {
+      "post": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "add_item_to_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "description": "Media Item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Item added to collection"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "collections"
+        ],
+        "operationId": "remove_item_from_collection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Collection ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "description": "Media Item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Item removed from collection"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/context": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "operationId": "get_companion_context",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live playback context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSessionContext"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/join": {
+      "post": {
+        "tags": [
+          "companion"
+        ],
+        "operationId": "join_companion_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Companion bot joined session"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/reaction": {
+      "post": {
+        "tags": [
+          "companion"
+        ],
+        "operationId": "send_companion_reaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendReactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Companion reaction posted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionReaction"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -1485,6 +1916,169 @@
         }
       }
     },
+    "/api/v1/libraries/{id}/timeline": {
+      "get": {
+        "tags": [
+          "photos"
+        ],
+        "operationId": "get_photo_timeline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Library ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Date timeline breakdown for photos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PhotoTimelineBucket"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Library not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/matchmaker/sessions": {
+      "post": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "create_matchmaker_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMatchmakerSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Matchmaker session started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerSessionRow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/matchmaker/sessions/{id}": {
+      "get": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "get_matchmaker_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Matchmaker session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerSessionRow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/matchmaker/sessions/{id}/vote": {
+      "post": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "record_vote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Matchmaker session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchmakerVoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Vote recorded and match evaluated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerMatchResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/mcp/audit": {
       "get": {
         "tags": [
@@ -1799,6 +2393,583 @@
         }
       }
     },
+    "/api/v1/players": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "operationId": "list_players",
+        "responses": {
+          "200": {
+            "description": "List reachable players",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "players"
+        ],
+        "operationId": "register_player",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerInfo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Player heartbeat/registration accepted"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/players/{id}/command": {
+      "post": {
+        "tags": [
+          "players"
+        ],
+        "operationId": "send_player_command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Target player ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Player command dispatched"
+          },
+          "404": {
+            "description": "Player not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/playlists": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "list_playlists",
+        "responses": {
+          "200": {
+            "description": "List playlists for acting user plus public playlists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistRow"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "create_playlist",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlaylistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Playlist created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistRow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/playlists/{id}": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "get_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Playlist detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistRow"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Playlist not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "delete_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Playlist deleted"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Playlist not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "update_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlaylistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Playlist updated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Playlist not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/playlists/{id}/items": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "get_playlist_items",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item IDs in playlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/playlists/{id}/items/{itemId}": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "add_item_to_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "description": "Media Item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Item added to playlist"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "operationId": "remove_item_from_playlist",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Playlist ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "description": "Media Item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Item removed from playlist"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/requests": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "list_requests",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status: pending, approved, available",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List media requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaRequestRow"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "create_request",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMediaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Media request submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaRequestRow"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/requests/hardlink-analysis": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "analyze_hardlinks",
+        "responses": {
+          "200": {
+            "description": "Hardlink-aware storage analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageHardlinkReport"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/requests/missing-episodes/{showId}": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "inspect_missing_episodes",
+        "parameters": [
+          {
+            "name": "showId",
+            "in": "path",
+            "description": "Show Media Item ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Missing episodes detected across seasons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MissingEpisodeInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/requests/{id}/status": {
+      "patch": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "update_request_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Request ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRequestStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Request status updated"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/search": {
       "get": {
         "tags": [
@@ -1868,6 +3039,69 @@
           "403": {},
           "404": {}
         }
+      }
+    },
+    "/api/v1/stream/audio/{partId}": {
+      "get": {
+        "tags": [
+          "media_audio"
+        ],
+        "operationId": "stream_audio",
+        "parameters": [
+          {
+            "name": "partId",
+            "in": "path",
+            "description": "Media Part ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "codec",
+            "in": "query",
+            "description": "Target audio codec: opus, aac, mp3 (default: opus)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bitrate",
+            "in": "query",
+            "description": "Target bitrate in kbps (default: 160)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "seek",
+            "in": "query",
+            "description": "Seek offset in seconds (default: 0)",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progressive audio stream",
+            "content": {
+              "audio/ogg": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
       }
     },
     "/api/v1/stream/direct/{partId}": {
@@ -2767,6 +4001,147 @@
         }
       }
     },
+    "/api/v1/webhooks": {
+      "get": {
+        "tags": [
+          "webhooks"
+        ],
+        "operationId": "list_webhooks",
+        "responses": {
+          "200": {
+            "description": "List configured webhooks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookRow"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "operationId": "create_webhook",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookRow"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/webhooks/{id}": {
+      "delete": {
+        "tags": [
+          "webhooks"
+        ],
+        "operationId": "delete_webhook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Webhook ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Webhook deleted"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "webhooks"
+        ],
+        "operationId": "toggle_webhook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Webhook ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Webhook enabled state updated"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -3168,6 +4543,111 @@
           }
         }
       },
+      "CollectionId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "CollectionRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "isSmart",
+          "createdAt",
+          "updatedAt",
+          "itemCount"
+        ],
+        "properties": {
+          "backdropId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArtworkId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/CollectionId"
+          },
+          "isSmart": {
+            "type": "boolean"
+          },
+          "itemCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "posterId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArtworkId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "smartFilter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CompanionReaction": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "botName",
+          "timestampMs",
+          "commentary",
+          "createdAt"
+        ],
+        "properties": {
+          "botName": {
+            "type": "string"
+          },
+          "commentary": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sentiment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "CreateApiTokenRequest": {
         "type": "object",
         "required": [
@@ -3199,6 +4679,35 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CreateCollectionRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "isSmart": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smartFilter": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -3244,6 +4753,44 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CreateMatchmakerSessionRequest": {
+        "type": "object",
+        "properties": {
+          "filterConfig": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateMediaRequest": {
+        "type": "object",
+        "required": [
+          "kind",
+          "tmdbId",
+          "title"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -3325,6 +4872,35 @@
           }
         }
       },
+      "CreatePlaylistRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "isPublic": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "isSmart": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "smartFilter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CreateUserRequest": {
         "type": "object",
         "required": [
@@ -3363,6 +4939,34 @@
             "type": "string"
           },
           "username": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateWebhookRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "name",
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
             "type": "string"
           }
         }
@@ -4373,6 +5977,17 @@
         "type": "integer",
         "format": "int64"
       },
+      "JoinSessionRequest": {
+        "type": "object",
+        "required": [
+          "botName"
+        ],
+        "properties": {
+          "botName": {
+            "type": "string"
+          }
+        }
+      },
       "LibraryDto": {
         "type": "object",
         "required": [
@@ -4417,6 +6032,54 @@
           "photo",
           "homevideo"
         ]
+      },
+      "LiveSessionContext": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "itemId",
+          "title",
+          "positionMs",
+          "durationMs",
+          "connectedCompanions"
+        ],
+        "properties": {
+          "connectedCompanions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentChapter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currentSubtitleCue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "positionMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
       },
       "LoginRequest": {
         "type": "object",
@@ -4523,6 +6186,85 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "MatchmakerMatchResult": {
+        "type": "object",
+        "required": [
+          "matched"
+        ],
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "matchedItemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ItemId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "MatchmakerSessionRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "createdBy",
+          "filterConfig",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "filterConfig": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "matchedItemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ItemId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "MatchmakerVoteRequest": {
+        "type": "object",
+        "required": [
+          "userName",
+          "itemId",
+          "vote"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "userName": {
+            "type": "string"
+          },
+          "vote": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -4699,6 +6441,82 @@
           "collection",
           "extra"
         ]
+      },
+      "MediaRequestRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "kind",
+          "tmdbId",
+          "title",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "arrId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "MissingEpisodeInfo": {
+        "type": "object",
+        "required": [
+          "seasonNumber",
+          "missingEpisodeNumbers"
+        ],
+        "properties": {
+          "missingEpisodeNumbers": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "seasonNumber": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "NetworkClass": {
         "type": "string",
@@ -5119,6 +6937,28 @@
         "type": "integer",
         "format": "int64"
       },
+      "PhotoTimelineBucket": {
+        "type": "object",
+        "required": [
+          "year",
+          "month",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "month": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "PlatformDefaults": {
         "type": "object",
         "description": "Default tuning parameters per [`PlatformProfile`] (M5.2).",
@@ -5508,6 +7348,292 @@
           }
         }
       },
+      "PlayerCommand": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "params",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "play"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "required": [
+                  "item_id"
+                ],
+                "properties": {
+                  "item_id": {
+                    "$ref": "#/components/schemas/ItemId"
+                  },
+                  "start_ms": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "pause"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "resume"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "params",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "stop"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "params",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "seek"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "required": [
+                  "position_ms"
+                ],
+                "properties": {
+                  "position_ms": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "params",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "setVolume"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "required": [
+                  "volume"
+                ],
+                "properties": {
+                  "volume": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "params",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "setTracks"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "audio_stream_index": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "format": "int64"
+                  },
+                  "subtitle_stream_index": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PlayerInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "deviceType",
+          "state",
+          "positionMs",
+          "durationMs",
+          "volume",
+          "lastSeenAt"
+        ],
+        "properties": {
+          "deviceType": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nowPlayingItemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ItemId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "positionMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "PlaylistId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "PlaylistRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "name",
+          "isPublic",
+          "isSmart",
+          "createdAt",
+          "updatedAt",
+          "itemCount"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/PlaylistId"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "isSmart": {
+            "type": "boolean"
+          },
+          "itemCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "smartFilter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
       "QuickConnectAuthorizeRequest": {
         "type": "object",
         "description": "Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8).",
@@ -5792,6 +7918,10 @@
           }
         }
       },
+      "RequestId": {
+        "type": "integer",
+        "format": "int64"
+      },
       "RevokeForm": {
         "type": "object",
         "required": [
@@ -5935,6 +8065,32 @@
           },
           "kind": {
             "$ref": "#/components/schemas/MediaKind"
+          }
+        }
+      },
+      "SendReactionRequest": {
+        "type": "object",
+        "required": [
+          "botName",
+          "timestampMs",
+          "commentary"
+        ],
+        "properties": {
+          "botName": {
+            "type": "string"
+          },
+          "commentary": {
+            "type": "string"
+          },
+          "sentiment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -6111,6 +8267,40 @@
             "type": "string"
           },
           "spoilerProtectedUnwatchedExcluded": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "StorageHardlinkReport": {
+        "type": "object",
+        "required": [
+          "totalScannedFiles",
+          "totalFileSizeBytes",
+          "uniqueInodeCount",
+          "hardlinkSharedFilesCount",
+          "estimatedNetFreedBytesIfDeleted"
+        ],
+        "properties": {
+          "estimatedNetFreedBytesIfDeleted": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "hardlinkSharedFilesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalFileSizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalScannedFiles": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueInodeCount": {
             "type": "integer",
             "minimum": 0
           }
@@ -6848,6 +9038,23 @@
           }
         }
       },
+      "UpdateCollectionRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateLibraryRequest": {
         "type": "object",
         "properties": {
@@ -6880,6 +9087,21 @@
           }
         }
       },
+      "UpdatePlaylistRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "isPublic"
+        ],
+        "properties": {
+          "isPublic": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateRemotePolicyRequest": {
         "type": "object",
         "properties": {
@@ -6902,6 +9124,24 @@
             ],
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UpdateRequestStatusInput": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "arrId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
           }
         }
       },
@@ -7021,6 +9261,17 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateWebhookStateRequest": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
           }
         }
       },
@@ -7315,6 +9566,51 @@
           "viewOffsetMs": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "WebhookId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "WebhookRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "name",
+          "events",
+          "enabled",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "$ref": "#/components/schemas/WebhookId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
           }
         }
       }

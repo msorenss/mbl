@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- MBL Media Server WiX MSI installer configuration (M6.13) -->
+<!-- MBL Media Server WiX MSI installer configuration (M6.13, M7) -->
+<?ifndef Version?>
+  <?define Version = "0.6.0" ?>
+<?endif?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
      xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
   <Product Id="*"
            Name="MBL Media Server"
            Language="1033"
-           Version="0.5.0"
+           Version="$(var.Version)"
            Manufacturer="MBL Contributors"
            UpgradeCode="4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />

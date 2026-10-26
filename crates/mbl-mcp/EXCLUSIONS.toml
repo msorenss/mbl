@@ -16,7 +16,7 @@ path = "/api/v1/stream/hls/{session}/{rendition}/{file}"
 reason = "Binary fMP4 HLS segments consumed by video players."
 
 [[exclusions]]
-path = "/api/v1/stream/subtitles/{partId}/{file}"
+path = "/api/v1/stream/subtitles/{partId}/{target}"
 reason = "WebVTT / ASS subtitle stream consumed by video players."
 
 [[exclusions]]
@@ -98,3 +98,68 @@ reason = "Interactive profile numeric PIN setup."
 [[exclusions]]
 path = "/api/v1/users/{id}/pin/verify"
 reason = "Interactive profile numeric PIN verification challenge."
+
+[[exclusions]]
+path = "/api/v1/stream/audio/{partId}"
+reason = "Binary progressive audio stream for music/audio playback."
+
+[[exclusions]]
+path = "/api/v1/events"
+reason = "WebSocket real-time event bus stream."
+
+[[exclusions]]
+path = "/api/v1/companion/ws/{sessionId}"
+reason = "WebSocket real-time companion co-watching stream."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/sessions"
+reason = "Interactive mobile swipe-to-match session initialization."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/sessions/{id}"
+reason = "Interactive mobile swipe-to-match session inspection."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/sessions/{id}/vote"
+reason = "Interactive user swipe voting endpoint."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/sessions/{id}/ws"
+reason = "WebSocket real-time match announcement and sync."
+
+[[exclusions]]
+path = "/api/v1/images/{id}"
+reason = "Binary image asset serving endpoint."
+
+[[exclusions]]
+path = "/api/v1/libraries/{id}/timeline"
+reason = "Photo gallery date timeline histogram."
+
+[[exclusions]]
+path = "/api/v1/auth/login"
+reason = "Interactive browser login session creation."
+
+[[exclusions]]
+path = "/api/v1/auth/logout"
+reason = "Interactive browser session termination."
+
+[[exclusions]]
+path = "/api/v1/auth/me"
+reason = "Current authenticated web session caller info."
+
+[[exclusions]]
+path = "/api/v1/auth/sessions"
+reason = "Web session cookie listing."
+
+[[exclusions]]
+path = "/api/v1/auth/sessions/{id}"
+reason = "Web session cookie revocation."
+
+[[exclusions]]
+path = "/api/v1/auth/tokens"
+reason = "API token issuance (use admin UI or OAuth)."
+
+[[exclusions]]
+path = "/api/v1/auth/tokens/{id}"
+reason = "API token deletion."
+

@@ -514,5 +514,181 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "list_collections",
+    "description": "List all curated media collections on the server.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Collections",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_playlists",
+    "description": "List personal playlists for the current authenticated user.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Playlists",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_playlist",
+    "description": "Create a new playlist for tracks, videos, or mixed media.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "is_public": {
+          "description": "Whether playlist is visible to other users (default false)",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Playlist name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Playlist",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "add_to_playlist",
+    "description": "Add an item to a playlist.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "description": "Media Item ID",
+          "type": "integer"
+        },
+        "playlist_id": {
+          "description": "Playlist ID",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "playlist_id",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Add to Playlist",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_media_request",
+    "description": "Submit a user request for a missing movie or TV show via TMDB ID.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "Media kind",
+          "enum": [
+            "movie",
+            "show"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "description": "Media title",
+          "type": "string"
+        },
+        "tmdb_id": {
+          "description": "TMDB numeric ID",
+          "type": "integer"
+        },
+        "year": {
+          "description": "Release year",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "tmdb_id",
+        "title"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Media Request",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_media_requests",
+    "description": "List submitted media requests, optionally filtered by status ('pending', 'approved', 'available').",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "description": "Optional status filter",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Media Requests",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "explain_scene",
+    "description": "Get detailed contextual background on the current scene (actors on screen, chapter, spoken dialogue cues).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "description": "Active playback session ID",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Explain Scene",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

@@ -19,6 +19,7 @@ pub const URI_SESSIONS_ACTIVE: &str = "mbl://sessions/active";
 pub const URI_HW_REPORT: &str = "mbl://hw/report";
 pub const TEMPLATE_ITEM: &str = "mbl://items/{id}";
 pub const TEMPLATE_JOB: &str = "mbl://jobs/{id}";
+pub const TEMPLATE_SESSION_LIVE_CONTEXT: &str = "mbl://sessions/{id}/live-context";
 
 pub fn list_resources() -> Vec<ResourceDefinition> {
     vec![
@@ -64,6 +65,14 @@ pub fn list_resource_templates() -> Vec<ResourceTemplateDefinition> {
             name: "Background Job".into(),
             description: Some(
                 "Status, progress, and error details for a background job by ID".into(),
+            ),
+            mime_type: Some("application/json".into()),
+        },
+        ResourceTemplateDefinition {
+            uri_template: TEMPLATE_SESSION_LIVE_CONTEXT.into(),
+            name: "Live Session Context".into(),
+            description: Some(
+                "Real-time playback state, chapter, spoken subtitle cues, and connected AI companions".into(),
             ),
             mime_type: Some("application/json".into()),
         },
@@ -157,6 +166,19 @@ pub async fn read_resource(
                 uri: uri.into(),
                 mime_type: Some("application/json".into()),
                 text: serde_json::to_string_pretty(&job).unwrap_or_default(),
+            })
+        }
+        _ if uri.starts_with("mbl://sessions/") && uri.ends_with("/live-context") => {
+            let session_id =
+                uri.trim_start_matches("mbl://sessions/").trim_end_matches("/live-context");
+            let ctx = services
+                .companion
+                .get_live_context(&caller.actor, session_id)
+                .map_err(crate::server::map_service_error)?;
+            Ok(ResourceContents {
+                uri: uri.into(),
+                mime_type: Some("application/json".into()),
+                text: serde_json::to_string_pretty(&ctx).unwrap_or_default(),
             })
         }
         _ => Err(JsonRpcError::invalid_params(format!("unknown resource URI: '{uri}'"))),

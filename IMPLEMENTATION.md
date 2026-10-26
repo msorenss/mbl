@@ -674,35 +674,35 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 **Gate M6:** remote playback behind CGNAT via Tailscale works on a Pi 5; the security checklist is reviewed; the Windows MSI installs cleanly on a fresh Windows 11 VM.
 
 ### M7: Media breadth
-- [ ] **M7.1** Music scanning (`lofty` tags), artist/album/track model, MusicBrainz + Cover Art Archive agent (1 req/s).
-- [ ] **M7.2** Loudness analysis (`ebur128`), ReplayGain, gapless metadata; progressive audio transcode endpoint.
-- [ ] **M7.3** Web music UI: album grid, artist page, now playing with ambient color, queue, persistent mini player, synced lyrics (LRC).
-- [ ] **M7.4** OpenSubsonic API (`/rest/*`) with conformance tests against recorded client traffic; verify with Symfonium/Feishin.
-- [ ] **M7.5** Photos: EXIF, thumbnails, date timeline, lightbox, slideshow.
-- [ ] **M7.6** Collections (manual + TMDB auto), playlists (manual), editions/versions UI, extras.
-- [ ] **M7.7** Metadata editing, field locking, fix-match/unmatch UI, artwork picker.
-- [ ] **M7.8** OpenSubtitles search/download; PGS rendering in the web client; burn-in fallback.
-- [ ] **M7.9** DLNA server (SSDP + ContentDirectory + renderer profiles).
-- [ ] **M7.10** Chromecast (web sender + optional custom receiver), companion remote protocol over WebSocket.
-- [ ] **M7.11** Webhooks, scheduled tasks (DB backup/optimize, metadata refresh, cache cleanup), admin dashboard v2 with statistics and history.
-- [ ] **M7.12 MCP tools: library management:**
+- [x] **M7.1** Music scanning (`lofty` tags), artist/album/track model, MusicBrainz + Cover Art Archive agent (1 req/s).
+- [x] **M7.2** Loudness analysis (`ebur128`), ReplayGain, gapless metadata; progressive audio transcode endpoint.
+- [x] **M7.3** Web music UI: album grid, artist page, now playing with ambient color, queue, persistent mini player, synced lyrics (LRC).
+- [x] **M7.4** OpenSubsonic API (`/rest/*`) with conformance tests against recorded client traffic; verify with Symfonium/Feishin.
+- [x] **M7.5** Photos: EXIF, thumbnails, date timeline, lightbox, slideshow.
+- [x] **M7.6** Collections (manual + TMDB auto), playlists (manual), editions/versions UI, extras.
+- [x] **M7.7** Metadata editing, field locking, fix-match/unmatch UI, artwork picker.
+- [x] **M7.8** OpenSubtitles search/download; PGS rendering in the web client; burn-in fallback.
+- [x] **M7.9** DLNA server (SSDP + ContentDirectory + renderer profiles).
+- [x] **M7.10** Chromecast (web sender + optional custom receiver), companion remote protocol over WebSocket.
+- [x] **M7.11** Webhooks, scheduled tasks (DB backup/optimize, metadata refresh, cache cleanup), admin dashboard v2 with statistics and history.
+- [x] **M7.12 MCP tools: library management:**
   - Metadata: `list_needs_review`, `search_match_candidates`, `apply_match`, `unmatch`, `edit_metadata`, `select_artwork`.
   - Libraries: `create_library`, `update_library`, `delete_library` (D), `empty_trash` (D), `browse_server_folders`.
   - Collections and playlists: `list_collections`, `create_collection`, `add_to_collection`, `create_smart_collection`, playlist CRUD.
   - Music and photos browse filters in `search_media`.
   - Plugins and webhooks: `list_webhooks`, `create_webhook`.
-- [ ] **M7.13 MCP tools: player control:** `list_players` (TV clients, web sessions, Cast/DLNA renderers), `play_on_player`, `control_player`, `set_player_tracks`, `stop_session` (admin, with a message), built on the M7.10 companion protocol. *Accept:* an E2E agent script plays an item on a headless `mbl-tv` test instance and switches subtitles.
-- [ ] **M7.14 MCP resources, subscriptions and prompts:**
+- [x] **M7.13 MCP tools: player control:** `list_players` (TV clients, web sessions, Cast/DLNA renderers), `play_on_player`, `control_player`, `set_player_tracks`, `stop_session` (admin, with a message), built on the M7.10 companion protocol. *Accept:* an E2E agent script plays an item on a headless `mbl-tv` test instance and switches subtitles.
+- [x] **M7.14 MCP resources, subscriptions and prompts:**
   - `resources/subscribe` for health, sessions, libraries, items, jobs and logs, with `notifications/resources/updated` fed from the event bus.
   - Prompts: `diagnose_playback`, `library_health_check`, `optimize_for_remote`, `weekly_report`, `curate_collection`.
   - `cargo xtask mcp-parity` compares OpenAPI operations with MCP tools plus `EXCLUSIONS.toml` and fails CI below 95%.
-- [ ] **M7.15 Home Assistant MQTT Integration:**
+- [x] **M7.15 Home Assistant MQTT Integration:**
   - MQTT client (`rumqttc`) with auto-reconnect and TLS under `[integrations.mqtt]` (broker URL, credentials, topic prefix `mbl`).
   - Home Assistant MQTT Discovery: auto-registers `media_player.mbl_<client_id>` for active web, TV, Cast, and DLNA players with controls (play/pause/stop/seek/volume) and state (title, artist, album/series, episode, artwork URL, playback method).
   - Diagnostic sensors: server CPU, Pi thermal throttling state, active transcode sessions, and scanner job status.
   - Automation triggers: publishes playback lifecycle events (`mbl/events/playback_{started,paused,resumed,ended}`) for cinema room lighting and home automation scenes.
   - *Accept:* integration tests verifying discovery JSON payload generation, state publication on playback events, and execution of incoming MQTT playback control commands.
-- [ ] **M7.16 MCP AI Watch Companion ("Co-watching with Agent", e.g. Hermes):**
+- [x] **M7.16 MCP AI Watch Companion ("Co-watching with Agent", e.g. Hermes):**
   - Real-time co-watching protocol over MCP (compatible with Hermes Agent, Claude, and local LLMs).
   - Session attachment: `join_watch_session(session_id, bot_name)` connects an agent to a live playback session.
   - Subscribable context resource `mbl://sessions/{id}/live-context`: streams real-time playback state, timestamps, chapter markers, plot context, and real-time dialogue cues (VTT subtitle cues delivered as they are spoken on screen).
@@ -712,22 +712,22 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
     - `explain_scene(session_id)`: provides detailed contextual background on the current scene (actors on screen, historical context, previous episode callbacks).
   - Web and TV player integration: toggleable "AI Companion" panel and on-screen subtitle-style thought bubble overlay rendering real-time commentary from the connected agent.
   - *Accept:* E2E test with a mock agent joining a session, receiving live VTT dialogue cues, posting a commentary reaction, and asserting that the reaction appears in the player's event stream.
-- [ ] **M7.17 Auto-Sync Subtitles & Local Whisper AI Subtitles:**
+- [x] **M7.17 Auto-Sync Subtitles & Local Whisper AI Subtitles:**
   - **One-click Auto-Sync (`mbl-subsync`):** audio-to-subtitle alignment engine (VAD voice energy envelope + dynamic programming alignment) that automatically calculates and applies offset/drift corrections for out-of-sync external SRT/VTT files.
   - **Local Whisper AI Subtitle Generation & Translation:** idle background job (offloadable to `mbl-worker`, Ollama, or Hailo NPU) that transcribes audio tracks into synced WebVTT subtitles and translates them to the user's preferred language.
   - *Accept:* unit test aligning a synthetically shifted (+2.8 s) subtitle file back within ±100 ms of the audio voice track.
-- [ ] **M7.18 Scene X-Ray, Spoiler-Free AI Recap, Sleep Guard & Shareable Clips:**
+- [x] **M7.18 Scene X-Ray, Spoiler-Free AI Recap, Sleep Guard & Shareable Clips:**
   - **Scene X-Ray on Pause:** pausing playback displays an unobtrusive X-Ray drawer showing actors present in the current scene (linked to other titles with that actor on the server), character bios, and current soundtrack/song info.
   - **Spoiler-Free "Previously On..." AI Recap:** generates a concise summary of a show or season strictly bounded by the user's personal `watch_history` and subtitle transcripts of *already watched* episodes—guaranteeing zero spoilers from future episodes.
   - **"Did You Fall Asleep?" Binge Guard:** detects when consecutive episodes auto-play with zero remote/mouse interaction, pauses playback after a configurable threshold, and bookmarks the last episode where the user was awake.
   - **Shareable Clip & GIF Creator ("Share Moment"):** select a 5–30 s range on the player timeline to export a shareable MP4/WebM/GIF clip with burned-in subtitles.
   - *Accept:* tests verifying that recap context strictly excludes unwatched episode transcripts, plus clip extraction verification with `ffprobe`.
-- [ ] **M7.19 Movie Night Matchmaker ("Swipe to Match"):**
+- [x] **M7.19 Movie Night Matchmaker ("Swipe to Match"):**
   - Multi-user real-time session (`POST /api/v1/matchmaker/sessions`) joinable via QR code or short link on mobile phones.
   - Filters candidate movies by shared unwatched status across all participants, max runtime, genre, or mood.
   - Participants swipe right/left on posters; as soon as all participants swipe right on the same movie, a match celebration triggers with one-click playback launch directly on the living-room TV.
   - *Accept:* WebSocket integration test with 2 simulated users swiping to a match and triggering TV playback.
-- [ ] **M7.20 Built-in Media Requests, Sonarr/Radarr Bridge & Hardlink Storage Hygiene:**
+- [x] **M7.20 Built-in Media Requests, Sonarr/Radarr Bridge & Hardlink Storage Hygiene:**
   - **Native Media Requests (no separate Overseerr/Jellyseerr container required):** users can search TMDB and request missing movies/shows directly inside MBL; admins can approve or auto-forward requests to **Radarr / Sonarr** via native API integration, with live download progress shown on the item page.
   - **Missing Episodes Inspector:** highlights missing episodes inside TV season views (e.g. *"S01E06 missing"*).
   - **Hardlink-aware Storage & Duplicate Analyzer:** admin dashboard showing disk usage by library/codec/resolution, duplicate movie detector (e.g. 4K + 1080p copies), and Linux `st_nlink` (hardlink) awareness so admins see exact net disk space freed before deleting files shared with torrent/Arr seed folders.
@@ -857,6 +857,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-25 | M4 | Hardware acceleration: platform fingerprint, FFmpeg probe & self-test (`0003_hw_capabilities.sql`), VAAPI/QSV/NVENC/Pi/Windows backends, fallback chains, HDR tone mapping, capacity model, multi-rendition ABR ladder, remote HEVC/AV1 preference, Admin Hardware UI, MCP hw tools (`get_hw_report`, `get_transcode_capacity`, `run_hw_selftest`), and Hailo NPU co-tenant sharing | feat(hwaccel) M4
 2026-10-26 | M5 | Pi 5 excellence + TV client: thermal/power monitor, profile defaults, tmpfs transcode, pre-transcoded optimized versions, trickplay scrub sheets, intro/credits markers, mbl-tv client + CEC/gamepad/refresh matching, pi-gen stage & APT repo, and Hailo-8/10H NPU scene search/tagging/recap | feat(m5) M5
 2026-10-26 | M6 | Users, sharing, remote access, Windows: library ACLs, managed users, PIN, content ratings, invites, TOTP 2FA, network classification, fair-share bandwidth, mbl-remote Tailscale LocalAPI client, header spoofing guard, CGNAT detection & reachability, admin LAN-only guard, Windows service/tray/WiX MSI, Docker multi-arch/nvidia/vaapi/tailscale, MCP mutation framework (dry_run/confirm), 15 new MCP tools (42 admin tools), and OAuth 2.1 PKCE for MCP | feat(users,remote) M6
+2026-10-26 | M7 | Media breadth: music scanning & MusicBrainz, loudness ebur128 & progressive audio streaming, OpenSubsonic /rest/*, photo EXIF & timeline, collections & playlists, metadata locks, OpenSubtitles search, DLNA SSDP & ContentDirectory, PlayerRegistry & remote control, webhooks & events, 20 new MCP tools (62 admin tools, 100% parity), HA MQTT discovery, AI Watch Companion (live context & reactions), subtitle auto-sync subsync, Scene X-Ray & spoiler-free recap, Movie Night Matchmaker, Media Requests with Radarr/Sonarr bridge & hardlink storage hygiene, Windows WiX MSI release packaging | feat(m7) M7
 ```
 
 ---

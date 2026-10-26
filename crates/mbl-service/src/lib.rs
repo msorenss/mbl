@@ -4,20 +4,26 @@
 //! performs its own permission checks; adapters never authorize on their own.
 
 pub mod auth;
+pub mod collections;
+pub mod companion;
 pub mod events;
 pub mod hw;
 pub mod images;
 pub mod intelligence;
 pub mod items;
 pub mod libraries;
+pub mod matchmaker;
 pub mod mcp;
 pub mod paths;
 pub mod playback;
+pub mod players;
 pub mod remote;
+pub mod requests;
 pub mod stream;
 pub mod users;
 mod validate;
 pub mod watch;
+pub mod webhooks;
 
 use std::sync::{Arc, RwLock};
 
@@ -27,6 +33,11 @@ pub use auth::{
     AuthService, Authenticated, AuthenticatedApiToken, CreateApiTokenRequest, CreateInviteRequest,
     CreatedApiToken, DeviceInfo, LoginRequest, LoginResult, RegisterInviteRequest,
 };
+pub use collections::{
+    CollectionRow, CollectionService, CreateCollectionRequest, CreatePlaylistRequest, PlaylistRow,
+    PlaylistService, UpdateCollectionRequest, UpdatePlaylistRequest,
+};
+pub use companion::{CompanionReaction, CompanionService, LiveSessionContext};
 pub use events::EventService;
 pub use hw::{HwReport, HwSelftestResponse, HwService};
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
@@ -38,6 +49,10 @@ pub use intelligence::{
 };
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
+pub use matchmaker::{
+    CreateMatchmakerSessionRequest, MatchmakerMatchResult, MatchmakerService, MatchmakerSessionRow,
+    MatchmakerVoteRequest,
+};
 pub use mbl_playback::{PlayMethod, StreamAction, SubtitleDelivery};
 pub use mcp::{
     McpConfig, McpConfigSnippets, McpPreset, McpService, McpSnippetsRequest, McpStatus,
@@ -48,8 +63,13 @@ pub use playback::{
     PlaybackProgressRequest, PlaybackRequest, PlaybackResponse, PlaybackService, PlaybackState,
     PlaybackStopRequest, PlaybackSubtitleTrack,
 };
+pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
 pub use remote::{
     BandwidthUsageResponse, RemoteService, RemoteStatusResponse, UpdateRemotePolicyRequest,
+};
+pub use requests::{
+    CreateMediaRequest, MediaRequestRow, MediaRequestService, MissingEpisodeInfo,
+    StorageHardlinkReport,
 };
 pub use stream::{ResolvedPart, StreamService};
 pub use users::{
@@ -57,6 +77,7 @@ pub use users::{
     VerifyPinRequest,
 };
 pub use watch::{WatchService, is_resume_threshold, is_watched_threshold};
+pub use webhooks::{CreateWebhookRequest, WebhookRow, WebhookService};
 
 /// All application services, cheap to clone.
 #[derive(Debug, Clone)]
@@ -74,6 +95,13 @@ pub struct Services {
     pub hw: HwService,
     pub intelligence: MediaIntelligenceService,
     pub remote: RemoteService,
+    pub collections: CollectionService,
+    pub playlists: PlaylistService,
+    pub players: PlayerRegistry,
+    pub companion: CompanionService,
+    pub webhooks: WebhookService,
+    pub requests: MediaRequestService,
+    pub matchmaker: MatchmakerService,
 }
 
 impl Services {
@@ -96,6 +124,14 @@ impl Services {
         let tailscale = Arc::new(mbl_remote::TailscaleClient::from_platform_default());
         let bandwidth = Arc::new(mbl_remote::BandwidthManager::default());
         let remote = RemoteService::new(db.clone(), tailscale, bandwidth);
+        let db_arc = Arc::new(db.clone());
+        let collections = CollectionService::new(db_arc.clone());
+        let playlists = PlaylistService::new(db_arc.clone());
+        let players = PlayerRegistry::new();
+        let companion = CompanionService::new();
+        let webhooks = WebhookService::new(db_arc.clone());
+        let requests = MediaRequestService::new(db_arc.clone());
+        let matchmaker = MatchmakerService::new(db_arc.clone());
 
         Self {
             auth,
@@ -111,6 +147,13 @@ impl Services {
             hw,
             intelligence,
             remote,
+            collections,
+            playlists,
+            players,
+            companion,
+            webhooks,
+            requests,
+            matchmaker,
         }
     }
 
