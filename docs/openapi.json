@@ -2268,6 +2268,318 @@
         }
       }
     },
+    "/api/v1/nodes": {
+      "get": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "list_nodes",
+        "responses": {
+          "200": {
+            "description": "List registered remote storage nodes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RemoteNodeRow"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/nodes/pair": {
+      "post": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "pair_node",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodePairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Remote library node paired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodePairResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired pairing code"
+          }
+        }
+      }
+    },
+    "/api/v1/nodes/pairing-code": {
+      "post": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "generate_node_pairing_code",
+        "responses": {
+          "200": {
+            "description": "Pairing code generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodePairingCodeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/nodes/{id}": {
+      "get": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "get_node",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remote storage node details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteNodeRow"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          },
+          "404": {
+            "description": "Node not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "delete_node",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Remote storage node revoked"
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          },
+          "404": {
+            "description": "Node not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/nodes/{id}/libraries": {
+      "get": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "list_libraries",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List synced libraries for node",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RemoteNodeLibraryRow"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          },
+          "404": {
+            "description": "Node not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/nodes/{id}/stream/handover/{itemId}": {
+      "get": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "smart_handover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Smart handover evaluation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeHandoverResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Node not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/nodes/{id}/sync-catalog": {
+      "post": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "sync_catalog",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeCatalogSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Catalog synced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeCatalogSyncResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized node"
+          },
+          "404": {
+            "description": "Node not found"
+          }
+        },
+        "security": [
+          {
+            "node_bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/playback": {
       "post": {
         "tags": [
@@ -3153,6 +3465,48 @@
         }
       }
     },
+    "/api/v1/stream/hls/{sessionId}/segments/{filename}": {
+      "put": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "upload_segment",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Segment stored"
+          },
+          "400": {
+            "description": "Invalid segment path"
+          },
+          "401": {
+            "description": "Unauthorized worker"
+          }
+        },
+        "security": [
+          {
+            "worker_bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/stream/hls/{session}/master.m3u8": {
       "get": {
         "tags": [
@@ -3361,6 +3715,48 @@
           },
           "401": {},
           "404": {}
+        }
+      }
+    },
+    "/api/v1/stream/worker/source/{partId}": {
+      "get": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "stream_source",
+        "parameters": [
+          {
+            "name": "partId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Signed source media access token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source file stream"
+          },
+          "206": {
+            "description": "Partial range byte stream"
+          },
+          "401": {
+            "description": "Invalid or expired token"
+          },
+          "404": {
+            "description": "Media part not found"
+          }
         }
       }
     },
@@ -4133,6 +4529,239 @@
           },
           "403": {
             "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers": {
+      "get": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "list_workers",
+        "responses": {
+          "200": {
+            "description": "List registered workers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerRow"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/heartbeat": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "heartbeat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerHeartbeat"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Heartbeat accepted"
+          },
+          "401": {
+            "description": "Unauthorized worker"
+          }
+        },
+        "security": [
+          {
+            "worker_bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/pair": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "pair_worker",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerPairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Worker successfully paired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerPairResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired pairing code"
+          }
+        }
+      }
+    },
+    "/api/v1/workers/pairing-code": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "generate_worker_pairing_code",
+        "responses": {
+          "200": {
+            "description": "Pairing code generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCodeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/{id}": {
+      "get": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "get_worker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worker details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRow"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          },
+          "404": {
+            "description": "Worker not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "delete_worker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Worker revoked"
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          },
+          "404": {
+            "description": "Worker not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/{id}/wake": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "operationId": "wake_worker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Wake-on-LAN magic packet transmitted"
+          },
+          "403": {
+            "description": "Forbidden (Admin only)"
+          },
+          "404": {
+            "description": "Worker not found"
           }
         },
         "security": [
@@ -6527,6 +7156,204 @@
           "wan"
         ]
       },
+      "NodeCapabilities": {
+        "type": "object",
+        "description": "Node capabilities reported during pairing and health checks.",
+        "required": [
+          "supportedVideoEncoders",
+          "supportsHardwareTranscode"
+        ],
+        "properties": {
+          "gpuVendor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "storageAvailableBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "storageTotalBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "supportedVideoEncoders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportsHardwareTranscode": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NodeCatalogSyncRequest": {
+        "type": "object",
+        "description": "Delta catalog synchronization request from a storage node.",
+        "required": [
+          "libraries"
+        ],
+        "properties": {
+          "libraries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeLibrary"
+            }
+          }
+        }
+      },
+      "NodeCatalogSyncResponse": {
+        "type": "object",
+        "description": "Catalog sync response returned by central server.",
+        "required": [
+          "syncedLibraries",
+          "totalItems"
+        ],
+        "properties": {
+          "syncedLibraries": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "totalItems": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "NodeHandoverResponse": {
+        "type": "object",
+        "description": "Smart handover response for direct playback or relay.",
+        "required": [
+          "requiresRelay",
+          "reason"
+        ],
+        "properties": {
+          "directPlayUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requiresRelay": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NodeId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "NodeLibrary": {
+        "type": "object",
+        "description": "Single library summary exported by a storage node.",
+        "required": [
+          "remoteLibraryId",
+          "name",
+          "kind",
+          "itemCount"
+        ],
+        "properties": {
+          "itemCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "remoteLibraryId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "NodePairRequest": {
+        "type": "object",
+        "description": "Remote library node pairing request.",
+        "required": [
+          "pairingCode",
+          "name",
+          "baseUrl",
+          "capabilities"
+        ],
+        "properties": {
+          "baseUrl": {
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/NodeCapabilities"
+          },
+          "clientCertFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "pairingCode": {
+            "type": "string"
+          }
+        }
+      },
+      "NodePairResponse": {
+        "type": "object",
+        "description": "Remote library node pairing response.",
+        "required": [
+          "nodeId",
+          "authToken",
+          "serverVersion",
+          "serverName"
+        ],
+        "properties": {
+          "authToken": {
+            "type": "string"
+          },
+          "nodeId": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "serverVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "NodePairingCodeResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "expiresInSecs"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresInSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "NpuProfile": {
         "type": "string",
         "description": "Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).",
@@ -6890,6 +7717,23 @@
               "null"
             ],
             "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "PairingCodeResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "expiresInSecs"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresInSecs": {
+            "type": "integer",
+            "format": "int32",
             "minimum": 0
           }
         }
@@ -7870,6 +8714,89 @@
             "type": "string"
           },
           "username": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoteNodeLibraryRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "nodeId",
+          "remoteLibraryId",
+          "name",
+          "kind",
+          "itemCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nodeId": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "remoteLibraryId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RemoteNodeRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "baseUrl",
+          "status",
+          "capabilities",
+          "createdAt"
+        ],
+        "properties": {
+          "baseUrl": {
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/NodeCapabilities"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "lastSeenAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         }
@@ -9610,6 +10537,468 @@
             ]
           },
           "url": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkerBatchEstimate": {
+        "type": "object",
+        "description": "Batch offload estimation returned for dry-run optimization requests.",
+        "required": [
+          "estimatedDurationSecs",
+          "estimatedOutputBytes",
+          "canOffload"
+        ],
+        "properties": {
+          "canOffload": {
+            "type": "boolean"
+          },
+          "estimatedDurationSecs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "estimatedOutputBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "selectedWorkerId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkerId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selectedWorkerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WorkerCapabilities": {
+        "type": "object",
+        "description": "Worker hardware capabilities reported during pairing and health checks.",
+        "required": [
+          "gpuVendor",
+          "gpuDeviceName",
+          "supportedVideoDecoders",
+          "supportedVideoEncoders",
+          "supportsHardwareTonemap",
+          "maxConcurrentSessions"
+        ],
+        "properties": {
+          "gpuDeviceName": {
+            "type": "string"
+          },
+          "gpuVendor": {
+            "type": "string"
+          },
+          "maxConcurrentSessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "supportedVideoDecoders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportedVideoEncoders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supportsHardwareTonemap": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WorkerControl": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "pause"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "resume"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "cancel"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "params",
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "seek"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "required": [
+                  "segment_number"
+                ],
+                "properties": {
+                  "segment_number": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "description": "Dynamic control actions sent to an active worker session."
+      },
+      "WorkerHeartbeat": {
+        "type": "object",
+        "description": "Heartbeat message sent periodically by workers.",
+        "required": [
+          "workerId",
+          "status",
+          "activeJobIds"
+        ],
+        "properties": {
+          "activeJobIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkerStatus"
+          },
+          "workerId": {
+            "$ref": "#/components/schemas/WorkerId"
+          }
+        }
+      },
+      "WorkerId": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "WorkerJobSpec": {
+        "type": "object",
+        "description": "Typed job specification dispatched to a transcode worker.",
+        "required": [
+          "sessionId",
+          "partId",
+          "sourceUrl",
+          "targetFormat",
+          "segmentDurationSecs",
+          "uploadUrlTemplate"
+        ],
+        "properties": {
+          "audioBitrateKbps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "audioChannels": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "audioCodec": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "burnSubtitleStream": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
+          },
+          "segmentDurationSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": "string"
+          },
+          "startTimeOffsetSecs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "targetFormat": {
+            "type": "string"
+          },
+          "uploadUrlTemplate": {
+            "type": "string"
+          },
+          "videoBitrateKbps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "videoCodec": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "WorkerPairRequest": {
+        "type": "object",
+        "description": "Worker pairing request payload.",
+        "required": [
+          "pairingCode",
+          "name",
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/WorkerCapabilities"
+          },
+          "clientCertFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hostname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "macAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "pairingCode": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkerPairResponse": {
+        "type": "object",
+        "description": "Worker pairing response payload.",
+        "required": [
+          "workerId",
+          "authToken",
+          "serverVersion",
+          "serverName"
+        ],
+        "properties": {
+          "authToken": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "serverVersion": {
+            "type": "string"
+          },
+          "workerId": {
+            "$ref": "#/components/schemas/WorkerId"
+          }
+        }
+      },
+      "WorkerPathMapping": {
+        "type": "object",
+        "description": "Path mapping allowing workers to read shared network media directly.",
+        "required": [
+          "serverPrefix",
+          "workerPrefix"
+        ],
+        "properties": {
+          "serverPrefix": {
+            "type": "string"
+          },
+          "workerPrefix": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkerRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "capabilities",
+          "maxSessions",
+          "status",
+          "pathMappings",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/WorkerCapabilities"
+          },
+          "certFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hostname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/WorkerId"
+          },
+          "lastHeartbeatAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "macAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxSessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "pathMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerPathMapping"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "WorkerStatus": {
+        "type": "object",
+        "description": "Worker status and live telemetry.",
+        "required": [
+          "state",
+          "activeSessions",
+          "cpuUsagePercent"
+        ],
+        "properties": {
+          "activeSessions": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "cpuUsagePercent": {
+            "type": "number",
+            "format": "float"
+          },
+          "gpuUsagePercent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "state": {
             "type": "string"
           }
         }

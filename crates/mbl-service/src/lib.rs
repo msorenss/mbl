@@ -14,6 +14,7 @@ pub mod items;
 pub mod libraries;
 pub mod matchmaker;
 pub mod mcp;
+pub mod nodes;
 pub mod paths;
 pub mod playback;
 pub mod players;
@@ -24,6 +25,7 @@ pub mod users;
 mod validate;
 pub mod watch;
 pub mod webhooks;
+pub mod workers;
 
 use std::sync::{Arc, RwLock};
 
@@ -58,6 +60,7 @@ pub use mcp::{
     McpConfig, McpConfigSnippets, McpPreset, McpService, McpSnippetsRequest, McpStatus,
     UpdateMcpStatusRequest, generate_snippets, mcp_presets,
 };
+pub use nodes::RemoteNodeService;
 pub use playback::{
     ActivePlaybackSession, PlaybackMarker, PlaybackPreview, PlaybackProfileInput,
     PlaybackProgressRequest, PlaybackRequest, PlaybackResponse, PlaybackService, PlaybackState,
@@ -78,6 +81,7 @@ pub use users::{
 };
 pub use watch::{WatchService, is_resume_threshold, is_watched_threshold};
 pub use webhooks::{CreateWebhookRequest, WebhookRow, WebhookService};
+pub use workers::{WorkerBatchEstimate, WorkerService};
 
 /// All application services, cheap to clone.
 #[derive(Debug, Clone)]
@@ -102,6 +106,8 @@ pub struct Services {
     pub webhooks: WebhookService,
     pub requests: MediaRequestService,
     pub matchmaker: MatchmakerService,
+    pub workers: WorkerService,
+    pub nodes: RemoteNodeService,
 }
 
 impl Services {
@@ -132,6 +138,8 @@ impl Services {
         let webhooks = WebhookService::new(db_arc.clone());
         let requests = MediaRequestService::new(db_arc.clone());
         let matchmaker = MatchmakerService::new(db_arc.clone());
+        let workers = WorkerService::new(db_arc.clone());
+        let nodes = RemoteNodeService::new(db_arc.clone());
 
         Self {
             auth,
@@ -154,6 +162,8 @@ impl Services {
             webhooks,
             requests,
             matchmaker,
+            workers,
+            nodes,
         }
     }
 

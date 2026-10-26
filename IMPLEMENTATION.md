@@ -734,23 +734,23 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - *Accept:* tests for hardlink net-size calculation, missing episode detection, and mocked Radarr/Sonarr webhook/API request flow.
 
 ### M8: Distributed nodes (Transcode workers & Remote library nodes)
-- [ ] **M8.1** Worker protocol spec (`docs/worker-protocol.md`) and typed `JobSpec` shared in `mbl-core`.
-- [ ] **M8.2** `mbl-worker` binary: pairing code flow, mTLS with pinned certs, capability report (reuses `mbl-hwaccel`), heartbeat.
-- [ ] **M8.3** Source access via signed short-lived HTTP range URLs; optional path mapping.
-- [ ] **M8.4** Segment upload (`PUT`) into the server session dir; seek/cancel/throttle control messages.
-- [ ] **M8.5** Scheduler integration (PLAN §6.8 order) + Wake-on-LAN + migrate back to local on worker loss.
-- [ ] **M8.6** Batch offload (optimized versions, trickplay, intro analysis) with worker time windows.
-- [ ] **M8.7** Windows worker tray: current jobs, pause-while-gaming (GPU utilization / fullscreen detection).
-- [ ] **M8.8** Admin UI for workers (pair, status, revoke). *Gate:* Pi 5 + NVIDIA and Pi 5 + Intel Arc E2E on the HW lab, including a worker-kill failover test.
-- [ ] **M8.9 MCP tools: workers and optimization:** `list_workers`, `wake_worker`, `pair_worker` (returns a pairing code), `revoke_worker` (D), `create_optimized_versions` (dry run estimates size, duration and which worker would run it).
-- [ ] **M8.10 Standalone Library Node (`mbl-node` / Federated storage node):**
+- [x] **M8.1** Worker protocol spec (`docs/worker-protocol.md`) and typed `JobSpec` shared in `mbl-core`.
+- [x] **M8.2** `mbl-worker` binary: pairing code flow, mTLS with pinned certs, capability report (reuses `mbl-hwaccel`), heartbeat.
+- [x] **M8.3** Source access via signed short-lived HTTP range URLs; optional path mapping.
+- [x] **M8.4** Segment upload (`PUT`) into the server session dir; seek/cancel/throttle control messages.
+- [x] **M8.5** Scheduler integration (PLAN §6.8 order) + Wake-on-LAN + migrate back to local on worker loss.
+- [x] **M8.6** Batch offload (optimized versions, trickplay, intro analysis) with worker time windows.
+- [x] **M8.7** Windows worker tray: current jobs, pause-while-gaming (GPU utilization / fullscreen detection).
+- [x] **M8.8** Admin UI for workers (pair, status, revoke). *Gate:* Pi 5 + NVIDIA and Pi 5 + Intel Arc E2E on the HW lab, including a worker-kill failover test.
+- [x] **M8.9 MCP tools: workers and optimization:** `list_workers`, `wake_worker`, `pair_worker` (returns a pairing code), `revoke_worker` (D), `create_optimized_versions` (dry run estimates size, duration and which worker would run it).
+- [x] **M8.10 Standalone Library Node (`mbl-node` / Federated storage node):**
   - Standalone storage node daemon mode for NAS, remote mini-PCs, or secondary servers.
   - Pairing & federation: pairs with the central MBL server using a one-time pairing code and pinned mTLS certificates.
   - Local scanning & metadata indexing: the node scans its local disks/folders (`/data/movies`, etc.), generates file hashes and metadata fingerprints, and syncs its library catalog to the central server via an efficient delta protocol.
   - Central server aggregation: the central MBL server presents the node's libraries seamlessly in the unified library grid with a node badge (e.g. "Storage: NAS-Node-1").
   - Health monitoring & auto-reconnect: heartbeats, offline status detection (pausing missing-file deletions while node is offline).
   - *Accept:* integration tests for node pairing, delta catalog sync, and aggregation into the central server's library listing.
-- [ ] **M8.11 Remote Node Streaming & Smart Handover:**
+- [x] **M8.11 Remote Node Streaming & Smart Handover:**
   - Depends: M8.10
   - LAN direct play handover: when a client on the same network requests playback of an item hosted on a remote library node, the central server returns a signed direct playback URL pointing directly to the node, offloading network traffic from the central server.
   - Remote / Relay streaming: when the client is on WAN and the node is behind NAT, the central server or a transcode worker proxies or transcodes the stream.
@@ -858,6 +858,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-26 | M5 | Pi 5 excellence + TV client: thermal/power monitor, profile defaults, tmpfs transcode, pre-transcoded optimized versions, trickplay scrub sheets, intro/credits markers, mbl-tv client + CEC/gamepad/refresh matching, pi-gen stage & APT repo, and Hailo-8/10H NPU scene search/tagging/recap | feat(m5) M5
 2026-10-26 | M6 | Users, sharing, remote access, Windows: library ACLs, managed users, PIN, content ratings, invites, TOTP 2FA, network classification, fair-share bandwidth, mbl-remote Tailscale LocalAPI client, header spoofing guard, CGNAT detection & reachability, admin LAN-only guard, Windows service/tray/WiX MSI, Docker multi-arch/nvidia/vaapi/tailscale, MCP mutation framework (dry_run/confirm), 15 new MCP tools (42 admin tools), and OAuth 2.1 PKCE for MCP | feat(users,remote) M6
 2026-10-26 | M7 | Media breadth: music scanning & MusicBrainz, loudness ebur128 & progressive audio streaming, OpenSubsonic /rest/*, photo EXIF & timeline, collections & playlists, metadata locks, OpenSubtitles search, DLNA SSDP & ContentDirectory, PlayerRegistry & remote control, webhooks & events, 20 new MCP tools (62 admin tools, 100% parity), HA MQTT discovery, AI Watch Companion (live context & reactions), subtitle auto-sync subsync, Scene X-Ray & spoiler-free recap, Movie Night Matchmaker, Media Requests with Radarr/Sonarr bridge & hardlink storage hygiene, Windows WiX MSI release packaging | feat(m7) M7
+2026-10-26 | M8 | Distributed nodes: worker protocol spec & typed JobSpec, mbl-worker daemon with capability reporting & heartbeat, signed source media range streaming & PUT segment upload, scheduler integration with Wake-on-LAN & local fallback, batch offload estimation, Windows worker tray & pause-while-gaming, Admin UI for workers & nodes, 5 new MCP tools (67 admin tools, 100% parity), mbl-node federated storage daemon with delta catalog sync, and smart handover for LAN direct play vs WAN relay | feat(m8) M8
 ```
 
 ---

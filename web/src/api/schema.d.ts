@@ -934,6 +934,118 @@ export interface paths {
         patch: operations["update_status"];
         trace?: never;
     };
+    "/api/v1/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_nodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pair_node"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/pairing-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generate_node_pairing_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_node"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_node"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/libraries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_libraries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/stream/handover/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["smart_handover"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/sync-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["sync_catalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/playback": {
         parameters: {
             query?: never;
@@ -1212,6 +1324,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stream/hls/{sessionId}/segments/{filename}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["upload_segment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stream/hls/{session}/master.m3u8": {
         parameters: {
             query?: never;
@@ -1295,6 +1423,22 @@ export interface paths {
         };
         /** Serve a trickplay 10x10 JPEG sprite sheet (`sprite_000.jpg`) (M5.5). */
         get: operations["trickplay_sprite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stream/worker/source/{partId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stream_source"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1611,6 +1755,102 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["toggle_webhook"];
+        trace?: never;
+    };
+    "/api/v1/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_workers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["heartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pair_worker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/pairing-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generate_worker_pairing_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_worker"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_worker"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/{id}/wake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["wake_worker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/health": {
@@ -2257,6 +2497,64 @@ export interface components {
          * @enum {string}
          */
         NetworkClass: "lan" | "tailnet" | "wan";
+        /** @description Node capabilities reported during pairing and health checks. */
+        NodeCapabilities: {
+            gpuVendor?: string | null;
+            /** Format: int64 */
+            storageAvailableBytes?: number | null;
+            /** Format: int64 */
+            storageTotalBytes?: number | null;
+            supportedVideoEncoders: string[];
+            supportsHardwareTranscode: boolean;
+        };
+        /** @description Delta catalog synchronization request from a storage node. */
+        NodeCatalogSyncRequest: {
+            libraries: components["schemas"]["NodeLibrary"][];
+        };
+        /** @description Catalog sync response returned by central server. */
+        NodeCatalogSyncResponse: {
+            /** Format: int32 */
+            syncedLibraries: number;
+            /** Format: int64 */
+            totalItems: number;
+        };
+        /** @description Smart handover response for direct playback or relay. */
+        NodeHandoverResponse: {
+            directPlayUrl?: string | null;
+            reason: string;
+            requiresRelay: boolean;
+        };
+        /** Format: int64 */
+        NodeId: number;
+        /** @description Single library summary exported by a storage node. */
+        NodeLibrary: {
+            /** Format: int64 */
+            itemCount: number;
+            kind: string;
+            name: string;
+            /** Format: int64 */
+            remoteLibraryId: number;
+        };
+        /** @description Remote library node pairing request. */
+        NodePairRequest: {
+            baseUrl: string;
+            capabilities: components["schemas"]["NodeCapabilities"];
+            clientCertFingerprint?: string | null;
+            name: string;
+            pairingCode: string;
+        };
+        /** @description Remote library node pairing response. */
+        NodePairResponse: {
+            authToken: string;
+            nodeId: components["schemas"]["NodeId"];
+            serverName: string;
+            serverVersion: string;
+        };
+        NodePairingCodeResponse: {
+            code: string;
+            /** Format: int32 */
+            expiresInSecs: number;
+        };
         /**
          * @description Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).
          * @enum {string}
@@ -2349,6 +2647,11 @@ export interface components {
             nextCursor?: components["schemas"]["Cursor"] | null;
             /** Format: int64 */
             total?: number | null;
+        };
+        PairingCodeResponse: {
+            code: string;
+            /** Format: int32 */
+            expiresInSecs: number;
         };
         Part: {
             /** Format: int64 */
@@ -2615,6 +2918,32 @@ export interface components {
             displayName?: string | null;
             password: string;
             username: string;
+        };
+        RemoteNodeLibraryRow: {
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            itemCount: number;
+            kind: string;
+            name: string;
+            nodeId: components["schemas"]["NodeId"];
+            /** Format: int64 */
+            remoteLibraryId: number;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        RemoteNodeRow: {
+            baseUrl: string;
+            capabilities: components["schemas"]["NodeCapabilities"];
+            /** Format: int64 */
+            createdAt: number;
+            id: components["schemas"]["NodeId"];
+            /** Format: int64 */
+            lastSeenAt?: number | null;
+            name: string;
+            status: string;
         };
         /** @enum {string} */
         RemoteRecommendation: "tailscale" | "portForwardWithTls" | "vpsRelay";
@@ -3102,6 +3431,127 @@ export interface components {
             name: string;
             secret?: string | null;
             url: string;
+        };
+        /** @description Batch offload estimation returned for dry-run optimization requests. */
+        WorkerBatchEstimate: {
+            canOffload: boolean;
+            /** Format: int64 */
+            estimatedDurationSecs: number;
+            /** Format: int64 */
+            estimatedOutputBytes: number;
+            selectedWorkerId?: components["schemas"]["WorkerId"] | null;
+            selectedWorkerName?: string | null;
+        };
+        /** @description Worker hardware capabilities reported during pairing and health checks. */
+        WorkerCapabilities: {
+            gpuDeviceName: string;
+            gpuVendor: string;
+            /** Format: int32 */
+            maxConcurrentSessions: number;
+            supportedVideoDecoders: string[];
+            supportedVideoEncoders: string[];
+            supportsHardwareTonemap: boolean;
+        };
+        /** @description Dynamic control actions sent to an active worker session. */
+        WorkerControl: {
+            /** @enum {string} */
+            action: "pause";
+        } | {
+            /** @enum {string} */
+            action: "resume";
+        } | {
+            /** @enum {string} */
+            action: "cancel";
+        } | {
+            /** @enum {string} */
+            action: "seek";
+            params: {
+                /** Format: int64 */
+                segment_number: number;
+            };
+        };
+        /** @description Heartbeat message sent periodically by workers. */
+        WorkerHeartbeat: {
+            activeJobIds: string[];
+            status: components["schemas"]["WorkerStatus"];
+            workerId: components["schemas"]["WorkerId"];
+        };
+        /** Format: int64 */
+        WorkerId: number;
+        /** @description Typed job specification dispatched to a transcode worker. */
+        WorkerJobSpec: {
+            /** Format: int32 */
+            audioBitrateKbps?: number | null;
+            /** Format: int32 */
+            audioChannels?: number | null;
+            audioCodec?: string | null;
+            /** Format: int32 */
+            burnSubtitleStream?: number | null;
+            /** Format: int32 */
+            height?: number | null;
+            partId: components["schemas"]["PartId"];
+            /** Format: int32 */
+            segmentDurationSecs: number;
+            sessionId: string;
+            sourceUrl: string;
+            /** Format: double */
+            startTimeOffsetSecs?: number | null;
+            targetFormat: string;
+            uploadUrlTemplate: string;
+            /** Format: int32 */
+            videoBitrateKbps?: number | null;
+            videoCodec?: string | null;
+            /** Format: int32 */
+            width?: number | null;
+        };
+        /** @description Worker pairing request payload. */
+        WorkerPairRequest: {
+            capabilities: components["schemas"]["WorkerCapabilities"];
+            clientCertFingerprint?: string | null;
+            hostname?: string | null;
+            macAddress?: string | null;
+            name: string;
+            pairingCode: string;
+        };
+        /** @description Worker pairing response payload. */
+        WorkerPairResponse: {
+            authToken: string;
+            serverName: string;
+            serverVersion: string;
+            workerId: components["schemas"]["WorkerId"];
+        };
+        /** @description Path mapping allowing workers to read shared network media directly. */
+        WorkerPathMapping: {
+            serverPrefix: string;
+            workerPrefix: string;
+        };
+        WorkerRow: {
+            capabilities: components["schemas"]["WorkerCapabilities"];
+            certFingerprint?: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            hostname?: string | null;
+            id: components["schemas"]["WorkerId"];
+            /** Format: int64 */
+            lastHeartbeatAt?: number | null;
+            macAddress?: string | null;
+            /** Format: int32 */
+            maxSessions: number;
+            name: string;
+            pathMappings: components["schemas"]["WorkerPathMapping"][];
+            status: string;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        /** @description Worker status and live telemetry. */
+        WorkerStatus: {
+            /** Format: int32 */
+            activeSessions: number;
+            /** Format: float */
+            cpuUsagePercent: number;
+            /** Format: float */
+            gpuUsagePercent?: number | null;
+            state: string;
         };
     };
     responses: never;
@@ -5034,6 +5484,267 @@ export interface operations {
             };
         };
     };
+    list_nodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List registered remote storage nodes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteNodeRow"][];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pair_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodePairRequest"];
+            };
+        };
+        responses: {
+            /** @description Remote library node paired */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodePairResponse"];
+                };
+            };
+            /** @description Invalid or expired pairing code */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    generate_node_pairing_code: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pairing code generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodePairingCodeResponse"];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Remote storage node details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteNodeRow"];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Remote storage node revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_libraries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List synced libraries for node */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteNodeLibraryRow"][];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    smart_handover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                itemId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Smart handover evaluation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeHandoverResponse"];
+                };
+            };
+            /** @description Node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sync_catalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeCatalogSyncRequest"];
+            };
+        };
+        responses: {
+            /** @description Catalog synced successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeCatalogSyncResponse"];
+                };
+            };
+            /** @description Unauthorized node */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     start: {
         parameters: {
             query?: never;
@@ -5723,6 +6434,41 @@ export interface operations {
             };
         };
     };
+    upload_segment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Segment stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid segment path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized worker */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     hls_master: {
         parameters: {
             query?: never;
@@ -5918,6 +6664,50 @@ export interface operations {
                 };
                 content?: never;
             };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stream_source: {
+        parameters: {
+            query: {
+                /** @description Signed source media access token */
+                token: string;
+            };
+            header?: never;
+            path: {
+                partId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Source file stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Partial range byte stream */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Media part not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6675,6 +7465,224 @@ export interface operations {
             };
             /** @description Admin required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_workers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List registered workers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRow"][];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    heartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerHeartbeat"];
+            };
+        };
+        responses: {
+            /** @description Heartbeat accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized worker */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pair_worker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerPairRequest"];
+            };
+        };
+        responses: {
+            /** @description Worker successfully paired */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerPairResponse"];
+                };
+            };
+            /** @description Invalid or expired pairing code */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    generate_worker_pairing_code: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pairing code generated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairingCodeResponse"];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_worker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Worker details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerRow"];
+                };
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_worker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Worker revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Worker not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    wake_worker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Wake-on-LAN magic packet transmitted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden (Admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Worker not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

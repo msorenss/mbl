@@ -43,6 +43,8 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::media_audio::router())
         .merge(routes::photos::router())
         .merge(routes::subsonic::router())
+        .merge(routes::workers::router())
+        .merge(routes::nodes::router())
         .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
         .with_state(state)

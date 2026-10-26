@@ -12,6 +12,7 @@ pub mod settings;
 pub mod system;
 pub mod users;
 pub mod watch;
+pub mod workers;
 
 use camino::Utf8PathBuf;
 use mbl_db::Db;
@@ -37,6 +38,7 @@ pub fn all_tools() -> Vec<RegisteredTool> {
     tools.extend(settings::definitions());
     tools.extend(curation::definitions());
     tools.extend(players::definitions());
+    tools.extend(workers::definitions());
     tools
 }
 
@@ -105,6 +107,9 @@ pub async fn execute_tool(
         | "send_companion_reaction"
         | "sync_playback"
         | "explain_scene" => players::execute(tool_name, args, caller, services).await,
+        "list_workers" | "wake_worker" | "pair_worker" | "revoke_worker" | "list_remote_nodes" => {
+            workers::execute(tool_name, args, caller, services).await
+        }
         _ => Err(JsonRpcError::invalid_params(format!("unknown tool: {tool_name}"))),
     }
 }

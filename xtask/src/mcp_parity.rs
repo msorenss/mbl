@@ -142,6 +142,28 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
                 mcp_tool_names.contains("explain_scene")
                     && mcp_tool_names.contains("send_companion_reaction")
             }
+            "/api/v1/workers"
+            | "/api/v1/workers/{id}"
+            | "/api/v1/workers/pairing-code"
+            | "/api/v1/workers/pair"
+            | "/api/v1/workers/{id}/wake" => {
+                mcp_tool_names.contains("list_workers")
+                    && mcp_tool_names.contains("pair_worker")
+                    && mcp_tool_names.contains("wake_worker")
+                    && mcp_tool_names.contains("revoke_worker")
+            }
+            "/api/v1/workers/heartbeat" => true,
+            "/api/v1/stream/worker/source/{partId}"
+            | "/api/v1/stream/hls/{sessionId}/segments/{filename}" => true,
+            "/api/v1/nodes"
+            | "/api/v1/nodes/{id}"
+            | "/api/v1/nodes/pairing-code"
+            | "/api/v1/nodes/pair"
+            | "/api/v1/nodes/{id}/sync-catalog"
+            | "/api/v1/nodes/{id}/libraries"
+            | "/api/v1/nodes/{id}/stream/handover/{itemId}" => {
+                mcp_tool_names.contains("list_remote_nodes")
+            }
             _ => false,
         };
 

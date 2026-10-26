@@ -1754,5 +1754,111 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "list_workers",
+    "description": "List all registered distributed transcode workers, showing hostname, status, GPU capabilities, and active sessions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Transcode Workers",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "wake_worker",
+    "description": "Transmit a Wake-on-LAN magic packet over UDP port 9 to awaken a sleeping or offline transcode worker.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "worker_id": {
+          "description": "Worker ID to wake up",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "worker_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Wake Transcode Worker",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "pair_worker",
+    "description": "Generate a one-time 6-digit pairing code valid for 15 minutes to register a new GPU transcode worker.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Generate Worker Pairing Code",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "revoke_worker",
+    "description": "Revoke and delete a transcode worker from the cluster. Destructive: requires confirm or dry_run.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "default": false,
+          "description": "Confirm permanent deletion of the worker",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "default": false,
+          "description": "Preview revocation without deleting",
+          "type": "boolean"
+        },
+        "worker_id": {
+          "description": "Worker ID to revoke",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "worker_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Revoke Transcode Worker",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_remote_nodes",
+    "description": "List all federated storage nodes and their synced libraries and status.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Remote Nodes",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

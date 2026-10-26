@@ -57,7 +57,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // All tools = 62 (42 M6 + 20 M7 curation and player control tools)
-    assert_eq!(tools.len(), 62);
+    // All tools = 67 (62 M7 + 5 M8 worker and remote node tools)
+    assert_eq!(tools.len(), 67);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

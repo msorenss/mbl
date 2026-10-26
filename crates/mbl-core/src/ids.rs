@@ -36,6 +36,8 @@ id_newtype!(
     PlaylistId,
     WebhookId,
     RequestId,
+    WorkerId,
+    NodeId,
 );
 
 #[cfg(test)]

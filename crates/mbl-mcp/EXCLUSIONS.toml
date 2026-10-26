@@ -163,3 +163,23 @@ reason = "API token issuance (use admin UI or OAuth)."
 path = "/api/v1/auth/tokens/{id}"
 reason = "API token deletion."
 
+[[exclusions]]
+path = "/api/v1/stream/worker/source/{partId}"
+reason = "Binary media byte-range stream for transcode workers."
+
+[[exclusions]]
+path = "/api/v1/stream/hls/{sessionId}/segments/{filename}"
+reason = "Binary segment PUT upload for transcode workers."
+
+[[exclusions]]
+path = "/api/v1/workers/heartbeat"
+reason = "Transcode worker daemon heartbeat telemetry."
+
+[[exclusions]]
+path = "/api/v1/nodes/{id}/sync-catalog"
+reason = "Remote storage node daemon delta catalog sync."
+
+[[exclusions]]
+path = "/api/v1/nodes/{id}/stream/handover/{itemId}"
+reason = "Player direct LAN streaming handover evaluation."
+

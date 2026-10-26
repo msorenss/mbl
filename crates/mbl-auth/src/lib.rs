@@ -8,7 +8,7 @@ pub mod totp;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use mbl_core::{Error, PartId, Result, UserId};
+use mbl_core::{Error, PartId, Result, UserId, WorkerId};
 use sha2::{Digest, Sha256};
 
 /// Default lifetime of a signed direct-stream query token (6 hours).
@@ -128,6 +128,63 @@ pub fn verify_stream_token(
         return Err(Error::Unauthorized);
     }
     Ok(StreamTokenClaims { user_id, part_id, expires_at_ms })
+}
+
+/// Claims embedded in a signed `?token=` for worker media source access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkerSourceTokenClaims {
+    pub worker_id: WorkerId,
+    pub part_id: PartId,
+    pub expires_at_ms: i64,
+}
+
+/// Sign worker claims with `secret` using HMAC-SHA256 (`<payload_b64>.<sig_b64>`).
+pub fn sign_worker_source_token(secret: &[u8; 32], claims: WorkerSourceTokenClaims) -> String {
+    let payload =
+        format!("w1:{}:{}:{}", claims.worker_id.0, claims.part_id.0, claims.expires_at_ms);
+    let payload_b64 = URL_SAFE_NO_PAD.encode(payload.as_bytes());
+    let mac = hmac_sha256(secret, payload_b64.as_bytes());
+    let sig_b64 = URL_SAFE_NO_PAD.encode(mac);
+    format!("{payload_b64}.{sig_b64}")
+}
+
+/// Verify a signed worker source token against `secret`, `expected_part_id` and `now_ms`.
+pub fn verify_worker_source_token(
+    secret: &[u8; 32],
+    token: &str,
+    expected_part_id: PartId,
+    now_ms: i64,
+) -> Result<WorkerSourceTokenClaims> {
+    let (payload_b64, sig_b64) = token.split_once('.').ok_or(Error::Unauthorized)?;
+    let provided_sig = URL_SAFE_NO_PAD.decode(sig_b64).map_err(|_| Error::Unauthorized)?;
+    let expected_sig = hmac_sha256(secret, payload_b64.as_bytes());
+    if !constant_time_eq(&provided_sig, &expected_sig) {
+        return Err(Error::Unauthorized);
+    }
+
+    let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64).map_err(|_| Error::Unauthorized)?;
+    let payload = std::str::from_utf8(&payload_bytes).map_err(|_| Error::Unauthorized)?;
+    let mut parts = payload.split(':');
+    if parts.next() != Some("w1") {
+        return Err(Error::Unauthorized);
+    }
+    let worker_id = parts
+        .next()
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(WorkerId)
+        .ok_or(Error::Unauthorized)?;
+    let part_id =
+        parts.next().and_then(|s| s.parse::<i64>().ok()).map(PartId).ok_or(Error::Unauthorized)?;
+    let expires_at_ms =
+        parts.next().and_then(|s| s.parse::<i64>().ok()).ok_or(Error::Unauthorized)?;
+    if parts.next().is_some() {
+        return Err(Error::Unauthorized);
+    }
+
+    if part_id != expected_part_id || expires_at_ms <= now_ms {
+        return Err(Error::Unauthorized);
+    }
+    Ok(WorkerSourceTokenClaims { worker_id, part_id, expires_at_ms })
 }
 
 /// RFC 2104 HMAC-SHA256.
