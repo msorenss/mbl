@@ -192,7 +192,10 @@ impl MediaRequestService {
     pub fn analyze_hardlinks(paths: &[&Path]) -> StorageHardlinkReport {
         let mut total_scanned_files = 0;
         let mut total_file_size_bytes = 0u64;
+        #[cfg(unix)]
         let mut hardlink_shared_files_count = 0;
+        #[cfg(not(unix))]
+        let hardlink_shared_files_count = 0;
         let mut unique_inodes = HashSet::new();
 
         #[cfg(unix)]
