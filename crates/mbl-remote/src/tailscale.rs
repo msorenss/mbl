@@ -111,17 +111,17 @@ struct LocalSocketTransport {
 #[async_trait::async_trait]
 impl TailscaleTransport for LocalSocketTransport {
     async fn request(&self, path_and_query: &str) -> Result<String> {
-        if !self.path.exists() {
-            return Err(Error::Unavailable(format!(
-                "Tailscale socket not found at {}",
-                self.path.display()
-            )));
-        }
-
         #[cfg(unix)]
         {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
             use tokio::net::UnixStream;
+
+            if !self.path.exists() {
+                return Err(Error::Unavailable(format!(
+                    "Tailscale socket not found at {}",
+                    self.path.display()
+                )));
+            }
 
             let mut stream = UnixStream::connect(&self.path)
                 .await
@@ -149,11 +149,42 @@ impl TailscaleTransport for LocalSocketTransport {
             }
         }
 
-        #[cfg(not(unix))]
+        #[cfg(windows)]
         {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            use tokio::net::windows::named_pipe::ClientOptions;
+
+            let mut stream = ClientOptions::new().open(&self.path).map_err(|e| {
+                Error::Unavailable(format!("failed to connect to Tailscale named pipe: {e}"))
+            })?;
+
+            let req = format!(
+                "GET {path_and_query} HTTP/1.1\r\nHost: local-tailscaled.sock\r\nSec-Tailscale: localapi\r\nConnection: close\r\n\r\n"
+            );
+            stream
+                .write_all(req.as_bytes())
+                .await
+                .map_err(|e| Error::Internal(format!("named pipe write failed: {e}").into()))?;
+
+            let mut response = Vec::new();
+            stream
+                .read_to_end(&mut response)
+                .await
+                .map_err(|e| Error::Internal(format!("named pipe read failed: {e}").into()))?;
+
+            let resp_str = String::from_utf8_lossy(&response);
+            if let Some((_headers, body)) = resp_str.split_once("\r\n\r\n") {
+                Ok(body.to_string())
+            } else {
+                Ok(resp_str.to_string())
+            }
+        }
+
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = path_and_query;
             Err(Error::Unavailable(
-                "Tailscale LocalAPI named pipe connection not yet initialized on this platform"
-                    .into(),
+                "Tailscale LocalAPI transport is unsupported on this platform".into(),
             ))
         }
     }
