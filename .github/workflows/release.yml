@@ -36,9 +36,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb
+      - run: cargo build --release -p mbl-worker -p mbl-node
       - run: cargo deb -p mbl-server
-      - name: Verify Debian server binary
-        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server
+      - name: Verify Debian binaries
+        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server ./usr/bin/mbl-worker ./usr/bin/mbl-node
       - uses: actions/upload-artifact@v4
         with:
           name: mbl-deb-x86_64
@@ -65,9 +66,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb
+      - run: cargo build --release -p mbl-worker -p mbl-node
       - run: cargo deb -p mbl-server
-      - name: Verify Debian server binary
-        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server
+      - name: Verify Debian binaries
+        run: dpkg-deb --fsys-tarfile target/debian/*.deb | tar -tf - ./usr/bin/mbl-server ./usr/bin/mbl-worker ./usr/bin/mbl-node
       - uses: actions/upload-artifact@v4
         with:
           name: mbl-deb-arm64
@@ -91,29 +93,32 @@ jobs:
         with:
           toolchain: "1.99.1"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p mbl-server -p mbl-tv
+      - run: cargo build --release -p mbl-server -p mbl-tv -p mbl-worker -p mbl-node
       - name: Build MSI Installer and Package Windows Zip
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path staging
-          Copy-Item target\release\mbl-server.exe staging\
-          if (Test-Path target\release\mbl-tv.exe) {
-            Copy-Item target\release\mbl-tv.exe staging\
-          }
           Copy-Item packaging\windows\README.txt staging\
           $rawTag = "${{ github.ref_name }}"
-          if (-not $rawTag) { $rawTag = "v0.7.0" }
+          if (-not $rawTag) { $rawTag = "v0.8.0" }
           $version = $rawTag.TrimStart('v')
-          
+
           # Build MSI
           & .\packaging\windows\build-msi.ps1 -Version "$version" -OutputDir "staging"
-          
+
           # Copy out MSI
           Copy-Item "staging\mbl-$version-windows-x86_64.msi" "dist-windows.msi"
-          
+
           # Package ZIP
           $zipName = "mbl-$rawTag-windows-x86_64.zip"
-          Compress-Archive -Path staging\* -DestinationPath $zipName
+          $zipFiles = @(
+            "staging\mbl-server.exe",
+            "staging\mbl-tv.exe",
+            "staging\mbl-worker.exe",
+            "staging\mbl-node.exe",
+            "staging\README.txt"
+          )
+          Compress-Archive -Path $zipFiles -DestinationPath $zipName
           Move-Item $zipName dist-windows.zip
       - uses: actions/upload-artifact@v4
         with:

@@ -35,3 +35,14 @@ Model Context Protocol (MCP)
 MBL includes a built-in MCP server at http://localhost:8420/mcp for AI assistants.
 To connect Claude Desktop, Cursor, or VS Code, generate an API token in the web UI under
 Admin > AI Agents.
+
+Distributed Worker and Library Node
+-----------------------------------
+- Pair a transcode worker with the server:
+  .\mbl-worker.exe pair --server http://localhost:8420 --code W-123456
+- Start the paired worker:
+  .\mbl-worker.exe run --config worker.json
+- Pair a library node (replace the URL with an address reachable by LAN clients):
+  .\mbl-node.exe pair --server http://localhost:8420 --code N-123456 --base-url http://192.168.1.20:8420
+- Start the paired node:
+  .\mbl-node.exe run --config node.json

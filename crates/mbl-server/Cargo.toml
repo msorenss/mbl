@@ -71,5 +71,7 @@ and Model Context Protocol (MCP) support."""
 maintainer-scripts = "../../packaging/deb"
 assets = [
     ["target/release/mbl-server", "usr/bin/mbl-server", "755"],
+    ["target/release/mbl-worker", "usr/bin/mbl-worker", "755"],
+    ["target/release/mbl-node", "usr/bin/mbl-node", "755"],
     ["../../packaging/systemd/mbl.service", "lib/systemd/system/mbl.service", "644"],
 ]

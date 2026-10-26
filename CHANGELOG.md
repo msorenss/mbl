@@ -35,6 +35,9 @@ All notable changes to this project are documented here. The format is based on 
   - Standalone Library Node daemon `mbl-node` for federated storage (NAS, remote mini-PCs, or secondary servers) with one-time pairing and periodic delta catalog synchronization (`POST /api/v1/nodes/{id}/sync-catalog`).
   - Remote Node Streaming & Smart Handover (`GET /api/v1/nodes/{id}/stream/handover/{itemId}`) detecting client IP to grant direct local play handover URLs on LAN subnets while maintaining relay fallbacks for WAN connections.
 
+### Changed
+- Package the standalone `mbl-worker` and `mbl-node` binaries in Debian and Windows MSI/ZIP releases.
+
 ## [0.6.0] - 2026-10-26
 
 ### Added

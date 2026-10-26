@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MBL Media Server WiX MSI installer configuration (M6.13, M7) -->
 <?ifndef Version?>
-  <?define Version = "0.6.0" ?>
+  <?define Version = "0.8.0" ?>
 <?endif?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
      xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
@@ -21,6 +21,9 @@
       <ComponentGroupRef Id="DataDirectoryComponents" />
       <Feature Id="WorkerFeature" Title="Transcode Worker" Level="1">
         <ComponentGroupRef Id="WorkerComponents" />
+      </Feature>
+      <Feature Id="NodeFeature" Title="Federated Library Node" Level="1">
+        <ComponentGroupRef Id="NodeComponents" />
       </Feature>
       <Feature Id="TvFeature" Title="MBL TV 10-foot Client" Level="1">
         <ComponentGroupRef Id="TvComponents" />
@@ -78,6 +81,12 @@
     <ComponentGroup Id="WorkerComponents" Directory="BinFolder">
       <Component Id="MblWorkerExe" Guid="22334455-6677-8899-0011-bbccddeeff00" Win64="yes">
         <File Id="mbl_worker_exe" Source="mbl-worker.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="NodeComponents" Directory="BinFolder">
+      <Component Id="MblNodeExe" Guid="44556677-8899-0011-2233-ddeeff001122" Win64="yes">
+        <File Id="mbl_node_exe" Source="mbl-node.exe" KeyPath="yes" />
       </Component>
     </ComponentGroup>
 

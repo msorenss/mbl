@@ -1,6 +1,6 @@
 # PowerShell script to build MBL Media Server WiX MSI installer
 param(
-    [string]$Version = "0.6.0",
+    [string]$Version = "0.8.0",
     [string]$OutputDir = "staging",
     [string]$BinDir = "target\release"
 )
@@ -31,25 +31,12 @@ if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
 # Ensure staging directory
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-# Copy binaries into staging
-if (Test-Path "$BinDir\mbl-server.exe") {
-    Copy-Item "$BinDir\mbl-server.exe" "$OutputDir\"
-} else {
-    Write-Warning "$BinDir\mbl-server.exe not found! Please build release binaries first."
-}
-
-if (Test-Path "$BinDir\mbl-tv.exe") {
-    Copy-Item "$BinDir\mbl-tv.exe" "$OutputDir\"
-} else {
-    # Placeholder if TV client wasn't built for this target
-    Set-Content -Path "$OutputDir\mbl-tv.exe" -Value "mbl-tv placeholder"
-}
-
-if (Test-Path "$BinDir\mbl-worker.exe") {
-    Copy-Item "$BinDir\mbl-worker.exe" "$OutputDir\"
-} else {
-    # Placeholder until M8 distributed workers
-    Set-Content -Path "$OutputDir\mbl-worker.exe" -Value "mbl-worker placeholder"
+foreach ($binary in @("mbl-server.exe", "mbl-tv.exe", "mbl-worker.exe", "mbl-node.exe")) {
+    $source = Join-Path $BinDir $binary
+    if (-not (Test-Path $source)) {
+        throw "Required release binary not found: $source"
+    }
+    Copy-Item -Path $source -Destination $OutputDir -Force
 }
 
 # Compile with candle.exe
@@ -64,7 +51,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Linking $wixObj into $msiOut..."
-light.exe -ext WixFirewallExtension -sval "$wixObj" -out "$msiOut"
+light.exe -ext WixFirewallExtension -sval -b "$OutputDir" "$wixObj" -out "$msiOut"
 if ($LASTEXITCODE -ne 0) {
     throw "WiX linking failed with exit code $LASTEXITCODE"
 }
