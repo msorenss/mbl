@@ -210,7 +210,7 @@ mod tests {
     fn parses_throttled_flags_and_rpi_volt_alarm_from_fixture_sysfs() {
         let dir = tempfile::tempdir().unwrap();
         let tz = dir.path().join("sys/class/thermal/thermal_zone0");
-        let fw = dir.path().join("sys/devices/platform/soc/soc:firmware");
+        let fw = dir.path().join("sys/devices/platform/axi/1000120000.pcie/1f000d8000.firmware");
         std::fs::create_dir_all(&tz).unwrap();
         std::fs::create_dir_all(&fw).unwrap();
         std::fs::write(tz.join("temp"), "68000\n").unwrap();
