@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-26
+
+### Added
+- M5 Pi 5 excellence + TV client:
+  - Thermal and power monitoring (`mbl-platform::thermal`) reading SoC temperature and Raspberry Pi throttling/under-voltage bitmasks, automatically pausing idle jobs above 75 °C and exposing status via `/api/v1/system/health`, MCP `get_health`, and the web Hardware dashboard.
+  - Platform profile defaults (`PlatformProfile::defaults`) with tuned concurrency, transcode limits, and cache sizes.
+  - Automatic `tmpfs` transcode directory selection (`/run/mbl/transcode` capped at 25% of RAM) on Linux hosts with >= 4 GiB of RAM.
+  - Pre-transcoded optimized versions (`mbl-analysis::optimize`, `POST /api/v1/items/{id}/optimize`, `create_optimized_versions` MCP tool) with night-window job execution; `PlaybackService` automatically prefers optimized versions for DirectPlay when the primary version requires transcoding.
+  - Trickplay scrub thumbnails (`mbl-analysis::trickplay`): keyframe-only extraction into 320px 10x10 JPEG sprite sheets (`sprite_000.jpg`) with manifest index (`/api/v1/stream/trickplay/{partId}/index.json`).
+  - Audio intro detection (`mbl-analysis::intro`): Chromaprint sub-fingerprinting across episodes in a season, chapter name preference, and credits detection (`mbl-analysis::credits`) using silence and black frame heuristics, merged directly into `PlaybackResponse.markers`.
+  - `mbl-tv` 10-foot TV client (`crates/mbl-tv`): Slint UI using `mbl-ui-kit` tokens, `linuxkms` for DRM/KMS on Raspberry Pi and `winit` on desktop, embedded `libmpv` with `hwdec=auto-safe`, 2D spatial focus navigation, on-screen keyboard, HDMI-CEC (`libcec`), gamepad (`gilrs`), refresh-rate matching (23.976/24/50/59.94/60 Hz), HDR passthrough, audio passthrough (IEC958), and 6-digit Quick-Connect login flow (`/api/v1/auth/quick-connect`, `/authorize`, `/poll`).
+  - Raspberry Pi OS appliance image build stage (`packaging/pi-gen/stage-mbl/`) with TCP BBR + `fq`, volatile journald, log2ram, and optional auto-boot into `mbl-tv`, plus Debian APT repository generation scripts (`packaging/apt/`).
+  - Hailo-8 / Hailo-10H NPU multimodal media intelligence (`mbl-hailo`): 64-dimensional L2-normalized scene embeddings, natural-language semantic scene search (`GET /api/v1/ai/search-scenes`, MCP `search_scenes`), visual scene/face tagging, hardware benchmarking (`GET /api/v1/ai/benchmark`), and spoiler-free recaps (`GET /api/v1/ai/recap/{id}`, MCP `get_spoiler_free_recap`) powered by `hailo-ollama` with deterministic fallback.
+
 ## [0.3.0] - 2026-10-25
 
 ### Added
