@@ -75,7 +75,13 @@ async fn fixture() -> Fixture {
 }
 
 fn user(access: LibraryAccess) -> ItemFilter {
-    ItemFilter::for_user(&Actor { user_id: UserId(1), is_admin: false, library_access: access })
+    ItemFilter::for_user(&Actor {
+        user_id: UserId(1),
+        is_admin: false,
+        library_access: access,
+        is_managed: false,
+        content_rating_ceiling: None,
+    })
 }
 
 fn titles(items: &[items::ItemSummary]) -> Vec<&str> {

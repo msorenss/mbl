@@ -42,3 +42,59 @@ reason = "Interactive 6-digit TV pairing poll."
 [[exclusions]]
 path = "/api/v1/mcp/status"
 reason = "MCP security kill-switch cannot be modified over MCP (PLAN §9.5.3)."
+
+[[exclusions]]
+path = "/.well-known/oauth-authorization-server"
+reason = "OAuth 2.1 Authorization Server Metadata discovery."
+
+[[exclusions]]
+path = "/.well-known/oauth-protected-resource"
+reason = "OAuth 2.1 Protected Resource Metadata discovery."
+
+[[exclusions]]
+path = "/oauth/register"
+reason = "OAuth 2.1 dynamic client registration protocol handshake."
+
+[[exclusions]]
+path = "/oauth/authorize"
+reason = "OAuth 2.1 browser user authorization and consent redirect."
+
+[[exclusions]]
+path = "/oauth/token"
+reason = "OAuth 2.1 token issuance and refresh rotation endpoint."
+
+[[exclusions]]
+path = "/oauth/revoke"
+reason = "OAuth 2.1 token revocation endpoint."
+
+[[exclusions]]
+path = "/api/v1/auth/totp/setup"
+reason = "Interactive 2FA setup with QR code and secret generation."
+
+[[exclusions]]
+path = "/api/v1/auth/totp/verify"
+reason = "Interactive 2FA verification challenge."
+
+[[exclusions]]
+path = "/api/v1/auth/totp/disable"
+reason = "Interactive 2FA disablement."
+
+[[exclusions]]
+path = "/api/v1/auth/register-invite"
+reason = "Public user registration via invite code."
+
+[[exclusions]]
+path = "/api/v1/auth/tailscale"
+reason = "Interactive Tailscale identity authentication flow."
+
+[[exclusions]]
+path = "/api/v1/invites/inspect/{code}"
+reason = "Public pre-registration invite inspection."
+
+[[exclusions]]
+path = "/api/v1/users/{id}/pin"
+reason = "Interactive profile numeric PIN setup."
+
+[[exclusions]]
+path = "/api/v1/users/{id}/pin/verify"
+reason = "Interactive profile numeric PIN verification challenge."

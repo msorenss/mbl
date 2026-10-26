@@ -13,6 +13,7 @@ pub mod libraries;
 pub mod mcp;
 pub mod paths;
 pub mod playback;
+pub mod remote;
 pub mod stream;
 pub mod users;
 mod validate;
@@ -23,8 +24,8 @@ use std::sync::{Arc, RwLock};
 use mbl_db::Db;
 
 pub use auth::{
-    AuthService, Authenticated, AuthenticatedApiToken, CreateApiTokenRequest, CreatedApiToken,
-    DeviceInfo, LoginResult,
+    AuthService, Authenticated, AuthenticatedApiToken, CreateApiTokenRequest, CreateInviteRequest,
+    CreatedApiToken, DeviceInfo, LoginRequest, LoginResult, RegisterInviteRequest,
 };
 pub use events::EventService;
 pub use hw::{HwReport, HwSelftestResponse, HwService};
@@ -47,8 +48,14 @@ pub use playback::{
     PlaybackProgressRequest, PlaybackRequest, PlaybackResponse, PlaybackService, PlaybackState,
     PlaybackStopRequest, PlaybackSubtitleTrack,
 };
+pub use remote::{
+    BandwidthUsageResponse, RemoteService, RemoteStatusResponse, UpdateRemotePolicyRequest,
+};
 pub use stream::{ResolvedPart, StreamService};
-pub use users::{CreateUser, UpdateUser, UserService};
+pub use users::{
+    CreateUser, SetPinRequest, UpdateUser, UpdateUserPermissionsRequest, UserService,
+    VerifyPinRequest,
+};
 pub use watch::{WatchService, is_resume_threshold, is_watched_threshold};
 
 /// All application services, cheap to clone.
@@ -66,6 +73,7 @@ pub struct Services {
     pub mcp: McpService,
     pub hw: HwService,
     pub intelligence: MediaIntelligenceService,
+    pub remote: RemoteService,
 }
 
 impl Services {
@@ -85,6 +93,10 @@ impl Services {
         let intelligence =
             MediaIntelligenceService::new(db.clone(), auth.clone(), stream.clone(), jobs.clone());
         let mcp = McpService::new(db.clone(), Arc::new(RwLock::new(McpConfig::default())));
+        let tailscale = Arc::new(mbl_remote::TailscaleClient::from_platform_default());
+        let bandwidth = Arc::new(mbl_remote::BandwidthManager::default());
+        let remote = RemoteService::new(db.clone(), tailscale, bandwidth);
+
         Self {
             auth,
             users: UserService::new(db.clone()),
@@ -98,11 +110,18 @@ impl Services {
             mcp,
             hw,
             intelligence,
+            remote,
         }
     }
 
     pub fn with_mcp_config(mut self, config: Arc<RwLock<McpConfig>>) -> Self {
         self.mcp = McpService::new(self.mcp.db(), config);
+        self
+    }
+
+    pub fn with_tailscale_client(mut self, client: Arc<mbl_remote::TailscaleClient>) -> Self {
+        self.remote =
+            RemoteService::new(self.remote.db().clone(), client, self.remote.bandwidth().clone());
         self
     }
 }

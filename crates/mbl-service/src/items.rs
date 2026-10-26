@@ -61,6 +61,10 @@ impl ItemService {
         if !parent.is_some_and(|lib| filter.allows(lib)) {
             return Err(Error::NotFound);
         }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, id).await?;
+        if !filter.allows_rating(rating.as_deref()) {
+            return Err(Error::NotFound);
+        }
         items::children(&self.db, &filter, id).await
     }
 

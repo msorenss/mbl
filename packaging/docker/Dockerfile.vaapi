@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="MBL Media Server (VAAPI / QSV)" \
+      org.opencontainers.image.description="MBL with Intel QuickSync / VAAPI GPU drivers"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PUID=1000 \
+    PGID=1000 \
+    MBL_PATHS__DATA_DIR=/var/lib/mbl \
+    MBL_SERVER__BIND=0.0.0.0 \
+    MBL_SERVER__PORT=8420
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    intel-media-va-driver-non-free \
+    va-driver-all \
+    vainfo \
+    ca-certificates \
+    gosu \
+    tini \
+    tzdata \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /var/lib/mbl /etc/mbl /media
+
+COPY packaging/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ARG TARGETARCH
+COPY dist/${TARGETARCH}/mbl-server /usr/bin/mbl-server
+RUN chmod 755 /usr/bin/mbl-server
+
+EXPOSE 8420
+VOLUME ["/var/lib/mbl", "/etc/mbl", "/media"]
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/bin/mbl-server", "--config", "/etc/mbl/mbl.toml"]

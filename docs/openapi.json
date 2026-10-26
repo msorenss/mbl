@@ -10,6 +10,46 @@
     "version": "0.4.0"
   },
   "paths": {
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "tags": [
+          "oauth"
+        ],
+        "operationId": "oauth_authorization_server_metadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAuthorizationServerMetadata"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "tags": [
+          "oauth"
+        ],
+        "operationId": "oauth_protected_resource_metadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthProtectedResourceMetadata"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
     "/api/v1/ai/benchmark": {
       "get": {
         "tags": [
@@ -136,6 +176,7 @@
             }
           },
           "401": {},
+          "403": {},
           "429": {}
         },
         "security": []
@@ -261,6 +302,38 @@
         "security": []
       }
     },
+    "/api/v1/auth/register-invite": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register a new account using an invite code.",
+        "operationId": "register_invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {}
+        },
+        "security": []
+      }
+    },
     "/api/v1/auth/sessions": {
       "get": {
         "tags": [
@@ -306,6 +379,29 @@
           "204": {},
           "404": {}
         }
+      }
+    },
+    "/api/v1/auth/tailscale": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log in via Tailscale identity (opt-in, LAN/Tailnet/loopback only).",
+        "operationId": "login_tailscale",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {}
+        },
+        "security": []
       }
     },
     "/api/v1/auth/tokens": {
@@ -397,6 +493,72 @@
         "responses": {
           "204": {},
           "404": {}
+        }
+      }
+    },
+    "/api/v1/auth/totp/disable": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Disable TOTP 2FA for current user.",
+        "operationId": "totp_disable",
+        "responses": {
+          "204": {},
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/auth/totp/setup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Set up TOTP 2FA: generates new secret and otpauth URI.",
+        "operationId": "totp_setup",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpSetup"
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/auth/totp/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verify and enable TOTP 2FA.",
+        "operationId": "totp_verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {}
         }
       }
     },
@@ -564,6 +726,116 @@
             }
           },
           "304": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/invites": {
+      "get": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "List all share invites (admin only).",
+        "operationId": "list_invites",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InviteRow"
+                  }
+                }
+              }
+            }
+          },
+          "403": {}
+        }
+      },
+      "post": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Create a new share invite (admin only).",
+        "operationId": "create_invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteRow"
+                }
+              }
+            }
+          },
+          "403": {}
+        }
+      }
+    },
+    "/api/v1/invites/inspect/{code}": {
+      "get": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Inspect an invite before registration (public).",
+        "operationId": "inspect_invite",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteRow"
+                }
+              }
+            }
+          },
+          "404": {}
+        },
+        "security": []
+      }
+    },
+    "/api/v1/invites/{id}": {
+      "delete": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Revoke/delete an invite (admin only).",
+        "operationId": "delete_invite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "403": {},
           "404": {}
         }
       }
@@ -1858,6 +2130,27 @@
         }
       }
     },
+    "/api/v1/system/bandwidth": {
+      "get": {
+        "tags": [
+          "remote"
+        ],
+        "summary": "Inspect remote streaming bandwidth fair-share allocation (admin only).",
+        "operationId": "get_bandwidth_usage",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BandwidthUsageResponse"
+                }
+              }
+            }
+          },
+          "403": {}
+        }
+      }
+    },
     "/api/v1/system/browse": {
       "get": {
         "tags": [
@@ -1929,6 +2222,89 @@
           }
         },
         "security": []
+      }
+    },
+    "/api/v1/system/reachability-test": {
+      "post": {
+        "tags": [
+          "remote"
+        ],
+        "summary": "Run external reachability and CGNAT analysis (admin only).",
+        "operationId": "test_reachability",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReachabilityTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReachabilityReport"
+                }
+              }
+            }
+          },
+          "403": {}
+        }
+      }
+    },
+    "/api/v1/system/remote-policy": {
+      "put": {
+        "tags": [
+          "remote"
+        ],
+        "summary": "Update remote policies (admin LAN-only, Tailscale auth, WAN upload cap) (admin only).",
+        "operationId": "update_remote_policy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRemotePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteStatusResponse"
+                }
+              }
+            }
+          },
+          "403": {}
+        }
+      }
+    },
+    "/api/v1/system/remote-status": {
+      "get": {
+        "tags": [
+          "remote"
+        ],
+        "summary": "Fetch remote access, Tailscale, and WAN policy status (admin only).",
+        "operationId": "get_remote_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteStatusResponse"
+                }
+              }
+            }
+          },
+          "403": {}
+        }
       }
     },
     "/api/v1/system/setup": {
@@ -2239,6 +2615,158 @@
         }
       }
     },
+    "/api/v1/users/{id}/permissions": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "User permissions (managed status, content rating ceiling, library access).",
+        "operationId": "get_user_permissions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSecurityInfo"
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {}
+        }
+      },
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Update user permissions (admin only).",
+        "operationId": "update_user_permissions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserPermissionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSecurityInfo"
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/users/{id}/pin": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Set or remove a numeric PIN for a profile (admin or self).",
+        "operationId": "set_user_pin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "403": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/users/{id}/pin/verify": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Verify numeric PIN for a profile.",
+        "operationId": "verify_user_pin",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -2257,6 +2785,172 @@
             }
           },
           "503": {}
+        },
+        "security": []
+      }
+    },
+    "/oauth/authorize": {
+      "get": {
+        "tags": [
+          "oauth"
+        ],
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "query",
+            "description": "Registered client ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "description": "Redirect URI matching client registration",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "response_type",
+            "in": "query",
+            "description": "Must be 'code'",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "description": "PKCE code challenge (BASE64URL(SHA256(verifier)))",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "description": "Must be 'S256'",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "Requested space-separated scopes",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Opaque client state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to client redirect_uri with code"
+          },
+          "400": {},
+          "401": {}
+        }
+      }
+    },
+    "/oauth/register": {
+      "post": {
+        "tags": [
+          "oauth"
+        ],
+        "operationId": "register_client",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClientRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterClientResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/oauth/revoke": {
+      "post": {
+        "tags": [
+          "oauth"
+        ],
+        "operationId": "revoke_token",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Token revoked"
+          }
+        },
+        "security": []
+      }
+    },
+    "/oauth/token": {
+      "post": {
+        "tags": [
+          "oauth"
+        ],
+        "operationId": "token_endpoint",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {}
         },
         "security": []
       }
@@ -2381,6 +3075,45 @@
           }
         }
       },
+      "AuthorizeParams": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "redirect_uri",
+          "response_type",
+          "code_challenge",
+          "code_challenge_method"
+        ],
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "code_challenge": {
+            "type": "string"
+          },
+          "code_challenge_method": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string"
+          },
+          "response_type": {
+            "type": "string"
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "BadBackendFailure": {
         "type": "object",
         "description": "Record of a runtime transcode backend failure tracked with a TTL (M4.9).",
@@ -2408,6 +3141,30 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "BandwidthUsageResponse": {
+        "type": "object",
+        "required": [
+          "globalUploadLimitKbps",
+          "activeWanSessions",
+          "perStreamFairShareKbps"
+        ],
+        "properties": {
+          "activeWanSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "globalUploadLimitKbps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "perStreamFairShareKbps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -2442,6 +3199,29 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CreateInviteRequest": {
+        "type": "object",
+        "properties": {
+          "contentRatingCeiling": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "libraryIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryId"
+            }
+          },
+          "ttlHours": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Lifetime in hours (default 72 hours).",
+            "minimum": 0
           }
         }
       },
@@ -2552,6 +3332,12 @@
           "password"
         ],
         "properties": {
+          "contentRatingCeiling": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "displayName": {
             "type": [
               "string",
@@ -2560,6 +3346,18 @@
           },
           "isAdmin": {
             "type": "boolean"
+          },
+          "isManaged": {
+            "type": "boolean"
+          },
+          "libraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LibraryId"
+            }
           },
           "password": {
             "type": "string"
@@ -3231,6 +4029,67 @@
           }
         }
       },
+      "InviteRow": {
+        "type": "object",
+        "description": "Invitation to register with pre-assigned permissions.",
+        "required": [
+          "id",
+          "code",
+          "createdBy",
+          "libraryIds",
+          "expiresAt",
+          "createdAt"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "contentRatingCeiling": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "libraryIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryId"
+            }
+          },
+          "usedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "usedBy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "ItemDetail": {
         "type": "object",
         "required": [
@@ -3581,6 +4440,12 @@
           "password": {
             "type": "string"
           },
+          "totpCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "username": {
             "type": "string"
           }
@@ -3835,6 +4700,15 @@
           "extra"
         ]
       },
+      "NetworkClass": {
+        "type": "string",
+        "description": "The network environment from which a request originated.",
+        "enum": [
+          "lan",
+          "tailnet",
+          "wan"
+        ]
+      },
       "NpuProfile": {
         "type": "string",
         "description": "Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).",
@@ -3886,6 +4760,139 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "OAuthAuthorizationServerMetadata": {
+        "type": "object",
+        "required": [
+          "issuer",
+          "authorization_endpoint",
+          "token_endpoint",
+          "registration_endpoint",
+          "revocation_endpoint",
+          "response_types_supported",
+          "grant_types_supported",
+          "code_challenge_methods_supported",
+          "token_endpoint_auth_methods_supported",
+          "scopes_supported"
+        ],
+        "properties": {
+          "authorization_endpoint": {
+            "type": "string"
+          },
+          "code_challenge_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "grant_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "registration_endpoint": {
+            "type": "string"
+          },
+          "response_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revocation_endpoint": {
+            "type": "string"
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "token_endpoint": {
+            "type": "string"
+          },
+          "token_endpoint_auth_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "OAuthClient": {
+        "type": "object",
+        "description": "Dynamic OAuth 2.1 registered client.",
+        "required": [
+          "clientId",
+          "clientName",
+          "redirectUris",
+          "grantTypes",
+          "responseTypes",
+          "tokenEndpointAuth",
+          "createdAt"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "grantTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "redirectUris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "responseTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokenEndpointAuth": {
+            "type": "string"
+          }
+        }
+      },
+      "OAuthProtectedResourceMetadata": {
+        "type": "object",
+        "required": [
+          "resource",
+          "authorization_servers",
+          "scopes_supported"
+        ],
+        "properties": {
+          "authorization_servers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resource": {
+            "type": "string"
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -4593,6 +5600,209 @@
           }
         }
       },
+      "ReachabilityReport": {
+        "type": "object",
+        "description": "Outcome of the CGNAT and external reachability inspection.",
+        "required": [
+          "isCgnat",
+          "isDirectReachable",
+          "recommendation",
+          "details"
+        ],
+        "properties": {
+          "details": {
+            "type": "string"
+          },
+          "detectedPublicIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "detectedWanIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isCgnat": {
+            "type": "boolean"
+          },
+          "isDirectReachable": {
+            "type": "boolean"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/RemoteRecommendation"
+          }
+        }
+      },
+      "ReachabilityTestRequest": {
+        "type": "object",
+        "properties": {
+          "publicIpOverride": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "RegisterClientRequest": {
+        "type": "object",
+        "required": [
+          "client_name",
+          "redirect_uris"
+        ],
+        "properties": {
+          "client_name": {
+            "type": "string"
+          },
+          "grant_types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "response_types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RegisterClientResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "client_name",
+          "redirect_uris",
+          "grant_types",
+          "response_types",
+          "token_endpoint_auth_method"
+        ],
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "grant_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "response_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "token_endpoint_auth_method": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterInviteRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoteRecommendation": {
+        "type": "string",
+        "enum": [
+          "tailscale",
+          "portForwardWithTls",
+          "vpsRelay"
+        ]
+      },
+      "RemoteStatusResponse": {
+        "type": "object",
+        "required": [
+          "isAdminLanOnly",
+          "isTailscaleAuthEnabled",
+          "wanUploadLimitMbps",
+          "activeWanSessions"
+        ],
+        "properties": {
+          "activeWanSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "isAdminLanOnly": {
+            "type": "boolean"
+          },
+          "isTailscaleAuthEnabled": {
+            "type": "boolean"
+          },
+          "tailscale": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TailscaleStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wanUploadLimitMbps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "RevokeForm": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "SceneEmbeddingRow": {
         "type": "object",
         "required": [
@@ -4804,6 +6014,18 @@
       "SessionId": {
         "type": "integer",
         "format": "int64"
+      },
+      "SetPinRequest": {
+        "type": "object",
+        "properties": {
+          "pin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "4-8 numeric digits, or null to remove PIN."
+          }
+        }
       },
       "SetupRequest": {
         "type": "object",
@@ -5159,6 +6381,111 @@
           }
         }
       },
+      "TailscalePeer": {
+        "type": "object",
+        "description": "A peer on the tailnet and whether the connection is direct or relayed.",
+        "required": [
+          "hostName",
+          "tailnetIps",
+          "os",
+          "isDirect"
+        ],
+        "properties": {
+          "curAddr": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hostName": {
+            "type": "string"
+          },
+          "isDirect": {
+            "type": "boolean"
+          },
+          "os": {
+            "type": "string"
+          },
+          "relay": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tailnetIps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TailscaleStatus": {
+        "type": "object",
+        "description": "Current status of the Tailscale node on the host.",
+        "required": [
+          "backendState",
+          "tailnetIps",
+          "peers"
+        ],
+        "properties": {
+          "backendState": {
+            "type": "string"
+          },
+          "magicDnsName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "peers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TailscalePeer"
+            }
+          },
+          "tailnetIps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TailscaleWhois": {
+        "type": "object",
+        "description": "Resolved identity of a tailnet caller from LocalAPI `whois`.",
+        "required": [
+          "loginName",
+          "displayName",
+          "nodeName",
+          "nodeIps",
+          "caps"
+        ],
+        "properties": {
+          "caps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "loginName": {
+            "type": "string"
+          },
+          "nodeIps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nodeName": {
+            "type": "string"
+          }
+        }
+      },
       "ThermalStatus": {
         "type": "object",
         "description": "Snapshot of host thermal and power status.",
@@ -5219,6 +6546,93 @@
               "type": "string"
             },
             "description": "Human-readable dashboard warnings for admins."
+          }
+        }
+      },
+      "TokenForm": {
+        "type": "object",
+        "required": [
+          "grant_type"
+        ],
+        "properties": {
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code_verifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grant_type": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refresh_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token",
+          "scope"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string"
+          }
+        }
+      },
+      "TotpSetup": {
+        "type": "object",
+        "description": "Generated TOTP setup payload.",
+        "required": [
+          "secret",
+          "uri"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "Base32-encoded secret string."
+          },
+          "uri": {
+            "type": "string",
+            "description": "`otpauth://` URI ready for QR code generation."
           }
         }
       },
@@ -5466,6 +6880,57 @@
           }
         }
       },
+      "UpdateRemotePolicyRequest": {
+        "type": "object",
+        "properties": {
+          "adminLanOnly": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "tailscaleAuthEnabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "wanUploadLimitMbps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "UpdateUserPermissionsRequest": {
+        "type": "object",
+        "properties": {
+          "contentRatingCeiling": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isManaged": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "libraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LibraryId"
+            }
+          }
+        }
+      },
       "UpdateUserPreferences": {
         "type": "object",
         "properties": {
@@ -5675,6 +7140,43 @@
           }
         }
       },
+      "UserSecurityInfo": {
+        "type": "object",
+        "description": "Security and access profile for a user.",
+        "required": [
+          "userId",
+          "isManaged",
+          "hasPin",
+          "totpEnabled",
+          "libraryIds"
+        ],
+        "properties": {
+          "contentRatingCeiling": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasPin": {
+            "type": "boolean"
+          },
+          "isManaged": {
+            "type": "boolean"
+          },
+          "libraryIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LibraryId"
+            }
+          },
+          "totpEnabled": {
+            "type": "boolean"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
       "V4l2Device": {
         "type": "object",
         "description": "Linux V4L2 video device (`/dev/video*`).",
@@ -5697,6 +7199,17 @@
             "type": "string"
           },
           "path": {
+            "type": "string"
+          }
+        }
+      },
+      "VerifyPinRequest": {
+        "type": "object",
+        "required": [
+          "pin"
+        ],
+        "properties": {
+          "pin": {
             "type": "string"
           }
         }

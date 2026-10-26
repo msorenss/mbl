@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MBL Media Server WiX MSI installer configuration (M6.13) -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
+  <Product Id="*"
+           Name="MBL Media Server"
+           Language="1033"
+           Version="0.5.0"
+           Manufacturer="MBL Contributors"
+           UpgradeCode="4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Feature Tree: Server, Worker, TV Client -->
+    <Feature Id="ProductFeature" Title="MBL Media Server" Level="1">
+      <ComponentGroupRef Id="ServerComponents" />
+      <Feature Id="WorkerFeature" Title="Transcode Worker" Level="1">
+        <ComponentGroupRef Id="WorkerComponents" />
+      </Feature>
+      <Feature Id="TvFeature" Title="MBL TV 10-foot Client" Level="1">
+        <ComponentGroupRef Id="TvComponents" />
+      </Feature>
+    </Feature>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="MBL">
+          <Directory Id="BinFolder" Name="bin" />
+          <Directory Id="FfmpegFolder" Name="ffmpeg" />
+        </Directory>
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="DATAFOLDER" Name="MBL">
+          <Directory Id="DATA_SUBFOLDER" Name="data" />
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <ComponentGroup Id="ServerComponents" Directory="BinFolder">
+      <Component Id="MblServerExe" Guid="11223344-5566-7788-9900-aabbccddeeff" Win64="yes">
+        <File Id="mbl_server_exe" Source="mbl-server.exe" KeyPath="yes" />
+        <!-- Windows Firewall Exception -->
+        <fire:FirewallException Id="MblServerFirewallRule"
+                                Name="MBL Media Server"
+                                Port="8420"
+                                Protocol="tcp"
+                                Scope="any"
+                                IgnoreFailure="yes" />
+        <!-- Windows Service Installation -->
+        <ServiceInstall Id="MblServiceInstaller"
+                        Type="ownProcess"
+                        Name="MblServer"
+                        DisplayName="MBL Media Server"
+                        Description="High-performance, lightweight personal media server"
+                        Start="auto"
+                        Account="LocalSystem"
+                        ErrorControl="normal" />
+        <ServiceControl Id="MblServiceControl"
+                        Name="MblServer"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+      <Component Id="DataDirectoryComponent" Directory="DATA_SUBFOLDER" Guid="aabbccdd-1122-3344-5566-778899001122" Win64="yes">
+        <CreateFolder />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="WorkerComponents" Directory="BinFolder">
+      <Component Id="MblWorkerExe" Guid="22334455-6677-8899-0011-bbccddeeff00" Win64="yes">
+        <File Id="mbl_worker_exe" Source="mbl-worker.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="TvComponents" Directory="BinFolder">
+      <Component Id="MblTvExe" Guid="33445566-7788-9900-1122-ccddeeff0011" Win64="yes">
+        <File Id="mbl_tv_exe" Source="mbl-tv.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Wix>

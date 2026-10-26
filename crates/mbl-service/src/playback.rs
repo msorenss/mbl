@@ -306,6 +306,10 @@ impl PlaybackService {
         if !actor.can_access_library(part.library_id) {
             return Err(Error::NotFound);
         }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, part.item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
+            return Err(Error::NotFound);
+        }
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let _ = verify_under_library_roots(&part.path, &lib.paths)?;
 
@@ -340,6 +344,10 @@ impl PlaybackService {
         let (part, media_info, decision) = self.select_best_part(&req, &profile, &ctx).await?;
 
         if !actor.can_access_library(part.library_id) {
+            return Err(Error::NotFound);
+        }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, part.item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
             return Err(Error::NotFound);
         }
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;

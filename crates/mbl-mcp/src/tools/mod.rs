@@ -5,7 +5,10 @@ pub mod jobs;
 pub mod libraries;
 pub mod media;
 pub mod playback;
+pub mod remote;
+pub mod settings;
 pub mod system;
+pub mod users;
 pub mod watch;
 
 use camino::Utf8PathBuf;
@@ -27,6 +30,9 @@ pub fn all_tools() -> Vec<RegisteredTool> {
     tools.extend(playback::definitions());
     tools.extend(jobs::definitions());
     tools.extend(hw::definitions());
+    tools.extend(users::definitions());
+    tools.extend(remote::definitions());
+    tools.extend(settings::definitions());
     tools
 }
 
@@ -63,6 +69,18 @@ pub async fn execute_tool(
         | "create_optimized_versions"
         | "search_scenes"
         | "get_spoiler_free_recap" => hw::execute(tool_name, args, caller, services).await,
+        "list_users"
+        | "create_user"
+        | "update_user_permissions"
+        | "create_invite"
+        | "revoke_sessions"
+        | "delete_user" => users::execute(tool_name, args, caller, db, services).await,
+        "get_remote_access_status"
+        | "run_reachability_test"
+        | "get_bandwidth_usage"
+        | "update_remote_policy" => remote::execute(tool_name, args, caller, services).await,
+        "get_settings" | "update_settings" | "create_backup" | "list_backups"
+        | "restart_server" => settings::execute(tool_name, args, caller, db, services).await,
         _ => Err(JsonRpcError::invalid_params(format!("unknown tool: {tool_name}"))),
     }
 }

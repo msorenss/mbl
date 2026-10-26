@@ -1,0 +1,43 @@
+services:
+  # Tailscale sidecar providing mesh VPN reachability behind CGNAT (M6.6, M6.14)
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: mbl-tailscale
+    hostname: mbl-server
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+      - /var/run/tailscale:/var/run/tailscale
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+
+  # MBL Media Server attached to Tailscale network
+  mbl:
+    image: ghcr.io/msorenss/mbl:latest
+    container_name: mbl-server
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    volumes:
+      - mbl-data:/var/lib/mbl
+      - mbl-config:/etc/mbl
+      - /var/run/tailscale:/var/run/tailscale:ro
+      - /path/to/your/movies:/media/movies:ro
+      - /path/to/your/shows:/media/shows:ro
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
+  mbl-data:
+  mbl-config:

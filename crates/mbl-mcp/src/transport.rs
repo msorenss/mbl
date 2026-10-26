@@ -281,6 +281,8 @@ async fn resolve_or_anonymous_caller(
                 user_id: UserId(0),
                 is_admin: false,
                 library_access: LibraryAccess::Only(Vec::new()),
+                is_managed: false,
+                content_rating_ceiling: None,
             },
             scopes: ScopeSet::default(),
             client: "anonymous".into(),

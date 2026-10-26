@@ -645,26 +645,26 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 ## 8. Milestones M6–M11 (task lists)
 
 ### M6: Users, sharing, remote access, Windows
-- [ ] **M6.1** Library ACLs per user (enforced in `ItemFilter`), managed users, PIN (Argon2), content-rating ceilings. *Accept:* ACL tests on every item endpoint (table-driven over routes).
-- [ ] **M6.2** Invites (expiring links, per-library scope), extended API token management (from M2.12: network restrictions UI, last-used info), device/session management UI.
-- [ ] **M6.3** TOTP 2FA (`totp-rs`), required for admins on WAN connections.
-- [ ] **M6.4** Network classification (LAN subnets config, tailnet ranges, WAN) per request; trusted proxy list for `X-Forwarded-For`.
-- [ ] **M6.5** Remote bandwidth budget and fair share; client throughput feedback in progress reports; quality presets per network type (PLAN §13.7).
-- [ ] **M6.6** `mbl-remote` crate: a Tailscale LocalAPI client (Unix socket / Windows named pipe) providing status, MagicDNS name, `whois` and cert. Use a mock LocalAPI server in tests.
-- [ ] **M6.7** Tailscale identity login (opt-in), with the strict trust rules from PLAN §13.4. *Accept:* tests for header spoofing from a non-loopback source → rejected.
-- [ ] **M6.8** Direct/relayed connection indicator per session (peer status), shown in the dashboard and stats overlay.
-- [ ] **M6.9** ACME (`instant-acme`): TLS-ALPN-01 and DNS-01 (Cloudflare DNS, deSEC, DuckDNS), auto-renew, `rustls` hot reload.
-- [ ] **M6.10** DDNS updaters; UPnP-IGD/NAT-PMP/PCP mapping (off by default); CGNAT detection; reachability test.
-- [ ] **M6.11** Remote Access wizard UI with the recommendation flow (PLAN §13.3) and a security checklist.
-- [ ] **M6.12** Admin endpoints LAN/tailnet-only by default (middleware + setting).
-- [ ] **M6.13** Windows: service (`windows-service`), tray app (`tray-icon`), WiX MSI with modes (server/worker/TV), bundled `mbl-ffmpeg`, firewall rule, mapped-drive detection in the folder picker, Authenticode signing via SignPath, `winget` manifest.
-- [ ] **M6.14** Docker images (amd64/arm64; `-nvidia` and `-vaapi` variants) and a compose example with Tailscale sidecar.
-- [ ] **M6.15 MCP mutation framework:**
+- [x] **M6.1** Library ACLs per user (enforced in `ItemFilter`), managed users, PIN (Argon2), content-rating ceilings. *Accept:* ACL tests on every item endpoint (table-driven over routes).
+- [x] **M6.2** Invites (expiring links, per-library scope), extended API token management (from M2.12: network restrictions UI, last-used info), device/session management UI.
+- [x] **M6.3** TOTP 2FA (`totp-rs`), required for admins on WAN connections.
+- [x] **M6.4** Network classification (LAN subnets config, tailnet ranges, WAN) per request; trusted proxy list for `X-Forwarded-For`.
+- [x] **M6.5** Remote bandwidth budget and fair share; client throughput feedback in progress reports; quality presets per network type (PLAN §13.7).
+- [x] **M6.6** `mbl-remote` crate: a Tailscale LocalAPI client (Unix socket / Windows named pipe) providing status, MagicDNS name, `whois` and cert. Use a mock LocalAPI server in tests.
+- [x] **M6.7** Tailscale identity login (opt-in), with the strict trust rules from PLAN §13.4. *Accept:* tests for header spoofing from a non-loopback source → rejected.
+- [x] **M6.8** Direct/relayed connection indicator per session (peer status), shown in the dashboard and stats overlay.
+- [x] **M6.9** ACME (`instant-acme`): TLS-ALPN-01 and DNS-01 (Cloudflare DNS, deSEC, DuckDNS), auto-renew, `rustls` hot reload.
+- [x] **M6.10** DDNS updaters; UPnP-IGD/NAT-PMP/PCP mapping (off by default); CGNAT detection; reachability test.
+- [x] **M6.11** Remote Access wizard UI with the recommendation flow (PLAN §13.3) and a security checklist.
+- [x] **M6.12** Admin endpoints LAN/tailnet-only by default (middleware + setting).
+- [x] **M6.13** Windows: service (`windows-service`), tray app (`tray-icon`), WiX MSI with modes (server/worker/TV), bundled `mbl-ffmpeg`, firewall rule, mapped-drive detection in the folder picker, Authenticode signing via SignPath, `winget` manifest.
+- [x] **M6.14** Docker images (amd64/arm64; `-nvidia` and `-vaapi` variants) and a compose example with Tailscale sidecar.
+- [x] **M6.15 MCP mutation framework:**
   - `MutationOpts { dry_run, confirm }` on all mutating tools. `dry_run` returns a typed plan/diff.
   - Destructive tools and bulk operations over 50 items need confirmation: use MCP **elicitation** when the client supports it, otherwise require `confirm: true`; refusals explain how to confirm.
   - *Accept:* tests for each path (elicit accept/decline, `confirm` missing, dry run makes no DB changes).
-- [ ] **M6.16 MCP tools: users, sharing, remote, settings:** `list_users`, `create_user`, `update_user_permissions`, `create_invite`, `revoke_sessions`, `delete_user` (D), `get_remote_access_status`, `run_reachability_test`, `get_bandwidth_usage`, `update_remote_policy`, `get_settings`, `update_settings` (typed patch; MCP security settings are not editable over MCP), `create_backup`, `list_backups`, `restart_server` (D); prompt `setup_remote_access`. *Accept:* client tests + snapshot.
-- [ ] **M6.17 OAuth 2.1 for MCP (per the MCP authorization spec):**
+- [x] **M6.16 MCP tools: users, sharing, remote, settings:** `list_users`, `create_user`, `update_user_permissions`, `create_invite`, `revoke_sessions`, `delete_user` (D), `get_remote_access_status`, `run_reachability_test`, `get_bandwidth_usage`, `update_remote_policy`, `get_settings`, `update_settings` (typed patch; MCP security settings are not editable over MCP), `create_backup`, `list_backups`, `restart_server` (D); prompt `setup_remote_access`. *Accept:* client tests + snapshot.
+- [x] **M6.17 OAuth 2.1 for MCP (per the MCP authorization spec):**
   - Protected resource metadata and authorization server metadata endpoints under `/.well-known/`.
   - Authorization code + PKCE (S256 only), dynamic client registration (admin toggle, default on for LAN), consent screen listing client and scopes, refresh tokens, revocation.
   - Access tokens are audience-bound to `/mcp`.
@@ -856,6 +856,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-25 | M3 | Modern UI v1: tokens, themes, component library, navigation, playback, command palette, profiles/i18n, and bundle budget | fec714f
 2026-10-25 | M4 | Hardware acceleration: platform fingerprint, FFmpeg probe & self-test (`0003_hw_capabilities.sql`), VAAPI/QSV/NVENC/Pi/Windows backends, fallback chains, HDR tone mapping, capacity model, multi-rendition ABR ladder, remote HEVC/AV1 preference, Admin Hardware UI, MCP hw tools (`get_hw_report`, `get_transcode_capacity`, `run_hw_selftest`), and Hailo NPU co-tenant sharing | feat(hwaccel) M4
 2026-10-26 | M5 | Pi 5 excellence + TV client: thermal/power monitor, profile defaults, tmpfs transcode, pre-transcoded optimized versions, trickplay scrub sheets, intro/credits markers, mbl-tv client + CEC/gamepad/refresh matching, pi-gen stage & APT repo, and Hailo-8/10H NPU scene search/tagging/recap | feat(m5) M5
+2026-10-26 | M6 | Users, sharing, remote access, Windows: library ACLs, managed users, PIN, content ratings, invites, TOTP 2FA, network classification, fair-share bandwidth, mbl-remote Tailscale LocalAPI client, header spoofing guard, CGNAT detection & reachability, admin LAN-only guard, Windows service/tray/WiX MSI, Docker multi-arch/nvidia/vaapi/tailscale, MCP mutation framework (dry_run/confirm), 15 new MCP tools (42 admin tools), and OAuth 2.1 PKCE for MCP | feat(users,remote) M6
 ```
 
 ---

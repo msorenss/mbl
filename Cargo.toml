@@ -32,6 +32,7 @@ mbl-ui-kit = { path = "crates/mbl-ui-kit" }
 mbl-analysis = { path = "crates/mbl-analysis" }
 mbl-hailo = { path = "crates/mbl-hailo" }
 mbl-tv = { path = "crates/mbl-tv" }
+mbl-remote = { path = "crates/mbl-remote" }
 
 # External crates (approved list: IMPLEMENTATION.md §1.4)
 anyhow = "1.0.104"
@@ -47,6 +48,7 @@ figment = { version = "0.10.19", features = ["toml", "env"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 getrandom = "0.4.3"
 governor = "0.10.4"
+hmac = "0.13.0"
 http-body-util = "0.1"
 ignore = "0.4.33"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
@@ -58,6 +60,7 @@ regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["default-tls", "http2", "json", "query"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+sha1 = "0.11.0"
 sha2 = "0.11.1"
 strsim = "0.11.1"
 sqlx = { version = "0.9.0", default-features = false, features = [

@@ -718,5 +718,425 @@ expression: tools
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "list_users",
+    "description": "List all user accounts on the server with their roles, managed status, and library permissions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Users",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_user",
+    "description": "Create a new user account with specified credentials and optional parental controls/library restrictions. Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "contentRatingCeiling": {
+          "description": "Maximum allowed rating, e.g. 'PG-13', 'TV-14'",
+          "type": "string"
+        },
+        "displayName": {
+          "description": "Human-friendly display name",
+          "type": "string"
+        },
+        "dryRun": {
+          "description": "If true, simulates user creation and returns a plan without modifying the database",
+          "type": "boolean"
+        },
+        "isAdmin": {
+          "description": "Whether this user has full administrator privileges (default: false)",
+          "type": "boolean"
+        },
+        "isManaged": {
+          "description": "Whether this is a managed child profile (default: false)",
+          "type": "boolean"
+        },
+        "libraryIds": {
+          "description": "Specific library IDs the user is allowed to access (empty/null allows all libraries)",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "password": {
+          "description": "User password (minimum 8 characters)",
+          "type": "string"
+        },
+        "username": {
+          "description": "Unique username (3-32 alphanumeric/underscore characters)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "username",
+        "password"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create User",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_user_permissions",
+    "description": "Update library access rules, managed status, and content rating ceilings for a user. Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "contentRatingCeiling": {
+          "description": "Content rating ceiling, e.g. 'G', 'PG', 'PG-13', 'R'",
+          "type": "string"
+        },
+        "dryRun": {
+          "description": "If true, previews updates without applying changes",
+          "type": "boolean"
+        },
+        "isManaged": {
+          "description": "Whether the user is a managed profile",
+          "type": "boolean"
+        },
+        "libraryIds": {
+          "description": "Allowed library IDs (null or omitted preserves existing; empty array clears restrictions)",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "userId": {
+          "description": "ID of the user to update",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Update User Permissions",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_invite",
+    "description": "Create a shareable invite code with pre-configured library access and content rating ceiling. Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "contentRatingCeiling": {
+          "description": "Maximum content rating",
+          "type": "string"
+        },
+        "dryRun": {
+          "description": "If true, simulates creation and returns plan without writing invite",
+          "type": "boolean"
+        },
+        "libraryIds": {
+          "description": "Library IDs granted to new user upon registration",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "ttlHours": {
+          "description": "Validity period in hours (default: 72)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Share Invite",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "revoke_sessions",
+    "description": "Revoke active login sessions for a user (or a specific session ID). Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "dryRun": {
+          "description": "If true, returns count of sessions that would be revoked",
+          "type": "boolean"
+        },
+        "sessionId": {
+          "description": "Optional specific session ID to revoke. If omitted, revokes all sessions for user.",
+          "type": "string"
+        },
+        "userId": {
+          "description": "User ID whose sessions should be revoked",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Revoke Sessions",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "delete_user",
+    "description": "Permanently delete a user account and revoke all their sessions. DESTRUCTIVE: Requires confirm: true.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "description": "Must be set to true to execute this destructive operation",
+          "type": "boolean"
+        },
+        "dryRun": {
+          "description": "If true, returns user deletion preview without deleting",
+          "type": "boolean"
+        },
+        "userId": {
+          "description": "ID of user to delete",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Delete User",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_remote_access_status",
+    "description": "Get full remote access status including Tailscale node state, MagicDNS name, tailnet IPs, active peers, WAN upload limits, and active WAN streaming sessions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get Remote Access Status",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "run_reachability_test",
+    "description": "Run Carrier-Grade NAT (CGNAT) detection and external public port reachability test to diagnose connectivity issues and generate tailored remote access recommendations.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "publicIpOverride": {
+          "description": "Optional explicit public IP to test against instead of auto-probing",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Run Reachability Test",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "get_bandwidth_usage",
+    "description": "Inspect remote streaming bandwidth fair-share allocation, global WAN limit, and per-stream allocated bitrates.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get Bandwidth Usage",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_remote_policy",
+    "description": "Update remote access policies: enforce LAN/Tailnet-only admin access, toggle Tailscale identity authentication, or configure global WAN upload limits (Mbps). Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "adminLanOnly": {
+          "description": "Restrict admin API endpoints to LAN/Tailnet callers only",
+          "type": "boolean"
+        },
+        "dryRun": {
+          "description": "If true, simulates update without saving policy changes",
+          "type": "boolean"
+        },
+        "tailscaleAuthEnabled": {
+          "description": "Allow one-click login from Tailscale authenticated identities",
+          "type": "boolean"
+        },
+        "wanUploadLimitMbps": {
+          "description": "Global WAN streaming upload cap in Mbps (0 for unlimited)",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Update Remote Policy",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_settings",
+    "description": "Get current server settings: active paths, logging configuration, transcode concurrency limits, and remote access policies.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get Server Settings",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_settings",
+    "description": "Update server settings via a typed configuration patch. Note: MCP security settings (e.g. mcp.allow_wan) are strictly immutable over MCP. Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "adminLanOnly": {
+          "description": "Whether admin endpoints are restricted to LAN/Tailnet only",
+          "type": "boolean"
+        },
+        "dryRun": {
+          "description": "If true, simulates settings update without applying changes",
+          "type": "boolean"
+        },
+        "logLevel": {
+          "description": "Global log level filter: 'trace', 'debug', 'info', 'warn', 'error'",
+          "type": "string"
+        },
+        "mcp": {
+          "description": "Attempting to modify MCP security settings is rejected",
+          "type": "object"
+        },
+        "transcodeMaxSessions": {
+          "description": "Maximum concurrent hardware/software video transcoding sessions",
+          "type": "integer"
+        },
+        "wanUploadLimitMbps": {
+          "description": "Global WAN upload cap in Mbps",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Update Settings",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_backup",
+    "description": "Create an atomic backup of the server's SQLite database in the backups directory. Supports dry_run preview.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "dryRun": {
+          "description": "If true, simulates backup creation and returns planned filename and destination",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create Database Backup",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_backups",
+    "description": "List all existing database backup files with their size and creation timestamps.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List Database Backups",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "restart_server",
+    "description": "Gracefully restart the MBL server process. DESTRUCTIVE: Requires confirm: true.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "description": "Must be set to true to execute server restart",
+          "type": "boolean"
+        },
+        "dryRun": {
+          "description": "If true, simulates restart without stopping the process",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Restart Server",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
   }
 ]

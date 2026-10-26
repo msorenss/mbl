@@ -53,6 +53,10 @@ impl WatchService {
         if !actor.can_access_library(library_id) {
             return Err(Error::NotFound);
         }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
+            return Err(Error::NotFound);
+        }
         watch::set_watched_batch(&self.db, actor.user_id, &ids, now_ms()).await?;
         self.events.publish(Event::ItemUpdated { item_id });
         Ok(())
@@ -63,6 +67,10 @@ impl WatchService {
         let (library_id, ids) =
             watch::cascade_item_ids(&self.db, item_id).await?.ok_or(Error::NotFound)?;
         if !actor.can_access_library(library_id) {
+            return Err(Error::NotFound);
+        }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
             return Err(Error::NotFound);
         }
         watch::set_unwatched_batch(&self.db, actor.user_id, &ids).await?;
@@ -81,6 +89,10 @@ impl WatchService {
         duration_ms: u64,
         increment_count: bool,
     ) -> Result<bool> {
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
+            return Err(Error::NotFound);
+        }
         let now = now_ms();
         if is_watched_threshold(position_ms, duration_ms) {
             watch::complete_playback(&self.db, actor.user_id, item_id, increment_count, now)

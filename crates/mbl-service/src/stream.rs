@@ -106,6 +106,10 @@ impl StreamService {
         if !actor.can_access_library(part.library_id) {
             return Err(Error::NotFound);
         }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, part.item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
+            return Err(Error::NotFound);
+        }
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let path = verify_under_library_roots(&part.path, &lib.paths)?;
         Ok(ResolvedPart {
@@ -129,6 +133,10 @@ impl StreamService {
     ) -> Result<PathBuf> {
         let part = media::part_for_stream(&self.db, part_id).await?.ok_or(Error::NotFound)?;
         if !actor.can_access_library(part.library_id) {
+            return Err(Error::NotFound);
+        }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, part.item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
             return Err(Error::NotFound);
         }
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;

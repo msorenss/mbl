@@ -1,10 +1,13 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use mbl_core::UserId;
+use mbl_db::repo::m6::UserSecurityInfo;
 use mbl_db::repo::users::{HomeLayoutRequest, UpdateUserPreferences, UserPreferences};
-use mbl_service::{CreateUser, UpdateUser};
+use mbl_service::{
+    CreateUser, SetPinRequest, UpdateUser, UpdateUserPermissionsRequest, VerifyPinRequest,
+};
 
 use crate::dto::{CreateUserRequest, UpdateUserRequest, UserDto, UserProfileDto};
 use crate::extract::{AdminUser, AuthUser};
@@ -17,6 +20,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/users/me/preferences", get(get_preferences).patch(update_preferences))
         .route("/api/v1/users/me/home-layout", put(update_home_layout))
         .route("/api/v1/users/{id}", get(get_one).patch(update).delete(remove))
+        .route("/api/v1/users/{id}/permissions", get(get_permissions).put(update_permissions))
+        .route("/api/v1/users/{id}/pin", post(set_pin))
+        .route("/api/v1/users/{id}/pin/verify", post(verify_pin))
 }
 
 /// All users (admin).
@@ -44,6 +50,9 @@ async fn create(
         password: req.password,
         display_name: req.display_name,
         is_admin: req.is_admin,
+        is_managed: req.is_managed,
+        content_rating_ceiling: req.content_rating_ceiling,
+        library_ids: req.library_ids,
     };
     let user = state.services.users.create(&auth.actor, input).await?;
     Ok((StatusCode::CREATED, Json(user.into())))
@@ -136,4 +145,59 @@ async fn update_home_layout(
     Json(req): Json<HomeLayoutRequest>,
 ) -> Result<Json<UserPreferences>, ApiError> {
     Ok(Json(state.services.users.update_home_layout(&auth.actor, req).await?))
+}
+
+/// User permissions (managed status, content rating ceiling, library access).
+#[utoipa::path(get, path = "/api/v1/users/{id}/permissions", tag = "users", operation_id = "get_user_permissions",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = UserSecurityInfo), (status = 403), (status = 404)))]
+pub(crate) async fn get_permissions(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<UserId>,
+) -> Result<Json<UserSecurityInfo>, ApiError> {
+    Ok(Json(state.services.users.get_security_info(&auth.actor, id).await?))
+}
+
+/// Update user permissions (admin only).
+#[utoipa::path(put, path = "/api/v1/users/{id}/permissions", tag = "users", operation_id = "update_user_permissions",
+    params(("id" = i64, Path)),
+    request_body = UpdateUserPermissionsRequest,
+    responses((status = 200, body = UserSecurityInfo), (status = 403), (status = 404)))]
+pub(crate) async fn update_permissions(
+    State(state): State<AppState>,
+    AdminUser(auth): AdminUser,
+    Path(id): Path<UserId>,
+    Json(req): Json<UpdateUserPermissionsRequest>,
+) -> Result<Json<UserSecurityInfo>, ApiError> {
+    Ok(Json(state.services.users.update_permissions(&auth.actor, id, req).await?))
+}
+
+/// Set or remove a numeric PIN for a profile (admin or self).
+#[utoipa::path(post, path = "/api/v1/users/{id}/pin", tag = "users", operation_id = "set_user_pin",
+    params(("id" = i64, Path)),
+    request_body = SetPinRequest,
+    responses((status = 204), (status = 403), (status = 404)))]
+pub(crate) async fn set_pin(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<UserId>,
+    Json(req): Json<SetPinRequest>,
+) -> Result<StatusCode, ApiError> {
+    state.services.users.set_pin(&auth.actor, id, req.pin).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Verify numeric PIN for a profile.
+#[utoipa::path(post, path = "/api/v1/users/{id}/pin/verify", tag = "users", operation_id = "verify_user_pin",
+    params(("id" = i64, Path)),
+    request_body = VerifyPinRequest,
+    responses((status = 200, body = bool), (status = 401), (status = 404)))]
+pub(crate) async fn verify_pin(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<UserId>,
+    Json(req): Json<VerifyPinRequest>,
+) -> Result<Json<bool>, ApiError> {
+    Ok(Json(state.services.users.verify_pin(&auth.actor, id, &req.pin).await?))
 }

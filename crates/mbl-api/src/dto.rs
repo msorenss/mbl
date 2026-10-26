@@ -84,6 +84,8 @@ pub struct LoginRequest {
     pub password: String,
     pub device_name: Option<String>,
     pub client_name: Option<String>,
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -94,6 +96,12 @@ pub struct CreateUserRequest {
     pub display_name: Option<String>,
     #[serde(default)]
     pub is_admin: bool,
+    #[serde(default)]
+    pub is_managed: bool,
+    #[serde(default)]
+    pub content_rating_ceiling: Option<String>,
+    #[serde(default)]
+    pub library_ids: Option<Vec<mbl_core::LibraryId>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]

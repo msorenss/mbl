@@ -21,8 +21,9 @@ pub use sanitize::{
     MAX_SUMMARY_LEN, MAX_TITLE_LEN, is_bidi_control, sanitize_text, untrusted, untrusted_title,
 };
 pub use server::{
-    AGENT_INSTRUCTIONS, CallToolResult, ContentBlock, InitializeResult, JsonRpcError,
-    JsonRpcRequest, JsonRpcResponse, ListToolsResult, MblMcp, MutationOpts, PROTOCOL_VERSION,
+    AGENT_INSTRUCTIONS, CallToolResult, ContentBlock, GetPromptResult, InitializeResult,
+    JsonRpcError, JsonRpcRequest, JsonRpcResponse, ListToolsResult, MblMcp, MutationOpts,
+    PROTOCOL_VERSION, PromptArgument, PromptDefinition, PromptMessage, PromptsCapability,
     RegisteredTool, ResourceContents, ResourceDefinition, ResourceTemplateDefinition,
     ServerCapabilities, ServerHandler, ServerIdentification, ToolAnnotations, ToolDefinition,
 };

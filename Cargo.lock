@@ -1687,8 +1687,10 @@ name = "mbl-api"
 version = "0.4.0"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "governor",
  "mbl-analysis",
+ "mbl-auth",
  "mbl-core",
  "mbl-db",
  "mbl-hailo",
@@ -1696,10 +1698,12 @@ dependencies = [
  "mbl-images",
  "mbl-jobs",
  "mbl-platform",
+ "mbl-remote",
  "mbl-service",
  "mbl-stream",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "sqlx",
  "tokio",
  "tower-http 0.7.1",
@@ -1714,9 +1718,11 @@ dependencies = [
  "argon2",
  "base64 0.23.1",
  "getrandom 0.4.3",
+ "hmac",
  "mbl-core",
  "serde",
  "serde_json",
+ "sha1 0.11.0",
  "sha2 0.11.1",
  "utoipa",
 ]
@@ -1852,6 +1858,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "sqlx",
  "tempfile",
  "thiserror",
  "time",
@@ -1935,6 +1942,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mbl-remote"
+version = "0.4.0"
+dependencies = [
+ "async-trait",
+ "mbl-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "mbl-scanner"
 version = "0.4.0"
 dependencies = [
@@ -1964,6 +1985,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "base64 0.23.1",
  "camino",
  "clap",
  "dunce",
@@ -1972,6 +1994,7 @@ dependencies = [
  "http-body-util",
  "image",
  "mbl-api",
+ "mbl-auth",
  "mbl-core",
  "mbl-db",
  "mbl-images",
@@ -1988,6 +2011,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "sqlx",
  "tempfile",
  "tokio",
@@ -2019,6 +2043,7 @@ dependencies = [
  "mbl-platform",
  "mbl-playback",
  "mbl-probe",
+ "mbl-remote",
  "mbl-stream",
  "mbl-transcode",
  "serde",

@@ -1,0 +1,16 @@
+# Windows Package Manager (winget) manifest for MBL Media Server (M6.13)
+PackageIdentifier: MBL.MediaServer
+PackageVersion: 0.5.0
+PackageName: MBL Media Server
+Publisher: MBL Contributors
+License: AGPL-3.0-or-later
+ShortDescription: High-performance, lightweight personal media server for home labs and Raspberry Pi
+PackageUrl: https://github.com/msorenss/mbl
+Installers:
+  - Architecture: x64
+    InstallerType: wix
+    InstallerUrl: https://github.com/msorenss/mbl/releases/download/v0.5.0/mbl-0.5.0-windows-x64.msi
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    Scope: machine
+ManifestType: singleton
+ManifestVersion: 1.6.0

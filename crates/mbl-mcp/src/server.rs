@@ -56,9 +56,51 @@ pub struct ResourcesCapability {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct PromptsCapability {
+    pub list_changed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerCapabilities {
     pub tools: ToolsCapability,
     pub resources: ResourcesCapability,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompts: Option<PromptsCapability>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptArgument {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptDefinition {
+    pub name: String,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<Vec<PromptArgument>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptMessage {
+    pub role: String,
+    pub content: ContentBlock,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPromptResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub messages: Vec<PromptMessage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -110,7 +152,7 @@ pub struct ListToolsResult {
     pub next_cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentBlock {
     #[serde(rename = "type")]
@@ -279,6 +321,7 @@ pub trait ServerHandler: Send + Sync {
         ServerCapabilities {
             tools: ToolsCapability { list_changed: false },
             resources: ResourcesCapability { subscribe: false, list_changed: false },
+            prompts: Some(PromptsCapability { list_changed: false }),
         }
     }
 
@@ -381,6 +424,41 @@ impl MblMcp {
                         Some(JsonRpcResponse::ok(id, json!({ "contents": [contents] })))
                     }
                     Err(err) => Some(JsonRpcResponse::err(id, err)),
+                }
+            }
+            "prompts/list" => {
+                let prompts = vec![PromptDefinition {
+                    name: "setup_remote_access".into(),
+                    description: "Guided walkthrough to diagnose external reachability (CGNAT, public IP) and configure Tailscale or direct port forwarding.".into(),
+                    arguments: None,
+                }];
+                Some(JsonRpcResponse::ok(id, json!({ "prompts": prompts })))
+            }
+            "prompts/get" => {
+                let Some(name) =
+                    req.params.as_ref().and_then(|p| p.get("name")).and_then(Value::as_str)
+                else {
+                    return Some(JsonRpcResponse::err(
+                        id,
+                        JsonRpcError::invalid_params("missing prompt 'name'"),
+                    ));
+                };
+                if name == "setup_remote_access" {
+                    let res = GetPromptResult {
+                        description: Some("Step-by-step remote access setup instructions".into()),
+                        messages: vec![PromptMessage {
+                            role: "user".into(),
+                            content: ContentBlock::text(
+                                "Help me set up remote access for MBL. Start by running the 'run_reachability_test' tool to determine if I am behind CGNAT, check 'get_remote_access_status', and advise whether Tailscale or direct port forwarding with ACME TLS is recommended.",
+                            ),
+                        }],
+                    };
+                    Some(JsonRpcResponse::ok(id, res))
+                } else {
+                    Some(JsonRpcResponse::err(
+                        id,
+                        JsonRpcError::invalid_params(format!("unknown prompt: {name}")),
+                    ))
                 }
             }
             other => Some(JsonRpcResponse::err(id, JsonRpcError::method_not_found(other))),

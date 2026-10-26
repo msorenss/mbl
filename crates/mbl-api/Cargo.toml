@@ -9,8 +9,10 @@ publish.workspace = true
 
 [dependencies]
 axum = { workspace = true, features = ["ws"] }
+base64.workspace = true
 governor.workspace = true
 mbl-analysis.workspace = true
+mbl-auth.workspace = true
 mbl-core.workspace = true
 mbl-db.workspace = true
 mbl-hailo.workspace = true
@@ -18,10 +20,12 @@ mbl-hwaccel.workspace = true
 mbl-images.workspace = true
 mbl-jobs.workspace = true
 mbl-platform.workspace = true
+mbl-remote.workspace = true
 mbl-service.workspace = true
 mbl-stream.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 tower-http.workspace = true

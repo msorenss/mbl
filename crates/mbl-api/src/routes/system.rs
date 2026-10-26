@@ -38,11 +38,7 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, ApiError>
 #[utoipa::path(get, path = "/api/v1/system/health", tag = "system", security(),
     responses((status = 200, body = mbl_service::SystemHealthReport)))]
 async fn system_health(State(state): State<AppState>) -> Json<mbl_service::SystemHealthReport> {
-    let admin_actor = mbl_core::Actor {
-        user_id: mbl_core::UserId(0),
-        is_admin: true,
-        library_access: mbl_core::LibraryAccess::All,
-    };
+    let admin_actor = mbl_core::Actor::admin(mbl_core::UserId(0));
     let active = state.services.playback.list_active(&admin_actor).len();
     Json(state.services.intelligence.system_health(active))
 }

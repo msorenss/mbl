@@ -224,6 +224,8 @@ async fn direct_play_auth_cookie_query_token_and_acl() {
         user_id: alice_user.actor.user_id,
         is_admin: false,
         library_access: mbl_core::LibraryAccess::Only(vec![]),
+        is_managed: false,
+        content_rating_ceiling: None,
     };
     let denied = services.stream.resolve_part(&restricted_actor, PartId(seeded.part_id)).await;
     assert!(matches!(denied, Err(mbl_core::Error::NotFound)));
@@ -232,6 +234,8 @@ async fn direct_play_auth_cookie_query_token_and_acl() {
         user_id: alice_user.actor.user_id,
         is_admin: false,
         library_access: mbl_core::LibraryAccess::Only(vec![mbl_core::LibraryId(seeded.lib_id)]),
+        is_managed: false,
+        content_rating_ceiling: None,
     };
     let resolved =
         services.stream.resolve_part(&granted_actor, PartId(seeded.part_id)).await.unwrap();

@@ -1,12 +1,17 @@
 use std::sync::Arc;
 
 use mbl_auth::tokens::{ScopeSet, new_api_token, validate_allowed_networks};
+use mbl_auth::totp::TotpSetup;
 use mbl_auth::{STREAM_TOKEN_TTL_MS, StreamTokenClaims};
-use mbl_core::{Actor, Error, LibraryAccess, PartId, Result, SessionId, UserId, time::now_ms};
+use mbl_core::{
+    Actor, Error, LibraryAccess, LibraryId, PartId, Result, SessionId, UserId, time::now_ms,
+};
 use mbl_db::Db;
+use mbl_db::repo::m6::{self, InviteRow, get_remote_setting};
 use mbl_db::repo::mcp::{self, ApiTokenInfo, NewApiToken};
 use mbl_db::repo::sessions::{NewSession, SessionInfo, SessionsRepo};
 use mbl_db::repo::users::{NewUser, User, UsersRepo};
+use mbl_remote::TailscaleAuthIdentity;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -34,6 +39,40 @@ pub struct LoginResult {
 pub struct Authenticated {
     pub actor: Actor,
     pub session_id: SessionId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+    #[serde(default)]
+    pub totp_code: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateInviteRequest {
+    #[serde(default)]
+    pub library_ids: Vec<LibraryId>,
+    #[serde(default)]
+    pub content_rating_ceiling: Option<String>,
+    /// Lifetime in hours (default 72 hours).
+    #[serde(default = "default_invite_ttl")]
+    pub ttl_hours: u32,
+}
+
+fn default_invite_ttl() -> u32 {
+    72
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterInviteRequest {
+    pub code: String,
+    pub username: String,
+    pub password: String,
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -126,16 +165,53 @@ impl AuthService {
         password: &str,
         device: &DeviceInfo,
     ) -> Result<LoginResult> {
+        self.login_with_options(username, password, None, device, false).await
+    }
+
+    pub async fn login_with_options(
+        &self,
+        username: &str,
+        password: &str,
+        totp_code: Option<&str>,
+        device: &DeviceInfo,
+        is_wan: bool,
+    ) -> Result<LoginResult> {
         let creds = self.users.get_credentials(username.trim()).await?;
         let hash =
             creds.as_ref().map_or_else(|| mbl_auth::dummy_hash().to_owned(), |(_, h)| h.clone());
         let password = password.to_owned();
         let ok = blocking(move || Ok(mbl_auth::verify_password(&password, &hash))).await?;
 
-        match creds {
-            Some((user, _)) if ok => self.start_session(user, device).await,
-            _ => Err(Error::Unauthorized),
+        let Some((user, _)) = creds else {
+            return Err(Error::Unauthorized);
+        };
+        if !ok {
+            return Err(Error::Unauthorized);
         }
+
+        // Check TOTP 2FA
+        let totp_info = m6::get_user_totp(&self.db, user.id).await?;
+        let (totp_secret, totp_enabled) = totp_info.unwrap_or((None, false));
+
+        // M6.3: Admins on WAN connections require TOTP 2FA
+        if user.is_admin && is_wan && !totp_enabled {
+            return Err(Error::Forbidden);
+        }
+
+        if totp_enabled {
+            let Some(secret) = totp_secret else {
+                return Err(Error::Internal("TOTP enabled but secret missing".into()));
+            };
+            let Some(candidate_code) = totp_code else {
+                return Err(Error::Unauthorized);
+            };
+            let now_secs = (now_ms() / 1000) as u64;
+            if !mbl_auth::totp::verify_code(&secret, candidate_code, now_secs) {
+                return Err(Error::Unauthorized);
+            }
+        }
+
+        self.start_session(user, device).await
     }
 
     /// Issue a new session token for an already-authenticated user (used by Quick-Connect in M5.8).
@@ -178,11 +254,15 @@ impl AuthService {
         if now - session.last_seen_at >= TOUCH_INTERVAL_MS {
             self.sessions.touch(session.id, now, now + SESSION_TTL_MS).await?;
         }
+        let (library_access, is_managed, content_rating_ceiling) =
+            self.resolve_actor_permissions(session.user_id, session.is_admin).await?;
         Ok(Authenticated {
             actor: Actor {
                 user_id: session.user_id,
                 is_admin: session.is_admin,
-                library_access: LibraryAccess::All,
+                library_access,
+                is_managed,
+                content_rating_ceiling,
             },
             session_id: session.id,
         })
@@ -305,13 +385,17 @@ impl AuthService {
         if row.last_used_at.is_none_or(|last| now - last >= 60_000) {
             let _ = mcp::touch_token(&self.db, row.id, now).await;
         }
+        let (library_access, is_managed, content_rating_ceiling) =
+            self.resolve_actor_permissions(row.user_id, row.is_admin).await?;
         Ok(Some(AuthenticatedApiToken {
             token_id: row.id,
             token_name: row.name,
             actor: Actor {
                 user_id: row.user_id,
                 is_admin: row.is_admin,
-                library_access: LibraryAccess::All,
+                library_access,
+                is_managed,
+                content_rating_ceiling,
             },
             scopes,
         }))
@@ -339,6 +423,203 @@ impl AuthService {
     pub async fn authenticate_stream_token(&self, token: &str, part_id: PartId) -> Result<Actor> {
         let claims = mbl_auth::verify_stream_token(&self.stream_secret, token, part_id, now_ms())?;
         let user = self.users.get(claims.user_id).await?.ok_or(Error::Unauthorized)?;
-        Ok(Actor { user_id: user.id, is_admin: user.is_admin, library_access: LibraryAccess::All })
+        let (library_access, is_managed, content_rating_ceiling) =
+            self.resolve_actor_permissions(user.id, user.is_admin).await?;
+        Ok(Actor {
+            user_id: user.id,
+            is_admin: user.is_admin,
+            library_access,
+            is_managed,
+            content_rating_ceiling,
+        })
+    }
+
+    pub async fn resolve_actor_permissions(
+        &self,
+        user_id: UserId,
+        is_admin: bool,
+    ) -> Result<(LibraryAccess, bool, Option<String>)> {
+        if is_admin {
+            return Ok((LibraryAccess::All, false, None));
+        }
+        let info = mbl_db::repo::m6::get_user_security_info(&self.db, user_id).await?;
+        if let Some(sec) = info {
+            let libs = if sec.library_ids.is_empty() && !sec.is_managed {
+                LibraryAccess::All
+            } else {
+                LibraryAccess::Only(sec.library_ids)
+            };
+            Ok((libs, sec.is_managed, sec.content_rating_ceiling))
+        } else {
+            Ok((LibraryAccess::All, false, None))
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Invites (M6.2)
+    // -------------------------------------------------------------------------
+
+    pub async fn create_invite(
+        &self,
+        actor: &Actor,
+        req: CreateInviteRequest,
+    ) -> Result<InviteRow> {
+        actor.require_admin()?;
+        let random_token = mbl_auth::new_token()?;
+        let code = format!("mbl_inv_{}", &random_token.value[..16]);
+        let ttl_ms = i64::from(req.ttl_hours.clamp(1, 720)) * 3600 * 1000;
+        let expires_at = now_ms().saturating_add(ttl_ms);
+
+        let row = m6::create_invite(
+            &self.db,
+            &code,
+            actor.user_id,
+            &req.library_ids,
+            req.content_rating_ceiling.as_deref(),
+            expires_at,
+        )
+        .await?;
+        tracing::info!(code = %row.code, by = %actor.user_id, "share invite created");
+        Ok(row)
+    }
+
+    pub async fn list_invites(&self, actor: &Actor) -> Result<Vec<InviteRow>> {
+        actor.require_admin()?;
+        m6::list_invites(&self.db).await
+    }
+
+    pub async fn delete_invite(&self, actor: &Actor, id: i64) -> Result<()> {
+        actor.require_admin()?;
+        if m6::delete_invite(&self.db, id).await? { Ok(()) } else { Err(Error::NotFound) }
+    }
+
+    pub async fn inspect_invite(&self, code: &str) -> Result<InviteRow> {
+        let invite = m6::get_invite_by_code(&self.db, code).await?.ok_or(Error::NotFound)?;
+        if invite.used_at.is_some() || invite.expires_at <= now_ms() {
+            return Err(Error::NotFound);
+        }
+        Ok(invite)
+    }
+
+    pub async fn register_invite(
+        &self,
+        req: RegisterInviteRequest,
+        device: &DeviceInfo,
+    ) -> Result<LoginResult> {
+        let invite = m6::get_invite_by_code(&self.db, &req.code)
+            .await?
+            .ok_or_else(|| Error::Validation("invalid or expired invite code".into()))?;
+
+        let now = now_ms();
+        if invite.used_at.is_some() || invite.expires_at <= now {
+            return Err(Error::Validation("invite code has already been used or expired".into()));
+        }
+
+        let username = validate::username(&req.username)?;
+        validate::password(&req.password)?;
+        let display_name = validate::display_name(req.display_name.as_deref(), &username)?;
+
+        let password = req.password;
+        let hash = blocking(move || mbl_auth::hash_password(&password)).await?;
+        let new_user = NewUser {
+            username: &username,
+            display_name: &display_name,
+            password_hash: &hash,
+            is_admin: false,
+        };
+
+        let user_id = self.users.insert(&new_user, now).await?;
+
+        // Assign libraries and content rating ceiling from invite
+        m6::update_user_permissions(
+            &self.db,
+            user_id,
+            Some(false),
+            Some(invite.content_rating_ceiling),
+            Some(invite.library_ids),
+        )
+        .await?;
+
+        // Mark invite consumed
+        m6::mark_invite_used(&self.db, &req.code, user_id, now).await?;
+
+        let user = self.users.get(user_id).await?.ok_or(Error::NotFound)?;
+        tracing::info!(user_id = %user_id, code = %req.code, "registered new user via invite");
+        self.start_session(user, device).await
+    }
+
+    // -------------------------------------------------------------------------
+    // TOTP 2FA (M6.3)
+    // -------------------------------------------------------------------------
+
+    pub async fn totp_setup(&self, actor: &Actor) -> Result<TotpSetup> {
+        let secret = mbl_auth::totp::generate_secret()?;
+        let user = self.users.get(actor.user_id).await?.ok_or(Error::NotFound)?;
+        m6::set_user_totp(&self.db, actor.user_id, Some(&secret), false).await?;
+
+        let uri = mbl_auth::totp::otpauth_uri(&secret, &user.username, "MBL");
+        Ok(TotpSetup { secret, uri })
+    }
+
+    pub async fn totp_verify(&self, actor: &Actor, code: &str) -> Result<bool> {
+        let totp = m6::get_user_totp(&self.db, actor.user_id).await?.ok_or(Error::NotFound)?;
+        let (Some(secret), _) = totp else {
+            return Err(Error::Validation("no pending TOTP setup for user".into()));
+        };
+
+        let now_secs = (now_ms() / 1000) as u64;
+        if mbl_auth::totp::verify_code(&secret, code, now_secs) {
+            m6::set_user_totp(&self.db, actor.user_id, Some(&secret), true).await?;
+            tracing::info!(user_id = %actor.user_id, "TOTP 2FA successfully enabled");
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn totp_disable(&self, actor: &Actor) -> Result<()> {
+        m6::set_user_totp(&self.db, actor.user_id, None, false).await?;
+        tracing::info!(user_id = %actor.user_id, "TOTP 2FA disabled");
+        Ok(())
+    }
+
+    // -------------------------------------------------------------------------
+    // Tailscale Identity Login (M6.7)
+    // -------------------------------------------------------------------------
+
+    pub async fn login_tailscale(
+        &self,
+        identity: TailscaleAuthIdentity,
+        device: &DeviceInfo,
+    ) -> Result<LoginResult> {
+        let enabled = get_remote_setting(&self.db, "tailscale_auth_enabled")
+            .await?
+            .map(|s| s == "true" || s == "1")
+            .unwrap_or(false);
+
+        if !enabled {
+            return Err(Error::Forbidden);
+        }
+
+        let username = identity.login_name.trim();
+        let user = match self.users.get_credentials(username).await? {
+            Some((u, _)) => u,
+            None => {
+                // Auto-provision a non-admin account for the verified Tailscale user
+                let dummy_pass = mbl_auth::new_token()?.value;
+                let hash = blocking(move || mbl_auth::hash_password(&dummy_pass)).await?;
+                let new_user = NewUser {
+                    username,
+                    display_name: &identity.display_name,
+                    password_hash: &hash,
+                    is_admin: false,
+                };
+                let id = self.users.insert(&new_user, now_ms()).await?;
+                self.users.get(id).await?.ok_or(Error::NotFound)?
+            }
+        };
+
+        tracing::info!(user_id = %user.id, tailscale_login = %username, "Tailscale identity login succeeded");
+        self.start_session(user, device).await
     }
 }

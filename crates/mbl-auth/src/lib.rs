@@ -3,6 +3,7 @@
 //! Storage and policy live in `mbl-db` and `mbl-service`.
 
 pub mod tokens;
+pub mod totp;
 
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use base64::Engine;
@@ -24,6 +25,20 @@ pub fn hash_password(password: &str) -> Result<String> {
 /// Constant-time verification against a PHC string. Any malformed hash counts as a mismatch.
 pub fn verify_password(password: &str, phc: &str) -> bool {
     Argon2::default().verify_password(password.as_bytes(), phc).is_ok()
+}
+
+/// Hash a 4-8 digit numeric PIN with Argon2id.
+pub fn hash_pin(pin: &str) -> Result<String> {
+    let trimmed = pin.trim();
+    if trimmed.len() < 4 || trimmed.len() > 8 || !trimmed.chars().all(|c| c.is_ascii_digit()) {
+        return Err(Error::Validation("PIN must be 4 to 8 digits".into()));
+    }
+    hash_password(trimmed)
+}
+
+/// Constant-time verification of a numeric PIN against an Argon2 hash.
+pub fn verify_pin(pin: &str, phc: &str) -> bool {
+    verify_password(pin.trim(), phc)
 }
 
 /// A valid hash of a random password, used to equalize timing for unknown usernames.

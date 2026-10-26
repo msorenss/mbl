@@ -7,7 +7,13 @@ use mbl_mcp::{Caller, MblMcp};
 
 fn dummy_caller(scopes: Vec<Scope>, is_admin: bool) -> Caller {
     Caller {
-        actor: Actor { user_id: UserId(1), is_admin, library_access: LibraryAccess::All },
+        actor: Actor {
+            user_id: UserId(1),
+            is_admin,
+            library_access: LibraryAccess::All,
+            is_managed: false,
+            content_rating_ceiling: None,
+        },
         scopes: ScopeSet::new(scopes),
         client: "test".into(),
         token_id: Some(1),
@@ -51,7 +57,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // All tools = 27 (21 read + 2 library + 2 playback + 2 admin: run_hw_selftest, create_optimized_versions)
-    assert_eq!(tools.len(), 27);
+    // All tools = 42 (21 read + 2 library + 2 playback + 2 hw/opt + 6 users + 4 remote + 5 settings/backup/maintenance)
+    assert_eq!(tools.len(), 42);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

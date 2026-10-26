@@ -42,12 +42,47 @@ impl FromRequestParts<AppState> for AuthUser {
     }
 }
 
+/// Request network classification (LAN, Tailnet, WAN).
+#[derive(Debug, Clone, Copy)]
+pub struct ClientNetwork(pub mbl_remote::NetworkClass);
+
+impl FromRequestParts<AppState> for ClientNetwork {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &AppState) -> Result<Self, ApiError> {
+        let peer_addr = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ci| ci.0)
+            .unwrap_or_else(|| SocketAddr::from(([127, 0, 0, 1], 0)));
+        let fwd_header = parts.headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
+        let client_ip = mbl_remote::resolve_client_ip(peer_addr, fwd_header, &[]);
+
+        Ok(Self(mbl_remote::classify_ip(client_ip)))
+    }
+}
+
 impl FromRequestParts<AppState> for AdminUser {
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
         let AuthUser(auth) = AuthUser::from_request_parts(parts, state).await?;
         auth.actor.require_admin()?;
+
+        // M6.12: Admin endpoints LAN/tailnet-only by default
+        let ClientNetwork(net) = ClientNetwork::from_request_parts(parts, state).await?;
+        if net.is_wan() {
+            let admin_lan_only = mbl_db::repo::m6::get_remote_setting(&state.db, "admin_lan_only")
+                .await
+                .ok()
+                .flatten()
+                .map(|s| s == "true" || s == "1")
+                .unwrap_or(true);
+            if admin_lan_only {
+                return Err(Error::Forbidden.into());
+            }
+        }
+
         Ok(Self(auth))
     }
 }

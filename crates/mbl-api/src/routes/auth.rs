@@ -1,15 +1,20 @@
-use axum::extract::{Path, Query, State};
+use std::net::SocketAddr;
+
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::header::{HeaderMap, SET_COOKIE};
 use axum::http::{Extensions, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use mbl_auth::totp::TotpSetup;
 use mbl_core::SessionId;
 use mbl_db::repo::mcp::ApiTokenInfo;
-use mbl_service::{CreateApiTokenRequest, CreatedApiToken, LoginResult};
+use mbl_service::{
+    CreateApiTokenRequest, CreatedApiToken, LoginResult, RegisterInviteRequest, VerifyPinRequest,
+};
 
 use crate::dto::{LoginRequest, LoginResponse, SessionDto, UserDto};
-use crate::extract::{AuthUser, SESSION_COOKIE, client_ip, device_info};
+use crate::extract::{AuthUser, ClientNetwork, SESSION_COOKIE, client_ip, device_info};
 use crate::{ApiError, AppState};
 
 const COOKIE_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
@@ -23,21 +28,37 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/auth/sessions/{id}", delete(revoke_session))
         .route("/api/v1/auth/tokens", post(create_token).get(list_tokens))
         .route("/api/v1/auth/tokens/{id}", delete(revoke_token))
+        .route("/api/v1/auth/totp/setup", post(totp_setup))
+        .route("/api/v1/auth/totp/verify", post(totp_verify))
+        .route("/api/v1/auth/totp/disable", post(totp_disable))
+        .route("/api/v1/auth/register-invite", post(register_invite))
+        .route("/api/v1/auth/tailscale", post(login_tailscale))
 }
 
 /// Log in; returns a bearer token and sets the session cookie.
 #[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth", security(),
     request_body = LoginRequest,
-    responses((status = 200, body = LoginResponse), (status = 401), (status = 429)))]
+    responses((status = 200, body = LoginResponse), (status = 401), (status = 403), (status = 429)))]
 async fn login(
     State(state): State<AppState>,
     extensions: Extensions,
+    ClientNetwork(net): ClientNetwork,
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, ApiError> {
     state.login_limiter.check(&client_ip(&extensions), &req.username)?;
     let device = device_info(&headers, req.device_name, req.client_name);
-    let result = state.services.auth.login(&req.username, &req.password, &device).await;
+    let result = state
+        .services
+        .auth
+        .login_with_options(
+            &req.username,
+            &req.password,
+            req.totp_code.as_deref(),
+            &device,
+            net.is_wan(),
+        )
+        .await;
     if result.is_err() {
         tracing::warn!(username = %req.username, ip = %client_ip(&extensions), "failed login");
     }
@@ -156,4 +177,82 @@ async fn revoke_token(
 ) -> Result<StatusCode, ApiError> {
     state.services.auth.revoke_api_token(&auth.actor, id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Set up TOTP 2FA: generates new secret and otpauth URI.
+#[utoipa::path(post, path = "/api/v1/auth/totp/setup", tag = "auth",
+    responses((status = 200, body = TotpSetup), (status = 401)))]
+pub(crate) async fn totp_setup(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> Result<Json<TotpSetup>, ApiError> {
+    Ok(Json(state.services.auth.totp_setup(&auth.actor).await?))
+}
+
+/// Verify and enable TOTP 2FA.
+#[utoipa::path(post, path = "/api/v1/auth/totp/verify", tag = "auth",
+    request_body = VerifyPinRequest,
+    responses((status = 200, body = bool), (status = 400), (status = 401)))]
+pub(crate) async fn totp_verify(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Json(req): Json<VerifyPinRequest>,
+) -> Result<Json<bool>, ApiError> {
+    Ok(Json(state.services.auth.totp_verify(&auth.actor, &req.pin).await?))
+}
+
+/// Disable TOTP 2FA for current user.
+#[utoipa::path(post, path = "/api/v1/auth/totp/disable", tag = "auth",
+    responses((status = 204), (status = 401)))]
+pub(crate) async fn totp_disable(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> Result<StatusCode, ApiError> {
+    state.services.auth.totp_disable(&auth.actor).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Register a new account using an invite code.
+#[utoipa::path(post, path = "/api/v1/auth/register-invite", tag = "auth", security(),
+    request_body = RegisterInviteRequest,
+    responses((status = 201, body = LoginResponse), (status = 400)))]
+pub(crate) async fn register_invite(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterInviteRequest>,
+) -> Result<Response, ApiError> {
+    let device = device_info(&headers, None, None);
+    let result = state.services.auth.register_invite(req, &device).await?;
+    Ok(login_response(StatusCode::CREATED, result, state.secure_cookies))
+}
+
+/// Log in via Tailscale identity (opt-in, LAN/Tailnet/loopback only).
+#[utoipa::path(post, path = "/api/v1/auth/tailscale", tag = "auth", security(),
+    responses((status = 200, body = LoginResponse), (status = 401), (status = 403)))]
+pub(crate) async fn login_tailscale(
+    State(state): State<AppState>,
+    extensions: Extensions,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let peer_addr = extensions.get::<ConnectInfo<SocketAddr>>().map(|ci| ci.0);
+    let peer_ip =
+        peer_addr.map(|a| a.ip()).unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+
+    let header_login = headers.get("tailscale-user-login").and_then(|v| v.to_str().ok());
+    let header_name = headers.get("tailscale-user-name").and_then(|v| v.to_str().ok());
+
+    let identity = if let Some(login) = header_login {
+        // Strict loopback trust enforcement
+        mbl_remote::evaluate_tailscale_serve_headers(peer_ip, Some(login), header_name)?
+            .ok_or(mbl_core::Error::Unauthorized)?
+    } else {
+        // Direct peer connection over tailnet
+        mbl_remote::resolve_tailnet_peer_identity(state.services.remote.tailscale(), peer_ip)
+            .await?
+            .ok_or(mbl_core::Error::Unauthorized)?
+    };
+
+    let device = device_info(&headers, None, None);
+    let result = state.services.auth.login_tailscale(identity, &device).await?;
+    Ok(login_response(StatusCode::OK, result, state.secure_cookies))
 }

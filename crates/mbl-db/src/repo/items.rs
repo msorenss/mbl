@@ -20,6 +20,7 @@ pub const MAX_LIMIT: u32 = 200;
 pub struct ItemFilter {
     pub user_id: UserId,
     libraries: Option<Vec<LibraryId>>,
+    pub content_rating_ceiling: Option<String>,
 }
 
 impl ItemFilter {
@@ -28,11 +29,22 @@ impl ItemFilter {
             LibraryAccess::All => None,
             LibraryAccess::Only(ids) => Some(ids.clone()),
         };
-        Self { user_id: actor.user_id, libraries }
+        Self {
+            user_id: actor.user_id,
+            libraries,
+            content_rating_ceiling: actor.content_rating_ceiling.clone(),
+        }
     }
 
     pub fn allows(&self, library: LibraryId) -> bool {
         self.libraries.as_ref().is_none_or(|ids| ids.contains(&library))
+    }
+
+    pub fn allows_rating(&self, rating: Option<&str>) -> bool {
+        let Some(ceiling) = &self.content_rating_ceiling else {
+            return true;
+        };
+        mbl_core::actor::allows_content_rating(ceiling, rating)
     }
 
     fn push_acl(&self, qb: &mut QueryBuilder<Sqlite>) {
@@ -44,6 +56,26 @@ impl ItemFilter {
                 sep.push_bind(id.0);
             }
             qb.push(")");
+        }
+        if let Some(ceiling) = &self.content_rating_ceiling {
+            let max_lvl = mbl_core::actor::content_rating_level(ceiling);
+            if max_lvl == 0 {
+                qb.push(" AND i.content_rating IS NOT NULL AND i.content_rating != '' AND UPPER(REPLACE(REPLACE(REPLACE(i.content_rating, '-', ''), '_', ''), ' ', '')) IN ('G', 'TVY', 'TVG', 'U', 'ALL', 'EC')");
+            } else if max_lvl < 4 {
+                let mut disallowed = vec!["NC17", "X", "NR", "UNRATED", "AO"];
+                if max_lvl < 3 {
+                    disallowed.extend_from_slice(&["R", "TVMA", "15", "16", "18", "M"]);
+                }
+                if max_lvl < 2 {
+                    disallowed.extend_from_slice(&["PG13", "TV14", "12", "14", "T"]);
+                }
+                qb.push(" AND (i.content_rating IS NULL OR i.content_rating = '' OR UPPER(REPLACE(REPLACE(REPLACE(i.content_rating, '-', ''), '_', ''), ' ', '')) NOT IN (");
+                let mut sep = qb.separated(", ");
+                for d in disallowed {
+                    sep.push_bind(d);
+                }
+                qb.push("))");
+            }
         }
     }
 }
@@ -415,7 +447,7 @@ pub async fn detail(db: &Db, filter: &ItemFilter, id: ItemId) -> Result<Option<I
     else {
         return Ok(None);
     };
-    if !filter.allows(i.library_id) {
+    if !filter.allows(i.library_id) || !filter.allows_rating(i.content_rating.as_deref()) {
         return Ok(None);
     }
 

@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/.well-known/oauth-authorization-server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["oauth_authorization_server_metadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["oauth_protected_resource_metadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/benchmark": {
         parameters: {
             query?: never;
@@ -157,6 +189,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a new account using an invite code. */
+        post: operations["register_invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sessions": {
         parameters: {
             query?: never;
@@ -186,6 +235,23 @@ export interface paths {
         post?: never;
         /** Revoke one of the current user's sessions. */
         delete: operations["revoke_session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/tailscale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log in via Tailscale identity (opt-in, LAN/Tailnet/loopback only). */
+        post: operations["login_tailscale"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -221,6 +287,57 @@ export interface paths {
         post?: never;
         /** Revoke an API token. */
         delete: operations["revoke_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/totp/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable TOTP 2FA for current user. */
+        post: operations["totp_disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/totp/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set up TOTP 2FA: generates new secret and otpauth URI. */
+        post: operations["totp_setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/totp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify and enable TOTP 2FA. */
+        post: operations["totp_verify"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -323,6 +440,58 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all share invites (admin only). */
+        get: operations["list_invites"];
+        put?: never;
+        /** Create a new share invite (admin only). */
+        post: operations["create_invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invites/inspect/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect an invite before registration (public). */
+        get: operations["inspect_invite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke/delete an invite (admin only). */
+        delete: operations["delete_invite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -782,6 +951,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/bandwidth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect remote streaming bandwidth fair-share allocation (admin only). */
+        get: operations["get_bandwidth_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/browse": {
         parameters: {
             query?: never;
@@ -825,6 +1011,57 @@ export interface paths {
         };
         /** Server name, version and platform. */
         get: operations["info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/reachability-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run external reachability and CGNAT analysis (admin only). */
+        post: operations["test_reachability"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/remote-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update remote policies (admin LAN-only, Tailscale auth, WAN upload cap) (admin only). */
+        put: operations["update_remote_policy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/remote-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch remote access, Tailscale, and WAN policy status (admin only). */
+        get: operations["get_remote_status"];
         put?: never;
         post?: never;
         delete?: never;
@@ -940,6 +1177,58 @@ export interface paths {
         patch: operations["update_user"];
         trace?: never;
     };
+    "/api/v1/users/{id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** User permissions (managed status, content rating ceiling, library access). */
+        get: operations["get_user_permissions"];
+        /** Update user permissions (admin only). */
+        put: operations["update_user_permissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set or remove a numeric PIN for a profile (admin or self). */
+        post: operations["set_user_pin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/pin/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify numeric PIN for a profile. */
+        post: operations["verify_user_pin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -951,6 +1240,70 @@ export interface paths {
         get: operations["health"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["authorize"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revoke_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["token_endpoint"];
         delete?: never;
         options?: never;
         head?: never;
@@ -992,6 +1345,15 @@ export interface components {
             /** Format: int64 */
             width?: number | null;
         };
+        AuthorizeParams: {
+            client_id: string;
+            code_challenge: string;
+            code_challenge_method: string;
+            redirect_uri: string;
+            response_type: string;
+            scope?: string | null;
+            state?: string | null;
+        };
         /** @description Record of a runtime transcode backend failure tracked with a TTL (M4.9). */
         BadBackendFailure: {
             backend: string;
@@ -1002,12 +1364,28 @@ export interface components {
             failedAt: number;
             reason: string;
         };
+        BandwidthUsageResponse: {
+            activeWanSessions: number;
+            /** Format: int64 */
+            globalUploadLimitKbps: number;
+            /** Format: int64 */
+            perStreamFairShareKbps: number;
+        };
         CreateApiTokenRequest: {
             allowedNetworks?: string[] | null;
             /** Format: int64 */
             expiresAt?: number | null;
             name: string;
             scopes: string[];
+        };
+        CreateInviteRequest: {
+            contentRatingCeiling?: string | null;
+            libraryIds?: components["schemas"]["LibraryId"][];
+            /**
+             * Format: int32
+             * @description Lifetime in hours (default 72 hours).
+             */
+            ttlHours?: number;
         };
         CreateLibraryRequest: {
             kind: components["schemas"]["LibraryKind"];
@@ -1032,8 +1410,11 @@ export interface components {
             versionId?: components["schemas"]["VersionId"] | null;
         };
         CreateUserRequest: {
+            contentRatingCeiling?: string | null;
             displayName?: string | null;
             isAdmin?: boolean;
+            isManaged?: boolean;
+            libraryIds?: components["schemas"]["LibraryId"][] | null;
             password: string;
             username: string;
         };
@@ -1207,6 +1588,22 @@ export interface components {
         IndexScenesRequest: {
             scenes?: components["schemas"]["SceneHintInput"][];
         };
+        /** @description Invitation to register with pre-assigned permissions. */
+        InviteRow: {
+            code: string;
+            contentRatingCeiling?: string | null;
+            /** Format: int64 */
+            createdAt: number;
+            createdBy: components["schemas"]["UserId"];
+            /** Format: int64 */
+            expiresAt: number;
+            /** Format: int64 */
+            id: number;
+            libraryIds: components["schemas"]["LibraryId"][];
+            /** Format: int64 */
+            usedAt?: number | null;
+            usedBy?: components["schemas"]["UserId"] | null;
+        };
         ItemDetail: {
             /** Format: int64 */
             addedAt: number;
@@ -1291,6 +1688,7 @@ export interface components {
             clientName?: string | null;
             deviceName?: string | null;
             password: string;
+            totpCode?: string | null;
             username: string;
         };
         LoginResponse: {
@@ -1359,6 +1757,11 @@ export interface components {
         /** @enum {string} */
         MediaKind: "movie" | "show" | "season" | "episode" | "artist" | "album" | "track" | "photo" | "collection" | "extra";
         /**
+         * @description The network environment from which a request originated.
+         * @enum {string}
+         */
+        NetworkClass: "lan" | "tailnet" | "wan";
+        /**
          * @description Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).
          * @enum {string}
          */
@@ -1374,6 +1777,34 @@ export interface components {
             memoryTotalMib?: number | null;
             name: string;
             uuid?: string | null;
+        };
+        OAuthAuthorizationServerMetadata: {
+            authorization_endpoint: string;
+            code_challenge_methods_supported: string[];
+            grant_types_supported: string[];
+            issuer: string;
+            registration_endpoint: string;
+            response_types_supported: string[];
+            revocation_endpoint: string;
+            scopes_supported: string[];
+            token_endpoint: string;
+            token_endpoint_auth_methods_supported: string[];
+        };
+        /** @description Dynamic OAuth 2.1 registered client. */
+        OAuthClient: {
+            clientId: string;
+            clientName: string;
+            /** Format: int64 */
+            createdAt: number;
+            grantTypes: string[];
+            redirectUris: string[];
+            responseTypes: string[];
+            tokenEndpointAuth: string;
+        };
+        OAuthProtectedResourceMetadata: {
+            authorization_servers: string[];
+            resource: string;
+            scopes_supported: string[];
         };
         OptimizationEstimate: {
             /** Format: int64 */
@@ -1574,6 +2005,51 @@ export interface components {
             token?: string | null;
             userId?: components["schemas"]["UserId"] | null;
         };
+        /** @description Outcome of the CGNAT and external reachability inspection. */
+        ReachabilityReport: {
+            details: string;
+            detectedPublicIp?: string | null;
+            detectedWanIp?: string | null;
+            isCgnat: boolean;
+            isDirectReachable: boolean;
+            recommendation: components["schemas"]["RemoteRecommendation"];
+        };
+        ReachabilityTestRequest: {
+            publicIpOverride?: string | null;
+        };
+        RegisterClientRequest: {
+            client_name: string;
+            grant_types?: string[] | null;
+            redirect_uris: string[];
+            response_types?: string[] | null;
+        };
+        RegisterClientResponse: {
+            client_id: string;
+            client_name: string;
+            grant_types: string[];
+            redirect_uris: string[];
+            response_types: string[];
+            token_endpoint_auth_method: string;
+        };
+        RegisterInviteRequest: {
+            code: string;
+            displayName?: string | null;
+            password: string;
+            username: string;
+        };
+        /** @enum {string} */
+        RemoteRecommendation: "tailscale" | "portForwardWithTls" | "vpsRelay";
+        RemoteStatusResponse: {
+            activeWanSessions: number;
+            isAdminLanOnly: boolean;
+            isTailscaleAuthEnabled: boolean;
+            tailscale?: components["schemas"]["TailscaleStatus"] | null;
+            /** Format: int64 */
+            wanUploadLimitMbps: number;
+        };
+        RevokeForm: {
+            token: string;
+        };
         SceneEmbeddingRow: {
             backend: string;
             caption: string;
@@ -1632,6 +2108,10 @@ export interface components {
         };
         /** Format: int64 */
         SessionId: number;
+        SetPinRequest: {
+            /** @description 4-8 numeric digits, or null to remove PIN. */
+            pin?: string | null;
+        };
         SetupRequest: {
             clientName?: string | null;
             deviceName?: string | null;
@@ -1721,6 +2201,30 @@ export interface components {
             /** Format: int64 */
             totalMemoryBytes?: number | null;
         };
+        /** @description A peer on the tailnet and whether the connection is direct or relayed. */
+        TailscalePeer: {
+            curAddr?: string | null;
+            hostName: string;
+            isDirect: boolean;
+            os: string;
+            relay?: string | null;
+            tailnetIps: string[];
+        };
+        /** @description Current status of the Tailscale node on the host. */
+        TailscaleStatus: {
+            backendState: string;
+            magicDnsName?: string | null;
+            peers: components["schemas"]["TailscalePeer"][];
+            tailnetIps: string[];
+        };
+        /** @description Resolved identity of a tailnet caller from LocalAPI `whois`. */
+        TailscaleWhois: {
+            caps: string[];
+            displayName: string;
+            loginName: string;
+            nodeIps: string[];
+            nodeName: string;
+        };
         /** @description Snapshot of host thermal and power status. */
         ThermalStatus: {
             /** @description Currently thermally throttled (`bit 2` or `bit 3`). */
@@ -1747,6 +2251,29 @@ export interface components {
             underVoltageOccurred: boolean;
             /** @description Human-readable dashboard warnings for admins. */
             warnings: string[];
+        };
+        TokenForm: {
+            client_id?: string | null;
+            code?: string | null;
+            code_verifier?: string | null;
+            grant_type: string;
+            redirect_uri?: string | null;
+            refresh_token?: string | null;
+        };
+        TokenResponse: {
+            access_token: string;
+            /** Format: int64 */
+            expires_in: number;
+            refresh_token: string;
+            scope: string;
+            token_type: string;
+        };
+        /** @description Generated TOTP setup payload. */
+        TotpSetup: {
+            /** @description Base32-encoded secret string. */
+            secret: string;
+            /** @description `otpauth://` URI ready for QR code generation. */
+            uri: string;
         };
         /** @description Live transcode capacity summary derived from hardware profile, self-test FPS, and active sessions (M4.11). */
         TranscodeCapacity: {
@@ -1815,6 +2342,17 @@ export interface components {
         /** @description Request payload to update MCP status (e.g. kill-switch toggle). */
         UpdateMcpStatusRequest: {
             enabled: boolean;
+        };
+        UpdateRemotePolicyRequest: {
+            adminLanOnly?: boolean | null;
+            tailscaleAuthEnabled?: boolean | null;
+            /** Format: int64 */
+            wanUploadLimitMbps?: number | null;
+        };
+        UpdateUserPermissionsRequest: {
+            contentRatingCeiling?: string | null;
+            isManaged?: boolean | null;
+            libraryIds?: components["schemas"]["LibraryId"][] | null;
         };
         UpdateUserPreferences: {
             accent?: string | null;
@@ -1894,12 +2432,24 @@ export interface components {
             isAdmin: boolean;
             username: string;
         };
+        /** @description Security and access profile for a user. */
+        UserSecurityInfo: {
+            contentRatingCeiling?: string | null;
+            hasPin: boolean;
+            isManaged: boolean;
+            libraryIds: components["schemas"]["LibraryId"][];
+            totpEnabled: boolean;
+            userId: components["schemas"]["UserId"];
+        };
         /** @description Linux V4L2 video device (`/dev/video*`). */
         V4l2Device: {
             driver?: string | null;
             isM2m: boolean;
             name: string;
             path: string;
+        };
+        VerifyPinRequest: {
+            pin: string;
         };
         Version: {
             /** Format: int64 */
@@ -1937,6 +2487,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    oauth_authorization_server_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthAuthorizationServerMetadata"];
+                };
+            };
+        };
+    };
+    oauth_protected_resource_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthProtectedResourceMetadata"];
+                };
+            };
+        };
+    };
     hailo_benchmark: {
         parameters: {
             query?: never;
@@ -2046,6 +2634,12 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2186,6 +2780,35 @@ export interface operations {
             };
         };
     };
+    register_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterInviteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_sessions: {
         parameters: {
             query?: never;
@@ -2223,6 +2846,37 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    login_tailscale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2307,6 +2961,89 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    totp_disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    totp_setup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpSetup"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    totp_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyPinRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": boolean;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2459,6 +3196,118 @@ export interface operations {
                 };
             };
             304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_invites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteRow"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteRow"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    inspect_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteRow"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3571,6 +4420,31 @@ export interface operations {
             };
         };
     };
+    get_bandwidth_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BandwidthUsageResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     browse_directories: {
         parameters: {
             query?: {
@@ -3633,6 +4507,89 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ServerInfo"];
                 };
+            };
+        };
+    };
+    test_reachability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReachabilityTestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReachabilityReport"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_remote_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRemotePolicyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteStatusResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_remote_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteStatusResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -3959,6 +4916,148 @@ export interface operations {
             };
         };
     };
+    get_user_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSecurityInfo"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_user_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateUserPermissionsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSecurityInfo"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    set_user_pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPinRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    verify_user_pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyPinRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": boolean;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -3977,6 +5076,131 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    authorize: {
+        parameters: {
+            query: {
+                /** @description Registered client ID */
+                client_id: string;
+                /** @description Redirect URI matching client registration */
+                redirect_uri: string;
+                /** @description Must be 'code' */
+                response_type: string;
+                /** @description PKCE code challenge (BASE64URL(SHA256(verifier))) */
+                code_challenge: string;
+                /** @description Must be 'S256' */
+                code_challenge_method: string;
+                /** @description Requested space-separated scopes */
+                scope?: string;
+                /** @description Opaque client state */
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to client redirect_uri with code */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    register_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterClientRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterClientResponse"];
+                };
+            };
+        };
+    };
+    revoke_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["RevokeForm"];
+            };
+        };
+        responses: {
+            /** @description Token revoked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    token_endpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["TokenForm"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

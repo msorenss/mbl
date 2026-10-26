@@ -1,26 +1,58 @@
-use mbl_core::{Actor, Error, Result, UserId, time::now_ms};
+use mbl_core::{Actor, Error, LibraryId, Result, UserId, time::now_ms};
 use mbl_db::Db;
+use mbl_db::repo::m6::{self, UserSecurityInfo};
 use mbl_db::repo::sessions::SessionsRepo;
 use mbl_db::repo::users::{
     HomeLayoutRequest, NewUser, SubtitleStylePreferences, UpdateUserPreferences, User,
     UserPreferences, UsersRepo,
 };
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::{blocking, validate};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateUser {
     pub username: String,
     pub password: String,
     pub display_name: Option<String>,
     pub is_admin: bool,
+    #[serde(default)]
+    pub is_managed: bool,
+    #[serde(default)]
+    pub content_rating_ceiling: Option<String>,
+    #[serde(default)]
+    pub library_ids: Option<Vec<LibraryId>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateUser {
     pub display_name: Option<String>,
     pub password: Option<String>,
     pub is_admin: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateUserPermissionsRequest {
+    pub is_managed: Option<bool>,
+    pub content_rating_ceiling: Option<Option<String>>,
+    pub library_ids: Option<Vec<LibraryId>>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SetPinRequest {
+    /// 4-8 numeric digits, or null to remove PIN.
+    pub pin: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyPinRequest {
+    pub pin: String,
 }
 
 const VALID_THEMES: &[&str] = &["dark", "oled", "light", "high-contrast"];
@@ -32,13 +64,14 @@ const VALID_SUB_COLORS: &[&str] = &["white", "yellow", "cyan"];
 
 #[derive(Debug, Clone)]
 pub struct UserService {
+    db: Db,
     users: UsersRepo,
     sessions: SessionsRepo,
 }
 
 impl UserService {
     pub fn new(db: Db) -> Self {
-        Self { users: UsersRepo::new(db.clone()), sessions: SessionsRepo::new(db) }
+        Self { users: UsersRepo::new(db.clone()), sessions: SessionsRepo::new(db.clone()), db }
     }
 
     pub async fn list(&self, actor: &Actor) -> Result<Vec<User>> {
@@ -152,8 +185,79 @@ impl UserService {
                 now_ms(),
             )
             .await?;
+
+        if input.is_managed || input.content_rating_ceiling.is_some() || input.library_ids.is_some()
+        {
+            m6::update_user_permissions(
+                &self.db,
+                id,
+                Some(input.is_managed),
+                Some(input.content_rating_ceiling),
+                input.library_ids,
+            )
+            .await?;
+        }
+
         tracing::info!(user_id = %id, by = %actor.user_id, "user created");
         self.users.get(id).await?.ok_or(Error::NotFound)
+    }
+
+    /// Fetch security, managed user status, content rating ceiling, and library ACLs.
+    pub async fn get_security_info(&self, actor: &Actor, id: UserId) -> Result<UserSecurityInfo> {
+        if !actor.is_admin && actor.user_id != id {
+            return Err(Error::NotFound);
+        }
+        m6::get_user_security_info(&self.db, id).await?.ok_or(Error::NotFound)
+    }
+
+    /// Update managed status, content rating ceiling, or library ACLs (admin only).
+    pub async fn update_permissions(
+        &self,
+        actor: &Actor,
+        id: UserId,
+        req: UpdateUserPermissionsRequest,
+    ) -> Result<UserSecurityInfo> {
+        actor.require_admin()?;
+        self.users.get(id).await?.ok_or(Error::NotFound)?;
+
+        m6::update_user_permissions(
+            &self.db,
+            id,
+            req.is_managed,
+            req.content_rating_ceiling,
+            req.library_ids,
+        )
+        .await?;
+
+        self.get_security_info(actor, id).await
+    }
+
+    /// Set or clear a numeric PIN for a user profile (admin or self).
+    pub async fn set_pin(&self, actor: &Actor, id: UserId, pin: Option<String>) -> Result<()> {
+        if !actor.is_admin && actor.user_id != id {
+            return Err(Error::NotFound);
+        }
+        let pin_hash = match pin {
+            Some(ref p) if !p.trim().is_empty() => {
+                let p = p.clone();
+                Some(blocking(move || mbl_auth::hash_pin(&p)).await?)
+            }
+            _ => None,
+        };
+
+        m6::set_user_pin(&self.db, id, pin_hash.as_deref()).await?;
+        tracing::info!(user_id = %id, by = %actor.user_id, has_pin = pin_hash.is_some(), "user PIN updated");
+        Ok(())
+    }
+
+    /// Verify a candidate numeric PIN against the user's stored PIN hash.
+    pub async fn verify_pin(&self, _actor: &Actor, id: UserId, pin: &str) -> Result<bool> {
+        let hash = m6::get_user_pin_hash(&self.db, id).await?;
+        let Some(stored_hash) = hash else {
+            return Ok(true); // No PIN set
+        };
+        let pin = pin.to_string();
+        blocking(move || Ok(mbl_auth::verify_pin(&pin, &stored_hash))).await
     }
 
     /// Users may change their own display name and password; only admins may change roles.
