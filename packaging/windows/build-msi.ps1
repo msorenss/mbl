@@ -59,8 +59,14 @@ $msiOut = "$OutputDir\mbl-$Version-windows-x86_64.msi"
 
 Write-Host "Compiling $wxsPath to $wixObj..."
 candle.exe -ext WixFirewallExtension -dVersion="$Version" -out "$wixObj" "$wxsPath"
+if ($LASTEXITCODE -ne 0) {
+    throw "WiX compilation failed with exit code $LASTEXITCODE"
+}
 
 Write-Host "Linking $wixObj into $msiOut..."
 light.exe -ext WixFirewallExtension -sval "$wixObj" -out "$msiOut"
+if ($LASTEXITCODE -ne 0) {
+    throw "WiX linking failed with exit code $LASTEXITCODE"
+}
 
 Write-Host "Successfully generated MSI installer: $msiOut"

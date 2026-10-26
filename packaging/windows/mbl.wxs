@@ -82,4 +82,5 @@
         <File Id="mbl_tv_exe" Source="mbl-tv.exe" KeyPath="yes" />
       </Component>
     </ComponentGroup>
+  </Product>
   </Wix>
