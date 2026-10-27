@@ -1,6 +1,6 @@
 # PowerShell script to build MBL Media Server WiX MSI installer
 param(
-    [string]$Version = "0.8.0",
+    [string]$Version = "1.0.0",
     [string]$OutputDir = "staging",
     [string]$BinDir = "target\release"
 )
