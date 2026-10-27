@@ -138,7 +138,9 @@ impl BandwidthManager {
             self.active_wan_sessions.read().map(|m| m.len() as u64).unwrap_or(1).max(1);
 
         let total_cap = self.get_wan_limit();
-        let per_stream_share = (total_cap / active_count).max(MIN_WAN_STREAM_KBPS);
+        // Zero is the configured unlimited value. A quality floor must never raise
+        // allocations above an explicit administrator upload budget.
+        let per_stream_share = if total_cap == 0 { u64::MAX } else { total_cap / active_count };
 
         match requested_max {
             Some(req) => req.min(per_stream_share),
@@ -176,6 +178,17 @@ mod tests {
 
         mgr.unregister_session("sess-4");
         assert_eq!(mgr.active_session_count(), 3);
+    }
+
+    #[test]
+    fn low_caps_and_unlimited_are_respected() {
+        let mgr = BandwidthManager::new(1_000);
+        mgr.register_session("one");
+        mgr.register_session("two");
+        assert_eq!(mgr.calculate_wan_fair_share(None), 500);
+        mgr.set_wan_limit(0);
+        assert_eq!(mgr.calculate_wan_fair_share(Some(8_000)), 8_000);
+        assert_eq!(mgr.calculate_wan_fair_share(None), u64::MAX);
     }
 
     #[test]

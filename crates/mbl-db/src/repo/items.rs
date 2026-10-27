@@ -13,6 +13,27 @@ use utoipa::ToSchema;
 
 use crate::Db;
 
+/// Filter shared collection/playlist membership through the same ACL and rating policy as browse.
+pub async fn visible_ids(db: &Db, actor: &Actor, ids: &[ItemId]) -> Result<Vec<ItemId>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let filter = ItemFilter::for_user(actor);
+    // Bind in chunks to keep comfortably below SQLite's parameter limit.
+    let mut visible = std::collections::HashSet::new();
+    for chunk in ids.chunks(500) {
+        let mut qb = QueryBuilder::<Sqlite>::new("SELECT i.id FROM media_items i WHERE i.id IN (");
+        let mut values = qb.separated(", ");
+        for id in chunk {
+            values.push_bind(id.0);
+        }
+        qb.push(")");
+        filter.push_acl(&mut qb);
+        visible.extend(qb.build_query_scalar::<i64>().fetch_all(&db.read).await?);
+    }
+    Ok(ids.iter().copied().filter(|id| visible.contains(&id.0)).collect())
+}
+
 pub const MAX_LIMIT: u32 = 200;
 
 /// Which libraries an actor may read, plus whose watch state to join.

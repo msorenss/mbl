@@ -1,17 +1,15 @@
 import { useNavigate } from "@solidjs/router";
-import { createResource, createSignal, For } from "solid-js";
+import { createResource, For, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
-import { Button, Dialog, PinPad } from "../components/ui";
+import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
 type UserProfileDto = components["schemas"]["UserProfileDto"];
 
 export function Profiles() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [selectedUser, setSelectedUser] = createSignal<UserProfileDto | null>(null);
-  const [pinError, setPinError] = createSignal("");
+  const { user, logout } = useAuth();
 
   const [profiles] = createResource(async () => {
     try {
@@ -34,23 +32,14 @@ export function Profiles() {
     return [];
   });
 
-  const handleSelectProfile = (p: UserProfileDto) => {
-    if (p.hasPin) {
-      setSelectedUser(p);
-      setPinError("");
-    } else {
-      // Profile selected
+  const handleSelectProfile = async (p: UserProfileDto) => {
+    if (p.id === user()?.id) {
       navigate("/");
+      return;
     }
-  };
-
-  const handlePinComplete = (pin: string) => {
-    if (pin === "0000" || !selectedUser()?.hasPin) {
-      setSelectedUser(null);
-      navigate("/");
-    } else {
-      setPinError("Incorrect PIN");
-    }
+    // A PIN verification alone does not establish a session for another user.
+    await logout();
+    navigate(`/login?username=${encodeURIComponent(p.username)}`, { replace: true });
   };
 
   return (
@@ -75,6 +64,10 @@ export function Profiles() {
         Who's watching?
       </h1>
 
+      <p style={{ color: "var(--text-secondary)", "text-align": "center" }}>
+        Selecting another profile signs you out. Sign in with that account to use its library access
+        and watch history.
+      </p>
       {/* Profiles Grid */}
       <div
         style={{
@@ -155,21 +148,11 @@ export function Profiles() {
         </For>
       </div>
 
-      <Button variant="outline" size="md" onClick={() => navigate("/admin/users")}>
-        Manage Profiles
-      </Button>
-
-      {/* PIN Dialog */}
-      <Dialog
-        open={selectedUser() !== null}
-        onOpenChange={(open) => !open && setSelectedUser(null)}
-      >
-        <PinPad
-          title={`Enter PIN for ${selectedUser()?.displayName}`}
-          error={pinError()}
-          onComplete={handlePinComplete}
-        />
-      </Dialog>
+      <Show when={user()?.isAdmin}>
+        <Button variant="outline" size="md" onClick={() => navigate("/admin/users")}>
+          Manage Profiles
+        </Button>
+      </Show>
     </div>
   );
 }

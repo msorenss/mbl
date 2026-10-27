@@ -4,7 +4,23 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-10-26
+### Added
+- **Milestone M12: Chromecast & Remote Playback Support:**
+  - Google Cast Web Sender SDK integration (`web/src/utils/cast.ts`) with automatic receiver handshake (`CC1AD845` Default Media Receiver).
+  - W3C Remote Playback API fallback for native AirPlay and Miracast wireless displays in browsers without Cast Framework.
+  - Video player Cast control button `[⎚]` in `web/src/components/Player.tsx` with dedicated active Cast overlay and remote play/pause/seek/volume synchronization.
+  - Integration with server `PlayerRegistry` (`POST /api/v1/players` and `DELETE /api/v1/players/{id}`) reporting live Chromecast telemetry and presence.
+  - REST endpoint `DELETE /api/v1/players/{id}` for immediate unregistration on disconnect.
+  - Complete mdBook guide for Chromecast and Remote Playback in `docs/book/src/chromecast.md`.
+  - Comprehensive integration test suite in `crates/mbl-server/tests/m12.rs`.
+
+### Fixed
+- **Plugin Toggle & Re-enable Bug:**
+  - Fixed frontend bug in `web/src/pages/LiveTv.tsx` where plugin toggle previously passed hardcoded `true`, permanently disabling plugins once toggled off.
+  - Added `enabled: bool` field to `PluginManifest` and hooked `list_plugins()` to query the SQLite `plugin_configs` table so manifests always reflect real database status.
+  - Added status badge (`Active` vs `Disabled`) and dynamic button label (`Enable` / `Disable`) with conditional feed browsing.
+- **Player Registry Serialization:**
+  - Added `#[serde(default)]` to `PlayerInfo.last_seen_at` in `crates/mbl-service/src/players.rs`, preventing 422 Unprocessable Entity errors during player heartbeats and registration.
 
 ### Added
 - Milestone M10: Hardening → v1.0.0:

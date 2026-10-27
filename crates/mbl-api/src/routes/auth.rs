@@ -181,7 +181,7 @@ async fn revoke_token(
 
 /// Set up TOTP 2FA: generates new secret and otpauth URI.
 #[utoipa::path(post, path = "/api/v1/auth/totp/setup", tag = "auth",
-    responses((status = 200, body = TotpSetup), (status = 401)))]
+    responses((status = 200, body = TotpSetup), (status = 401), (status = 409)))]
 pub(crate) async fn totp_setup(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,

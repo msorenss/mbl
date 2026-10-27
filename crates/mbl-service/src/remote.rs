@@ -134,7 +134,7 @@ impl RemoteService {
         }
         if let Some(limit_mbps) = req.wan_upload_limit_mbps {
             set_remote_setting(&self.db, "wan_upload_limit_mbps", &limit_mbps.to_string()).await?;
-            self.bandwidth.set_wan_limit(limit_mbps * 1_000);
+            self.bandwidth.set_wan_limit(limit_mbps.saturating_mul(1_000));
         }
 
         self.get_status(actor).await

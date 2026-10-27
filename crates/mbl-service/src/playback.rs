@@ -264,6 +264,9 @@ impl PlaybackService {
     ) -> Result<(media::StreamPart, MediaInfo, Decision)> {
         if let Some(pid) = req.part_id {
             let part = media::part_for_stream(&self.db, pid).await?.ok_or(Error::NotFound)?;
+            if part.item_id != req.item_id {
+                return Err(Error::NotFound);
+            }
             let info = self.load_media_info(&part).await?;
             let dec = decide(&info, profile, ctx);
             return Ok((part, info, dec));

@@ -37,6 +37,7 @@ impl PluginService {
                 author: "MBL Team".into(),
                 icon_url: Some("https://www.youtube.com/s/desktop/f1721516/img/favicon.ico".into()),
                 capabilities: vec![PluginCapability::LiveTvChannel, PluginCapability::MediaScraper],
+                enabled: true,
             },
         );
 
@@ -52,6 +53,7 @@ impl PluginService {
                     "https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico".into(),
                 ),
                 capabilities: vec![PluginCapability::AudioSource],
+                enabled: true,
             },
         );
 
@@ -65,6 +67,7 @@ impl PluginService {
                 author: "MBL Community".into(),
                 icon_url: None,
                 capabilities: vec![PluginCapability::MediaScraper, PluginCapability::LiveTvChannel],
+                enabled: true,
             },
         );
 
@@ -75,6 +78,26 @@ impl PluginService {
         let mut list: Vec<PluginManifest> = self.manifests.values().cloned().collect();
         list.sort_by(|a, b| a.name.cmp(&b.name));
         list
+    }
+
+    pub async fn list_plugins(&self) -> Result<Vec<PluginManifest>> {
+        let configs = m9::list_plugin_configs(&self.db).await.unwrap_or_default();
+        let config_map: HashMap<String, bool> =
+            configs.into_iter().map(|c| (c.plugin_id, c.enabled != 0)).collect();
+
+        let mut list: Vec<PluginManifest> = self
+            .manifests
+            .values()
+            .map(|m| {
+                let mut manifest = m.clone();
+                if let Some(&enabled) = config_map.get(&m.id) {
+                    manifest.enabled = enabled;
+                }
+                manifest
+            })
+            .collect();
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(list)
     }
 
     pub fn get_manifest(&self, id: &str) -> Result<PluginManifest> {

@@ -18,6 +18,7 @@ pub struct PlayerInfo {
     pub position_ms: i64,
     pub duration_ms: i64,
     pub volume: u32, // 0..100
+    #[serde(default)]
     pub last_seen_at: i64,
 }
 

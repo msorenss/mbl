@@ -714,14 +714,24 @@ pub async fn count_overlapping_recordings(
     start_time: i64,
     end_time: i64,
 ) -> Result<i64> {
+    // Count peak concurrent reservations across all channels of the same tuner.
+    // Group equal timestamps so one recording ending as another begins is not a conflict.
     let row = sqlx::query(
-        r#"SELECT COUNT(*) as count
-           FROM recordings
-           WHERE channel_id = ?
-             AND status IN ('scheduled', 'recording')
-             AND end_time > ?
-             AND start_time < ?"#,
+        r#"WITH overlaps AS (
+             SELECT MAX(r.start_time, ?) AS starts, MIN(r.end_time, ?) AS ends
+             FROM recordings r JOIN channels c ON c.id = r.channel_id
+             WHERE c.tuner_id = (SELECT tuner_id FROM channels WHERE id = ?)
+               AND r.status IN ('scheduled', 'recording')
+               AND r.end_time > ? AND r.start_time < ?
+           ), events AS (
+             SELECT starts AS ts, 1 AS delta FROM overlaps
+             UNION ALL SELECT ends AS ts, -1 AS delta FROM overlaps
+           ), totals AS (
+             SELECT SUM(SUM(delta)) OVER (ORDER BY ts) AS active FROM events GROUP BY ts
+           ) SELECT COALESCE(MAX(active), 0) FROM totals"#,
     )
+    .bind(start_time)
+    .bind(end_time)
     .bind(channel_id.0)
     .bind(start_time)
     .bind(end_time)

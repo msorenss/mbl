@@ -17,6 +17,7 @@
 - [Distributed Nodes & Workers](distributed-workers.md)
 - [Live TV, EPG & DVR](live-tv-dvr.md)
 - [Music, Photos & Media Breadth](media-breadth.md)
+- [Chromecast & Remote Playback](chromecast.md)
 
 # AI & Automation
 - [Model Context Protocol (MCP)](mcp-ai-agents.md)

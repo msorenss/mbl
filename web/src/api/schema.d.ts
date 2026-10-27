@@ -1435,6 +1435,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["unregister_player"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/players/{id}/command": {
         parameters: {
             query?: never;
@@ -3378,7 +3394,7 @@ export interface components {
             durationMs: number;
             id: string;
             /** Format: int64 */
-            lastSeenAt: number;
+            lastSeenAt?: number;
             name: string;
             nowPlayingItemId?: components["schemas"]["ItemId"] | null;
             /** Format: int64 */
@@ -3461,6 +3477,7 @@ export interface components {
             author: string;
             capabilities: components["schemas"]["PluginCapability"][];
             description: string;
+            enabled?: boolean;
             iconUrl?: string | null;
             id: string;
             name: string;
@@ -4828,6 +4845,12 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7527,6 +7550,27 @@ export interface operations {
         };
         responses: {
             /** @description Player heartbeat/registration accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unregister_player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Target player ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Player unregistered */
             204: {
                 headers: {
                     [name: string]: unknown;

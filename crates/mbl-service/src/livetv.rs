@@ -437,16 +437,34 @@ impl LiveTvService {
     pub async fn schedule_recording(&self, req: ScheduleRecordingRequest) -> Result<Recording> {
         let channel = self.get_channel(req.channel_id).await?;
 
+        let epoch_ms = |time: i64| -> Result<i64> {
+            if time <= 0 {
+                return Err(Error::Validation("recording times must be positive".into()));
+            }
+            Ok(if time < 10_000_000_000 { time * 1000 } else { time })
+        };
+        let start = epoch_ms(req.start_time)?;
+        let end = epoch_ms(req.end_time)?;
+        if end <= start || req.title.trim().is_empty() {
+            return Err(Error::Validation(
+                "recording requires a title and an end after its start".into(),
+            ));
+        }
+        let start_pad_ms = i64::from(req.start_padding_secs.unwrap_or(0)) * 1000;
+        let end_pad_ms = i64::from(req.end_padding_secs.unwrap_or(0)) * 1000;
+        let start_time = start
+            .checked_sub(start_pad_ms)
+            .ok_or_else(|| Error::Validation("recording time overflow".into()))?;
+        let end_time = end
+            .checked_add(end_pad_ms)
+            .ok_or_else(|| Error::Validation("recording time overflow".into()))?;
+
         // Tuner conflict check
         if let Some(tuner_id) = channel.tuner_id {
             let tuner = self.get_tuner(tuner_id).await?;
-            let overlapping = m9::count_overlapping_recordings(
-                &self.db,
-                channel.id,
-                req.start_time,
-                req.end_time,
-            )
-            .await?;
+            let overlapping =
+                m9::count_overlapping_recordings(&self.db, channel.id, start_time, end_time)
+                    .await?;
 
             if overlapping >= tuner.tuner_count as i64 {
                 return Err(Error::Conflict(format!(
@@ -456,17 +474,14 @@ impl LiveTvService {
             }
         }
 
-        let start_pad_ms = (req.start_padding_secs.unwrap_or(0) as i64) * 1000;
-        let end_pad_ms = (req.end_padding_secs.unwrap_or(0) as i64) * 1000;
-
         let id = m9::schedule_recording(
             &self.db,
             None,
             req.channel_id,
             req.program_id,
             &req.title,
-            req.start_time - start_pad_ms,
-            req.end_time + end_pad_ms,
+            start_time,
+            end_time,
         )
         .await?;
 

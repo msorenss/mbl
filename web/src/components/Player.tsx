@@ -4,6 +4,7 @@ import client from "../api/client";
 import { getPreferredProfile } from "../api/deviceProfile";
 import type { components } from "../api/schema";
 import { useTheme } from "../context/ThemeContext";
+import { castManager } from "../utils/cast";
 import { Button } from "./ui";
 
 type PlaybackResponse = components["schemas"]["PlaybackResponse"];
@@ -11,7 +12,10 @@ type PlaybackSubtitleTrack = components["schemas"]["PlaybackSubtitleTrack"];
 
 export interface PlayerProps {
   itemId: number;
+  partId?: number;
   initialStartMs?: number;
+  audioStreamIndex?: number;
+  subtitleStreamIndex?: number | null;
   title?: string;
   subtitle?: string;
   onClose: () => void;
@@ -22,6 +26,8 @@ export function Player(props: PlayerProps) {
   let playerContainerRef: HTMLDivElement | undefined;
   let hlsInstance: Hls | null = null;
   let progressInterval: number | null = null;
+  let disposed = false;
+  let stoppedSession: string | null = null;
   let hideControlsTimer: number | null = null;
 
   // WebAudio nodes for Night Mode / Smart Dialogue Boost
@@ -50,6 +56,11 @@ export function Player(props: PlayerProps) {
   const [droppedFrames, setDroppedFrames] = createSignal(0);
   const [bufferAheadSecs, setBufferAheadSecs] = createSignal(0);
 
+  // Chromecast & Remote Playback state (M12)
+  const [isCasting, setIsCasting] = createSignal(false);
+  const [castDevice, setCastDevice] = createSignal<string | null>(null);
+  const [isCastAvailable, setIsCastAvailable] = createSignal(true);
+
   const formatTime = (secs: number) => {
     if (!Number.isFinite(secs) || secs < 0) return "00:00";
     const h = Math.floor(secs / 3600);
@@ -77,7 +88,9 @@ export function Player(props: PlayerProps) {
   const initWebAudio = () => {
     if (!videoRef || audioCtx) return;
     try {
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtxClass =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtxClass) return;
       audioCtx = new AudioCtxClass();
       audioSource = audioCtx.createMediaElementSource(videoRef);
@@ -142,18 +155,20 @@ export function Player(props: PlayerProps) {
     } catch {}
   };
 
-  const stopPlayback = async () => {
-    const data = playbackData();
-    const vid = videoRef;
-    if (!data || !vid) return;
-
-    const positionMs = Math.floor(vid.currentTime * 1000);
+  const stopSession = async (sessionId: string, positionMs: number) => {
     try {
       await client.POST("/api/v1/playback/{session}/stop", {
-        params: { path: { session: data.sessionId } },
+        params: { path: { session: sessionId } },
         body: { positionMs },
       });
     } catch {}
+  };
+
+  const stopPlayback = async () => {
+    const data = playbackData();
+    if (!data || stoppedSession === data.sessionId) return;
+    stoppedSession = data.sessionId;
+    await stopSession(data.sessionId, Math.floor((videoRef?.currentTime ?? 0) * 1000));
   };
 
   const startPlaybackSession = async (startMs = 0) => {
@@ -164,11 +179,18 @@ export function Player(props: PlayerProps) {
       const { data, error: err } = await client.POST("/api/v1/playback", {
         body: {
           itemId: props.itemId,
+          partId: props.partId,
           profile: getPreferredProfile() as unknown as Record<string, never>,
-          startMs: startMs > 0 ? startMs : undefined,
+          startMs,
+          audioStreamIndex: props.audioStreamIndex,
+          subtitleStreamIndex: props.subtitleStreamIndex ?? undefined,
         },
       });
 
+      if (disposed) {
+        if (data) void stopSession(data.sessionId, data.startMs);
+        return;
+      }
       if (err || !data) {
         setError(err ? String(err) : "Failed to start playback session");
         setLoading(false);
@@ -176,7 +198,7 @@ export function Player(props: PlayerProps) {
       }
 
       setPlaybackData(data as PlaybackResponse);
-      initPlayer(data as PlaybackResponse, startMs);
+      initPlayer(data as PlaybackResponse, data.startMs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Playback initiation failed");
       setLoading(false);
@@ -193,7 +215,7 @@ export function Player(props: PlayerProps) {
     }
 
     const streamUrl = data.url;
-    const isHls = streamUrl.endsWith(".m3u8");
+    const isHls = new URL(streamUrl, window.location.href).pathname.endsWith(".m3u8");
 
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({
@@ -232,10 +254,9 @@ export function Player(props: PlayerProps) {
       vid.play().catch(() => {});
     }
 
+    const selectedSub = props.subtitleStreamIndex;
     const defaultSub = data.subtitles.find((s) => s.isDefault);
-    if (defaultSub) {
-      setSelectedSubtitleIndex(defaultSub.index);
-    }
+    setSelectedSubtitleIndex(selectedSub === null ? -1 : (selectedSub ?? defaultSub?.index ?? -1));
   };
 
   onMount(() => {
@@ -243,7 +264,7 @@ export function Player(props: PlayerProps) {
     if (initialStart > 10000) {
       setShowResumePrompt(true);
     } else {
-      startPlaybackSession(0);
+      startPlaybackSession(initialStart);
     }
 
     progressInterval = window.setInterval(() => {
@@ -251,7 +272,7 @@ export function Player(props: PlayerProps) {
         reportProgress("playing");
         // Update stats
         if (videoRef) {
-          const qual = (videoRef as any).getVideoPlaybackQuality?.();
+          const qual = videoRef.getVideoPlaybackQuality?.();
           if (qual) setDroppedFrames(qual.droppedVideoFrames);
           const buffered = videoRef.buffered;
           if (buffered.length > 0) {
@@ -325,7 +346,23 @@ export function Player(props: PlayerProps) {
 
     window.addEventListener("keydown", handleKeyDown);
 
+    // Subscribe to CastManager updates (M12)
+    const unsubCast = castManager.subscribe((cState) => {
+      setIsCastAvailable(cState.isAvailable);
+      setIsCasting(cState.isCasting);
+      setCastDevice(cState.deviceName);
+      if (cState.isCasting) {
+        setIsPlaying(cState.playerState === "playing");
+        setCurrentTime(cState.currentTime);
+        if (cState.duration > 0) setDuration(cState.duration);
+        setVolume(cState.volume);
+        setIsMuted(cState.isMuted);
+      }
+    });
+
     onCleanup(() => {
+      disposed = true;
+      unsubCast();
       window.removeEventListener("keydown", handleKeyDown);
       if (progressInterval) clearInterval(progressInterval);
       if (hideControlsTimer) clearTimeout(hideControlsTimer);
@@ -340,7 +377,40 @@ export function Player(props: PlayerProps) {
     });
   });
 
+  const handleCast = async () => {
+    if (isCasting()) {
+      castManager.stopCasting();
+      return;
+    }
+    const data = playbackData();
+    if (!data) return;
+    if (videoRef) {
+      videoRef.pause();
+    }
+    await castManager.requestCastSession(
+      {
+        contentId: data.url,
+        title: props.title,
+        subtitle: props.subtitle,
+        currentTime: currentTime(),
+        duration: duration(),
+        itemId: props.itemId,
+      },
+      videoRef,
+    );
+  };
+
   const togglePlay = () => {
+    if (isCasting()) {
+      if (isPlaying()) {
+        castManager.pause();
+        setIsPlaying(false);
+      } else {
+        castManager.play();
+        setIsPlaying(true);
+      }
+      return;
+    }
     const vid = videoRef;
     if (!vid) return;
     if (vid.paused) {
@@ -369,20 +439,29 @@ export function Player(props: PlayerProps) {
   };
 
   const handleSeek = (e: Event & { currentTarget: HTMLInputElement }) => {
+    const targetTime = Number(e.currentTarget.value);
+    setCurrentTime(targetTime);
+    if (isCasting()) {
+      castManager.seek(targetTime);
+      return;
+    }
     const vid = videoRef;
     if (!vid) return;
-    const targetTime = Number(e.currentTarget.value);
     vid.currentTime = targetTime;
-    setCurrentTime(targetTime);
   };
 
   const handleVolumeChange = (e: Event & { currentTarget: HTMLInputElement }) => {
+    const v = Number(e.currentTarget.value);
+    setVolume(v);
+    setIsMuted(false);
+    if (isCasting()) {
+      castManager.setVolume(v);
+      return;
+    }
     const vid = videoRef;
     if (!vid) return;
-    const v = Number(e.currentTarget.value);
     vid.volume = v;
-    setVolume(v);
-    setIsMuted(v === 0);
+    vid.muted = false;
   };
 
   const handleSetSpeed = (rate: number) => {
@@ -394,7 +473,6 @@ export function Player(props: PlayerProps) {
   };
 
   const handleClose = () => {
-    stopPlayback();
     props.onClose();
   };
 
@@ -596,6 +674,17 @@ export function Player(props: PlayerProps) {
           setIsPlaying(false);
           reportProgress("paused");
         }}
+        onLoadedMetadata={(e) => {
+          setDuration(e.currentTarget.duration || 0);
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+          void stopPlayback();
+        }}
+        onError={() => {
+          setLoading(false);
+          setError("The media could not be played.");
+        }}
         onWaiting={() => reportProgress("buffering")}
         onClick={togglePlay}
       >
@@ -607,10 +696,41 @@ export function Player(props: PlayerProps) {
               srclang={sub().language || "en"}
               label={sub().title || sub().language || "Subtitles"}
               default
+              onLoad={(e) => {
+                e.currentTarget.track.mode = "showing";
+              }}
             />
           )}
         </Show>
       </video>
+
+      {/* Chromecast Active Overlay (M12) */}
+      <Show when={isCasting()}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "radial-gradient(circle at center, #1b2838 0%, #0d1117 100%)",
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            "justify-content": "center",
+            gap: "16px",
+            "z-index": 10,
+          }}
+        >
+          <div style={{ "font-size": "56px" }}>📺</div>
+          <div style={{ "font-size": "22px", "font-weight": "bold", color: "#fff" }}>
+            Casting to {castDevice() || "Chromecast"}
+          </div>
+          <div style={{ "font-size": "14px", color: "var(--text-secondary)" }}>
+            {props.title} {props.subtitle ? `• ${props.subtitle}` : ""}
+          </div>
+          <Button variant="secondary" onClick={() => castManager.stopCasting()}>
+            Disconnect Cast
+          </Button>
+        </div>
+      </Show>
 
       {/* Floating Skip Intro / Credits Button */}
       <Show when={activeIntroMarker()}>
@@ -1103,6 +1223,33 @@ export function Player(props: PlayerProps) {
                   </div>
                 </Show>
               </div>
+            </Show>
+
+            {/* Chromecast / Remote Playback Button (M12) */}
+            <Show when={isCastAvailable()}>
+              <button
+                type="button"
+                onClick={handleCast}
+                title={
+                  isCasting()
+                    ? `Casting to ${castDevice() || "Chromecast"}`
+                    : "Cast to TV (Chromecast)"
+                }
+                style={{
+                  background: isCasting() ? "var(--accent)" : "transparent",
+                  border: "none",
+                  color: "#fff",
+                  "font-size": "18px",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  "border-radius": "var(--radius-sm)",
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "center",
+                }}
+              >
+                ⎚
+              </button>
             </Show>
 
             <button

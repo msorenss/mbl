@@ -13,12 +13,15 @@ const ItemDetail = lazy(() => import("./pages/ItemDetail"));
 const Libraries = lazy(() => import("./pages/Libraries"));
 const LibraryDetail = lazy(() => import("./pages/LibraryDetail"));
 const Search = lazy(() => import("./pages/Search"));
+const Collections = lazy(() => import("./pages/Collections"));
+const Account = lazy(() => import("./pages/Account"));
 const Profiles = lazy(() => import("./pages/Profiles"));
 const Login = lazy(() => import("./pages/Login"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Users = lazy(() => import("./pages/admin/Users"));
 const AiAgents = lazy(() => import("./pages/admin/AiAgents"));
 const Hardware = lazy(() => import("./pages/admin/Hardware"));
+const RemoteAccess = lazy(() => import("./pages/admin/RemoteAccess"));
 const Workers = lazy(() => import("./pages/admin/Workers"));
 const LiveTv = lazy(() => import("./pages/LiveTv"));
 
@@ -45,7 +48,17 @@ export function App() {
                 <Route path="/item/:id" component={ItemDetail} />
                 <Route path="/search" component={Search} />
                 <Route path="/livetv" component={LiveTv} />
+                <Route path="/collections" component={Collections} />
+                <Route path="/account" component={Account} />
                 <Route path="/profiles" component={Profiles} />
+                <Route
+                  path="/admin/remote"
+                  component={() => (
+                    <AuthGuard adminOnly>
+                      <RemoteAccess />
+                    </AuthGuard>
+                  )}
+                />
                 <Route
                   path="/admin/users"
                   component={() => (

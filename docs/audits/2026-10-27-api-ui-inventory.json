@@ -1,0 +1,1085 @@
+{
+  "note": "Static literal-call inventory, not a usability or coverage guarantee. Dynamic URL calls, media element URLs and direct fetch calls require manual review. Internal endpoints need not have UI controls.",
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-authorization-server",
+      "operationId": "oauth_authorization_server_metadata",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/.well-known/oauth-protected-resource",
+      "operationId": "oauth_protected_resource_metadata",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ai/benchmark",
+      "operationId": "hailo_benchmark",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ai/recap/{id}",
+      "operationId": "spoiler_free_recap",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ai/search-scenes",
+      "operationId": "search_scenes",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "operationId": "login",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout",
+      "operationId": "logout",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "operationId": "me",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/quick-connect",
+      "operationId": "quick_connect_init",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/quick-connect/authorize",
+      "operationId": "quick_connect_authorize",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/quick-connect/poll",
+      "operationId": "quick_connect_poll",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register-invite",
+      "operationId": "register_invite",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/sessions",
+      "operationId": "list_sessions",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/auth/sessions/{id}",
+      "operationId": "revoke_session",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/tailscale",
+      "operationId": "login_tailscale",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/tokens",
+      "operationId": "list_tokens",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/tokens",
+      "operationId": "create_token",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/auth/tokens/{id}",
+      "operationId": "revoke_token",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/totp/disable",
+      "operationId": "totp_disable",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/totp/setup",
+      "operationId": "totp_setup",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/totp/verify",
+      "operationId": "totp_verify",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collections",
+      "operationId": "list_collections",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/collections",
+      "operationId": "create_collection",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collections/{id}",
+      "operationId": "get_collection",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/collections/{id}",
+      "operationId": "delete_collection",
+      "literalWebCall": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/collections/{id}",
+      "operationId": "update_collection",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collections/{id}/items",
+      "operationId": "get_collection_items",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/collections/{id}/items/{itemId}",
+      "operationId": "add_item_to_collection",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/collections/{id}/items/{itemId}",
+      "operationId": "remove_item_from_collection",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/companion/sessions/{id}/context",
+      "operationId": "get_companion_context",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/companion/sessions/{id}/join",
+      "operationId": "join_companion_session",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/companion/sessions/{id}/reaction",
+      "operationId": "send_companion_reaction",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/events",
+      "operationId": "events",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hubs/home",
+      "operationId": "home",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hw/capacity",
+      "operationId": "get_capacity",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hw/report",
+      "operationId": "get_report",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hw/test",
+      "operationId": "run_test",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/images/{id}",
+      "operationId": "image",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/jellyfin",
+      "operationId": "import_jellyfin",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/plex",
+      "operationId": "import_plex",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/invites",
+      "operationId": "list_invites",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/invites",
+      "operationId": "create_invite",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/invites/inspect/{code}",
+      "operationId": "inspect_invite",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/invites/{id}",
+      "operationId": "delete_invite",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/items/{id}",
+      "operationId": "detail",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/items/{id}/children",
+      "operationId": "children",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/items/{id}/index-scenes",
+      "operationId": "index_item_scenes",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/items/{id}/markers",
+      "operationId": "get_markers",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/items/{id}/optimize",
+      "operationId": "optimize_item",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/items/{id}/playback-preview",
+      "operationId": "preview_playback_get",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/items/{id}/playback-preview",
+      "operationId": "preview_playback_post",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/items/{id}/watched",
+      "operationId": "mark_watched",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/items/{id}/watched",
+      "operationId": "mark_unwatched",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/libraries",
+      "operationId": "list_libraries",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/libraries",
+      "operationId": "create_library",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/libraries/{id}",
+      "operationId": "get_library",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/libraries/{id}",
+      "operationId": "delete_library",
+      "literalWebCall": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/libraries/{id}",
+      "operationId": "update_library",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/libraries/{id}/items",
+      "operationId": "list_library_items",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/libraries/{id}/scan",
+      "operationId": "scan_library",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/libraries/{id}/timeline",
+      "operationId": "get_photo_timeline",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/channels",
+      "operationId": "list_channels",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/channels/{id}",
+      "operationId": "get_channel",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/livetv/channels/{id}",
+      "operationId": "delete_channel",
+      "literalWebCall": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/livetv/channels/{id}",
+      "operationId": "update_channel",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/epg",
+      "operationId": "get_epg_grid",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/epg/search",
+      "operationId": "search_guide",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/epg/xmltv",
+      "operationId": "import_xmltv",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/recordings",
+      "operationId": "list_recordings",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/recordings",
+      "operationId": "schedule_recording",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/recordings/{id}",
+      "operationId": "get_recording",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/livetv/recordings/{id}",
+      "operationId": "cancel_recording",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/rules",
+      "operationId": "list_recording_rules",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/rules",
+      "operationId": "create_series_rule",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/rules/{id}",
+      "operationId": "get_recording_rule",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/livetv/rules/{id}",
+      "operationId": "delete_recording_rule",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/stream/{channelId}",
+      "operationId": "resolve_live_stream",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/stream/{channelId}/release",
+      "operationId": "release_live_stream",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/tuners",
+      "operationId": "list_tuners",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/tuners",
+      "operationId": "add_tuner",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/tuners/discover",
+      "operationId": "discover_tuners",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/tuners/m3u",
+      "operationId": "import_m3u",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/tuners/{id}",
+      "operationId": "get_tuner",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/livetv/tuners/{id}",
+      "operationId": "delete_tuner",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/virtual-channels",
+      "operationId": "list_virtual_channels",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/livetv/virtual-channels",
+      "operationId": "create_virtual_channel",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/virtual-channels/{id}",
+      "operationId": "get_virtual_channel",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/livetv/virtual-channels/{id}",
+      "operationId": "delete_virtual_channel",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/livetv/virtual-channels/{id}/playhead",
+      "operationId": "get_virtual_playhead",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/matchmaker/sessions",
+      "operationId": "create_matchmaker_session",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/matchmaker/sessions/{id}",
+      "operationId": "get_matchmaker_session",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/matchmaker/sessions/{id}/vote",
+      "operationId": "record_vote",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mcp/audit",
+      "operationId": "list_audit",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mcp/presets",
+      "operationId": "list_presets",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mcp/snippets",
+      "operationId": "create_snippets",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mcp/status",
+      "operationId": "get_status",
+      "literalWebCall": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/mcp/status",
+      "operationId": "update_status",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/nodes",
+      "operationId": "list_nodes",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/nodes/pair",
+      "operationId": "pair_node",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/nodes/pairing-code",
+      "operationId": "generate_node_pairing_code",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/nodes/{id}",
+      "operationId": "get_node",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/nodes/{id}",
+      "operationId": "delete_node",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/nodes/{id}/libraries",
+      "operationId": "list_libraries",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/nodes/{id}/stream/handover/{itemId}",
+      "operationId": "smart_handover",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/nodes/{id}/sync-catalog",
+      "operationId": "sync_catalog",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/playback",
+      "operationId": "start",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/playback/{session}/progress",
+      "operationId": "progress",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/playback/{session}/stop",
+      "operationId": "stop",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/players",
+      "operationId": "list_players",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/players",
+      "operationId": "register_player",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/players/{id}/command",
+      "operationId": "send_player_command",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/playlists",
+      "operationId": "list_playlists",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/playlists",
+      "operationId": "create_playlist",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/playlists/{id}",
+      "operationId": "get_playlist",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/playlists/{id}",
+      "operationId": "delete_playlist",
+      "literalWebCall": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/playlists/{id}",
+      "operationId": "update_playlist",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/playlists/{id}/items",
+      "operationId": "get_playlist_items",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/playlists/{id}/items/{itemId}",
+      "operationId": "add_item_to_playlist",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/playlists/{id}/items/{itemId}",
+      "operationId": "remove_item_from_playlist",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/plugins",
+      "operationId": "list_plugins",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/plugins/{id}",
+      "operationId": "get_plugin",
+      "literalWebCall": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/plugins/{id}",
+      "operationId": "update_plugin_config",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/plugins/{id}/channels",
+      "operationId": "get_plugin_channels",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/plugins/{id}/channels/{feedId}",
+      "operationId": "get_feed_items",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/plugins/{id}/items/{itemId}",
+      "operationId": "get_plugin_item",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/plugins/{id}/stream/{itemId}",
+      "operationId": "resolve_plugin_stream",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/requests",
+      "operationId": "list_requests",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/requests",
+      "operationId": "create_request",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/requests/hardlink-analysis",
+      "operationId": "analyze_hardlinks",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/requests/missing-episodes/{showId}",
+      "operationId": "inspect_missing_episodes",
+      "literalWebCall": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/requests/{id}/status",
+      "operationId": "update_request_status",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search",
+      "operationId": "search",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/seasons/{id}/detect-intros",
+      "operationId": "detect_season_intros",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/audio/{partId}",
+      "operationId": "stream_audio",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/direct/{partId}",
+      "operationId": "direct",
+      "literalWebCall": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/stream/hls/{sessionId}/segments/{filename}",
+      "operationId": "upload_segment",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/hls/{session}/master.m3u8",
+      "operationId": "hls_master",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/hls/{session}/{rendition}/{file}",
+      "operationId": "hls_rendition_file",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/subtitles/{partId}/{target}",
+      "operationId": "subtitle",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/trickplay/{partId}/index.json",
+      "operationId": "trickplay_manifest",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/trickplay/{partId}/{sprite}",
+      "operationId": "trickplay_sprite",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stream/worker/source/{partId}",
+      "operationId": "stream_source",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/bandwidth",
+      "operationId": "get_bandwidth_usage",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/browse",
+      "operationId": "browse_directories",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/health",
+      "operationId": "system_health",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/info",
+      "operationId": "info",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/system/reachability-test",
+      "operationId": "test_reachability",
+      "literalWebCall": true
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/system/remote-policy",
+      "operationId": "update_remote_policy",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/remote-status",
+      "operationId": "get_remote_status",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/setup",
+      "operationId": "setup_status",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/system/setup",
+      "operationId": "setup",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users",
+      "operationId": "list_users",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users",
+      "operationId": "create_user",
+      "literalWebCall": true
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/me/home-layout",
+      "operationId": "update_home_layout",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/me/preferences",
+      "operationId": "get_user_preferences",
+      "literalWebCall": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/me/preferences",
+      "operationId": "update_user_preferences",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/profiles",
+      "operationId": "list_user_profiles",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{id}",
+      "operationId": "get_user",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/{id}",
+      "operationId": "delete_user",
+      "literalWebCall": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/{id}",
+      "operationId": "update_user",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{id}/permissions",
+      "operationId": "get_user_permissions",
+      "literalWebCall": true
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/{id}/permissions",
+      "operationId": "update_user_permissions",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/{id}/pin",
+      "operationId": "set_user_pin",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/{id}/pin/verify",
+      "operationId": "verify_user_pin",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/webhooks",
+      "operationId": "list_webhooks",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/webhooks",
+      "operationId": "create_webhook",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/webhooks/{id}",
+      "operationId": "delete_webhook",
+      "literalWebCall": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/webhooks/{id}",
+      "operationId": "toggle_webhook",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workers",
+      "operationId": "list_workers",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workers/heartbeat",
+      "operationId": "heartbeat",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workers/pair",
+      "operationId": "pair_worker",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workers/pairing-code",
+      "operationId": "generate_worker_pairing_code",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workers/{id}",
+      "operationId": "get_worker",
+      "literalWebCall": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/workers/{id}",
+      "operationId": "delete_worker",
+      "literalWebCall": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workers/{id}/wake",
+      "operationId": "wake_worker",
+      "literalWebCall": true
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "operationId": "health",
+      "literalWebCall": false
+    },
+    {
+      "method": "GET",
+      "path": "/oauth/authorize",
+      "operationId": "authorize",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/register",
+      "operationId": "register_client",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/revoke",
+      "operationId": "revoke_token",
+      "literalWebCall": false
+    },
+    {
+      "method": "POST",
+      "path": "/oauth/token",
+      "operationId": "token_endpoint",
+      "literalWebCall": false
+    }
+  ]
+}

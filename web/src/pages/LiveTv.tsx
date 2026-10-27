@@ -1,6 +1,8 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client, { getStoredToken } from "../api/client";
+import { guideWindow } from "../api/liveTvTime";
 import type { components } from "../api/schema";
+import LiveStreamPlayer from "../components/LiveStreamPlayer";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Dialog } from "../components/ui/Dialog";
@@ -25,18 +27,31 @@ export function LiveTv() {
   const [activeTab, setActiveTab] = createSignal<"guide" | "tuners" | "recordings" | "virtual">(
     "guide",
   );
+  const [liveStream, setLiveStream] = createSignal<components["schemas"]["LiveStreamInfo"] | null>(
+    null,
+  );
+  let liveRequest = 0;
+  const releaseChannel = async (channelId: number) => {
+    try {
+      await client.POST("/api/v1/livetv/stream/{channelId}/release", {
+        params: { path: { channelId } },
+      });
+    } catch {}
+  };
+  const closeLiveStream = () => {
+    liveRequest++;
+    const current = liveStream();
+    setLiveStream(null);
+    if (current) void releaseChannel(current.channelId);
+  };
+  onCleanup(closeLiveStream);
   const [loading, setLoading] = createSignal(false);
 
   // ---------------------------------------------------------------------------
   // EPG State
   // ---------------------------------------------------------------------------
-  // Default window: current hour to current hour + 2 hours (in seconds)
-  const getInitialWindow = () => {
-    const nowSecs = Math.floor(Date.now() / 1000);
-    const windowStart = nowSecs - (nowSecs % 1800); // round to previous 30m
-    const windowEnd = windowStart + 2 * 3600; // 2 hour window
-    return { windowStart, windowEnd };
-  };
+  // Use the same Unix-millisecond units as XMLTV programmes and recordings.
+  const getInitialWindow = guideWindow;
 
   const initial = getInitialWindow();
   const [startTime, setStartTime] = createSignal<number>(initial.windowStart);
@@ -194,9 +209,9 @@ export function LiveTv() {
   // Guide Navigation & Actions
   // ---------------------------------------------------------------------------
   const shiftWindow = (hours: number) => {
-    const shiftSecs = hours * 3600;
-    setStartTime((s) => s + shiftSecs);
-    setEndTime((e) => e + shiftSecs);
+    const shiftMs = hours * 3_600_000;
+    setStartTime((s) => s + shiftMs);
+    setEndTime((e) => e + shiftMs);
     loadEpg();
   };
 
@@ -236,7 +251,7 @@ export function LiveTv() {
       return;
     }
     try {
-      await client.POST("/api/v1/livetv/recordings", {
+      const result = await client.POST("/api/v1/livetv/recordings", {
         body: {
           channelId: cid,
           programId: program.id,
@@ -247,6 +262,7 @@ export function LiveTv() {
           endPaddingSecs: postPadding() * 60,
         },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({
         title: "Scheduled",
         message: `Recording scheduled for "${program.title}"`,
@@ -261,7 +277,7 @@ export function LiveTv() {
 
   const handleCreateSeriesRule = async (program: EpgProgram, channelId?: number) => {
     try {
-      await client.POST("/api/v1/livetv/rules", {
+      const result = await client.POST("/api/v1/livetv/rules", {
         body: {
           title: program.title,
           channelId: channelId || program.channelId,
@@ -271,6 +287,7 @@ export function LiveTv() {
           seriesOnly: true,
         },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({
         title: "Series Rule Created",
         message: `Rule created for "${program.title}"`,
@@ -284,23 +301,26 @@ export function LiveTv() {
   };
 
   const handleWatchLive = async (channelId: number) => {
+    closeLiveStream();
+    const request = ++liveRequest;
     try {
       const res = await client.GET("/api/v1/livetv/stream/{channelId}", {
         params: { path: { channelId } },
       });
-      if (res.data) {
-        showToast({
-          title: "Live Stream Ready",
-          message: `Stream opened for ${res.data.channelName} (${res.data.targetFormat})`,
-          type: "info",
-        });
+      if (request !== liveRequest) {
+        if (res.data) void releaseChannel(res.data.channelId);
+        return;
       }
+      if (res.error || !res.data) throw new Error("Stream unavailable");
+      setLiveStream(res.data);
+      setSelectedProgram(null);
     } catch {
-      showToast({
-        title: "Tuner Unavailable",
-        message: "All tuners are busy or channel is offline",
-        type: "error",
-      });
+      if (request === liveRequest)
+        showToast({
+          title: "Tuner Unavailable",
+          message: "All tuners are busy or channel is offline",
+          type: "error",
+        });
     }
   };
 
@@ -383,9 +403,10 @@ export function LiveTv() {
   const handleDeleteTuner = async (id: number) => {
     if (!confirm(`Delete tuner #${id}? Associated channels will also be removed.`)) return;
     try {
-      await client.DELETE("/api/v1/livetv/tuners/{id}", {
+      const result = await client.DELETE("/api/v1/livetv/tuners/{id}", {
         params: { path: { id } },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({ title: "Tuner Deleted", message: `Tuner #${id} removed`, type: "success" });
       loadTuners();
       loadEpg();
@@ -400,9 +421,10 @@ export function LiveTv() {
   const handleCancelRecording = async (id: number) => {
     if (!confirm(`Cancel recording #${id}?`)) return;
     try {
-      await client.DELETE("/api/v1/livetv/recordings/{id}", {
+      const result = await client.DELETE("/api/v1/livetv/recordings/{id}", {
         params: { path: { id } },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({ title: "Cancelled", message: `Recording #${id} removed`, type: "info" });
       loadRecordings();
     } catch {
@@ -413,9 +435,10 @@ export function LiveTv() {
   const handleDeleteRule = async (id: number) => {
     if (!confirm(`Delete series rule #${id}?`)) return;
     try {
-      await client.DELETE("/api/v1/livetv/rules/{id}", {
+      const result = await client.DELETE("/api/v1/livetv/rules/{id}", {
         params: { path: { id } },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({ title: "Rule Deleted", message: `Series rule #${id} removed`, type: "info" });
       loadRecordings();
     } catch {
@@ -429,7 +452,7 @@ export function LiveTv() {
       return;
     }
     try {
-      await client.POST("/api/v1/livetv/rules", {
+      const result = await client.POST("/api/v1/livetv/rules", {
         body: {
           title: newRuleTitle().trim(),
           channelId: newRuleChannelId(),
@@ -439,6 +462,7 @@ export function LiveTv() {
           seriesOnly: true,
         },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({
         title: "Rule Created",
         message: `Created rule for "${newRuleTitle()}"`,
@@ -461,7 +485,7 @@ export function LiveTv() {
       return;
     }
     try {
-      await client.POST("/api/v1/livetv/virtual-channels", {
+      const result = await client.POST("/api/v1/livetv/virtual-channels", {
         body: {
           name: newVcName().trim(),
           channelNumber: newVcNumber().trim(),
@@ -470,6 +494,7 @@ export function LiveTv() {
           insertCommercials: false,
         },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({
         title: "Created",
         message: `Virtual channel "${newVcName()}" created`,
@@ -486,9 +511,10 @@ export function LiveTv() {
   const handleDeleteVirtualChannel = async (id: number) => {
     if (!confirm(`Delete virtual channel #${id}?`)) return;
     try {
-      await client.DELETE("/api/v1/livetv/virtual-channels/{id}", {
+      const result = await client.DELETE("/api/v1/livetv/virtual-channels/{id}", {
         params: { path: { id } },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({ title: "Deleted", message: `Virtual channel #${id} removed`, type: "info" });
       loadVirtualAndPlugins();
     } catch {
@@ -498,10 +524,11 @@ export function LiveTv() {
 
   const handleTogglePlugin = async (manifest: PluginManifest, currentlyEnabled: boolean) => {
     try {
-      await client.PATCH("/api/v1/plugins/{id}", {
+      const result = await client.PATCH("/api/v1/plugins/{id}", {
         params: { path: { id: manifest.id } },
         body: { enabled: !currentlyEnabled, settings: {} },
       });
+      if (result.error) throw new Error("Request failed");
       showToast({
         title: "Plugin Updated",
         message: `${manifest.name} is now ${!currentlyEnabled ? "enabled" : "disabled"}`,
@@ -548,15 +575,15 @@ export function LiveTv() {
   // ---------------------------------------------------------------------------
   // Time Formatting Helpers
   // ---------------------------------------------------------------------------
-  const formatTime = (epochSecs: number) => {
-    return new Date(epochSecs * 1000).toLocaleTimeString([], {
+  const formatTime = (epochMs: number) => {
+    return new Date(epochMs).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
   };
 
-  const formatDate = (epochSecs: number) => {
-    return new Date(epochSecs * 1000).toLocaleDateString([], {
+  const formatDate = (epochMs: number) => {
+    return new Date(epochMs).toLocaleDateString([], {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -566,6 +593,15 @@ export function LiveTv() {
 
   return (
     <div style={{ padding: "24px", "max-width": "1400px", margin: "0 auto" }}>
+      <Show keyed when={liveStream()}>
+        {(stream) => (
+          <LiveStreamPlayer
+            url={stream.streamUrl}
+            title={stream.channelName}
+            onClose={closeLiveStream}
+          />
+        )}
+      </Show>
       {/* Header & Main Nav Tabs */}
       <div
         style={{
@@ -794,9 +830,9 @@ export function LiveTv() {
                 }}
               >
                 <div style={{ "padding-left": "8px" }}>{formatTime(startTime())}</div>
-                <div style={{ "padding-left": "8px" }}>{formatTime(startTime() + 1800)}</div>
-                <div style={{ "padding-left": "8px" }}>{formatTime(startTime() + 3600)}</div>
-                <div style={{ "padding-left": "8px" }}>{formatTime(startTime() + 5400)}</div>
+                <div style={{ "padding-left": "8px" }}>{formatTime(startTime() + 1_800_000)}</div>
+                <div style={{ "padding-left": "8px" }}>{formatTime(startTime() + 3_600_000)}</div>
+                <div style={{ "padding-left": "8px" }}>{formatTime(startTime() + 5_400_000)}</div>
               </div>
             </div>
 
@@ -816,7 +852,7 @@ export function LiveTv() {
               <For each={gridChannels()}>
                 {(gridChan) => {
                   const chan = gridChan.channel;
-                  const totalWindowSecs = endTime() - startTime();
+                  const totalWindowMs = endTime() - startTime();
 
                   return (
                     <div
@@ -889,8 +925,8 @@ export function LiveTv() {
                             const durationSecs = progEnd - progStart;
                             if (durationSecs <= 0) return null;
 
-                            const leftPercent = ((progStart - startTime()) / totalWindowSecs) * 100;
-                            const widthPercent = (durationSecs / totalWindowSecs) * 100;
+                            const leftPercent = ((progStart - startTime()) / totalWindowMs) * 100;
+                            const widthPercent = (durationSecs / totalWindowMs) * 100;
 
                             return (
                               <button
@@ -1605,7 +1641,12 @@ export function LiveTv() {
                         <span style={{ "font-weight": "700", "font-size": "16px" }}>
                           {plugin.name}
                         </span>
-                        <Badge variant="default">v{plugin.version}</Badge>
+                        <div style={{ display: "flex", "align-items": "center", gap: "6px" }}>
+                          <Badge variant={plugin.enabled !== false ? "success" : "default"}>
+                            {plugin.enabled !== false ? "Active" : "Disabled"}
+                          </Badge>
+                          <Badge variant="default">v{plugin.version}</Badge>
+                        </div>
                       </div>
                       <div
                         style={{
@@ -1628,10 +1669,17 @@ export function LiveTv() {
                         "align-items": "center",
                       }}
                     >
-                      <Button variant="secondary" onClick={() => handleTogglePlugin(plugin, true)}>
-                        Toggle Status
+                      <Button
+                        variant={plugin.enabled !== false ? "secondary" : "primary"}
+                        onClick={() => handleTogglePlugin(plugin, plugin.enabled ?? true)}
+                      >
+                        {plugin.enabled !== false ? "Disable" : "Enable"}
                       </Button>
-                      <Button variant="primary" onClick={() => handleOpenPluginFeeds(plugin)}>
+                      <Button
+                        variant="primary"
+                        disabled={plugin.enabled === false}
+                        onClick={() => handleOpenPluginFeeds(plugin)}
+                      >
                         Browse Feeds
                       </Button>
                     </div>

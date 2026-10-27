@@ -8,7 +8,7 @@ interface AuthContextValue {
   user: () => UserDto | null;
   loading: () => boolean;
   needsSetup: () => boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string, totpCode?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   checkSetup: () => Promise<boolean>;
@@ -47,11 +47,11 @@ export function AuthProvider(props: { children: JSX.Element }) {
     }
   };
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string, totpCode?: string): Promise<boolean> => {
     setLoading(true);
     try {
       const { data, error } = await client.POST("/api/v1/auth/login", {
-        body: { username, password },
+        body: { username, password, totpCode: totpCode?.trim() || undefined },
       });
       if (data && !error) {
         setStoredToken(data.token);

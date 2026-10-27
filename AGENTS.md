@@ -19,6 +19,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
   - **M8:** Distributed nodes (`v0.7.0` — Transcode workers & Remote library storage nodes, worker-protokollspecifikation och typade `WorkerJobSpec`, HMAC-signerade source range URL:er, segment `PUT`-uppladdning i sessionskatalog, Wake-on-LAN magic packet, sömlös lokal fallback vid worker-bortfall, Windows worker-tray med pause-while-gaming GPU-vakt, admin worker & node dashboard i SolidJS, 5 nya MCP-verktyg till 67 admin-verktyg med 100% OpenAPI-paritet, `mbl-node` federerad lagringsnod med delta catalog sync, och Smart Handover för LAN direktuppspelning vs WAN relay)
   - **M9:** Live TV, Channels and Online Streaming Plugins (`v0.8.0` — HDHomeRun UDP discovery & lineup-synkronisering, M3U & streaming XMLTV-parsning med `quick-xml`, 2-axlars virtuellt EPG-rutnät, live-uppspelningsmotor med samtidighetsbegränsning, DVR-inspelningsschemaläggare med serieregler, marginaltider och konfliktlösning, 5 nya MCP-verktyg till 72 admin-verktyg med 100% OpenAPI-paritet, plugin-arkitektur för online-media med YouTube-, Spotify- och WebDrama-stöd, virtuella 24/7-kanaler med zero-CPU playhead-beräkning, samt fullständig 4-flikars Live TV SolidJS UI)
   - **M10:** Hardening → v1.0.0 (`v1.0.0` — Formellt STRIDE Threat Model-dokument, säkerhetshärdning för webhooks/DoS/traversal, fuzzing-svit med libfuzzer-targets och property tests, prestanda- och SLA-rapport i `docs/benchmarks.md`, komplett mdBook-dokumentationssajt i `docs/book/`, migreringsverktyg för Plex och Jellyfin historik & watch state, fullständiga 5-språksöversättningar [en, sv, de, fr, es] med WCAG 2.2 AA accessibility, separata release-byggen för `mbl-worker` och `mbl-node` med systemd-services och fristående Windows-paket, samt MCP eval-scenarier och runner med 74 admin-verktyg och 100% paritet)
+  - **M12:** Chromecast & Remote Playback (`v1.1.0` — Google Cast Web Sender SDK med Default Media Receiver `CC1AD845`, W3C Remote Playback API fallback, Cast-kontrollknapp i `Player.tsx`, dedikerad aktiv Cast overlay, tvåvägs synkronisering med serverns `PlayerRegistry` via `POST /api/v1/players` och omedelbar avregistrering via `DELETE /api/v1/players/{id}`, åtgärdad bugg vid återaktivering av inaktiverade plugins, samt härdning av `PlayerInfo` serde defaults)
 - **Nästa milstolpe:** **M11 — Native Mobile, TV & Spatial VR Clients** (`M11.1`–`M11.4` i [`IMPLEMENTATION.md`](IMPLEMENTATION.md)).
 
 ---
@@ -89,6 +90,44 @@ När en milstolpe är färdig och alla tester är gröna:
 ## 5. Sessions- och Handoff-logg
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
+
+### 2026-10-27 — Milstolpe M12 (Chromecast & Remote Playback Support) samt Plugin Buggfix & Härdning
+- **Genomfört:**
+  - **Plugin Toggle & Re-enable Fix:**
+    - Diagnostiserade och åtgärdade buggen där inaktiverade plugins inte kunde startas igen: `handleTogglePlugin` i `web/src/pages/LiveTv.tsx` hade ett hårdkodat `true`-argument som alltid skickade `enabled: false`. Rättat till dynamisk status `handleTogglePlugin(plugin, plugin.enabled ?? true)` med statusbadge (`Active` vs `Disabled`) och dynamisk knapp (`Enable` vs `Disable`).
+    - Lade till `pub enabled: bool` med `#[serde(default = "default_true")]` i `PluginManifest` (`crates/mbl-core/src/plugins.rs`).
+    - Skapade `PluginService::list_plugins` i `crates/mbl-service/src/plugins.rs` som läser SQLite-tabellen `plugin_configs` och berikar manifesten med aktuell status, samt uppdaterade REST-routen i `crates/mbl-api/src/routes/plugins.rs`.
+  - **M12 Chromecast & Remote Playback Support:**
+    - Skapade `web/src/utils/cast.ts` med full Google Cast Web Sender SDK (`cast_sender.js`) integration och automatisk handskakning mot Default Media Receiver (`CC1AD845`), samt W3C Remote Playback API fallback för AirPlay och Miracast.
+    - Integrerade Cast-kontrollknapp `[⎚]` i `web/src/components/Player.tsx`, dedikerad aktiv Cast-overlay, samt tvåvägssynkning av play/pause/seek/volym.
+    - Rapportering av Chromecast-sessioner till `PlayerRegistry` via `POST /api/v1/players` (`device_type: "chromecast"`).
+    - Implementerade `DELETE /api/v1/players/{id}` i `crates/mbl-api/src/routes/players.rs` för omedelbar avregistrering vid Cast disconnect.
+    - Härdade `PlayerInfo.last_seen_at` med `#[serde(default)]` i `crates/mbl-service/src/players.rs` för att förhindra 422-fel vid spelarregistrering.
+  - **Lokal Verifiering & Buggsniffning:**
+    - Upptäckte och åtgärdade regression i `crates/mbl-playback/tests/decide.rs` för `audio_index`-val.
+    - Skapade omfattande integrationstestsats `crates/mbl-server/tests/m12.rs` (3 tester) och vitest-test `web/src/utils/cast.test.ts`.
+    - Skapade komplett dokumentationsguide i `docs/book/src/chromecast.md` och uppdaterade `SUMMARY.md`.
+- **Verifieringsresultat:**
+  - `cargo fmt --all -- --check`: OK
+  - `cargo clippy --workspace --all-targets -- -D warnings`: OK (0 fel, 0 varningar)
+  - `cargo nextest run --workspace`: 320/320 tester godkända (0 failed, 0 skipped)
+  - `cargo xtask openapi-check`: OK
+  - `cargo xtask tokens --check`: OK
+  - `cargo xtask mcp-parity`: OK (141/141 endpoints täckta, 100.0%)
+  - `just web-check`: Biome (0 fel), Vitest (34 tester), `tsc -b`, Vite build, bundle budget (42.04 KB gzip <= 150 KB): OK
+- **Nästa steg:** Återuppta **M11 — Native Mobile, TV & Spatial VR Clients** (`M11.1`–`M11.4` i `IMPLEMENTATION.md`).
+
+### 2026-10-27 — Kod-/UI-granskning, pausad på användarens begäran
+- **Arbete hittills:** Konkreta rättningar för ACL i samlingar/spellistor, TOTP, profil-/inloggningsflöde, uppspelning/spår/versioner, bibliotekspaginering, EPG-tidsenheter, DVR-konflikter och HTTP-fel. Nya webbvägar `/account`, `/collections`, `/admin/remote`. Detaljerad täckning och kvarstående fynd i `docs/audits/2026-10-27-web-and-service-audit.md`; API/UI-inventering i samma katalog.
+- **Verifierat:** `just web-check` passerade med 34 tester, TypeScript, Vite och initial JS 42.04 KB gzip. Riktad Clippy för `mbl-service`/`mbl-db` passerade. Webbläsarkontroll mot separat testdatabas verifierade inloggning och navigation. OpenAPI/TS-schema genererade.
+- **Paus:** Användaren bad pausa så att annat bygge kan bli klart. Egna pågående workspace-nextest och workspace-Clippy avbröts; de är INTE färdigverifierade. Egna tillfälliga testservrar stoppades. Kodändringar ligger kvar, ingen commit/release gjord.
+- **Vid återupptagning:** Kör återstående workspace-tester/Clippy med Pi-flaggorna, kontrollera nya regressioner i `crates/mbl-server/tests/audit.rs` och `mbl-playback/tests/decide.rs`, samt OpenAPI/MCP-paritet/tokens. Flera filer har ändrats parallellt av annat arbete, särskilt plugin/Cast/Player; bevara dessa ändringar och granska aktuell diff före fortsättning. M11-klienter avvaktar.
+
+### 2026-10-27 — Orientering i projektets arkitektur och implementation
+- **Genomfört:** Läste projektplan, implementationsstatus, workspace, serverns uppstart, det gemensamma tjänstelagret, scanner, uppspelningsstruktur, webbklient samt delar av TV-, Hailo- och pluginimplementationerna.
+- **Observation:** Dokumenterad v1.0-status är inte i sig bevis på fullständig körbar integration. `mbl-tv/src/main.rs` konfigurerar klienten och söker server men startar ingen UI-/spelarslinga; `mbl-hailo::analyze_image` använder färg-/textheuristik; online-pluginflöden innehåller `example.com`-medier. Dessa delar behöver verifieras mot verkliga acceptanskriterier före vidare färdigmarkering.
+- **Verifiering:** Endast dokument- och kodläsning; inga byggen, tester eller hårdvarukörningar utförda. Befintliga lokala ändringar i plugin/API/OpenAPI/LiveTv lämnades orörda.
+- **Nästa steg:** Vid fortsatt utveckling, kontrollera faktisk integration för berörd funktion. M11 är nästa planerade milstolpe enligt implementationsplanen.
 
 ### 2026-10-26 — Milstolpe M10 (Hardening → v1.0.0) & Release v1.0.0
 - **Genomfört (`M10.1`–`M10.8`):**

@@ -4,6 +4,8 @@ This document turns [PLAN.md](PLAN.md) into an ordered list of small, verifiable
 
 ---
 
+> **Verifieringsanmärkning 2026-10-27:** Genomgången av befintlig server och webb visar att flera `[x]` nedan endast har API-/hjälpfunktionsstöd och saknar kompletta användarflöden. Se [kod- och UI-granskningen](docs/audits/2026-10-27-web-and-service-audit.md) för konkret täckning och återstående arbete. M11-klienterna avvaktar enligt användarens instruktion.
+
 ## 0. How to use this document
 
 ### 0.1 Agent operating rules
@@ -816,6 +818,24 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Synchronized Watch Together rooms in VR with spatial voice chat and customized avatars.
   - Spatial AI Watch Companion (Hermes / AI avatar seated beside you in the virtual cinema, offering live commentary, trivia, and conversational reactions with spatialized voice audio).
 
+- [x] **M12 Chromecast & Remote Playback Support:**
+  - [x] **M12.1 Google Cast Web Sender SDK & Remote Playback:**
+    - Google Cast Web Sender SDK integration in `web/src/utils/cast.ts` with Default Media Receiver (`CC1AD845`).
+    - W3C Remote Playback API fallback for native AirPlay and Miracast wireless displays.
+    - Video player Cast button `[⎚]` in `web/src/components/Player.tsx` with dedicated active Cast overlay and remote play/pause/seek/volume synchronization.
+  - [x] **M12.2 PlayerRegistry Synchronization & Teardown:**
+    - Live reporting of Chromecast sessions to `POST /api/v1/players` (`device_type: "chromecast"`).
+    - `DELETE /api/v1/players/{id}` REST route for immediate unregistration on disconnect.
+    - Added `#[serde(default)]` to `PlayerInfo.last_seen_at` to resolve deserialization errors.
+  - [x] **M12.3 Plugin Toggle & Re-enable Lifecycle Bugfix:**
+    - Fixed frontend toggle in `web/src/pages/LiveTv.tsx` to pass dynamic status instead of hardcoded `true`.
+    - Added `enabled: bool` to `PluginManifest` and connected `list_plugins()` to query the SQLite `plugin_configs` table.
+    - Dynamic button label and badge indicators (`Active` vs `Disabled`) with conditional feed browsing.
+  - [x] **M12.4 Verification & Testing:**
+    - Automated integration test suite in `crates/mbl-server/tests/m12.rs` (3 tests covering plugin lifecycle, Chromecast player registry, and edge cases).
+    - Vitest unit tests in `web/src/utils/cast.test.ts`.
+    - Complete mdBook guide in `docs/book/src/chromecast.md`.
+
 ### M12+: Extended Ecosystem & Backlog
 Jellyfin API shim · **in-app AI assistant + natural-language search** (user-configured LLM endpoint, in-process MCP tools, PLAN §9.5.8) · WASM plugins (`wasmtime`) + catalog · OIDC SSO · smart collections/playlists · Watch Together (web/TV) · embedded Tailscale (`libtailscale`) · HTTP/3 · `mbl-relay` · Live TV time-shift · commercial detection · HEIC/RAW photos · Rockchip RKMPP tier-1.
 
@@ -861,6 +881,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-26 | M8 | Distributed nodes: worker protocol spec & typed JobSpec, mbl-worker daemon with capability reporting & heartbeat, signed source media range streaming & PUT segment upload, scheduler integration with Wake-on-LAN & local fallback, batch offload estimation, Windows worker tray & pause-while-gaming, Admin UI for workers & nodes, 5 new MCP tools (67 admin tools, 100% parity), mbl-node federated storage daemon with delta catalog sync, and smart handover for LAN direct play vs WAN relay | feat(m8) M8
 2026-10-26 | M9 | Live TV, channels and streaming plugins: HDHomeRun discovery & lineup, M3U & streaming XMLTV parsers, 2-axis EPG grid, live playback engine & concurrency control, DVR recording scheduler & series rules, 5 new MCP tools (72 admin tools, 100% parity), online media plugins (YouTube, Spotify, WebDrama), virtual 24/7 channels with zero-CPU live playhead calculation, SolidJS Live TV UI with EPG guide, tuners, DVR recordings and plugin browser | feat(livetv) M9
 2026-10-26 | M10 | Hardening → v1.0.0: Threat model doc & security hardening, property & libfuzzer targets (fuzz/), performance benchmark dashboard (docs/benchmarks.md), mdBook documentation site (docs/book/), Plex & Jellyfin watch history migration service & MCP tools (74 admin tools, 100% parity), 5-language i18n translations (en, sv, de, fr, es) with WCAG 2.2 AA accessibility, standalone mbl-worker & mbl-node release packaging, MCP evaluation scenarios & runner, v1.0.0 release preparation | feat(hardening) M10
+2026-10-27 | M12 | Chromecast & Remote Playback: Google Cast SDK sender, W3C Remote Playback fallback, Cast button in Player.tsx, active overlay, PlayerRegistry integration with DELETE unregistration, plugin toggle & re-enable bugfix, serde default last_seen_at hardening, m12 integration tests | feat(chromecast) M12
 ```
 
 ---

@@ -54,7 +54,7 @@ use crate::routes::{
         requests::list_requests, requests::create_request, requests::update_request_status,
         requests::inspect_missing_episodes, requests::analyze_hardlinks,
         matchmaker::create_matchmaker_session, matchmaker::get_matchmaker_session, matchmaker::record_vote,
-        players::list_players, players::register_player, players::send_player_command,
+        players::list_players, players::register_player, players::unregister_player, players::send_player_command,
         companion::join_companion_session, companion::send_companion_reaction, companion::get_companion_context,
         media_audio::stream_audio, photos::get_photo_timeline,
         workers::generate_worker_pairing_code, workers::pair_worker, workers::list_workers,

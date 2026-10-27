@@ -211,6 +211,16 @@ pub async fn get_user_pin_hash(db: &Db, user_id: UserId) -> Result<Option<String
     Ok(row.and_then(|r| r.get("pin_hash")))
 }
 
+/// Begin enrollment only while no active factor exists, atomically with the write.
+pub async fn begin_user_totp_setup(db: &Db, user_id: UserId, secret: &str) -> Result<bool> {
+    let result = sqlx::query("UPDATE users SET totp_secret = ? WHERE id = ? AND totp_enabled = 0")
+        .bind(secret)
+        .bind(user_id.0)
+        .execute(&db.write)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn set_user_totp(
     db: &Db,
     user_id: UserId,

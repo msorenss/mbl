@@ -246,7 +246,13 @@ pub fn decide(media: &MediaInfo, profile: &DeviceProfile, ctx: &DecisionContext)
         video_ok && audio_ok
     });
 
+    // Browser direct play cannot reliably select a non-default embedded audio track.
+    // Remux it into the output instead so the requested language is actually heard.
+    let needs_audio_selection = ctx.audio_index.is_some()
+        && audio.map(|stream| stream.index) != select_audio(media, None).map(|stream| stream.index);
+
     if can_direct_play_rule
+        && !needs_audio_selection
         && video_reasons.is_empty()
         && audio_channel_reason.is_none()
         && bitrate_too_high.is_none()
@@ -264,6 +270,9 @@ pub fn decide(media: &MediaInfo, profile: &DeviceProfile, ctx: &DecisionContext)
 
     // 5. Non-direct play: collect reasons in deterministic order.
     let mut reasons = Vec::new();
+    if needs_audio_selection {
+        reasons.push(Reason::Other("Selected audio track requires stream remuxing".into()));
+    }
 
     // Did the container itself prevent direct play for otherwise-supported codecs?
     if !can_direct_play_rule {

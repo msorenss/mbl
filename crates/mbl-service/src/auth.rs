@@ -555,7 +555,11 @@ impl AuthService {
     pub async fn totp_setup(&self, actor: &Actor) -> Result<TotpSetup> {
         let secret = mbl_auth::totp::generate_secret()?;
         let user = self.users.get(actor.user_id).await?.ok_or(Error::NotFound)?;
-        m6::set_user_totp(&self.db, actor.user_id, Some(&secret), false).await?;
+        if !m6::begin_user_totp_setup(&self.db, actor.user_id, &secret).await? {
+            return Err(Error::Conflict(
+                "TOTP is already enabled; disable it before replacing it".into(),
+            ));
+        }
 
         let uri = mbl_auth::totp::otpauth_uri(&secret, &user.username, "MBL");
         Ok(TotpSetup { secret, uri })

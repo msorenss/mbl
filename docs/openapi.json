@@ -526,7 +526,8 @@
               }
             }
           },
-          "401": {}
+          "401": {},
+          "409": {}
         }
       }
     },
@@ -3928,6 +3929,35 @@
         "responses": {
           "204": {
             "description": "Player heartbeat/registration accepted"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/players/{id}": {
+      "delete": {
+        "tags": [
+          "players"
+        ],
+        "operationId": "unregister_player",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Target player ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Player unregistered"
           }
         },
         "security": [
@@ -10362,8 +10392,7 @@
           "state",
           "positionMs",
           "durationMs",
-          "volume",
-          "lastSeenAt"
+          "volume"
         ],
         "properties": {
           "deviceType": {
@@ -10686,6 +10715,9 @@
           },
           "description": {
             "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
           },
           "iconUrl": {
             "type": [
