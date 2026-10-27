@@ -1,92 +1,92 @@
 # MBL Performance Benchmarks & Targets (v1.0.0)
 
-Detta dokument redogör för prestandamätningar, benchmarks och resursavtryck för MBL på referenshårdvaran **Raspberry Pi 5 (8GB RAM, ARM64, Raspberry Pi OS bookworm, Hailo-10H NPU)** samt jämförande x86_64-arbetsstationer (Intel i5-12400 med QSV och RTX 3060 med NVENC).
+This document describes the performance measurements, benchmarks, and resource footprint for MBL on the reference hardware **Raspberry Pi 5 (8 GB RAM, ARM64, Raspberry Pi OS Bookworm, Hailo-10H NPU)**, alongside comparative x86_64 workstations (Intel i5-12400 with QSV and RTX 3060 with NVENC).
 
 ---
 
-## 1. Sammanfattning mot SLA-mål (PLAN.md §21)
+## 1. Summary against SLA targets (PLAN.md §21)
 
-| Mätvärde / Scenario | SLA-mål (PLAN §21) | Uppmätt (Pi 5 ARM64) | Uppmätt (x86_64 QSV/NVENC) | Status |
+| Metric / Scenario | SLA target (PLAN §21) | Measured (Pi 5 ARM64) | Measured (x86_64 QSV/NVENC) | Status |
 |---|---|---|---|---|
-| **Kallstart av server (`mbl-server`)** | < 1 000 ms | **380 ms** | **190 ms** | PASS |
-| **Minnesavtryck i vila (RSS)** | < 80 MB | **42.4 MB** | **48.1 MB** | PASS |
-| **Minnesavtryck under 2 samtidiga 1080p transkodningar** | < 250 MB | **148 MB** (inkl. tmpfs) | **132 MB** | PASS |
-| **Biblioteksskanning (snabb metadata, 10 000 filer)** | < 60 sekunder | **18.4 sekunder** (~543 filer/s) | **9.2 sekunder** (~1 086 filer/s) | PASS |
-| **Biblioteksskanning (djup ffprobe-analys)** | > 50 filer/s | **185 filer/s** | **420 filer/s** | PASS |
+| **Cold start of server (`mbl-server`)** | < 1,000 ms | **380 ms** | **190 ms** | PASS |
+| **Idle memory footprint (RSS)** | < 80 MB | **42.4 MB** | **48.1 MB** | PASS |
+| **Memory footprint under 2 concurrent 1080p transcodes** | < 250 MB | **148 MB** (including tmpfs) | **132 MB** | PASS |
+| **Library scan (fast metadata, 10,000 files)** | < 60 seconds | **18.4 seconds** (~543 files/s) | **9.2 seconds** (~1,086 files/s) | PASS |
+| **Library scan (deep ffprobe analysis)** | > 50 files/s | **185 files/s** | **420 files/s** | PASS |
 | **Time-to-First-Frame (TTFF): Direct Play HLS fMP4** | < 800 ms | **240 ms** | **140 ms** | PASS |
-| **Time-to-First-Frame (TTFF): 1080p H.264 -> H.264 transkodning** | < 2 500 ms | **1 850 ms** (V4L2 M2M HW) | **640 ms** (NVENC/QSV) | PASS |
-| **Sökning i FTS5-index (50 000 poster)** | < 10 ms | **2.8 ms** | **1.1 ms** | PASS |
-| **Virtuell 24/7-kanal: Playhead-beräkning** | < 0.1 ms | **0.015 ms** (zero-CPU) | **0.008 ms** | PASS |
-| **EPG TV Guide 2-axlars rutnätsgenerering (200 kanaler, 24h)** | < 50 ms | **14.2 ms** | **4.9 ms** | PASS |
-| **NPU Scensökning (Hailo-8 / Hailo-10H CLIP-inbäddning)** | < 25 ms/scen | **8.4 ms/scen** | **18.2 ms** (CPU) / **4.1 ms** (CUDA) | PASS |
-| **Distribuerad transcode-worker handoverlatens** | < 50 ms | **12.4 ms** | **8.1 ms** | PASS |
+| **Time-to-First-Frame (TTFF): 1080p H.264 -> H.264 transcode** | < 2,500 ms | **1,850 ms** (V4L2 M2M HW) | **640 ms** (NVENC/QSV) | PASS |
+| **FTS5 index lookup (50,000 rows)** | < 10 ms | **2.8 ms** | **1.1 ms** | PASS |
+| **Virtual 24/7 channel: playhead calculation** | < 0.1 ms | **0.015 ms** (zero-CPU) | **0.008 ms** | PASS |
+| **EPG TV Guide 2-axis grid generation (200 channels, 24h)** | < 50 ms | **14.2 ms** | **4.9 ms** | PASS |
+| **NPU scene search (Hailo-8 / Hailo-10H CLIP embedding)** | < 25 ms/scene | **8.4 ms/scene** | **18.2 ms** (CPU) / **4.1 ms** (CUDA) | PASS |
+| **Distributed transcode worker handover latency** | < 50 ms | **12.4 ms** | **8.1 ms** | PASS |
 
 ---
 
-## 2. Biblioteksskanning och Filindexering
+## 2. Library scanning and file indexing
 
-Skanningsmotorn (`mbl-scanner`) utnyttjar asynkron inotify, minnesoptimerade batch-transaktioner i SQLite med `PRAGMA synchronous = NORMAL` och `wal2`-läge.
+The scanning engine (`mbl-scanner`) uses asynchronous inotify and memory-optimized SQLite batch transactions with `PRAGMA synchronous = NORMAL` and `wal2` mode.
 
 ```mermaid
 xychart-beta
-    title "Biblioteksskanning Genomströmning (filer per sekund)"
+    title "Library Scan Throughput (files per second)"
     x-axis ["Fast Meta (Pi5)", "Deep ffprobe (Pi5)", "Fast Meta (x86)", "Deep ffprobe (x86)"]
-    y-axis "Filer/sekund" 0 --> 1200
+    y-axis "Files/second" 0 --> 1200
     bar [543, 185, 1086, 420]
 ```
 
-### Mätmetodik
-1. Syntetiskt mediebibliotek bestående av 10 000 videofiler (`.mp4`, `.mkv`), NFO-filer och bildomslag genererat via `cargo xtask gen-media`.
-2. Initial tom databas; skanning triggas via `POST /api/v1/libraries/1/scan`.
-3. Tiden mäts från skanningsstart (`scan.started`) till sista WebSocket-avslutet (`scan.completed`).
+### Measurement methodology
+1. Synthetic media library consisting of 10,000 video files (`.mp4`, `.mkv`), NFO files, and cover art generated via `cargo xtask gen-media`.
+2. Fresh empty database; scanning is triggered via `POST /api/v1/libraries/1/scan`.
+3. Time is measured from scan start (`scan.started`) to the final WebSocket completion event (`scan.completed`).
 
 ---
 
-## 3. Playback Startlatens (Time to First Frame — TTFF)
+## 3. Playback start latency (Time to First Frame — TTFF)
 
-TTFF mäts från att klienten begär uppspelningsmanifest (`POST /api/v1/playback/start`) till att det första fMP4-mediesegmentet (`.m4s`) har skickats och tagits emot av klienten över LAN (Gigabit Ethernet / Wi-Fi 6).
+TTFF is measured from the time the client requests the playback manifest (`POST /api/v1/playback/start`) until the first fMP4 media segment (`.m4s`) is sent and received by the client over the LAN (Gigabit Ethernet / Wi-Fi 6).
 
-| Uppspelningsläge | Kodning | Undertext | Pi 5 TTFF (ms) | x86 NVENC TTFF (ms) |
+| Playback mode | Encoding | Subtitle | Pi 5 TTFF (ms) | x86 NVENC TTFF (ms) |
 |---|---|---|---|---|
-| **Direct Play** | H.264 / AAC | Ingen | 240 ms | 140 ms |
-| **Direct Stream (Remux)** | HEVC -> fMP4 container | WebVTT (sideström) | 380 ms | 210 ms |
-| **Transcode** | 4K HDR HEVC -> 1080p SDR | Tonemappad (V4L2 DRM) | 2 350 ms | 720 ms |
-| **Transcode** | 1080p H.264 -> 720p 4Mbps | Ingen | 1 650 ms | 540 ms |
-| **Subtitle Burn-in** | 1080p H.264 | PGS/ASS inbränd | 2 100 ms | 890 ms |
+| **Direct Play** | H.264 / AAC | None | 240 ms | 140 ms |
+| **Direct Stream (Remux)** | HEVC -> fMP4 container | WebVTT (sidecar) | 380 ms | 210 ms |
+| **Transcode** | 4K HDR HEVC -> 1080p SDR | Tone mapped (V4L2 DRM) | 2,350 ms | 720 ms |
+| **Transcode** | 1080p H.264 -> 720p 4Mbps | None | 1,650 ms | 540 ms |
+| **Subtitle Burn-in** | 1080p H.264 | PGS/ASS burned in | 2,100 ms | 890 ms |
 
 ---
 
-## 4. Minnesavtryck (RSS Memory Footprint)
+## 4. Memory footprint (RSS memory footprint)
 
-Eftersom MBL är skrivet i Rust utan skräpsamlare (GC) eller runtime-overhead uppvisar servern och bakgrundsarbetarna extremt låg och förutsägbar minnesanvändning:
+Because MBL is written in Rust without a garbage collector or runtime overhead, the server and background workers exhibit very low and predictable memory usage:
 
-- **Server Idle:**
+- **Server idle:**
   - Pi 5 ARM64: **42.4 MB RSS**
   - x86_64 Linux: **48.1 MB RSS**
   - Windows x64: **54.2 MB RSS**
-- **Vid aktiv transkodning:**
-  - Transkodningsbuffertar lagras som standard i `/dev/shm` (tmpfs) för att minimera slitage på SD-kort och NVMe.
-  - Varje aktiv HLS-session konsumerar ~30–45 MB tmpfs-utrymme för en 5-segments glidande fMP4-ringbuffert.
-  - Serverns interna minnesökning under transkodning är begränsad till processhantering och I/O-piping (< 15 MB).
+- **During active transcoding:**
+  - Transcoding buffers are stored in `/dev/shm` (tmpfs) by default to minimize wear on SD cards and NVMe devices.
+  - Each active HLS session consumes about 30–45 MB of tmpfs space for a 5-segment sliding fMP4 ring buffer.
+  - The server’s internal memory footprint during transcode is limited to process handling and I/O piping (< 15 MB).
 
 ---
 
-## 5. Live TV & EPG Databasprestanda
+## 5. Live TV & EPG database performance
 
-- **Streaming XMLTV-parsning:**
-  - 150 MB XMLTV-fil innehållande 14 dagars programtablå för 120 kanaler (totalt 185 000 programposter).
-  - Genomströmning med `quick-xml` chunked event parser: **38.5 MB/s**, total importtid: **3.9 sekunder**.
-- **Virtuella 24/7-kanaler:**
-  - Playhead-beräkning är rent deterministisk och matematisk: `(now_ms - epoch_ms) % total_duration_ms`.
-  - Ingen kontinuerlig transkodning i bakgrunden; CPU-användning vid tomgång för 50 virtuella kanaler: **0.0% CPU**.
+- **Streaming XMLTV parsing:**
+  - 150 MB XMLTV file covering 14 days of program schedules for 120 channels (185,000 program entries total).
+  - Throughput with `quick-xml` chunked event parser: **38.5 MB/s**, total import time: **3.9 seconds**.
+- **Virtual 24/7 channels:**
+  - Playhead calculation is fully deterministic and mathematical: `(now_ms - epoch_ms) % total_duration_ms`.
+  - No continuous background transcoding; idle CPU usage for 50 virtual channels: **0.0% CPU**.
 
 ---
 
-## 6. MCP & AI Watch Companion Latens
+## 6. MCP & AI Watch Companion latency
 
-- **Verktygsdispatch (`execute_tool`):**
-  - Intern dispatch-latens för 74 registrerade MCP-verktyg: **0.08 ms**.
-  - `search_media` (FTS5 + rankning): **3.1 ms**.
+- **Tool dispatch (`execute_tool`):**
+  - Internal dispatch latency for 74 registered MCP tools: **0.08 ms**.
+  - `search_media` (FTS5 + ranking): **3.1 ms**.
   - `get_item` / `browse_items`: **1.2 ms**.
 - **AI Companion Live Context (`/api/v1/companion/sessions/{id}/context`):**
-  - Hämtning av aktuell scenkontext, dialog-cues och karaktärshistorik: **4.2 ms**.
+  - Retrieval of current scene context, dialog cues, and character history: **4.2 ms**.
