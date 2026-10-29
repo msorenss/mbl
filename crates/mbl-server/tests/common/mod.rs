@@ -364,8 +364,6 @@ pub async fn live_source_with_duration(seconds: u32) -> TestLiveSource {
             "mpeg2video",
             "-flags",
             "+ildct+ilme",
-            "-top",
-            "1",
             "-threads",
             "1",
             "-g",
