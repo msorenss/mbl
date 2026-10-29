@@ -3,8 +3,8 @@ This document lives at the repository root so every AI agent, contributor, and a
 
 ---
 ## 1. Current status (quick overview)
-- Current work: audit fixes through batch 25; native M11 clients and the next release remain on hold. MCP currently exposes 75 admin tools (30 read, 35 read+library).
-- Latest release: `v1.0.0` (published 2026-10-26, M10 completed — General Availability)
+- Current work: v1.1.0 release tag pushed to GitHub; automated package and release publication is pending verification. Native M11 clients remain on hold. MCP currently exposes 75 admin tools (30 read, 35 read+library).
+- Latest release tag: `v1.1.0` (pushed 2026-10-29; GitHub Actions publishes after packaging)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -79,6 +79,11 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-10-29 — Release v1.1.0 tag pushed
+- Bumped workspace/package versions, release notes, README, Windows package README and OpenAPI schema to 1.1.0. The release workflow now publishes the GitHub Release after Linux/Windows artifacts build; fallback tag references are v1.1.0.
+- `cargo run -p mbl-server -- openapi` and `cargo xtask openapi-check` pass. Full batch 25 verification is recorded below. Release commit `edafb80` and tag `v1.1.0` are pushed; remote `main` and tag were verified.
+- The GitHub release page returned 404 in the available unauthenticated browser session, so Actions completion and attached artifacts could not be verified here. Next: confirm the workflow completed and release assets are present; M11 remains on hold.
 
 ### 2026-10-29 — Git-kontrollpunkt efter batch 25
 - Användaren har godkänt checkpoint och publicering på GitHub. Batch 25 sparas ovanpå `a4efebb` med Signed-off-by; tidigare lokala checkpoints för Chromecast och batch 1–24 ingår i den samlade ändringen mot GitHub.
