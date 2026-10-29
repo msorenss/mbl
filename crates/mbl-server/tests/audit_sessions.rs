@@ -121,7 +121,7 @@ async fn live_reservations_cannot_be_renewed_or_released_by_another_session() {
     sqlx::query("UPDATE tuners SET tuner_count = 1").execute(&db.write).await.unwrap();
     let uri = format!("/api/v1/livetv/stream/{channel}");
     let stream = app.call(Method::GET, &uri, Some(&admin), None).await;
-    assert_eq!(stream.status, StatusCode::OK);
+    assert_eq!(stream.status, StatusCode::OK, "{}", stream.body);
     let lease = stream.body["sessionId"].as_str().unwrap();
     assert_eq!(app.call(Method::GET, &uri, Some(&bob), None).await.status, StatusCode::CONFLICT);
     assert_eq!(

@@ -131,7 +131,7 @@ async fn clean_early_eof_is_playable_partial_with_acl_retry_and_owned_deletion()
     let detail = app
         .call(Method::GET, &format!("/api/v1/livetv/recordings/{}", id.0), Some(&viewer), None)
         .await;
-    assert_eq!(detail.status, StatusCode::OK);
+    assert_eq!(detail.status, StatusCode::OK, "{}", detail.body);
     assert_eq!(detail.body["canDelete"], false);
     assert_eq!(
         app.call(

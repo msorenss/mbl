@@ -43,6 +43,8 @@ jobs:
 
   test-windows:
     runs-on: windows-latest
+    env:
+      NO_PROXY: 127.0.0.1,localhost
     steps:
       - uses: actions/checkout@v4
       - name: Install FFmpeg
