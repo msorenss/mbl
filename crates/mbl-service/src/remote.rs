@@ -48,6 +48,15 @@ impl RemoteService {
         Self { db, tailscale, bandwidth }
     }
 
+    pub async fn restore_policy(&self) -> Result<()> {
+        let mbps = get_remote_setting(&self.db, "wan_upload_limit_mbps")
+            .await?
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(20);
+        self.bandwidth.set_wan_limit(mbps.saturating_mul(1000));
+        Ok(())
+    }
+
     pub fn db(&self) -> &Db {
         &self.db
     }

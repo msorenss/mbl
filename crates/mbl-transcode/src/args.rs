@@ -72,6 +72,17 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
                     push_pair(&mut args, "-map", "0:v:0");
                     push_pair(&mut args, "-vf", &vf);
                 }
+                SubtitleOp::BurnTextFile { path } => {
+                    let vf = build_video_filter_chain_for_backend(
+                        p.backend,
+                        *deinterlace,
+                        *tonemap,
+                        *width,
+                        Some((path.as_str(), 0)),
+                    )?;
+                    push_pair(&mut args, "-map", "0:v:0");
+                    push_pair(&mut args, "-vf", &vf);
+                }
                 SubtitleOp::None => {
                     let vf = build_video_filter_chain_for_backend(
                         p.backend,
@@ -97,7 +108,7 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
     }
 
     // Audio mapping and codec options.
-    push_audio_args(&mut args, &p.audio);
+    push_audio_args(&mut args, &p.audio, p.start_ms);
 
     // Never mux raw subtitle tracks into fMP4 segments; subtitles are either sidecar or burned in.
     push_str(&mut args, "-sn");
@@ -133,17 +144,33 @@ fn push_input_hwaccel(args: &mut Vec<OsString>, backend: Backend) {
     }
 }
 
-fn push_audio_args(args: &mut Vec<OsString>, audio: &AudioOp) {
+fn push_audio_args(args: &mut Vec<OsString>, audio: &AudioOp, start_ms: u64) {
     match audio {
+        AudioOp::None => push_str(args, "-an"),
         AudioOp::Copy { index } => {
             push_pair(args, "-map", &format!("0:{index}"));
             push_pair(args, "-c:a", "copy");
         }
-        AudioOp::Encode { index, codec, channels, bitrate } => {
+        AudioOp::Encode { index, codec, channels, bitrate }
+        | AudioOp::EncodeShifted { index, codec, channels, bitrate, .. } => {
             push_pair(args, "-map", &format!("0:{index}"));
             push_pair(args, "-c:a", codec.ffmpeg_encoder());
             push_pair(args, "-ac", &channels.to_string());
             push_pair(args, "-b:a", &bitrate.to_string());
+            if let AudioOp::EncodeShifted { offset_ms, .. } = audio {
+                let seconds = offset_ms.unsigned_abs() as f64 / 1000.0;
+                // Retain the video's original timeline, including lazy HLS restarts.
+                // Trim audio advanced before the seek point, then shift its PTS.
+                let filter = if *offset_ms < 0 {
+                    format!(
+                        "atrim=start={:.3},asetpts=PTS-{seconds:.3}/TB",
+                        start_ms as f64 / 1000.0 + seconds
+                    )
+                } else {
+                    format!("asetpts=PTS+{seconds:.3}/TB")
+                };
+                push_pair(args, "-af", &filter);
+            }
         }
     }
 }
@@ -247,7 +274,7 @@ fn build_abr_ladder_args(
     for (i, r) in p.output.renditions.iter().enumerate() {
         push_pair(args, "-map", &format!("[v{i}]"));
         push_video_encoder(args, p.backend, codec, r.max_bitrate, p.output.segment_secs, caps);
-        push_audio_args(args, &p.audio);
+        push_audio_args(args, &p.audio, p.start_ms);
         push_str(args, "-sn");
         push_hls_output_args(args, p, i);
     }
@@ -280,6 +307,14 @@ fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
         return Err(Error::Validation(
             "subtitle burn-in requires video encoding (VideoOp::Encode)".into(),
         ));
+    }
+    if let SubtitleOp::BurnTextFile { path } = &p.subtitle
+        && (path.as_str().is_empty() || path.as_str().contains('\0'))
+    {
+        return Err(Error::Validation("subtitle file path is invalid".into()));
+    }
+    if p.output.renditions.len() > 1 && !matches!(p.subtitle, SubtitleOp::None) {
+        return Err(Error::Validation("subtitle burn-in requires a single rendition".into()));
     }
     if p.output.renditions.len() > 1 {
         if !p.backend.is_gpu() {
@@ -330,7 +365,14 @@ fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
             ));
         }
     }
-    if let AudioOp::Encode { channels, bitrate, .. } = &p.audio {
+    if let AudioOp::EncodeShifted { offset_ms, .. } = &p.audio
+        && !(-10_000..=10_000).contains(offset_ms)
+    {
+        return Err(Error::Validation("audio offset must be within -10000..10000 ms".into()));
+    }
+    if let AudioOp::Encode { channels, bitrate, .. }
+    | AudioOp::EncodeShifted { channels, bitrate, .. } = &p.audio
+    {
         if *channels == 0 {
             return Err(Error::Validation("audio channels must be >= 1".into()));
         }

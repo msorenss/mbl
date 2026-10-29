@@ -479,7 +479,7 @@ impl AuthService {
             expires_at,
         )
         .await?;
-        tracing::info!(code = %row.code, by = %actor.user_id, "share invite created");
+        tracing::info!(invite_id = row.id, by = %actor.user_id, "share invite created");
         Ok(row)
     }
 
@@ -528,23 +528,10 @@ impl AuthService {
             is_admin: false,
         };
 
-        let user_id = self.users.insert(&new_user, now).await?;
-
-        // Assign libraries and content rating ceiling from invite
-        m6::update_user_permissions(
-            &self.db,
-            user_id,
-            Some(false),
-            Some(invite.content_rating_ceiling),
-            Some(invite.library_ids),
-        )
-        .await?;
-
-        // Mark invite consumed
-        m6::mark_invite_used(&self.db, &req.code, user_id, now).await?;
+        let user_id = m6::register_with_invite(&self.db, &req.code, &new_user, now_ms()).await?;
 
         let user = self.users.get(user_id).await?.ok_or(Error::NotFound)?;
-        tracing::info!(user_id = %user_id, code = %req.code, "registered new user via invite");
+        tracing::info!(user_id = %user_id, "registered new user via invite");
         self.start_session(user, device).await
     }
 

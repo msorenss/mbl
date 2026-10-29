@@ -1607,6 +1607,15 @@
             }
           },
           {
+            "name": "audio_offset_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
             "name": "subtitle_stream_index",
             "in": "query",
             "required": false,
@@ -1966,6 +1975,75 @@
             }
           },
           "404": {}
+        }
+      }
+    },
+    "/api/v1/libraries/{id}/photos": {
+      "get": {
+        "tags": [
+          "photos"
+        ],
+        "operationId": "list_photos",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paginated_PhotoSummary"
+                }
+              }
+            }
+          },
+          "404": {},
+          "422": {}
         }
       }
     },
@@ -2672,11 +2750,20 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "description": "Renew an existing live lease",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Resolved live stream with deinterlacing flags",
+            "description": "Ready server-owned live HLS relay with a 45-second renewable lease",
             "content": {
               "application/json": {
                 "schema": {
@@ -2690,6 +2777,9 @@
           },
           "409": {
             "description": "Tuner concurrency limit reached"
+          },
+          "503": {
+            "description": "Encoder capacity, source or live HLS startup unavailable"
           }
         },
         "security": [
@@ -2714,6 +2804,15 @@
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "description": "Owned live lease ID",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -3210,6 +3309,29 @@
             "bearer_auth": []
           }
         ]
+      }
+    },
+    "/api/v1/matchmaker/sessions/{id}/join": {
+      "post": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "join_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {},
+          "409": {}
+        }
       }
     },
     "/api/v1/matchmaker/sessions/{id}/vote": {
@@ -3794,7 +3916,41 @@
           },
           "422": {
             "description": "Invalid playback request"
+          },
+          "503": {
+            "description": "Playback capacity unavailable, startup failed, or server shutting down"
           }
+        }
+      }
+    },
+    "/api/v1/playback/{session}/diagnostics": {
+      "get": {
+        "tags": [
+          "playback"
+        ],
+        "operationId": "diagnostics",
+        "parameters": [
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackDiagnostics"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
         }
       }
     },
@@ -3803,7 +3959,7 @@
         "tags": [
           "playback"
         ],
-        "summary": "Report playback progress (`playing` | `paused` | `buffering`) every ~10 seconds.",
+        "summary": "Report playback progress (`playing` | `paused` | `buffering`) every 5–10 seconds,\nincluding while paused or buffering, to renew the session lease. A reaped session returns 404.",
         "operationId": "progress",
         "parameters": [
           {
@@ -4000,6 +4156,9 @@
           },
           "404": {
             "description": "Player not found"
+          },
+          "503": {
+            "description": "Player command connection unavailable"
           }
         },
         "security": [
@@ -4007,6 +4166,32 @@
             "bearer_auth": []
           }
         ]
+      }
+    },
+    "/api/v1/players/{id}/connect": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "Session-bound command transport for an explicitly registered player.",
+        "operationId": "connect_player",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Player command WebSocket"
+          },
+          "404": {},
+          "409": {}
+        }
       }
     },
     "/api/v1/playlists": {
@@ -5095,6 +5280,41 @@
         }
       }
     },
+    "/api/v1/stream/live/{session}/{file}": {
+      "get": {
+        "tags": [
+          "stream"
+        ],
+        "summary": "Read a live HLS capability URL while its authenticated owner's lease remains active.",
+        "operationId": "live_file",
+        "parameters": [
+          {
+            "name": "session",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live HLS playlist or fMP4 media"
+          },
+          "404": {
+            "description": "Expired lease or unavailable media"
+          }
+        }
+      }
+    },
     "/api/v1/stream/subtitles/{partId}/{target}": {
       "get": {
         "tags": [
@@ -5182,8 +5402,21 @@
               }
             }
           },
+          "202": {
+            "description": "Previews queued for idle generation; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrickplayPending"
+                }
+              }
+            }
+          },
           "401": {},
-          "404": {}
+          "404": {},
+          "503": {
+            "description": "Preview generation failed"
+          }
         }
       }
     },
@@ -6470,6 +6703,108 @@
   },
   "components": {
     "schemas": {
+      "ActivePlaybackSession": {
+        "type": "object",
+        "description": "Live playback session metadata tracked in memory.",
+        "required": [
+          "audioOffsetMs",
+          "title",
+          "sessionId",
+          "userId",
+          "itemId",
+          "partId",
+          "method",
+          "reasons",
+          "profileName",
+          "positionMs",
+          "durationMs",
+          "state",
+          "startedAt",
+          "lastUpdatedAt",
+          "isHls",
+          "markedWatched",
+          "network"
+        ],
+        "properties": {
+          "audioOffsetMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "audioStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "burnedSubtitleStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "isHls": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "lastUpdatedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "markedWatched": {
+            "type": "boolean"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PlayMethod"
+          },
+          "network": {
+            "$ref": "#/components/schemas/Network"
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
+          },
+          "positionMs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "profileName": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PlaybackState"
+          },
+          "title": {
+            "type": "string"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
       "ApiTokenInfo": {
         "type": "object",
         "required": [
@@ -7716,6 +8051,7 @@
       "HailoEmbeddingBenchmark": {
         "type": "object",
         "required": [
+          "backend",
           "npuProfile",
           "deviceNodes",
           "sharingMode",
@@ -7734,6 +8070,9 @@
           "avgLatencyUs": {
             "type": "number",
             "format": "double"
+          },
+          "backend": {
+            "type": "string"
           },
           "deviceNodes": {
             "type": "array",
@@ -8697,6 +9036,8 @@
       "LiveStreamInfo": {
         "type": "object",
         "required": [
+          "sessionId",
+          "expiresAt",
           "channelId",
           "channelName",
           "streamUrl",
@@ -8710,8 +9051,15 @@
           "channelName": {
             "type": "string"
           },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
           "isDeinterlacingRequired": {
             "type": "boolean"
+          },
+          "sessionId": {
+            "type": "string"
           },
           "streamUrl": {
             "type": "string"
@@ -9157,6 +9505,16 @@
             "format": "int64"
           }
         }
+      },
+      "Network": {
+        "type": "string",
+        "description": "Network classification of the playback session.",
+        "enum": [
+          "lan",
+          "tailnetDirect",
+          "tailnetRelayed",
+          "wan"
+        ]
       },
       "NetworkClass": {
         "type": "string",
@@ -9732,6 +10090,65 @@
           }
         }
       },
+      "Paginated_PhotoSummary": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "title",
+                "takenAt"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/ItemId"
+                },
+                "partId": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PartId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "takenAt": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "PairingCodeResponse": {
         "type": "object",
         "required": [
@@ -9791,6 +10208,36 @@
       "PartId": {
         "type": "integer",
         "format": "int64"
+      },
+      "PhotoSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "takenAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "takenAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
       },
       "PhotoTimelineBucket": {
         "type": "object",
@@ -9880,6 +10327,70 @@
           "transcode"
         ]
       },
+      "PlaybackAudioTrack": {
+        "type": "object",
+        "description": "Audio streams available in the selected media version.",
+        "required": [
+          "index",
+          "codec",
+          "isDefault"
+        ],
+        "properties": {
+          "channels": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "codec": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PlaybackDiagnostics": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ActivePlaybackSession"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "transcode": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TranscodeDiagnostics"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
       "PlaybackMarker": {
         "type": "object",
         "description": "Timeline marker (intro, credits, chapter) returned in [`PlaybackResponse`].",
@@ -9914,6 +10425,7 @@
         "type": "object",
         "description": "Decision preview returned by `preview_playback`.",
         "required": [
+          "audioOffsetMs",
           "itemId",
           "partId",
           "method",
@@ -9927,6 +10439,10 @@
         "properties": {
           "audio": {
             "$ref": "#/components/schemas/StreamAction"
+          },
+          "audioOffsetMs": {
+            "type": "integer",
+            "format": "int64"
           },
           "container": {
             "type": "string"
@@ -9962,6 +10478,13 @@
       "PlaybackPreviewRequestBody": {
         "type": "object",
         "properties": {
+          "audioOffsetMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
           "audioStreamIndex": {
             "type": [
               "integer",
@@ -10028,6 +10551,11 @@
           "itemId"
         ],
         "properties": {
+          "audioOffsetMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Positive delays audio; negative advances audio (−10000..10000 ms).\nEncodes audio; ignored for media with no audio stream."
+          },
           "audioStreamIndex": {
             "type": [
               "integer",
@@ -10078,6 +10606,10 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "waitForReady": {
+            "type": "boolean",
+            "description": "Wait for readable source / first complete HLS media before acknowledging startup.\nOpt-in for existing API clients; enabled by the web player for atomic stream changes."
           }
         }
       },
@@ -10085,6 +10617,12 @@
         "type": "object",
         "description": "Response body for `POST /api/v1/playback`.",
         "required": [
+          "audioTracks",
+          "subtitleOptions",
+          "audioOffsetMs",
+          "itemId",
+          "partId",
+          "contentType",
           "sessionId",
           "method",
           "reasons",
@@ -10095,10 +10633,42 @@
           "durationMs"
         ],
         "properties": {
+          "audioOffsetMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "audioStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "audioTracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaybackAudioTrack"
+            }
+          },
+          "burnedSubtitleStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "contentType": {
+            "type": "string"
+          },
           "durationMs": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
           },
           "markers": {
             "type": "array",
@@ -10108,6 +10678,9 @@
           },
           "method": {
             "$ref": "#/components/schemas/PlayMethod"
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
           },
           "reasons": {
             "type": "array",
@@ -10122,6 +10695,12 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "subtitleOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaybackSubtitleOption"
+            }
           },
           "subtitles": {
             "type": "array",
@@ -10154,6 +10733,48 @@
             ],
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "PlaybackSubtitleOption": {
+        "type": "object",
+        "description": "Selectable subtitles, including image tracks requiring a new encoded video stream.",
+        "required": [
+          "index",
+          "codec",
+          "isDefault",
+          "isForced",
+          "requiresTranscode"
+        ],
+        "properties": {
+          "codec": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "isForced": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requiresTranscode": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10954,6 +11575,17 @@
           },
           "id": {
             "$ref": "#/components/schemas/RecordingId"
+          },
+          "itemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ItemId",
+                "description": "Ordinary library item, available only after the recorded file has been probed."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "outputPath": {
             "type": [
@@ -12344,6 +12976,35 @@
           }
         }
       },
+      "TranscodeDiagnostics": {
+        "type": "object",
+        "required": [
+          "backend",
+          "processRunning",
+          "throttled",
+          "restarts",
+          "lastExitFailed"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "lastExitFailed": {
+            "type": "boolean"
+          },
+          "processRunning": {
+            "type": "boolean"
+          },
+          "restarts": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "throttled": {
+            "type": "boolean"
+          }
+        }
+      },
       "TrickplayManifest": {
         "type": "object",
         "required": [
@@ -12408,6 +13069,17 @@
             "items": {
               "$ref": "#/components/schemas/TrickplayTile"
             }
+          }
+        }
+      },
+      "TrickplayPending": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
           }
         }
       },

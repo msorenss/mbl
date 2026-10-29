@@ -308,3 +308,32 @@ async fn publishes_job_events() {
     assert_eq!(statuses, ["queued", "running", "done"]);
     shutdown.cancel();
 }
+
+#[tokio::test]
+async fn yielding_idle_work_does_not_exhaust_failure_attempts() {
+    struct Yielding(AtomicUsize);
+    #[async_trait]
+    impl JobHandler for Yielding {
+        fn kind(&self) -> &'static str {
+            "test.yield"
+        }
+        async fn run(&self, _ctx: JobCtx, _payload: Value) -> Result<()> {
+            if self.0.fetch_add(1, Ordering::SeqCst) < 6 {
+                return Err(mbl_jobs::yield_to_idle());
+            }
+            Ok(())
+        }
+    }
+    let (db, _dir) = db().await;
+    let mut runner = JobRunner::new(db, EventBus::new(64), config());
+    let queue = runner.queue();
+    runner.register(Arc::new(Yielding(AtomicUsize::new(0))));
+    let id = queue.enqueue("test.yield", &json!({}), Priority::Idle).await.unwrap();
+    let stop = CancellationToken::new();
+    let handle = runner.start(stop.clone()).await.unwrap();
+    let completed = wait_for_status(&queue, id, "done").await;
+    assert_eq!(completed.attempts, 1);
+    assert!(completed.error.is_none());
+    stop.cancel();
+    handle.await.unwrap();
+}

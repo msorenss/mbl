@@ -209,6 +209,11 @@ export function LibraryDetail() {
             >
               &larr;
             </button>
+            <Show when={library()?.kind === "photo"}>
+              <button type="button" onClick={() => navigate(`/photos/${libraryId()}`)}>
+                Open photo timeline
+              </button>
+            </Show>
             <h1 style={{ margin: 0, "font-size": "24px", "font-weight": "800" }}>
               {library()?.name || "Library"}
             </h1>

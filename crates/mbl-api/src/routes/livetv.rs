@@ -400,38 +400,66 @@ async fn import_xmltv(
 #[utoipa::path(
     get,
     path = "/api/v1/livetv/stream/{channelId}",
-    params(("channelId" = i64, Path, description = "Channel ID")),
+    params(("channelId" = i64, Path, description = "Channel ID"), ("sessionId" = Option<String>, Query, description = "Renew an existing live lease")),
     responses(
-        (status = 200, description = "Resolved live stream with deinterlacing flags", body = LiveStreamInfo),
+        (status = 200, description = "Ready server-owned live HLS relay with a 45-second renewable lease", body = LiveStreamInfo),
         (status = 404, description = "Channel not found"),
         (status = 409, description = "Tuner concurrency limit reached"),
+        (status = 503, description = "Encoder capacity, source or live HLS startup unavailable"),
     ),
     security(("bearer_auth" = []))
 )]
 async fn resolve_live_stream(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(channel_id): AxumPath<i64>,
-) -> Result<Json<LiveStreamInfo>, ApiError> {
-    let info = state.services.livetv.resolve_live_stream(ChannelId(channel_id)).await?;
-    Ok(Json(info))
+    axum::extract::Query(lease): axum::extract::Query<LiveRenewQuery>,
+) -> Result<axum::response::Response, ApiError> {
+    let info = state
+        .services
+        .livetv
+        .resolve_live_stream(auth.session_id, ChannelId(channel_id), lease.session_id.as_deref())
+        .await?;
+    let mut response = axum::response::IntoResponse::into_response(Json(info));
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveRenewQuery {
+    session_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveLeaseQuery {
+    session_id: String,
 }
 
 #[utoipa::path(
     post,
     path = "/api/v1/livetv/stream/{channelId}/release",
-    params(("channelId" = i64, Path, description = "Channel ID")),
+    params(("channelId" = i64, Path, description = "Channel ID"), ("sessionId" = String, Query, description = "Owned live lease ID")),
     responses(
         (status = 200, description = "Stream released and tuner freed", body = SuccessResponse),
     ),
     security(("bearer_auth" = []))
 )]
 async fn release_live_stream(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(channel_id): AxumPath<i64>,
+    axum::extract::Query(lease): axum::extract::Query<LiveLeaseQuery>,
 ) -> Result<Json<SuccessResponse>, ApiError> {
-    state.services.livetv.release_live_stream(ChannelId(channel_id)).await?;
+    state
+        .services
+        .livetv
+        .release_live_stream(auth.session_id, ChannelId(channel_id), &lease.session_id)
+        .await?;
     Ok(Json(SuccessResponse { success: true }))
 }
 
@@ -450,11 +478,12 @@ async fn release_live_stream(
     security(("bearer_auth" = []))
 )]
 async fn list_recordings(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Query(query): Query<RecordingsQuery>,
 ) -> Result<Json<Vec<Recording>>, ApiError> {
-    let recordings = state.services.livetv.list_recordings(query.status.as_deref()).await?;
+    let recordings =
+        state.services.livetv.list_recordings_for(&auth.actor, query.status.as_deref()).await?;
     Ok(Json(recordings))
 }
 
@@ -488,11 +517,11 @@ async fn schedule_recording(
     security(("bearer_auth" = []))
 )]
 async fn get_recording(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<Recording>, ApiError> {
-    let rec = state.services.livetv.get_recording(RecordingId(id)).await?;
+    let rec = state.services.livetv.get_recording_for(&auth.actor, RecordingId(id)).await?;
     Ok(Json(rec))
 }
 
@@ -506,10 +535,11 @@ async fn get_recording(
     security(("bearer_auth" = []))
 )]
 async fn cancel_recording(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<SuccessResponse>, ApiError> {
+    state.services.livetv.get_recording_for(&auth.actor, RecordingId(id)).await?;
     let success = state.services.livetv.cancel_recording(RecordingId(id)).await?;
     Ok(Json(SuccessResponse { success }))
 }

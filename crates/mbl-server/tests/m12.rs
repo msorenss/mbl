@@ -16,7 +16,19 @@ async fn m12_plugin_disable_and_reenable_lifecycle() {
     let (app, _db, _services) = TestApp::new_with_services().await;
     let admin_token = app.setup_admin().await;
 
-    // 1. Initial list of plugins should have enabled == true
+    // Demo providers require explicit opt-in; exercise enable/disable independently of defaults.
+    for id in ["youtube", "spotify", "webdrama"] {
+        let result = app
+            .call(
+                Method::PATCH,
+                &format!("/api/v1/plugins/{id}"),
+                Some(&admin_token),
+                Some(json!({"enabled":true,"settings":{}})),
+            )
+            .await;
+        assert_eq!(result.status, StatusCode::OK);
+    }
+    // 1. Initial list of explicitly enabled plugins
     let list_res = app.call(Method::GET, "/api/v1/plugins", Some(&admin_token), None).await;
     assert_eq!(list_res.status, StatusCode::OK);
     let plugins = list_res.body.as_array().expect("plugins array");
@@ -100,7 +112,7 @@ async fn m12_plugin_disable_and_reenable_lifecycle() {
 
 #[tokio::test]
 async fn m12_chromecast_player_registry_integration() {
-    let (app, _db, _services) = TestApp::new_with_services().await;
+    let (app, _db, services) = TestApp::new_with_services().await;
     let admin_token = app.setup_admin().await;
 
     // 1. Register a Chromecast player
@@ -138,6 +150,9 @@ async fn m12_chromecast_player_registry_integration() {
     assert_eq!(p["positionMs"].as_i64().unwrap(), 45000);
     assert_eq!(p["volume"].as_i64().unwrap(), 75);
 
+    let auth = services.auth.authenticate(&admin_token).await.unwrap();
+    let mut connection =
+        services.players.connect(&auth.actor, auth.session_id, chromecast_id).unwrap();
     // 3. Dispatch command to Chromecast
     let cmd_res = app
         .call(
@@ -151,6 +166,7 @@ async fn m12_chromecast_player_registry_integration() {
         .await;
     assert_eq!(cmd_res.status, StatusCode::NO_CONTENT);
 
+    assert!(matches!(connection.commands.recv().await.unwrap(), mbl_service::PlayerCommand::Pause));
     // 4. Update state to paused via heartbeat
     let update_res = app
         .call(

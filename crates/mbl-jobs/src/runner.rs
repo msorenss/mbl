@@ -263,6 +263,19 @@ async fn execute(
                 publish(jobs::DONE, 1.0);
                 queue.repo.finish(job.id, jobs::DONE, None, now).await
             }
+            Err(mbl_core::Error::Internal(ref error)) if error.is::<crate::IdleYield>() => {
+                publish(jobs::QUEUED, job.progress as f32);
+                queue
+                    .repo
+                    .yield_idle(
+                        job.id,
+                        now.saturating_add(
+                            i64::try_from(config.poll_interval.as_millis()).unwrap_or(5000),
+                        ),
+                        now,
+                    )
+                    .await
+            }
             Err(e) if job.attempts >= config.max_attempts => {
                 tracing::warn!(job_id = %job.id, kind, error = %e, "job failed permanently");
                 publish(jobs::FAILED, job.progress as f32);

@@ -69,6 +69,20 @@ impl JobsRepo {
         .await?)
     }
 
+    pub async fn latest_for_payload(&self, kind: &str, payload: &str) -> Result<Option<Job>> {
+        let id = sqlx::query_scalar::<_, i64>(
+            "SELECT id FROM jobs WHERE kind=? AND payload=? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(kind)
+        .bind(payload)
+        .fetch_optional(&self.db.read)
+        .await?;
+        match id {
+            Some(id) => self.get(JobId(id)).await,
+            None => Ok(None),
+        }
+    }
+
     /// Atomically claim the next runnable job among `kinds` (a JSON array of kind names) with
     /// `priority <= max_priority`, ordered by priority, then due time, then age.
     pub async fn claim_next(
@@ -127,6 +141,13 @@ impl JobsRepo {
         )
         .execute(&self.db.write)
         .await?;
+        Ok(())
+    }
+
+    /// Roll back the claim's attempt counter when idle work yields to foreground activity.
+    pub async fn yield_idle(&self, id: JobId, run_after: i64, now: i64) -> Result<()> {
+        sqlx::query("UPDATE jobs SET status='queued', attempts=MAX(attempts-1,0), error=NULL, run_after=?, updated_at=? WHERE id=?")
+            .bind(run_after).bind(now).bind(id.0).execute(&self.db.write).await?;
         Ok(())
     }
 

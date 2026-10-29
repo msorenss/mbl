@@ -7,6 +7,7 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Dialog } from "../components/ui/Dialog";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
+import { usePlayer } from "../context/PlayerContext";
 import { useToast } from "../context/ToastContext";
 
 type EpgProgram = components["schemas"]["EpgProgram"];
@@ -23,6 +24,7 @@ type PluginItem = components["schemas"]["PluginItem"];
 
 export function LiveTv() {
   const { showToast } = useToast();
+  const { playItem } = usePlayer();
 
   const [activeTab, setActiveTab] = createSignal<"guide" | "tuners" | "recordings" | "virtual">(
     "guide",
@@ -31,20 +33,95 @@ export function LiveTv() {
     null,
   );
   let liveRequest = 0;
-  const releaseChannel = async (channelId: number) => {
+  let liveDisposed = false;
+  let liveAbort: AbortController | null = null;
+  let renewAbort: AbortController | null = null;
+  let renewing = false;
+  let liveFailed = false;
+  const [startingLive, setStartingLive] = createSignal(false);
+  const liveMessage = (error: unknown, fallback: string) => {
+    const value = error as { error?: { message?: string } } | undefined;
+    return value?.error?.message || fallback;
+  };
+  const releaseChannel = async (channelId: number, sessionId: string) => {
+    const abort = new AbortController();
+    const timeout = window.setTimeout(() => abort.abort(), 10000);
     try {
       await client.POST("/api/v1/livetv/stream/{channelId}/release", {
-        params: { path: { channelId } },
+        signal: abort.signal,
+        params: { path: { channelId }, query: { sessionId } },
       });
-    } catch {}
+    } catch {
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
+  let pendingRelease: Promise<void> = Promise.resolve();
+  const queueRelease = (channel: number, id: string) => {
+    pendingRelease = Promise.all([pendingRelease, releaseChannel(channel, id)]).then(() => {});
+    return pendingRelease;
   };
   const closeLiveStream = () => {
     liveRequest++;
+    liveAbort?.abort();
+    renewAbort?.abort();
+    setStartingLive(false);
     const current = liveStream();
     setLiveStream(null);
-    if (current) void releaseChannel(current.channelId);
+    if (current && !liveFailed) queueRelease(current.channelId, current.sessionId);
+    return pendingRelease;
   };
-  onCleanup(closeLiveStream);
+  const renewLive = async () => {
+    const current = liveStream();
+    if (!current || liveFailed || liveDisposed || renewing) return;
+    renewing = true;
+    const abort = new AbortController();
+    renewAbort = abort;
+    const timeout = window.setTimeout(() => abort.abort(), 10000);
+    try {
+      const result = await client.GET("/api/v1/livetv/stream/{channelId}", {
+        signal: abort.signal,
+        params: { path: { channelId: current.channelId }, query: { sessionId: current.sessionId } },
+      });
+      if (liveDisposed || liveStream()?.sessionId !== current.sessionId) {
+        if (result.data) void queueRelease(result.data.channelId, result.data.sessionId);
+        return;
+      }
+      if (result.error || !result.data)
+        throw new Error(
+          liveMessage(result.error, "Stream reservation expired. Select the channel again."),
+        );
+    } catch (error) {
+      if (!liveDisposed && liveStream()?.sessionId === current.sessionId && !liveFailed) {
+        closeLiveStream();
+        showToast({
+          title: "Live TV",
+          message: error instanceof Error ? error.message : "Could not renew live playback.",
+          type: "error",
+        });
+      }
+    } finally {
+      window.clearTimeout(timeout);
+      if (renewAbort === abort) renewAbort = null;
+      renewing = false;
+    }
+  };
+  const leaseTimer = window.setInterval(() => {
+    void renewLive();
+  }, 15000);
+  const liveFailure = (message: string) => {
+    const current = liveStream();
+    if (!current || liveFailed) return;
+    liveFailed = true;
+    renewAbort?.abort();
+    void queueRelease(current.channelId, current.sessionId);
+    showToast({ title: "Live TV", message, type: "error" });
+  };
+  onCleanup(() => {
+    liveDisposed = true;
+    clearInterval(leaseTimer);
+    closeLiveStream();
+  });
   const [loading, setLoading] = createSignal(false);
 
   // ---------------------------------------------------------------------------
@@ -148,7 +225,9 @@ export function LiveTv() {
     }
   };
 
+  let recordingsRequest = 0;
   const loadRecordings = async () => {
+    const request = ++recordingsRequest;
     try {
       const filter = recordingFilter() === "all" ? undefined : recordingFilter();
       const [recRes, ruleRes] = await Promise.all([
@@ -157,10 +236,13 @@ export function LiveTv() {
         }),
         client.GET("/api/v1/livetv/rules"),
       ]);
+      if (liveDisposed || request !== recordingsRequest) return;
+      if (recRes.error || ruleRes.error) throw new Error("Request failed");
       if (recRes.data) setRecordings(recRes.data);
       if (ruleRes.data) setRules(ruleRes.data);
     } catch {
-      showToast({ title: "Error", message: "Failed to load recordings", type: "error" });
+      if (!liveDisposed && request === recordingsRequest)
+        showToast({ title: "Error", message: "Failed to load recordings", type: "error" });
     }
   };
 
@@ -204,6 +286,10 @@ export function LiveTv() {
     loadRecordings();
     loadVirtualAndPlugins();
   });
+  const recordingsTimer = window.setInterval(() => {
+    if (activeTab() === "recordings") void loadRecordings();
+  }, 10000);
+  onCleanup(() => clearInterval(recordingsTimer));
 
   // ---------------------------------------------------------------------------
   // Guide Navigation & Actions
@@ -301,26 +387,42 @@ export function LiveTv() {
   };
 
   const handleWatchLive = async (channelId: number) => {
-    closeLiveStream();
+    const releasing = closeLiveStream();
     const request = ++liveRequest;
+    const abort = new AbortController();
+    liveAbort = abort;
+    let timeout: number | undefined;
+    liveFailed = false;
+    setStartingLive(true);
     try {
+      await releasing;
+      if (liveDisposed || request !== liveRequest || abort.signal.aborted) return;
+      timeout = window.setTimeout(() => abort.abort(), 20000);
       const res = await client.GET("/api/v1/livetv/stream/{channelId}", {
+        signal: abort.signal,
         params: { path: { channelId } },
       });
-      if (request !== liveRequest) {
-        if (res.data) void releaseChannel(res.data.channelId);
+      if (liveDisposed || request !== liveRequest) {
+        if (res.data) void queueRelease(res.data.channelId, res.data.sessionId);
         return;
       }
-      if (res.error || !res.data) throw new Error("Stream unavailable");
+      if (res.error || !res.data)
+        throw new Error(liveMessage(res.error, "Live source or encoder capacity unavailable."));
       setLiveStream(res.data);
       setSelectedProgram(null);
-    } catch {
-      if (request === liveRequest)
+    } catch (error) {
+      if (!liveDisposed && request === liveRequest)
         showToast({
-          title: "Tuner Unavailable",
-          message: "All tuners are busy or channel is offline",
+          title: "Live TV unavailable",
+          message: error instanceof Error ? error.message : "Could not start live playback.",
           type: "error",
         });
+    } finally {
+      window.clearTimeout(timeout);
+      if (request === liveRequest) {
+        liveAbort = null;
+        if (!liveDisposed) setStartingLive(false);
+      }
     }
   };
 
@@ -418,14 +520,35 @@ export function LiveTv() {
   // ---------------------------------------------------------------------------
   // Recording Actions
   // ---------------------------------------------------------------------------
-  const handleCancelRecording = async (id: number) => {
-    if (!confirm(`Cancel recording #${id}?`)) return;
+  const handlePlayRecording = async (rec: Recording) => {
+    if (rec.status !== "completed" || !rec.itemId) return;
+    const releasing = closeLiveStream();
+    const request = liveRequest;
+    await releasing;
+    if (liveDisposed || request !== liveRequest) return;
+    playItem({ itemId: rec.itemId, title: rec.title });
+  };
+  const handleCancelRecording = async (rec: Recording) => {
+    const id = rec.id;
+    const active = rec.status === "scheduled" || rec.status === "recording";
+    if (
+      !confirm(
+        active
+          ? `Cancel recording "${rec.title}"?`
+          : `Delete recording "${rec.title}" and its saved file?`,
+      )
+    )
+      return;
     try {
       const result = await client.DELETE("/api/v1/livetv/recordings/{id}", {
         params: { path: { id } },
       });
       if (result.error) throw new Error("Request failed");
-      showToast({ title: "Cancelled", message: `Recording #${id} removed`, type: "info" });
+      showToast({
+        title: active ? "Cancelled" : "Deleted",
+        message: `Recording #${id} removed`,
+        type: "info",
+      });
       loadRecordings();
     } catch {
       showToast({ title: "Error", message: "Failed to cancel recording", type: "error" });
@@ -593,12 +716,25 @@ export function LiveTv() {
 
   return (
     <div style={{ padding: "24px", "max-width": "1400px", margin: "0 auto" }}>
+      <Show when={startingLive()}>
+        <p role="status">
+          Preparing live playback… <Button onClick={closeLiveStream}>Cancel</Button>
+        </p>
+      </Show>
       <Show keyed when={liveStream()}>
         {(stream) => (
           <LiveStreamPlayer
             url={stream.streamUrl}
             title={stream.channelName}
-            onClose={closeLiveStream}
+            onClose={() => {
+              if (liveStream()?.sessionId === stream.sessionId) void closeLiveStream();
+            }}
+            onFailure={(message) => {
+              if (liveStream()?.sessionId === stream.sessionId) liveFailure(message);
+            }}
+            onEnded={() => {
+              if (liveStream()?.sessionId === stream.sessionId) void closeLiveStream();
+            }}
           />
         )}
       </Show>
@@ -902,7 +1038,17 @@ export function LiveTv() {
                             </div>
                           )}
                         </div>
-                        <Button variant="ghost" onClick={() => handleWatchLive(chan.id)}>
+                        <Button
+                          variant="ghost"
+                          aria-label={`Watch ${chan.name}`}
+                          disabled={chan.isVirtual}
+                          title={
+                            chan.isVirtual
+                              ? "Virtual channel playback is not available yet."
+                              : undefined
+                          }
+                          onClick={() => handleWatchLive(chan.id)}
+                        >
                           ▶
                         </Button>
                       </div>
@@ -1161,7 +1307,16 @@ export function LiveTv() {
                           </Show>
                         </td>
                         <td style={{ padding: "10px 16px", "text-align": "right" }}>
-                          <Button variant="ghost" onClick={() => handleWatchLive(ch.id)}>
+                          <Button
+                            variant="ghost"
+                            disabled={ch.isVirtual}
+                            title={
+                              ch.isVirtual
+                                ? "Virtual channel playback is not available yet."
+                                : undefined
+                            }
+                            onClick={() => handleWatchLive(ch.id)}
+                          >
                             Stream
                           </Button>
                         </td>
@@ -1288,6 +1443,14 @@ export function LiveTv() {
                           <tr style={{ "border-bottom": "1px solid var(--border)" }}>
                             <td style={{ padding: "10px 16px", "font-weight": "700" }}>
                               {rec.title}
+                              <Show when={rec.durationMs && rec.durationMs > 0}>
+                                <div
+                                  style={{ "font-size": "12px", color: "var(--text-secondary)" }}
+                                >
+                                  {Math.floor((rec.durationMs ?? 0) / 60000)}m{" "}
+                                  {Math.floor(((rec.durationMs ?? 0) % 60000) / 1000)}s
+                                </div>
+                              </Show>
                               {rec.errorMessage && (
                                 <div
                                   style={{
@@ -1310,11 +1473,24 @@ export function LiveTv() {
                               {rec.ruleId ? `#${rec.ruleId}` : "Manual"}
                             </td>
                             <td style={{ padding: "10px 16px", "text-align": "right" }}>
-                              <Button
-                                variant="danger"
-                                onClick={() => handleCancelRecording(rec.id)}
-                              >
-                                Cancel
+                              <Show when={rec.status === "completed" && rec.itemId}>
+                                <Button
+                                  variant="primary"
+                                  aria-label={`Play recording ${rec.title}`}
+                                  onClick={() => handlePlayRecording(rec)}
+                                >
+                                  Play
+                                </Button>
+                              </Show>
+                              <Show when={rec.status === "completed" && !rec.itemId}>
+                                <span style={{ color: "var(--text-muted)", "font-size": "12px" }}>
+                                  Playback unavailable
+                                </span>
+                              </Show>
+                              <Button variant="danger" onClick={() => handleCancelRecording(rec)}>
+                                {rec.status === "scheduled" || rec.status === "recording"
+                                  ? "Cancel"
+                                  : "Delete"}
                               </Button>
                             </td>
                           </tr>
@@ -1584,7 +1760,11 @@ export function LiveTv() {
                           >
                             Delete
                           </Button>
-                          <Button variant="primary" onClick={() => handleWatchLive(vc.channelId)}>
+                          <Button
+                            variant="primary"
+                            disabled
+                            title="Virtual channel playback is not available yet."
+                          >
                             ▶ Watch Channel
                           </Button>
                         </div>
@@ -1821,7 +2001,16 @@ export function LiveTv() {
                 >
                   <Show when={selectedChannel()}>
                     {(chan) => (
-                      <Button variant="secondary" onClick={() => handleWatchLive(chan().id)}>
+                      <Button
+                        variant="secondary"
+                        disabled={chan().isVirtual}
+                        title={
+                          chan().isVirtual
+                            ? "Virtual channel playback is not available yet."
+                            : undefined
+                        }
+                        onClick={() => handleWatchLive(chan().id)}
+                      >
                         ▶ Watch Live
                       </Button>
                     )}

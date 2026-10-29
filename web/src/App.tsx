@@ -14,8 +14,11 @@ const Libraries = lazy(() => import("./pages/Libraries"));
 const LibraryDetail = lazy(() => import("./pages/LibraryDetail"));
 const Search = lazy(() => import("./pages/Search"));
 const Collections = lazy(() => import("./pages/Collections"));
+const Requests = lazy(() => import("./pages/Requests"));
 const Account = lazy(() => import("./pages/Account"));
+const Photos = lazy(() => import("./pages/Photos"));
 const Profiles = lazy(() => import("./pages/Profiles"));
+const Invite = lazy(() => import("./pages/Invite"));
 const Login = lazy(() => import("./pages/Login"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Users = lazy(() => import("./pages/admin/Users"));
@@ -32,6 +35,7 @@ export function App() {
         <AuthProvider>
           <PlayerProvider>
             <Router>
+              <Route path="/invite/:code" component={Invite} />
               <Route path="/login" component={Login} />
               <Route path="/setup" component={Setup} />
               <Route
@@ -45,11 +49,13 @@ export function App() {
                 <Route path="/" component={Home} />
                 <Route path="/libraries" component={Libraries} />
                 <Route path="/library/:id" component={LibraryDetail} />
+                <Route path="/photos/:id" component={Photos} />
                 <Route path="/item/:id" component={ItemDetail} />
                 <Route path="/search" component={Search} />
                 <Route path="/livetv" component={LiveTv} />
                 <Route path="/collections" component={Collections} />
                 <Route path="/account" component={Account} />
+                <Route path="/requests" component={Requests} />
                 <Route path="/profiles" component={Profiles} />
                 <Route
                   path="/admin/remote"

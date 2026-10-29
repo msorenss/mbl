@@ -8,7 +8,8 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: "http://localhost:8420",
-        changeOrigin: true,
+        changeOrigin: false,
+        ws: true,
       },
       "/mcp": {
         target: "http://localhost:8420",

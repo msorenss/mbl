@@ -61,6 +61,7 @@ pub struct ClientThroughputFeedback {
 pub struct BandwidthManager {
     global_wan_limit_kbps: RwLock<u64>,
     active_wan_sessions: RwLock<HashMap<String, ClientThroughputFeedback>>,
+    next_send: tokio::sync::Mutex<tokio::time::Instant>,
 }
 
 impl std::fmt::Debug for BandwidthManager {
@@ -80,6 +81,7 @@ impl BandwidthManager {
         Self {
             global_wan_limit_kbps: RwLock::new(global_wan_limit_kbps),
             active_wan_sessions: RwLock::new(HashMap::new()),
+            next_send: tokio::sync::Mutex::new(tokio::time::Instant::now()),
         }
     }
 
@@ -134,8 +136,18 @@ impl BandwidthManager {
 
     /// Calculate recommended bitrate for a WAN session based on active fair-share.
     pub fn calculate_wan_fair_share(&self, requested_max: Option<u64>) -> u64 {
-        let active_count =
-            self.active_wan_sessions.read().map(|m| m.len() as u64).unwrap_or(1).max(1);
+        let active_count = self
+            .active_wan_sessions
+            .read()
+            .map(|m| {
+                m.values()
+                    .filter(|entry| {
+                        mbl_core::time::now_ms().saturating_sub(entry.last_updated_at) < 60_000
+                    })
+                    .count() as u64
+            })
+            .unwrap_or(1)
+            .max(1);
 
         let total_cap = self.get_wan_limit();
         // Zero is the configured unlimited value. A quality floor must never raise
@@ -146,6 +158,24 @@ impl BandwidthManager {
             Some(req) => req.min(per_stream_share),
             None => per_stream_share,
         }
+    }
+
+    /// A shared paced queue limits aggregate WAN bytes across direct and HLS streams.
+    /// Media adapters split chunks to 64 KiB so simultaneous readers interleave fairly.
+    pub async fn throttle(&self, bytes: usize) {
+        let limit = self.get_wan_limit();
+        if limit == 0 || bytes == 0 {
+            return;
+        }
+        let duration =
+            std::time::Duration::from_secs_f64(bytes as f64 * 8.0 / (limit as f64 * 1000.0));
+        let deadline = {
+            let mut next = self.next_send.lock().await;
+            let now = tokio::time::Instant::now();
+            *next = (*next).max(now) + duration;
+            *next
+        };
+        tokio::time::sleep_until(deadline).await;
     }
 
     pub fn active_session_count(&self) -> usize {
@@ -204,5 +234,21 @@ mod tests {
         let wan = NetworkQualityPreset::for_network(NetworkClass::Wan);
         assert_eq!(wan.max_bitrate_kbps, Some(8_000));
         assert!(wan.prefer_hw_hevc);
+    }
+}
+
+#[cfg(test)]
+mod pacing_tests {
+    use super::*;
+    #[tokio::test]
+    async fn concurrent_readers_share_the_same_byte_budget() {
+        let manager = BandwidthManager::new(1_000);
+        let start = tokio::time::Instant::now();
+        tokio::join!(manager.throttle(16_000), manager.throttle(16_000));
+        assert!(start.elapsed() >= std::time::Duration::from_millis(256));
+        manager.set_wan_limit(0);
+        let start = tokio::time::Instant::now();
+        manager.throttle(1_000_000).await;
+        assert!(start.elapsed() < std::time::Duration::from_millis(100));
     }
 }

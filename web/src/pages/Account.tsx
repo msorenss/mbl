@@ -1,6 +1,7 @@
 import { createResource, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import HistoryImport from "../components/HistoryImport";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
@@ -144,6 +145,7 @@ export default function Account() {
           </For>
         </Show>
       </section>
+      <HistoryImport />
     </div>
   );
 }

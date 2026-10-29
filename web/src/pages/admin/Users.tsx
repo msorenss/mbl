@@ -1,6 +1,8 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../../api/client";
 import type { components } from "../../api/schema";
+import Invites from "../../components/Invites";
+import UserPermissions from "../../components/UserPermissions";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 
@@ -24,10 +26,15 @@ export function Users() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data } = await client.GET("/api/v1/users");
+      const { data, error } = await client.GET("/api/v1/users");
+      if (error) throw new Error("Could not load users");
       if (data) setUsers(data);
     } catch {
-      // Ignore
+      showToast({
+        title: "Error",
+        message: "Could not load users. Reload to retry.",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -232,6 +239,7 @@ export function Users() {
                       {new Date(u.createdAt).toLocaleDateString()}
                     </td>
                     <td style={{ padding: "12px 16px", "text-align": "right" }}>
+                      <UserPermissions user={u} />
                       <Show when={u.id !== currentUser()?.id}>
                         <button
                           type="button"
@@ -463,6 +471,7 @@ export function Users() {
           </div>
         </div>
       </Show>
+      <Invites />
     </div>
   );
 }

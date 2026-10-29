@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use mbl_analysis::{
-    OptimizationEstimate, OptimizationProfile, TrickplayManifest, build_manifest, detect_credits,
+    OptimizationEstimate, OptimizationProfile, TrickplayManifest, detect_credits,
     detect_intro_from_chapters, estimate_optimization, find_common_intros, fingerprint_media_file,
     generate_trickplay, run_credits_detection, transcode_optimized_mp4,
 };
@@ -149,11 +149,19 @@ pub struct MediaIntelligenceService {
     stream: StreamService,
     jobs: JobQueue,
     hailo: HailoEngine,
+    trickplay_admission: std::sync::Arc<tokio::sync::Mutex<()>>,
 }
 
 impl MediaIntelligenceService {
     pub fn new(db: Db, auth: AuthService, stream: StreamService, jobs: JobQueue) -> Self {
-        Self { db, auth, stream, jobs, hailo: HailoEngine::default() }
+        Self {
+            db,
+            auth,
+            stream,
+            jobs,
+            hailo: HailoEngine::default(),
+            trickplay_admission: Default::default(),
+        }
     }
 
     pub fn with_stream(mut self, stream: StreamService) -> Self {
@@ -380,75 +388,145 @@ impl MediaIntelligenceService {
         Ok((version_id, part_id))
     }
 
-    /// Return or generate the trickplay sprite index for `part_id` (M5.5).
+    /// Cached previews, or an idle background job (never a foreground FFmpeg decode).
     pub async fn trickplay_manifest(
         &self,
         actor: &Actor,
         part_id: PartId,
-    ) -> Result<TrickplayManifest> {
-        let part = media::part_for_stream(&self.db, part_id).await?.ok_or(Error::NotFound)?;
-        if !actor.can_access_library(part.library_id) {
-            return Err(Error::NotFound);
+    ) -> Result<Option<TrickplayManifest>> {
+        let part = self.stream.resolve_part(actor, part_id).await?;
+        let source = TrickplaySource::read(&part.path, part.duration_ms).await?;
+        let _guard = self.trickplay_admission.lock().await;
+        if let Some(cache) = self.cached_trickplay(part_id, &source).await? {
+            return Ok(Some(cache.manifest));
         }
-
-        let repo = TrickplayRepo::new(self.db.clone());
-        if let Some(row) = repo.get_for_part(part_id).await?
-            && let Ok(manifest) = serde_json::from_str::<TrickplayManifest>(&row.manifest_json)
+        let payload = serde_json::json!({"partId": part_id.0, "revision": source.revision()});
+        if let Some(job) = mbl_db::repo::jobs::JobsRepo::new(self.db.clone())
+            .latest_for_payload(kinds::MEDIA_TRICKPLAY, &payload.to_string())
+            .await?
+            && matches!(job.status.as_str(), "failed" | "cancelled")
+            && now_ms() - job.updated_at < 300_000
         {
-            return Ok(manifest);
+            return Err(Error::Unavailable("trickplay generation failed; try again later".into()));
         }
+        self.jobs.enqueue(kinds::MEDIA_TRICKPLAY, &payload, Priority::Idle).await?;
+        Ok(None)
+    }
 
-        let duration_ms = part.duration_ms.and_then(|d| u64::try_from(d).ok()).unwrap_or(60_000);
-        let out_dir = self.trickplay_dir(part_id);
-        let ffmpeg_bin = self
-            .stream
-            .hls_manager()
-            .map(|m| m.config().ffmpeg_bin.clone())
-            .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+    async fn cached_trickplay(
+        &self,
+        part_id: PartId,
+        source: &TrickplaySource,
+    ) -> Result<Option<TrickplayCache>> {
+        let Some(row) = TrickplayRepo::new(self.db.clone()).get_for_part(part_id).await? else {
+            return Ok(None);
+        };
+        // The envelope version invalidates legacy manifests containing synthetic placeholders.
+        let Ok(cache) = serde_json::from_str::<TrickplayCache>(&row.manifest_json) else {
+            return Ok(None);
+        };
+        if cache.source != *source
+            || cache.manifest.part_id != part_id
+            || cache.manifest.tiles.is_empty()
+        {
+            return Ok(None);
+        }
+        let dir = self.trickplay_dir(part_id).join(source.revision());
+        for sprite in &cache.manifest.sprites {
+            if !valid_sprite_name(&sprite.file_name)
+                || !tokio::fs::try_exists(dir.join(&sprite.file_name))
+                    .await
+                    .map_err(Error::internal)?
+            {
+                return Ok(None);
+            }
+        }
+        Ok(Some(cache))
+    }
 
-        let manifest =
-            generate_trickplay(&ffmpeg_bin, part_id, Path::new(&part.path), duration_ms, &out_dir)
-                .await
-                .unwrap_or_else(|_| build_manifest(part_id, duration_ms, 1));
-
-        let manifest_json = serde_json::to_string(&manifest).unwrap_or_else(|_| "{}".into());
-        repo.upsert(&TrickplayRow {
+    /// Called only by the background handler; source paths are revalidated against library roots.
+    pub async fn generate_trickplay_part(&self, part_id: PartId) -> Result<TrickplayManifest> {
+        let part = self.stream.resolve_part(&Actor::admin(mbl_core::UserId(0)), part_id).await?;
+        let source = TrickplaySource::read(&part.path, part.duration_ms).await?;
+        if let Some(cache) = self.cached_trickplay(part_id, &source).await? {
+            return Ok(cache.manifest);
+        }
+        let duration_ms =
+            part.duration_ms.and_then(|d| u64::try_from(d).ok()).filter(|d| *d > 0).ok_or_else(
+                || Error::Validation("missing trickplay duration; rescan media".into()),
+            )?;
+        let root = self.trickplay_dir(part_id);
+        tokio::fs::create_dir_all(&root).await.map_err(Error::internal)?;
+        // One registered trickplay handler runs at a time. HTTP readers only see the published revision.
+        let staging = tempfile::Builder::new()
+            .prefix(".generating-")
+            .tempdir_in(&root)
+            .map_err(Error::internal)?;
+        let manifest = generate_trickplay(
+            self.stream.ffmpeg_bin(),
             part_id,
-            interval_ms: manifest.interval_ms as i64,
-            tile_width: i64::from(manifest.tile_width),
-            tile_height: i64::from(manifest.tile_height),
-            columns: i64::from(manifest.columns),
-            rows: i64::from(manifest.rows),
-            frame_count: i64::from(manifest.frame_count),
-            sprite_count: manifest.sprites.len() as i64,
-            manifest_json,
-            generated_ms: manifest.generated_ms as i64,
-            created_at: now_ms(),
-        })
+            &part.path,
+            duration_ms,
+            staging.path(),
+        )
         .await?;
-
+        if TrickplaySource::read(&part.path, part.duration_ms).await? != source {
+            return Err(Error::Unavailable("trickplay source changed during generation".into()));
+        }
+        let published = root.join(source.revision());
+        if tokio::fs::try_exists(&published).await.map_err(Error::internal)? {
+            tokio::fs::remove_dir_all(&published).await.map_err(Error::internal)?;
+        }
+        tokio::fs::rename(staging.path(), &published).await.map_err(Error::internal)?;
+        let envelope = TrickplayCache { source, manifest: manifest.clone() };
+        TrickplayRepo::new(self.db.clone())
+            .upsert(&TrickplayRow {
+                part_id,
+                interval_ms: manifest.interval_ms as i64,
+                tile_width: i64::from(manifest.tile_width),
+                tile_height: i64::from(manifest.tile_height),
+                columns: i64::from(manifest.columns),
+                rows: i64::from(manifest.rows),
+                frame_count: i64::from(manifest.frame_count),
+                sprite_count: manifest.sprites.len() as i64,
+                manifest_json: serde_json::to_string(&envelope).map_err(Error::internal)?,
+                generated_ms: manifest.generated_ms as i64,
+                created_at: now_ms(),
+            })
+            .await?;
+        // Retire previous source revisions only after the new row and complete files are published.
+        let current = envelope.source.revision();
+        let mut entries = tokio::fs::read_dir(&root).await.map_err(Error::internal)?;
+        while let Some(entry) = entries.next_entry().await.map_err(Error::internal)? {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name != current
+                && name.len() == 16
+                && name.bytes().all(|b| b.is_ascii_hexdigit())
+                && let Err(error) = tokio::fs::remove_dir_all(entry.path()).await
+            {
+                tracing::debug!(%error, "obsolete trickplay cache could not be removed");
+            }
+        }
         Ok(manifest)
     }
 
-    /// Resolve a trickplay sprite sheet JPEG path on disk (`sprite_000.jpg`), generating it if needed (M5.5).
+    /// Only already-published sprites are served; requests never start expensive generation.
     pub async fn trickplay_sprite_path(
         &self,
         actor: &Actor,
         part_id: PartId,
         sprite_name: &str,
     ) -> Result<PathBuf> {
-        if sprite_name.contains('/') || sprite_name.contains('\\') || sprite_name.contains("..") {
+        if !valid_sprite_name(sprite_name) {
             return Err(Error::Validation("invalid sprite filename".into()));
         }
-        let manifest = self.trickplay_manifest(actor, part_id).await?;
-        if !manifest.sprites.iter().any(|s| s.file_name == sprite_name) {
+        let part = self.stream.resolve_part(actor, part_id).await?;
+        let source = TrickplaySource::read(&part.path, part.duration_ms).await?;
+        let cache = self.cached_trickplay(part_id, &source).await?.ok_or(Error::NotFound)?;
+        if !cache.manifest.sprites.iter().any(|s| s.file_name == sprite_name) {
             return Err(Error::NotFound);
         }
-        let path = self.trickplay_dir(part_id).join(sprite_name);
-        if !path.exists() {
-            return Err(Error::NotFound);
-        }
-        Ok(path)
+        Ok(self.trickplay_dir(part_id).join(source.revision()).join(sprite_name))
     }
 
     fn trickplay_dir(&self, part_id: PartId) -> PathBuf {
@@ -890,6 +968,94 @@ impl JobHandler for OptimizeJobHandler {
         ctx.progress.report(0.1).await?;
         let _ = payload;
         ctx.progress.report(1.0).await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct TrickplaySource {
+    version: u32,
+    path: PathBuf,
+    size: u64,
+    modified_ns: u64,
+    duration_ms: Option<i64>,
+}
+impl TrickplaySource {
+    async fn read(path: &Path, duration_ms: Option<i64>) -> Result<Self> {
+        let metadata = tokio::fs::metadata(path).await.map_err(|_| Error::NotFound)?;
+        let modified_ns = metadata
+            .modified()
+            .map_err(Error::internal)?
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(Error::internal)?
+            .as_nanos();
+        Ok(Self {
+            version: 2,
+            duration_ms,
+            path: path.to_path_buf(),
+            size: metadata.len(),
+            modified_ns: u64::try_from(modified_ns).map_err(Error::internal)?,
+        })
+    }
+    fn revision(&self) -> String {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (self.version, &self.path, self.size, self.modified_ns, self.duration_ms).hash(&mut hasher);
+        format!("{:016x}", hasher.finish())
+    }
+}
+#[derive(Serialize, Deserialize)]
+struct TrickplayCache {
+    source: TrickplaySource,
+    manifest: TrickplayManifest,
+}
+fn valid_sprite_name(name: &str) -> bool {
+    name.len() >= 12
+        && name.starts_with("sprite_")
+        && name.ends_with(".jpg")
+        && name.len() <= 32
+        && name[7..name.len() - 4].bytes().all(|b| b.is_ascii_digit())
+}
+
+pub struct TrickplayJobHandler {
+    pub intelligence: MediaIntelligenceService,
+    pub playback: crate::PlaybackService,
+}
+#[async_trait]
+impl JobHandler for TrickplayJobHandler {
+    fn kind(&self) -> &'static str {
+        kinds::MEDIA_TRICKPLAY
+    }
+    async fn run(&self, ctx: JobCtx, payload: serde_json::Value) -> Result<()> {
+        let parts = if let Some(id) = payload["libraryId"].as_i64() {
+            media::video_part_ids_for_library(&ctx.db, LibraryId(id)).await?
+        } else {
+            vec![PartId(
+                payload["partId"]
+                    .as_i64()
+                    .ok_or_else(|| Error::Validation("trickplay without partId".into()))?,
+            )]
+        };
+        for (index, part) in parts.iter().enumerate() {
+            tokio::select! {
+                () = ctx.cancel.cancelled() => return Ok(()),
+                () = async {
+                    loop {
+                        if mbl_jobs::ActivityProbe::playback_active(&self.playback)
+                            || mbl_jobs::ActivityProbe::thermal_throttled(&self.playback) { break; }
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                } => return Err(mbl_jobs::yield_to_idle()),
+                result = self.intelligence.generate_trickplay_part(*part) => {
+                    // A broken file must not prevent remaining library parts from being generated.
+                    if let Err(error) = result {
+                        if parts.len() == 1 { return Err(error); }
+                        tracing::warn!(part_id=%part, error=%error, "trickplay part failed");
+                    }
+                }
+            }
+            ctx.progress.report((index + 1) as f32 / parts.len() as f32).await?;
+        }
         Ok(())
     }
 }

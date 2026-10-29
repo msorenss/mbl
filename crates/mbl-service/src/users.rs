@@ -38,6 +38,7 @@ pub struct UpdateUser {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateUserPermissionsRequest {
     pub is_managed: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_rating_patch")]
     pub content_rating_ceiling: Option<Option<String>>,
     pub library_ids: Option<Vec<LibraryId>>,
 }
@@ -55,9 +56,74 @@ pub struct VerifyPinRequest {
     pub pin: String,
 }
 
+// A missing field means unchanged; explicit JSON null removes the limit.
+fn deserialize_rating_patch<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
+}
+
+#[cfg(test)]
+mod permission_patch_tests {
+    use super::*;
+    #[tokio::test]
+    async fn all_five_locales_are_persisted_and_unknown_locale_is_rejected() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = camino::Utf8Path::from_path(directory.path()).unwrap().join("preferences.db");
+        let db = Db::connect(&path, &mbl_db::DbOptions::default()).await.unwrap();
+        let id = UsersRepo::new(db.clone())
+            .insert(
+                &NewUser {
+                    username: "viewer",
+                    display_name: "Viewer",
+                    password_hash: "test",
+                    is_admin: false,
+                },
+                now_ms(),
+            )
+            .await
+            .unwrap();
+        let service = UserService::new(db);
+        let actor = Actor::user(id);
+        for locale in ["en", "sv", "de", "fr", "es"] {
+            let result = service
+                .update_preferences(
+                    &actor,
+                    UpdateUserPreferences { locale: Some(locale.into()), ..Default::default() },
+                )
+                .await
+                .unwrap();
+            assert_eq!(result.locale, locale);
+            assert_eq!(service.get_preferences(&actor).await.unwrap().locale, locale);
+        }
+        assert!(
+            service
+                .update_preferences(
+                    &actor,
+                    UpdateUserPreferences { locale: Some("unknown".into()), ..Default::default() }
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(service.get_preferences(&actor).await.unwrap().locale, "es");
+    }
+
+    #[test]
+    fn rating_patch_distinguishes_omitted_null_and_value() {
+        let absent: UpdateUserPermissionsRequest = serde_json::from_str("{}").unwrap();
+        let cleared: UpdateUserPermissionsRequest =
+            serde_json::from_str(r#"{"contentRatingCeiling":null}"#).unwrap();
+        let limited: UpdateUserPermissionsRequest =
+            serde_json::from_str(r#"{"contentRatingCeiling":"PG"}"#).unwrap();
+        assert_eq!(absent.content_rating_ceiling, None);
+        assert_eq!(cleared.content_rating_ceiling, Some(None));
+        assert_eq!(limited.content_rating_ceiling, Some(Some("PG".into())));
+    }
+}
+
 const VALID_THEMES: &[&str] = &["dark", "oled", "light", "high-contrast"];
 const VALID_ACCENTS: &[&str] = &["amber", "indigo", "emerald", "rose", "cyan", "violet"];
-const VALID_LOCALES: &[&str] = &["en", "sv", "de"];
+const VALID_LOCALES: &[&str] = &["en", "sv", "de", "fr", "es"];
 const VALID_SUB_SIZES: &[&str] = &["sm", "md", "lg", "xl"];
 const VALID_SUB_BACKGROUNDS: &[&str] = &["none", "dim", "solid"];
 const VALID_SUB_COLORS: &[&str] = &["white", "yellow", "cyan"];

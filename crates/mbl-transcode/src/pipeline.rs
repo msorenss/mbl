@@ -70,8 +70,24 @@ impl FromStr for VideoCodec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum AudioOp {
-    Copy { index: u32 },
-    Encode { index: u32, codec: AudioCodec, channels: u8, bitrate: u64 },
+    None,
+    Copy {
+        index: u32,
+    },
+    Encode {
+        index: u32,
+        codec: AudioCodec,
+        channels: u8,
+        bitrate: u64,
+    },
+    /// Signed audio synchronization in milliseconds; positive delays, negative advances.
+    EncodeShifted {
+        index: u32,
+        codec: AudioCodec,
+        channels: u8,
+        bitrate: u64,
+        offset_ms: i64,
+    },
 }
 
 /// Target audio codec for transcoding.
@@ -119,9 +135,13 @@ impl FromStr for AudioCodec {
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum SubtitleOp {
     None,
-    /// Burn a text subtitle stream (`index` is the 0-based subtitle stream ordinal or stream index).
+    /// Burn a text subtitle stream (`index` is the 0-based subtitle stream ordinal).
     BurnText {
         index: u32,
+    },
+    /// Burn a standalone, validated text subtitle file.
+    BurnTextFile {
+        path: Utf8PathBuf,
     },
     /// Burn a bitmap subtitle stream (`index` is the FFmpeg stream index in the input file).
     BurnImage {

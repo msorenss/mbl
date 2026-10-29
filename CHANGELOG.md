@@ -5,22 +5,72 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Added
+- Completed DVR recordings open in the normal player with resume/history and real probed media metadata. A managed TV recordings library applies existing library and rating restrictions; older valid files are indexed at startup.
+- Audio track selection during playback, with source track metadata and selected audio/burned-subtitle indices in playback diagnostics.
+- Subtitle choices that renegotiate image/burned tracks and preserve Off, audio, quality and pause state across stream changes and Google Cast.
+- Real video seek previews on the player timeline, generated as idle background work after video scans and on cache misses. Short clips and partial intervals are supported; failed decoding produces no synthetic images.
+- Audio sync changes preserve the current stream and saved setting if server negotiation fails; Cast retains its active receiver when negotiation is rejected.
+- Owner-scoped playback diagnostics in REST and MCP, with HLS backend/process/throttling/restart status in the player statistics panel.
+- Photo library timeline with date pagination, authenticated image viewer and slideshow.
+- Optional automatic next-episode playback on Google Cast, triggered only by completion of the current media load.
+- Up Next episode selection across season boundaries, with manual start and optional automatic continuation for the current local playback chain.
+- Player quality limits and signed server audio synchronization (−10 to +10 seconds), preserved across quality changes and Google Cast negotiation.
+- API token network selection and visibility of LAN/Tailscale/WAN restrictions in the agent administration page.
+- Administrator invitation management and public invitation registration page.
+- Administrator profile permissions dialog for library access, managed profiles, age restrictions and PIN management.
+- Media requests page with authenticated request submission, status and administrator approval controls.
+- Account history import from Plex/Jellyfin JSON, with validation, import results and unmatched titles.
 - **Milestone M12: Chromecast & Remote Playback Support:**
   - Google Cast Web Sender SDK integration (`web/src/utils/cast.ts`) with automatic receiver handshake (`CC1AD845` Default Media Receiver).
-  - W3C Remote Playback API fallback for native AirPlay and Miracast wireless displays in browsers without Cast Framework.
+  - W3C Remote Playback API fallback for compatible browsers and remote displays.
   - Video player Cast control button `[⎚]` in `web/src/components/Player.tsx` with dedicated active Cast overlay and remote play/pause/seek/volume synchronization.
   - Integration with server `PlayerRegistry` (`POST /api/v1/players` and `DELETE /api/v1/players/{id}`) reporting live Chromecast telemetry and presence.
   - REST endpoint `DELETE /api/v1/players/{id}` for immediate unregistration on disconnect.
-  - Complete mdBook guide for Chromecast and Remote Playback in `docs/book/src/chromecast.md`.
+  - mdBook guide documenting Chromecast and Remote Playback behavior and limitations in `docs/book/src/chromecast.md`.
   - Comprehensive integration test suite in `crates/mbl-server/tests/m12.rs`.
 
 ### Fixed
+- DVR duration now reflects media timestamps rather than recording job wall time. Scheduling preserves guide ratings/descriptions, completed-recording deletion removes its saved file and catalogue entry, and partial/invalid/outside-root recordings are excluded from publication.
+- Live TV now uses a server-owned HLS relay with deinterlacing and browser-compatible H.264/AAC, sharing encoder capacity with VOD and tuner capacity with DVR.
+- Live channel changes wait for cleanup; cancellation, source errors, expired leases, disk pressure and shutdown release owned media processes and temporary files.
+- DVR reports conflicts with active live reservations and removes cancelled partial files. Unimplemented virtual-channel playback is disabled in the interface.
+- Local HLS errors use limited retries with backoff and a recovery deadline. Failed master manifests reload correctly; permanent HTTP and decoding errors offer a manual restart.
+- Failed streams release their server session before retrying, preserving position, tracks, quality, audio sync and pause state. Initial negotiation and native media failures also offer Retry.
+- Stale player callbacks and retry timers cannot affect replacement media or Cast. Manifest recovery respects pauses and catches synchronous startup errors.
+- Periodic HLS cleanup, ahead throttling and quota enforcement now run throughout the server lifecycle. Shutdown closes admission and waits for media processes and temporary directories to be removed.
+- Paused and buffering players renew their session leases; abandoned sessions release playback metadata and WAN allocations without overwriting newer watch progress.
+- Expired local streams offer a restart at the same position and settings. Heartbeats have a bounded timeout and are cancelled on close; unplayed local starts remain buffering until playback actually begins.
+- Playback changes wait for a readable direct source or complete initial HLS media before replacing the current stream. Failed, timed-out or cancelled starts release candidate processes and capacity.
+- Stream changes use the latest playback position, pending starts are aborted when the player closes, and unconfirmed startup candidates do not create watch history.
+- Stopped HLS sessions cannot restart through late requests; partial failed output and stale future segments no longer masquerade as complete replacement media.
+- ASS/WebVTT target selection, embedded subtitle ordinal mapping and validated external subtitle file burn-in. Invalid track indices are rejected in REST and MCP.
+- HLS playback of videos without audio, correct audio codec declarations and real playlist duration for short clips.
+- Optional title lookup no longer blocks Cast loading; native Remote Playback cannot accidentally close the current session to load unsupported new media.
+- Trickplay preview numbering, source/cache invalidation, age restrictions and library-root checks; preview images use authenticated private responses.
+- Idle analysis pauses preserve retry attempts, thermal checks read the host sensors by default, and Cast overlays no longer cover player controls.
+- Cast statistics no longer display stale local video metrics; local buffer measurements respect gaps and resolution changes.
+- Photo timeline counts honor library and age restrictions; original photos are served with image MIME types.
+- Episode changes wait for in-flight session cleanup; player shortcuts no longer override focused form controls.
+- Failed playback renegotiation no longer stops the user's previous HLS sessions to free capacity. Concurrent starts cannot exceed transcode admission limits.
+- Missing HLS/FFmpeg support returns an error instead of a nonfunctional stream URL.
+- Stored night mode is applied when local playback starts.
+- French and Spanish language preferences can now be saved.
+- Token revocation and clipboard failures are reported; snippet failures retain an already created token.
+- Invitation redemption now creates the account, grants permissions and consumes the single-use link in one transaction. Invitation codes are no longer logged.
+- Explicit null now clears an existing profile age restriction; omitted permissions remain unchanged.
+- Cast progress/stop now use receiver position; canceled connection restores local playback.
+- Receiver state uses documented SDK events, preserves zero volume and routes seek/mute/volume controls remotely.
+- Cast disconnect unregisters after pending heartbeats; closing during connection cannot leave a late active session.
+- Media routes provide CORS/preflight for receiver requests while preserving existing stream access checks.
+- Chromecast documentation now records remaining receiver-profile, track-selection and command-transport limitations; physical device acceptance is pending.
 - **Plugin Toggle & Re-enable Bug:**
   - Fixed frontend bug in `web/src/pages/LiveTv.tsx` where plugin toggle previously passed hardcoded `true`, permanently disabling plugins once toggled off.
   - Added `enabled: bool` field to `PluginManifest` and hooked `list_plugins()` to query the SQLite `plugin_configs` table so manifests always reflect real database status.
   - Added status badge (`Active` vs `Disabled`) and dynamic button label (`Enable` / `Disable`) with conditional feed browsing.
 - **Player Registry Serialization:**
   - Added `#[serde(default)]` to `PlayerInfo.last_seen_at` in `crates/mbl-service/src/players.rs`, preventing 422 Unprocessable Entity errors during player heartbeats and registration.
+
+## [1.0.0] - 2026-10-26
 
 ### Added
 - Milestone M10: Hardening → v1.0.0:

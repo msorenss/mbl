@@ -12,6 +12,7 @@
 - [Quick Start Guide](quickstart.md)
 
 # Core Features
+- [Web player & seek previews](playback.md)
 - [Hardware Acceleration](hardware-acceleration.md)
 - [Remote Access & Networking](remote-access.md)
 - [Distributed Nodes & Workers](distributed-workers.md)

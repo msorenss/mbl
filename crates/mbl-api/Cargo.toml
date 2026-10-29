@@ -11,6 +11,7 @@ publish.workspace = true
 axum = { workspace = true, features = ["ws"] }
 base64.workspace = true
 governor.workspace = true
+futures-util.workspace = true
 mbl-analysis.workspace = true
 mbl-auth.workspace = true
 mbl-core.workspace = true

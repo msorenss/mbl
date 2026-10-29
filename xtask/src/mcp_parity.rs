@@ -87,6 +87,7 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
                 mcp_tool_names.contains("preview_playback")
                     || mcp_tool_names.contains("list_sessions")
             }
+            "/api/v1/playback/{session}/diagnostics" => mcp_tool_names.contains("explain_session"),
             "/api/v1/playback/{session}/progress" => mcp_tool_names.contains("explain_session"),
             "/api/v1/playback/{session}/stop" => mcp_tool_names.contains("stop_session"),
             "/api/v1/hw/report" => mcp_tool_names.contains("get_hw_report"),

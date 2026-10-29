@@ -623,3 +623,39 @@ pub async fn revoke_oauth_grant_by_token(db: &Db, token_hash: &[u8]) -> Result<b
     .await?;
     Ok(res.rows_affected() > 0)
 }
+
+/// Create the account, inherit permissions and consume its invitation atomically.
+pub async fn register_with_invite(
+    db: &Db,
+    code: &str,
+    user: &super::users::NewUser<'_>,
+    now: i64,
+) -> Result<UserId> {
+    let mut tx = db.write.begin().await?;
+    let now = now.max(now_ms());
+    let row = sqlx::query("SELECT library_ids, content_rating_ceiling FROM invites WHERE code = ? AND used_at IS NULL AND expires_at > ?")
+        .bind(code).bind(now).fetch_optional(&mut *tx).await?.ok_or(mbl_core::Error::NotFound)?;
+    let libraries: Vec<LibraryId> = serde_json::from_str(row.get::<&str, _>("library_ids"))
+        .map_err(mbl_core::Error::internal)?;
+    let ceiling: Option<String> = row.get("content_rating_ceiling");
+    let inserted = sqlx::query("INSERT INTO users (username, display_name, password_hash, is_admin, created_at, content_rating_ceiling) VALUES (?, ?, ?, 0, ?, ?)")
+        .bind(user.username).bind(user.display_name).bind(user.password_hash).bind(now).bind(ceiling).execute(&mut *tx).await.map_err(|error| crate::map_unique(error, "username already exists"))?;
+    let id = UserId(inserted.last_insert_rowid());
+    for library in libraries {
+        sqlx::query(
+            "INSERT INTO user_library_access (user_id, library_id, created_at) VALUES (?, ?, ?)",
+        )
+        .bind(id.0)
+        .bind(library.0)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let consumed = sqlx::query("UPDATE invites SET used_at = ?, used_by = ? WHERE code = ? AND used_at IS NULL AND expires_at > ?")
+        .bind(now).bind(id.0).bind(code).bind(now).execute(&mut *tx).await?;
+    if consumed.rows_affected() != 1 {
+        return Err(mbl_core::Error::NotFound);
+    }
+    tx.commit().await?;
+    Ok(id)
+}

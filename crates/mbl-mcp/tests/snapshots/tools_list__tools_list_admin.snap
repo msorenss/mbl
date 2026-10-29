@@ -485,6 +485,12 @@ expression: tools
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "audio_offset_ms": {
+          "description": "Positive delays audio; negative advances it (ms)",
+          "maximum": 10000,
+          "minimum": -10000,
+          "type": "integer"
+        },
         "audio_stream_index": {
           "description": "Optional audio stream index",
           "type": "integer"
@@ -2042,7 +2048,7 @@ expression: tools
   },
   {
     "name": "cancel_recording",
-    "description": "Cancel or remove a scheduled or completed TV recording.",
+    "description": "Cancel a scheduled or active TV recording, or delete a completed recording with its saved file and catalogue item.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

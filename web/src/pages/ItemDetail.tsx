@@ -43,15 +43,12 @@ export function ItemDetail() {
     setSelectedAudioIdx(null);
     setSelectedSubIdx(null);
     try {
-      const [detailRes, childrenRes, previewRes] = await Promise.all([
+      const [detailRes, childrenRes] = await Promise.all([
         client.GET("/api/v1/items/{id}", {
           params: { path: { id } },
         }),
         client.GET("/api/v1/items/{id}/children", {
           params: { path: { id } },
-        }),
-        client.GET("/api/v1/items/{id}/playback-preview", {
-          params: { path: { id }, query: { profile: getPreferredProfile() } },
         }),
       ]);
 
@@ -59,7 +56,6 @@ export function ItemDetail() {
       if (!detailRes.data) throw new Error("Media details could not be loaded.");
       if (detailRes.data) setItem(detailRes.data);
       if (childrenRes.data) setChildren(childrenRes.data);
-      if (previewRes.data) setPreview(previewRes.data);
     } catch {
       if (version === loadVersion) setLoadError("Media details could not be loaded.");
     } finally {
@@ -70,6 +66,34 @@ export function ItemDetail() {
   createEffect(() => {
     itemId();
     void loadData();
+  });
+
+  let previewVersion = 0;
+  createEffect(() => {
+    const id = itemId(),
+      part = selectedVersionId(),
+      audio = selectedAudioIdx(),
+      subtitle = selectedSubIdx();
+    const ready = item();
+    const version = ++previewVersion;
+    setPreview(null);
+    if (!ready) return;
+    void client
+      .GET("/api/v1/items/{id}/playback-preview", {
+        params: {
+          path: { id },
+          query: {
+            profile: getPreferredProfile(),
+            part_id: part ?? undefined,
+            audio_stream_index: audio ?? undefined,
+            subtitle_stream_index: subtitle !== null && subtitle >= 0 ? subtitle : undefined,
+          },
+        },
+      })
+      .then((result) => {
+        if (version === previewVersion && result.data) setPreview(result.data);
+      })
+      .catch(() => {});
   });
 
   const formatDuration = (ms?: number | null) => {

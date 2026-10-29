@@ -3,6 +3,7 @@ import { createContext, createSignal, type JSX, lazy, Show, useContext } from "s
 const Player = lazy(() => import("../components/Player"));
 
 export interface PlayRequest {
+  autoplayNext?: boolean;
   itemId: number;
   partId?: number;
   initialStartMs?: number;
@@ -45,6 +46,8 @@ export function PlayerProvider(props: { children: JSX.Element }) {
             title={item.title}
             subtitle={item.subtitle}
             onClose={closePlayer}
+            onPlayNext={playItem}
+            autoplayNext={item.autoplayNext}
           />
         )}
       </Show>

@@ -251,6 +251,9 @@ impl RecordingStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Recording {
     pub id: RecordingId,
+    /// Ordinary library item, available only after the recorded file has been probed.
+    #[serde(rename = "itemId", skip_serializing_if = "Option::is_none")]
+    pub item_id: Option<crate::ItemId>,
     #[serde(rename = "ruleId", skip_serializing_if = "Option::is_none")]
     pub rule_id: Option<RecordingRuleId>,
     #[serde(rename = "channelId")]
@@ -295,7 +298,10 @@ pub struct ScheduleRecordingRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct LiveStreamInfo {
+    pub session_id: String,
+    pub expires_at: i64,
     #[serde(rename = "channelId")]
     pub channel_id: ChannelId,
     #[serde(rename = "channelName")]

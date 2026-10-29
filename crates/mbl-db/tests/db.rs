@@ -119,3 +119,77 @@ async fn existing_unmigrated_db_is_backed_up_once() {
     db.close().await;
     assert_eq!(backups(), 1, "no backup when nothing is pending");
 }
+
+#[tokio::test]
+async fn invitation_redemption_is_atomic_and_failed_creation_does_not_consume_it() {
+    use mbl_db::repo::{
+        m6,
+        users::{NewUser, UsersRepo},
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default()).await.unwrap();
+    let now = mbl_core::time::now_ms();
+    let users = UsersRepo::new(db.clone());
+    let admin = users
+        .insert(
+            &NewUser {
+                username: "admin",
+                display_name: "Admin",
+                password_hash: "test",
+                is_admin: true,
+            },
+            now,
+        )
+        .await
+        .unwrap();
+    let library: i64 = sqlx::query_scalar(
+        "INSERT INTO libraries (name, kind, created_at) VALUES ('Movies', 'movie', ?) RETURNING id",
+    )
+    .bind(now)
+    .fetch_one(&db.write)
+    .await
+    .unwrap();
+    m6::create_invite(
+        &db,
+        "single-use",
+        admin,
+        &[mbl_core::LibraryId(library)],
+        Some("PG"),
+        now + 60_000,
+    )
+    .await
+    .unwrap();
+    // A username collision rolls back the transaction, leaving the link usable.
+    let duplicate = NewUser {
+        username: "admin",
+        display_name: "Duplicate",
+        password_hash: "test",
+        is_admin: false,
+    };
+    assert!(m6::register_with_invite(&db, "single-use", &duplicate, now).await.is_err());
+    assert!(m6::get_invite_by_code(&db, "single-use").await.unwrap().unwrap().used_at.is_none());
+    let alice = NewUser {
+        username: "alice",
+        display_name: "Alice",
+        password_hash: "test",
+        is_admin: false,
+    };
+    let bob =
+        NewUser { username: "bob", display_name: "Bob", password_hash: "test", is_admin: false };
+    let (a, b) = tokio::join!(
+        m6::register_with_invite(&db, "single-use", &alice, now),
+        m6::register_with_invite(&db, "single-use", &bob, now)
+    );
+    assert_ne!(a.is_ok(), b.is_ok(), "redemptions: {a:?}, {b:?}");
+    let winner = a.or(b).unwrap();
+    let total: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&db.read).await.unwrap();
+    assert_eq!(total, 2);
+    let security = m6::get_user_security_info(&db, winner).await.unwrap().unwrap();
+    assert_eq!(security.content_rating_ceiling.as_deref(), Some("PG"));
+    assert_eq!(security.library_ids, vec![mbl_core::LibraryId(library)]);
+    assert_eq!(
+        m6::get_invite_by_code(&db, "single-use").await.unwrap().unwrap().used_by,
+        Some(winner)
+    );
+}

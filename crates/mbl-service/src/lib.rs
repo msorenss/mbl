@@ -6,6 +6,7 @@
 pub mod auth;
 pub mod collections;
 pub mod companion;
+mod dvr;
 pub mod events;
 pub mod hw;
 pub mod images;
@@ -13,6 +14,7 @@ pub mod import;
 pub mod intelligence;
 pub mod items;
 pub mod libraries;
+mod live_relay;
 pub mod livetv;
 pub mod matchmaker;
 pub mod mcp;
@@ -54,7 +56,7 @@ pub use intelligence::{
     CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, MediaIntelligenceService,
     OptimizeJobHandler, QuickConnectAuthorizeRequest, QuickConnectInitRequest,
     QuickConnectInitResponse, QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput,
-    SceneSearchHit, SystemHealthReport,
+    SceneSearchHit, SystemHealthReport, TrickplayJobHandler,
 };
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
@@ -63,16 +65,17 @@ pub use matchmaker::{
     CreateMatchmakerSessionRequest, MatchmakerMatchResult, MatchmakerService, MatchmakerSessionRow,
     MatchmakerVoteRequest,
 };
-pub use mbl_playback::{PlayMethod, StreamAction, SubtitleDelivery};
+pub use mbl_playback::{Network as PlaybackNetwork, PlayMethod, StreamAction, SubtitleDelivery};
 pub use mcp::{
     McpConfig, McpConfigSnippets, McpPreset, McpService, McpSnippetsRequest, McpStatus,
     UpdateMcpStatusRequest, generate_snippets, mcp_presets,
 };
 pub use nodes::RemoteNodeService;
 pub use playback::{
-    ActivePlaybackSession, PlaybackMarker, PlaybackPreview, PlaybackProfileInput,
-    PlaybackProgressRequest, PlaybackRequest, PlaybackResponse, PlaybackService, PlaybackState,
-    PlaybackStopRequest, PlaybackSubtitleTrack,
+    ActivePlaybackSession, PlaybackAudioTrack, PlaybackMarker, PlaybackPreview,
+    PlaybackProfileInput, PlaybackProgressRequest, PlaybackRequest, PlaybackResponse,
+    PlaybackService, PlaybackState, PlaybackStopRequest, PlaybackSubtitleOption,
+    PlaybackSubtitleTrack,
 };
 pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
 pub use plugins::PluginService;
@@ -146,7 +149,7 @@ impl Services {
         let collections = CollectionService::new(db_arc.clone());
         let playlists = PlaylistService::new(db_arc.clone());
         let players = PlayerRegistry::new();
-        let companion = CompanionService::new();
+        let companion = CompanionService::new().with_playback(playback.clone());
         let webhooks = WebhookService::new(db_arc.clone());
         let requests = MediaRequestService::new(db_arc.clone());
         let matchmaker = MatchmakerService::new(db_arc.clone());

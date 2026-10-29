@@ -192,9 +192,9 @@ async fn m9_live_stream_engine_and_concurrency() {
     let (app, _db, _services) = TestApp::new_with_services().await;
     let admin_token = app.setup_admin().await;
 
-    // 1. Create Tuner with 1 tuner stream capacity
-    let m3u =
-        "#EXTM3U\n#EXTINF:-1 tvg-id=\"live1\",Live Channel 1\nhttp://stream.example.com/ch1.ts\n";
+    let source = common::live_source().await;
+    // 1. Create a local synthetic tuner source
+    let m3u = format!("#EXTM3U\n#EXTINF:-1 tvg-id=\"live1\",Live Channel 1\n{}\n", source.url);
     let tuner_res = app
         .call(
             Method::POST,
@@ -215,13 +215,17 @@ async fn m9_live_stream_engine_and_concurrency() {
     assert_eq!(s1_res.status, StatusCode::OK);
     assert_eq!(s1_res.body["channelId"].as_i64().unwrap(), ch_id);
     assert_eq!(s1_res.body["channelName"].as_str().unwrap(), "Live Channel 1");
-    assert_eq!(s1_res.body["streamUrl"].as_str().unwrap(), "http://stream.example.com/ch1.ts");
+    assert!(s1_res.body["streamUrl"].as_str().unwrap().starts_with("/api/v1/stream/live/"));
+    assert_eq!(s1_res.body["targetFormat"], "hls");
 
     // 3. Release Live Stream
     let rel_res = app
         .call(
             Method::POST,
-            &format!("/api/v1/livetv/stream/{ch_id}/release"),
+            &format!(
+                "/api/v1/livetv/stream/{ch_id}/release?sessionId={}",
+                s1_res.body["sessionId"].as_str().unwrap()
+            ),
             Some(&admin_token),
             None,
         )
@@ -424,12 +428,12 @@ async fn m9_streaming_plugins() {
     let plugins = list_res.body.as_array().unwrap();
     assert_eq!(plugins.len(), 3);
     let yt = plugins.iter().find(|p| p["id"] == "youtube").unwrap();
-    assert_eq!(yt["name"].as_str().unwrap(), "YouTube");
+    assert_eq!(yt["name"].as_str().unwrap(), "YouTube (demo)");
 
     // 2. Get and update plugin config
     let get_res = app.call(Method::GET, "/api/v1/plugins/youtube", Some(&admin_token), None).await;
     assert_eq!(get_res.status, StatusCode::OK);
-    assert!(get_res.body["enabled"].as_bool().unwrap());
+    assert!(!get_res.body["enabled"].as_bool().unwrap());
 
     let patch_res = app
         .call(
@@ -476,8 +480,7 @@ async fn m9_streaming_plugins() {
             None,
         )
         .await;
-    assert_eq!(stream_res.status, StatusCode::OK);
-    assert!(stream_res.body["streamUrl"].as_str().unwrap().contains("example.com/yt"));
+    assert_eq!(stream_res.status, StatusCode::SERVICE_UNAVAILABLE);
 }
 
 #[tokio::test]

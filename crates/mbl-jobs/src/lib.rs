@@ -54,6 +54,19 @@ pub trait JobHandler: Send + Sync + 'static {
     async fn run(&self, ctx: JobCtx, payload: serde_json::Value) -> Result<()>;
 }
 
+/// Yield active idle work back to the queue without counting a playback/thermal pause as a failure.
+pub fn yield_to_idle() -> mbl_core::Error {
+    mbl_core::Error::internal(IdleYield)
+}
+#[derive(Debug)]
+pub(crate) struct IdleYield;
+impl std::fmt::Display for IdleYield {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("idle job yielded to playback/thermal load")
+    }
+}
+impl std::error::Error for IdleYield {}
+
 /// Reports whether media is playing or the host is thermally throttled so idle jobs can yield (M2.7, M5.1).
 pub trait ActivityProbe: Send + Sync + 'static {
     fn playback_active(&self) -> bool;

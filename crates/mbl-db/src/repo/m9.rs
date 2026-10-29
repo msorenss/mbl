@@ -91,6 +91,7 @@ pub struct RecordingRuleRow {
 #[derive(Debug, Clone, FromRow)]
 pub struct RecordingRow {
     pub id: i64,
+    pub item_id: Option<i64>,
     pub rule_id: Option<i64>,
     pub channel_id: i64,
     pub channel_name: Option<String>,
@@ -612,6 +613,27 @@ pub async fn schedule_recording(
     end_time: i64,
 ) -> Result<RecordingId> {
     let now = now_ms();
+    let mut tx = db.write.begin().await?;
+    let capacity: Option<i64> = sqlx::query_scalar(
+        "SELECT t.tuner_count FROM channels c JOIN tuners t ON t.id = c.tuner_id WHERE c.id = ?",
+    )
+    .bind(channel_id.0)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(capacity) = capacity
+        && overlapping_on(&mut tx, channel_id, start_time, end_time).await? >= capacity
+    {
+        return Err(Error::Conflict(
+            "all tuners are already reserved during this recording".into(),
+        ));
+    }
+    if let Some(program_id) = program_id {
+        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM recordings WHERE program_id = ? AND status IN ('scheduled', 'recording', 'completed') LIMIT 1")
+            .bind(program_id.0).fetch_optional(&mut *tx).await?;
+        if let Some(id) = existing {
+            return Ok(RecordingId(id));
+        }
+    }
     let res = sqlx::query(
         r#"INSERT INTO recordings (
                rule_id, channel_id, program_id, title, start_time,
@@ -627,18 +649,22 @@ pub async fn schedule_recording(
     .bind(start_time)
     .bind(end_time)
     .bind(now)
-    .fetch_one(&db.write)
+    .fetch_one(&mut *tx)
     .await
     .map_err(Error::from)?;
 
     use sqlx::Row;
     let id: i64 = res.get(0);
+    sqlx::query("UPDATE recordings SET content_rating=(SELECT rating FROM epg_programs WHERE id=?), summary=(SELECT description FROM epg_programs WHERE id=?) WHERE id=?")
+        .bind(program_id.map(|p| p.0)).bind(program_id.map(|p| p.0)).bind(id)
+        .execute(&mut *tx).await?;
+    tx.commit().await?;
     Ok(RecordingId(id))
 }
 
 pub async fn list_recordings(db: &Db, status: Option<&str>) -> Result<Vec<RecordingRow>> {
     let mut qb = sqlx::QueryBuilder::<Sqlite>::new(
-        r#"SELECT r.id, r.rule_id, r.channel_id, c.name as channel_name,
+        r#"SELECT r.id, r.item_id, r.rule_id, r.channel_id, c.name as channel_name,
                   r.program_id, r.title, r.start_time, r.end_time,
                   r.status, r.output_path, r.size_bytes, r.duration_ms,
                   r.error_message, r.created_at
@@ -655,7 +681,7 @@ pub async fn list_recordings(db: &Db, status: Option<&str>) -> Result<Vec<Record
 
 pub async fn get_recording(db: &Db, id: RecordingId) -> Result<Option<RecordingRow>> {
     sqlx::query_as::<Sqlite, RecordingRow>(
-        r#"SELECT r.id, r.rule_id, r.channel_id, c.name as channel_name,
+        r#"SELECT r.id, r.item_id, r.rule_id, r.channel_id, c.name as channel_name,
                   r.program_id, r.title, r.start_time, r.end_time,
                   r.status, r.output_path, r.size_bytes, r.duration_ms,
                   r.error_message, r.created_at
@@ -699,17 +725,33 @@ pub async fn update_recording_status(
 }
 
 pub async fn delete_recording(db: &Db, id: RecordingId) -> Result<bool> {
+    let mut tx = db.write.begin().await?;
+    sqlx::query("DELETE FROM media_items WHERE id=(SELECT item_id FROM recordings WHERE id=?)")
+        .bind(id.0)
+        .execute(&mut *tx)
+        .await?;
     let res = sqlx::query("DELETE FROM recordings WHERE id = ?")
         .bind(id.0)
-        .execute(&db.write)
+        .execute(&mut *tx)
         .await
         .map_err(Error::from)?;
 
+    tx.commit().await?;
     Ok(res.rows_affected() > 0)
 }
 
 pub async fn count_overlapping_recordings(
     db: &Db,
+    channel_id: ChannelId,
+    start_time: i64,
+    end_time: i64,
+) -> Result<i64> {
+    let mut connection = db.read.acquire().await?;
+    overlapping_on(&mut connection, channel_id, start_time, end_time).await
+}
+
+async fn overlapping_on(
+    connection: &mut sqlx::SqliteConnection,
     channel_id: ChannelId,
     start_time: i64,
     end_time: i64,
@@ -735,7 +777,7 @@ pub async fn count_overlapping_recordings(
     .bind(channel_id.0)
     .bind(start_time)
     .bind(end_time)
-    .fetch_one(&db.read)
+    .fetch_one(connection)
     .await
     .map_err(Error::from)?;
 
@@ -918,4 +960,35 @@ pub async fn get_plugin_config(db: &Db, plugin_id: &str) -> Result<Option<Plugin
     .fetch_optional(&db.read)
     .await
     .map_err(Error::from)
+}
+
+/// Atomically claim a due reservation; only one recorder can own it.
+pub async fn claim_recording(db: &Db, id: RecordingId, now: i64) -> Result<bool> {
+    let result = sqlx::query("UPDATE recordings SET status = 'recording', error_message = NULL WHERE id = ? AND status = 'scheduled' AND start_time <= ? AND end_time > ?")
+        .bind(id.0).bind(now).bind(now).execute(&db.write).await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Preserve cancellation if it races with FFmpeg exiting.
+#[allow(clippy::too_many_arguments)]
+pub async fn finish_recording(
+    db: &Db,
+    id: RecordingId,
+    completed: bool,
+    path: &str,
+    bytes: u64,
+    duration_ms: u64,
+    error: Option<&str>,
+) -> Result<()> {
+    sqlx::query("UPDATE recordings SET status = ?, output_path = ?, size_bytes = ?, duration_ms = ?, error_message = ? WHERE id = ? AND status = 'recording'")
+        .bind(if completed { "completed" } else { "failed" }).bind(path).bind(bytes as i64).bind(duration_ms as i64).bind(error).bind(id.0).execute(&db.write).await?;
+    Ok(())
+}
+
+pub async fn recover_interrupted_recordings(db: &Db, now: i64) -> Result<()> {
+    sqlx::query("UPDATE recordings SET status = 'failed', error_message = 'Recording interrupted by server restart' WHERE status = 'recording'")
+        .execute(&db.write).await?;
+    sqlx::query("UPDATE recordings SET status = 'failed', error_message = 'Recording window missed while server was offline' WHERE status = 'scheduled' AND end_time <= ?")
+        .bind(now).execute(&db.write).await?;
+    Ok(())
 }

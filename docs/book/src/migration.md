@@ -62,3 +62,12 @@ Payload structure:
 ```
 
 MBL automatically converts Jellyfin playback position ticks (10,000 ticks = 1 ms) to millisecond offsets and upserts the user's watch state.
+
+## Import from the web account page
+
+Open **Account & security → Import watch history**. Choose Plex or Jellyfin,
+then select a JSON file smaller than 1 MB containing an `items` array in the
+format shown on the page. The importer matches your existing library and updates
+the signed-in account's watch state. The result lists matched and unmatched titles.
+This uploads an exported JSON file; it does not connect to a Plex/Jellyfin server.
+If the server rejects the import, the selected file remains available for retry.

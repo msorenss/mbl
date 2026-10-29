@@ -650,3 +650,74 @@ async fn subtitle_endpoint_converts_embedded_and_sidecar_and_serves_ass() {
     assert_eq!(headers.get(header::CONTENT_TYPE).unwrap(), "text/x-ssa; charset=utf-8");
     assert_eq!(String::from_utf8_lossy(&bytes), raw_ass);
 }
+
+#[tokio::test]
+async fn cast_media_cors_allows_signed_ranges_without_opening_account_routes() {
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let seeded = seed_part(&app, &db, &admin).await;
+    let auth = services.auth.authenticate(&admin).await.unwrap();
+    let token = services.auth.sign_stream_token(&auth.actor, PartId(seeded.part_id));
+    let uri = format!("/api/v1/stream/direct/{}?token={token}", seeded.part_id);
+    let response = app
+        .router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri(&uri)
+                .header(header::ORIGIN, "https://www.gstatic.com")
+                .header(header::RANGE, "bytes=0-31")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(status, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(&bytes[..], &seeded.payload[..32]);
+    assert_eq!(headers[header::ACCESS_CONTROL_ALLOW_ORIGIN], "https://www.gstatic.com");
+    assert!(
+        headers[header::ACCESS_CONTROL_EXPOSE_HEADERS].to_str().unwrap().contains("Content-Range")
+    );
+    let preflight = app
+        .send(
+            Request::builder()
+                .method(Method::OPTIONS)
+                .uri(&uri)
+                .header(header::ORIGIN, "https://www.gstatic.com")
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "Range")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(preflight.status, StatusCode::NO_CONTENT);
+    assert!(
+        preflight.headers[header::ACCESS_CONTROL_ALLOW_HEADERS].to_str().unwrap().contains("Range")
+    );
+    let (unauthorized, _, _) = raw_request(
+        &app,
+        Method::GET,
+        &format!("/api/v1/stream/direct/{}", seeded.part_id),
+        None,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(unauthorized, StatusCode::UNAUTHORIZED);
+    let account = app.call(Method::GET, "/api/v1/auth/me", Some(&admin), None).await;
+    assert!(!account.headers.contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+    for path in [
+        "/api/v1/stream/hls/missing/master.m3u8",
+        "/api/v1/stream/hls/missing/v0/index.m3u8",
+        "/api/v1/stream/hls/missing/v0/init.mp4",
+        "/api/v1/stream/subtitles/1/0.vtt",
+    ] {
+        let preflight = app.call(Method::OPTIONS, path, None, None).await;
+        assert_eq!(preflight.status, StatusCode::NO_CONTENT);
+        assert_eq!(preflight.headers[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+    }
+}

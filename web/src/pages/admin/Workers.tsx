@@ -1,4 +1,4 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../../api/client";
 import type { components } from "../../api/schema";
 import { Badge } from "../../components/ui/Badge";
@@ -49,6 +49,10 @@ export function Workers() {
 
   onMount(() => {
     loadAll();
+    const timer = setInterval(() => {
+      if (!document.hidden) void loadAll();
+    }, 10_000);
+    onCleanup(() => clearInterval(timer));
   });
 
   const handleGenerateWorkerCode = async () => {

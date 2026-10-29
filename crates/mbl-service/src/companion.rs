@@ -34,61 +34,85 @@ pub struct LiveSessionContext {
 #[derive(Debug, Clone)]
 pub struct CompanionService {
     sessions: Arc<RwLock<HashMap<String, LiveSessionContext>>>,
+    playback: Option<crate::PlaybackService>,
     reactions_tx: broadcast::Sender<CompanionReaction>,
 }
 
 impl CompanionService {
     pub fn new() -> Self {
         let (reactions_tx, _) = broadcast::channel(128);
-        Self { sessions: Arc::new(RwLock::new(HashMap::new())), reactions_tx }
+        Self { sessions: Arc::new(RwLock::new(HashMap::new())), reactions_tx, playback: None }
     }
 
-    pub fn update_session_context(&self, ctx: LiveSessionContext) {
-        if let Ok(mut lock) = self.sessions.write() {
-            lock.insert(ctx.session_id.clone(), ctx);
+    pub fn with_playback(mut self, playback: crate::PlaybackService) -> Self {
+        self.playback = Some(playback);
+        self
+    }
+
+    pub fn join_session(&self, actor: &Actor, session_id: &str, bot_name: &str) -> Result<()> {
+        let context = self.get_live_context(actor, session_id)?;
+        if bot_name.trim().is_empty() || bot_name.len() > 100 {
+            return Err(Error::Validation("companion name must contain 1–100 characters".into()));
         }
-    }
-
-    pub fn join_session(&self, _actor: &Actor, session_id: &str, bot_name: &str) -> Result<()> {
-        if let Ok(mut lock) = self.sessions.write() {
-            if let Some(ctx) = lock.get_mut(session_id) {
-                if !ctx.connected_companions.iter().any(|b| b == bot_name) {
-                    ctx.connected_companions.push(bot_name.to_owned());
-                }
-            } else {
-                // Initialize placeholder context if session is warming up
-                lock.insert(
-                    session_id.to_owned(),
-                    LiveSessionContext {
-                        session_id: session_id.to_owned(),
-                        item_id: ItemId(0),
-                        title: "Media Stream".into(),
-                        position_ms: 0,
-                        duration_ms: 0,
-                        current_chapter: None,
-                        current_subtitle_cue: None,
-                        connected_companions: vec![bot_name.to_owned()],
-                    },
-                );
+        let mut lock = self
+            .sessions
+            .write()
+            .map_err(|_| Error::Unavailable("companion lock unavailable".into()))?;
+        let ctx = lock.entry(session_id.to_owned()).or_insert(context);
+        if !ctx.connected_companions.iter().any(|b| b == bot_name) {
+            if ctx.connected_companions.len() >= 16 {
+                return Err(Error::Conflict("too many companions".into()));
             }
+            ctx.connected_companions.push(bot_name.to_owned());
         }
         Ok(())
     }
 
-    pub fn get_live_context(&self, _actor: &Actor, session_id: &str) -> Result<LiveSessionContext> {
-        let lock = self.sessions.read().map_err(|_| Error::External("lock poisoned".into()))?;
-        lock.get(session_id).cloned().ok_or_else(|| Error::NotFound)
+    pub fn get_live_context(&self, actor: &Actor, session_id: &str) -> Result<LiveSessionContext> {
+        let session = self
+            .playback
+            .as_ref()
+            .and_then(|p| p.get_session(actor, session_id))
+            .ok_or(Error::NotFound)?;
+        let lock = self
+            .sessions
+            .read()
+            .map_err(|_| Error::Unavailable("companion lock unavailable".into()))?;
+        Ok(LiveSessionContext {
+            session_id: session_id.to_owned(),
+            item_id: session.item_id,
+            title: session.title,
+            position_ms: session.position_ms as i64,
+            duration_ms: session.duration_ms as i64,
+            current_chapter: None,
+            current_subtitle_cue: None,
+            connected_companions: lock
+                .get(session_id)
+                .map(|s| s.connected_companions.clone())
+                .unwrap_or_default(),
+        })
     }
 
     pub fn send_reaction(
         &self,
-        _actor: &Actor,
+        actor: &Actor,
         session_id: &str,
         bot_name: &str,
         timestamp_ms: i64,
         commentary: &str,
         sentiment: Option<&str>,
     ) -> Result<CompanionReaction> {
+        let context = self.get_live_context(actor, session_id)?;
+        if !context.connected_companions.iter().any(|name| name == bot_name) {
+            return Err(Error::NotFound);
+        }
+        if timestamp_ms < 0
+            || timestamp_ms > context.position_ms.saturating_add(10_000)
+            || commentary.trim().is_empty()
+            || commentary.len() > 4000
+        {
+            return Err(Error::Validation("invalid reaction position or commentary".into()));
+        }
         let reaction = CompanionReaction {
             session_id: session_id.to_owned(),
             bot_name: bot_name.to_owned(),

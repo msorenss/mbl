@@ -1,14 +1,28 @@
 import Hls from "hls.js";
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import { getPreferredProfile } from "../api/deviceProfile";
+import { findNextEpisode } from "../api/nextEpisode";
 import type { components } from "../api/schema";
+import type { PlayRequest } from "../context/PlayerContext";
 import { useTheme } from "../context/ThemeContext";
 import { castManager } from "../utils/cast";
+import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
+import TrickplayPreview from "./TrickplayPreview";
 import { Button } from "./ui";
 
 type PlaybackResponse = components["schemas"]["PlaybackResponse"];
 type PlaybackSubtitleTrack = components["schemas"]["PlaybackSubtitleTrack"];
+
+function playbackFailureMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const problem = error as { error?: { message?: unknown }; detail?: unknown; message?: unknown };
+    const message = problem.error?.message ?? problem.detail ?? problem.message;
+    if (typeof message === "string") return message;
+  }
+  return fallback;
+}
 
 export interface PlayerProps {
   itemId: number;
@@ -19,15 +33,31 @@ export interface PlayerProps {
   title?: string;
   subtitle?: string;
   onClose: () => void;
+  autoplayNext?: boolean;
+  onPlayNext?: (request: PlayRequest) => void;
 }
 
 export function Player(props: PlayerProps) {
   let videoRef: HTMLVideoElement | undefined;
   let playerContainerRef: HTMLDivElement | undefined;
   let hlsInstance: Hls | null = null;
+  let hlsRecovery: ReturnType<typeof createHlsRecovery> | null = null;
+  let localAutoplay = false;
+  let lastAdvancingTime = 0;
+  const [recoveryNotice, setRecoveryNotice] = createSignal("");
+  const [retryingPlayback, setRetryingPlayback] = createSignal(false);
+  const [failedPositionMs, setFailedPositionMs] = createSignal<number | null>(null);
   let progressInterval: number | null = null;
   let disposed = false;
+  let stoppingSession: Promise<void> | null = null;
   let stoppedSession: string | null = null;
+  let requestedStartMs = 0;
+  let confirmedSessionId: string | null = null;
+  let localBuffering = true;
+  let reportingProgress = false;
+  let progressAbort: AbortController | null = null;
+  const [sessionExpired, setSessionExpired] = createSignal(false);
+  const pendingStarts = new Set<AbortController>();
   let hideControlsTimer: number | null = null;
 
   // WebAudio nodes for Night Mode / Smart Dialogue Boost
@@ -36,8 +66,56 @@ export function Player(props: PlayerProps) {
   let dialogueBoostFilter: BiquadFilterNode | null = null;
   let compressorNode: DynamicsCompressorNode | null = null;
 
-  const { subtitleStyle, nightMode, setNightMode } = useTheme();
+  const { subtitleStyle, nightMode, setNightMode, audioOffsetMs, setAudioOffsetMs } = useTheme();
+  const [audioSyncMs, setAudioSyncMs] = createSignal(
+    Math.min(10000, Math.max(-10000, audioOffsetMs?.() ?? 0)),
+  );
+  const [previewTime, setPreviewTime] = createSignal<number | null>(null);
+  const [selectedAudioIndex, setSelectedAudioIndex] = createSignal<number | undefined>(
+    props.audioStreamIndex,
+  );
+  const [quality, setQuality] = createSignal(0);
+  const [changingQuality, setChangingQuality] = createSignal(false);
+  const [controlNotice, setControlNotice] = createSignal("");
 
+  const [mediaItemId, setMediaItemId] = createSignal(props.itemId);
+  const [mediaTitle, setMediaTitle] = createSignal(props.title);
+  const [mediaPartId, setMediaPartId] = createSignal(props.partId);
+  const [castStatus, setCastStatus] = createSignal<string | null>(null);
+  const [nextEpisode, setNextEpisode] = createSignal<{ id: number; title: string } | null>(null);
+  const [nextError, setNextError] = createSignal("");
+  const [ended, setEnded] = createSignal(false);
+  const [startingNext, setStartingNext] = createSignal(false);
+  const [autoplayNext, setAutoplayNext] = createSignal(props.autoplayNext ?? false);
+  const [receiverFinish, setReceiverFinish] = createSignal<{
+    loadId: number;
+    itemId: number | null;
+  } | null>(null);
+  const [receiverAutoplaySupported, setReceiverAutoplaySupported] = createSignal(false);
+  let lastFinishedLoad = -1;
+  let lastAutoplayLoad = -1;
+  let nextVersion = 0;
+  let nextAbort: AbortController | null = null;
+  const loadNext = async (id: number) => {
+    nextAbort?.abort();
+    nextAbort = new AbortController();
+    const version = ++nextVersion;
+    setNextEpisode(null);
+    setNextError("");
+    try {
+      const episode = await findNextEpisode(id, nextAbort.signal);
+      if (!disposed && version === nextVersion) setNextEpisode(episode);
+    } catch {
+      if (!disposed && version === nextVersion) setNextError("Could not load next episode.");
+    }
+  };
+  createEffect(() => {
+    const id = mediaItemId();
+    if (props.onPlayNext) {
+      setEnded(false);
+      void loadNext(id);
+    }
+  });
   const [playbackData, setPlaybackData] = createSignal<PlaybackResponse | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
@@ -53,13 +131,106 @@ export function Player(props: PlayerProps) {
   const [showSpeedMenu, setShowSpeedMenu] = createSignal(false);
   const [playbackRate, setPlaybackRate] = createSignal(1.0);
   const [showStats, setShowStats] = createSignal(false);
-  const [droppedFrames, setDroppedFrames] = createSignal(0);
-  const [bufferAheadSecs, setBufferAheadSecs] = createSignal(0);
+  const [droppedFrames, setDroppedFrames] = createSignal<number | null>(null);
+  const [bufferAheadSecs, setBufferAheadSecs] = createSignal<number | null>(null);
+  const [videoSize, setVideoSize] = createSignal("Not measured");
+  const [diagnostics, setDiagnostics] = createSignal<
+    components["schemas"]["PlaybackDiagnostics"] | null
+  >(null);
+  const [diagnosticsError, setDiagnosticsError] = createSignal("");
 
   // Chromecast & Remote Playback state (M12)
   const [isCasting, setIsCasting] = createSignal(false);
   const [castDevice, setCastDevice] = createSignal<string | null>(null);
-  const [isCastAvailable, setIsCastAvailable] = createSignal(true);
+  const [isCastAvailable, setIsCastAvailable] = createSignal(false);
+  const [castConnecting, setCastConnecting] = createSignal(false);
+
+  createEffect(() => {
+    const finish = receiverFinish();
+    const next = nextEpisode();
+    const enabled = autoplayNext();
+    const busy = castConnecting();
+    if (!isCasting() || !receiverAutoplaySupported() || !finish || finish.itemId !== mediaItemId())
+      return;
+    setEnded(true);
+    setShowControls(true);
+    if (lastFinishedLoad !== finish.loadId) {
+      lastFinishedLoad = finish.loadId;
+      void stopPlayback();
+    }
+    if (enabled && next && !busy && lastAutoplayLoad !== finish.loadId) {
+      lastAutoplayLoad = finish.loadId;
+      queueMicrotask(() => {
+        if (!disposed && isCasting() && autoplayNext() && mediaItemId() === finish.itemId)
+          void playNextEpisode();
+      });
+    }
+  });
+
+  const collectLocalStats = () => {
+    if (!videoRef || disposed || isCasting()) return;
+    const quality = videoRef.getVideoPlaybackQuality?.();
+    setDroppedFrames(quality?.droppedVideoFrames ?? null);
+    setVideoSize(
+      videoRef.videoWidth && videoRef.videoHeight
+        ? `${videoRef.videoWidth}x${videoRef.videoHeight}`
+        : "Not measured",
+    );
+    let end = videoRef.currentTime;
+    for (let index = 0; index < videoRef.buffered.length; index++) {
+      if (
+        videoRef.buffered.start(index) <= videoRef.currentTime &&
+        videoRef.buffered.end(index) >= videoRef.currentTime
+      )
+        end = videoRef.buffered.end(index);
+    }
+    setBufferAheadSecs(Math.max(0, Math.round(end - videoRef.currentTime)));
+  };
+  createEffect(() => {
+    const id = playbackData()?.sessionId;
+    const enabled = showStats();
+    if (enabled && !isCasting()) collectLocalStats();
+    setDiagnostics(null);
+    setDiagnosticsError("");
+    if (!enabled || !id) return;
+    const abort = new AbortController();
+    let closed = false,
+      busy = false;
+    const refresh = async () => {
+      if (busy || closed) return;
+      busy = true;
+      try {
+        const result = await client.GET("/api/v1/playback/{session}/diagnostics", {
+          params: { path: { session: id } },
+          signal: abort.signal,
+        });
+        if (closed) return;
+        if (result.error || !result.data)
+          throw new Error("Server diagnostics unavailable. Retrying while statistics are open.");
+        setDiagnostics(result.data);
+        setDiagnosticsError("");
+      } catch (reason) {
+        if (!closed) {
+          setDiagnostics(null);
+          setDiagnosticsError(
+            reason instanceof Error ? reason.message : "Server diagnostics unavailable.",
+          );
+        }
+      } finally {
+        busy = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => {
+      collectLocalStats();
+      void refresh();
+    }, 5000);
+    onCleanup(() => {
+      closed = true;
+      abort.abort();
+      window.clearInterval(timer);
+    });
+  });
 
   const formatTime = (secs: number) => {
     if (!Number.isFinite(secs) || secs < 0) return "00:00";
@@ -93,7 +264,6 @@ export function Player(props: PlayerProps) {
         (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtxClass) return;
       audioCtx = new AudioCtxClass();
-      audioSource = audioCtx.createMediaElementSource(videoRef);
 
       // Center vocal boost peaking filter (~2 kHz, +6 dB)
       dialogueBoostFilter = audioCtx.createBiquadFilter();
@@ -110,8 +280,13 @@ export function Player(props: PlayerProps) {
       compressorNode.attack.value = 0.003;
       compressorNode.release.value = 0.25;
 
+      audioSource = audioCtx.createMediaElementSource(videoRef);
       connectAudioNodes();
     } catch {
+      if (!audioSource) {
+        void audioCtx?.close().catch(() => {});
+        audioCtx = null;
+      }
       // Browser WebAudio policy or already connected
     }
   };
@@ -121,17 +296,19 @@ export function Player(props: PlayerProps) {
     audioSource.disconnect();
     if (dialogueBoostFilter) dialogueBoostFilter.disconnect();
     if (compressorNode) compressorNode.disconnect();
+    const output = audioCtx.destination;
 
     if (nightMode() && dialogueBoostFilter && compressorNode) {
       audioSource.connect(dialogueBoostFilter);
       dialogueBoostFilter.connect(compressorNode);
-      compressorNode.connect(audioCtx.destination);
+      compressorNode.connect(output);
     } else {
-      audioSource.connect(audioCtx.destination);
+      audioSource.connect(output);
     }
   };
 
   const toggleNightMode = () => {
+    if (isCasting()) return;
     initWebAudio();
     if (audioCtx && audioCtx.state === "suspended") {
       audioCtx.resume();
@@ -141,79 +318,319 @@ export function Player(props: PlayerProps) {
     connectAudioNodes();
   };
 
+  const negotiatePlayback = async (body: components["schemas"]["PlaybackRequest"]) => {
+    const abort = new AbortController();
+    pendingStarts.add(abort);
+    try {
+      return await client.POST("/api/v1/playback", {
+        body: { ...body, waitForReady: true },
+        signal: abort.signal,
+      });
+    } finally {
+      pendingStarts.delete(abort);
+    }
+  };
+
+  const changeAudioSync = async (milliseconds: number) => {
+    if (!Number.isInteger(milliseconds) || Math.abs(milliseconds) > 10000) return;
+    if (isCasting()) {
+      if (!receiverAutoplaySupported()) return;
+      const success = await startReceiverPlayback(
+        mediaItemId(),
+        currentTime() * 1000,
+        isPlaying(),
+        selectedAudioIndex(),
+        selectedSubtitleIndex() >= 0 ? selectedSubtitleIndex() : null,
+        milliseconds,
+        true,
+      );
+      if (success) setAudioOffsetMs?.(audioSyncMs());
+    } else {
+      await changeQuality(quality(), milliseconds);
+    }
+  };
+
+  const changeQuality = async (
+    maxBitrate: number,
+    offset = audioSyncMs(),
+    audioIndex = selectedAudioIndex(),
+    subtitle = selectedSubtitleIndex(),
+    retryPositionMs?: number,
+  ) => {
+    const previous = playbackData();
+    if (!previous || loading() || changingQuality() || isCasting() || castConnecting())
+      return false;
+    setChangingQuality(true);
+    setControlNotice("");
+    const position =
+      retryPositionMs ??
+      failedPositionMs() ??
+      Math.floor((videoRef?.currentTime ?? currentTime()) * 1000);
+    try {
+      if (failedPositionMs() !== null) {
+        await stopPlayback();
+        if (disposed) return false;
+      }
+      const result = await negotiatePlayback({
+        itemId: mediaItemId(),
+        partId: mediaPartId(),
+        profile: getPreferredProfile() as unknown as Record<string, never>,
+        startMs: position,
+        maxBitrate: maxBitrate || undefined,
+        audioOffsetMs: offset,
+        audioStreamIndex: audioIndex,
+        subtitleStreamIndex: subtitle >= 0 ? subtitle : undefined,
+      });
+      if (disposed) {
+        if (result.data) void stopSession(result.data.sessionId, result.data.startMs);
+        return false;
+      }
+      if (result.error || !result.data)
+        throw new Error(
+          `${playbackFailureMessage(result.error, "Playback adjustment failed.")} Previous settings are still selected.`,
+        );
+      const commitPosition =
+        retryPositionMs ??
+        failedPositionMs() ??
+        Math.floor((videoRef?.currentTime ?? currentTime()) * 1000);
+      setError(null);
+      setPlaybackData(result.data);
+      setMediaPartId(result.data.partId);
+      setQuality(maxBitrate);
+      setSelectedAudioIndex(
+        result.data.audioStreamIndex !== undefined
+          ? (result.data.audioStreamIndex ?? undefined)
+          : audioIndex,
+      );
+      setAudioSyncMs(result.data.audioOffsetMs ?? offset);
+      setAudioOffsetMs?.(result.data.audioOffsetMs ?? offset);
+      const previousReleased = stoppedSession === previous.sessionId;
+      const previousStop = previousReleased ? stoppingSession : null;
+      initPlayer(result.data, commitPosition, isPlaying(), subtitle < 0 ? null : subtitle);
+      setSelectedSubtitleIndex(subtitle);
+      if (previousReleased) await previousStop;
+      else await stopSession(previous.sessionId, commitPosition);
+      return true;
+    } catch (reason) {
+      if (!disposed)
+        setControlNotice(reason instanceof Error ? reason.message : "Playback adjustment failed.");
+      return false;
+    } finally {
+      if (!disposed) setChangingQuality(false);
+    }
+  };
+
+  const failLocalPlayback = (message: string, expired = false) => {
+    if (disposed || ended() || error()) return;
+    const seconds = videoRef?.currentTime;
+    setFailedPositionMs(
+      Math.floor(
+        (typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
+          ? seconds
+          : Math.max(currentTime(), lastAdvancingTime)) * 1000,
+      ),
+    );
+    setSessionExpired(expired);
+    hlsRecovery?.dispose();
+    hlsInstance?.stopLoad();
+    setError(message);
+    setLoading(false);
+    localAutoplay = false;
+    videoRef?.pause();
+    setIsPlaying(false);
+    // Release failed transcoding capacity before a manual replacement, including on Pi's one-slot limit.
+    void stopPlayback();
+  };
+
+  const expirePlayback = () => {
+    if (disposed || ended() || sessionExpired()) return;
+    if (!isCasting()) {
+      failLocalPlayback(
+        "Playback session expired. Resume to prepare a new stream at this position.",
+        true,
+      );
+    } else {
+      setSessionExpired(true);
+      setCastStatus("Playback session expired. Disconnect and reconnect the receiver to resume.");
+    }
+  };
+
+  const localProgressState = (): "playing" | "paused" | "buffering" => {
+    if (confirmedSessionId !== playbackData()?.sessionId) return "buffering";
+    return !isPlaying() ? "paused" : localBuffering ? "buffering" : "playing";
+  };
+
   const reportProgress = async (state: "playing" | "paused" | "buffering") => {
     const data = playbackData();
     const vid = videoRef;
-    if (!data || !vid) return;
+    if (!data || !vid || disposed || ended() || error() || sessionExpired() || reportingProgress)
+      return;
 
-    const positionMs = Math.floor(vid.currentTime * 1000);
+    const positionMs = Math.floor((isCasting() ? currentTime() : vid.currentTime) * 1000);
+    reportingProgress = true;
+    const abort = new AbortController();
+    progressAbort = abort;
+    const timeout = window.setTimeout(() => abort.abort(), 10000);
+    abort.signal.addEventListener("abort", () => window.clearTimeout(timeout), { once: true });
     try {
-      await client.POST("/api/v1/playback/{session}/progress", {
+      const result = await client.POST("/api/v1/playback/{session}/progress", {
+        signal: abort.signal,
         params: { path: { session: data.sessionId } },
         body: { positionMs, state },
       });
-    } catch {}
+      if (
+        !disposed &&
+        playbackData()?.sessionId === data.sessionId &&
+        (result.response.status === 404 || result.response.status === 410)
+      )
+        expirePlayback();
+    } catch {
+    } finally {
+      window.clearTimeout(timeout);
+      if (progressAbort === abort) progressAbort = null;
+      reportingProgress = false;
+    }
+  };
+
+  const heartbeat = () => {
+    if (disposed || ended() || error() || sessionExpired()) return;
+    if (isCasting()) {
+      const state = castManager.getState().playerState;
+      void reportProgress(
+        state === "playing" ? "playing" : state === "buffering" ? "buffering" : "paused",
+      );
+    } else {
+      void reportProgress(localProgressState());
+      if (isPlaying()) collectLocalStats();
+    }
   };
 
   const stopSession = async (sessionId: string, positionMs: number) => {
+    const abort = new AbortController();
+    const timeout = window.setTimeout(() => abort.abort(), 10000);
     try {
       await client.POST("/api/v1/playback/{session}/stop", {
+        signal: abort.signal,
         params: { path: { session: sessionId } },
         body: { positionMs },
       });
-    } catch {}
+    } catch {
+    } finally {
+      window.clearTimeout(timeout);
+    }
   };
 
   const stopPlayback = async () => {
     const data = playbackData();
-    if (!data || stoppedSession === data.sessionId) return;
+    if (!data) return;
+    if (stoppedSession === data.sessionId) {
+      await stoppingSession;
+      return;
+    }
     stoppedSession = data.sessionId;
-    await stopSession(data.sessionId, Math.floor((videoRef?.currentTime ?? 0) * 1000));
+    stoppingSession = stopSession(
+      data.sessionId,
+      failedPositionMs() ??
+        Math.floor((isCasting() ? currentTime() : (videoRef?.currentTime ?? 0)) * 1000),
+    );
+    await stoppingSession;
   };
 
-  const startPlaybackSession = async (startMs = 0) => {
+  const retryPlayback = async () => {
+    if (retryingPlayback() || changingQuality() || loading() || isCasting() || castConnecting())
+      return;
+    setRetryingPlayback(true);
+    try {
+      const data = playbackData();
+      if (!data) {
+        await startPlaybackSession(requestedStartMs);
+        return;
+      }
+      const position = failedPositionMs() ?? Math.floor(currentTime() * 1000);
+      await stopPlayback();
+      if (disposed || playbackData()?.sessionId !== data.sessionId) return;
+      if (
+        await changeQuality(
+          quality(),
+          audioSyncMs(),
+          selectedAudioIndex(),
+          selectedSubtitleIndex(),
+          position,
+        )
+      ) {
+        if (!error()) setControlNotice("Stream prepared. Press Play to continue.");
+      }
+    } finally {
+      if (!disposed) setRetryingPlayback(false);
+    }
+  };
+
+  const startPlaybackSession = async (startMs = 0, offset = audioSyncMs()) => {
+    requestedStartMs = startMs;
     setLoading(true);
     setError(null);
 
     try {
-      const { data, error: err } = await client.POST("/api/v1/playback", {
-        body: {
-          itemId: props.itemId,
-          partId: props.partId,
-          profile: getPreferredProfile() as unknown as Record<string, never>,
-          startMs,
-          audioStreamIndex: props.audioStreamIndex,
-          subtitleStreamIndex: props.subtitleStreamIndex ?? undefined,
-        },
+      const { data, error: err } = await negotiatePlayback({
+        itemId: mediaItemId(),
+        partId: mediaPartId(),
+        profile: getPreferredProfile() as unknown as Record<string, never>,
+        startMs,
+        audioOffsetMs: offset,
+        audioStreamIndex: selectedAudioIndex(),
+        subtitleStreamIndex: props.subtitleStreamIndex ?? undefined,
       });
 
       if (disposed) {
         if (data) void stopSession(data.sessionId, data.startMs);
-        return;
+        return false;
       }
       if (err || !data) {
-        setError(err ? String(err) : "Failed to start playback session");
+        setError(playbackFailureMessage(err, "Failed to start playback session"));
         setLoading(false);
-        return;
+        return false;
       }
 
       setPlaybackData(data as PlaybackResponse);
-      initPlayer(data as PlaybackResponse, data.startMs);
+      setMediaPartId(data.partId);
+      setAudioSyncMs(data.audioOffsetMs ?? offset);
+      setSelectedAudioIndex(
+        data.audioStreamIndex !== undefined
+          ? (data.audioStreamIndex ?? undefined)
+          : selectedAudioIndex(),
+      );
+      initPlayer(data as PlaybackResponse, data.startMs, true, props.subtitleStreamIndex);
+      return true;
     } catch (e) {
+      if (disposed) return false;
       setError(e instanceof Error ? e.message : "Playback initiation failed");
       setLoading(false);
+      return false;
     }
   };
 
-  const initPlayer = (data: PlaybackResponse, startMs: number) => {
+  const initPlayer = (
+    data: PlaybackResponse,
+    startMs: number,
+    autoplay = true,
+    subtitleSelection?: number | null,
+  ) => {
     const vid = videoRef;
     if (!vid) return;
 
+    hlsRecovery?.dispose();
+    hlsRecovery = null;
     if (hlsInstance) {
       hlsInstance.destroy();
       hlsInstance = null;
     }
 
+    confirmedSessionId = null;
+    localBuffering = true;
+    localAutoplay = autoplay;
+    lastAdvancingTime = startMs / 1000;
+    setFailedPositionMs(null);
+    setSessionExpired(false);
     const streamUrl = data.url;
     const isHls = new URL(streamUrl, window.location.href).pathname.endsWith(".m3u8");
 
@@ -221,40 +638,68 @@ export function Player(props: PlayerProps) {
       const hls = new Hls({
         enableWorker: true,
         startPosition: startMs > 0 ? startMs / 1000 : -1,
+        manifestLoadPolicy: hlsLoadPolicy(),
+        playlistLoadPolicy: hlsLoadPolicy(),
+        fragLoadPolicy: hlsLoadPolicy(),
       });
-      hls.loadSource(streamUrl);
-      hls.attachMedia(vid);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLoading(false);
-        vid.play().catch(() => {});
-      });
-      hls.on(Hls.Events.ERROR, (_event, errData) => {
-        if (errData.fatal) {
-          switch (errData.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              hls.destroy();
-              setError("Fatal HLS streaming error");
-              break;
+      const active = () =>
+        !disposed &&
+        hlsInstance === hls &&
+        playbackData()?.sessionId === data.sessionId &&
+        !isCasting();
+      const recovery = createHlsRecovery({
+        active,
+        stop: () => hls.stopLoad(),
+        notice: setRecoveryNotice,
+        retry: (reloadManifest) => {
+          const position = Math.max(
+            0,
+            vid.readyState > 0 ? vid.currentTime : currentTime() || startMs / 1000,
+          );
+          // PlaylistLoader.startLoad is a no-op: a failed master needs loadSource again.
+          if (reloadManifest) {
+            hls.config.startPosition = position;
+            hls.loadSource(streamUrl);
           }
-        }
+          if (active() && !error()) hls.startLoad(position);
+        },
+        fail: (reason) => {
+          if (reason === "expired") return expirePlayback();
+          const message =
+            reason === "access"
+              ? "Access to this stream was denied. Sign in again or retry playback."
+              : reason === "media"
+                ? "The stream could not be decoded. Retry playback or choose another quality."
+                : reason === "unsupported"
+                  ? "This stream could not be played. Retry playback or choose another quality."
+                  : "The stream could not be loaded. Check the connection and retry playback.";
+          failLocalPlayback(message);
+        },
       });
       hlsInstance = hls;
+      hlsRecovery = recovery;
+      // Register before loading: loaders and attach validation may emit errors synchronously.
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!active() || error()) return;
+        setLoading(false);
+        if (localAutoplay && !castConnecting()) vid.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, (_event, data) => recovery.error(data));
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        if (active()) recovery.progress();
+      });
+      hls.loadSource(streamUrl);
+      if (!error()) hls.attachMedia(vid);
     } else {
       vid.src = streamUrl;
       if (startMs > 0) {
         vid.currentTime = startMs / 1000;
       }
       setLoading(false);
-      vid.play().catch(() => {});
+      if (autoplay) vid.play().catch(() => {});
     }
 
-    const selectedSub = props.subtitleStreamIndex;
+    const selectedSub = data.burnedSubtitleStreamIndex ?? subtitleSelection;
     const defaultSub = data.subtitles.find((s) => s.isDefault);
     setSelectedSubtitleIndex(selectedSub === null ? -1 : (selectedSub ?? defaultSub?.index ?? -1));
   };
@@ -267,25 +712,21 @@ export function Player(props: PlayerProps) {
       startPlaybackSession(initialStart);
     }
 
-    progressInterval = window.setInterval(() => {
-      if (isPlaying()) {
-        reportProgress("playing");
-        // Update stats
-        if (videoRef) {
-          const qual = videoRef.getVideoPlaybackQuality?.();
-          if (qual) setDroppedFrames(qual.droppedVideoFrames);
-          const buffered = videoRef.buffered;
-          if (buffered.length > 0) {
-            const end = buffered.end(buffered.length - 1);
-            setBufferAheadSecs(Math.max(0, Math.round(end - videoRef.currentTime)));
-          }
-        }
-      }
-    }, 5000);
+    progressInterval = window.setInterval(heartbeat, 5000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") heartbeat();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const vid = videoRef;
       if (!vid) return;
+      if (
+        e.key !== "Escape" &&
+        e.target instanceof HTMLElement &&
+        e.target.closest("input, select, textarea, button, a, [contenteditable='true']")
+      )
+        return;
 
       resetHideControlsTimer();
 
@@ -298,28 +739,20 @@ export function Player(props: PlayerProps) {
         case "ArrowLeft":
         case "j":
           e.preventDefault();
-          vid.currentTime = Math.max(0, vid.currentTime - 10);
+          seekTo(Math.max(0, currentTime() - 10));
           break;
         case "ArrowRight":
         case "l":
           e.preventDefault();
-          vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 10);
+          seekTo(Math.min(duration() || 0, currentTime() + 10));
           break;
         case "ArrowUp":
           e.preventDefault();
-          setVolume((v) => {
-            const next = Math.min(1, v + 0.1);
-            vid.volume = next;
-            return next;
-          });
+          setPlaybackVolume(Math.min(1, volume() + 0.1));
           break;
         case "ArrowDown":
           e.preventDefault();
-          setVolume((v) => {
-            const next = Math.max(0, v - 0.1);
-            vid.volume = next;
-            return next;
-          });
+          setPlaybackVolume(Math.max(0, volume() - 0.1));
           break;
         case "m":
           e.preventDefault();
@@ -347,26 +780,83 @@ export function Player(props: PlayerProps) {
     window.addEventListener("keydown", handleKeyDown);
 
     // Subscribe to CastManager updates (M12)
+    const unsubscribeCommands = castManager.setCommandHandler(async (command) => {
+      if (command.action === "play" && command.params?.itemId) {
+        await startReceiverPlayback(command.params.itemId, command.params.startMs ?? 0, true);
+      } else if (command.action === "setTracks") {
+        await startReceiverPlayback(
+          mediaItemId(),
+          currentTime() * 1000,
+          isPlaying(),
+          command.params?.audioStreamIndex ?? selectedAudioIndex(),
+          command.params?.subtitleStreamIndex !== undefined
+            ? command.params.subtitleStreamIndex
+            : selectedSubtitleIndex() < 0
+              ? null
+              : selectedSubtitleIndex(),
+          audioSyncMs(),
+          true,
+        );
+      } else if (command.action === "stop") {
+        await stopPlayback();
+        castManager.disposeSession();
+        videoRef?.pause();
+        setIsPlaying(false);
+        setError(command.params?.message || "Playback stopped remotely");
+      }
+    });
     const unsubCast = castManager.subscribe((cState) => {
+      const wasCasting = isCasting();
+      const lastPosition = currentTime();
       setIsCastAvailable(cState.isAvailable);
       setIsCasting(cState.isCasting);
+      setReceiverAutoplaySupported(cState.supportsAutoplayNext === true);
+      if (!cState.isCasting) setReceiverFinish(null);
+      if (wasCasting && !cState.isCasting && !disposed && videoRef) {
+        const data = playbackData();
+        if (data)
+          initPlayer(
+            data,
+            lastPosition * 1000,
+            false,
+            selectedSubtitleIndex() < 0 ? null : selectedSubtitleIndex(),
+          );
+        setIsPlaying(false);
+        setVolume(videoRef.volume);
+        setIsMuted(videoRef.muted);
+      }
       setCastDevice(cState.deviceName);
       if (cState.isCasting) {
+        if (!wasCasting) {
+          hlsRecovery?.dispose();
+          hlsInstance?.stopLoad();
+        }
         setIsPlaying(cState.playerState === "playing");
         setCurrentTime(cState.currentTime);
         if (cState.duration > 0) setDuration(cState.duration);
         setVolume(cState.volume);
         setIsMuted(cState.isMuted);
+        if (cState.playbackEnded)
+          setReceiverFinish({ loadId: cState.mediaLoadId, itemId: cState.itemId });
       }
     });
 
     onCleanup(() => {
       disposed = true;
+      progressAbort?.abort();
+      hlsRecovery?.dispose();
+      hlsRecovery = null;
+      for (const request of pendingStarts) request.abort();
+      pendingStarts.clear();
+      nextAbort?.abort();
+      unsubscribeCommands();
       unsubCast();
       window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("visibilitychange", onVisible);
       if (progressInterval) clearInterval(progressInterval);
       if (hideControlsTimer) clearTimeout(hideControlsTimer);
-      stopPlayback();
+      void stopPlayback();
+      castManager.disposeSession();
       if (hlsInstance) {
         hlsInstance.destroy();
         hlsInstance = null;
@@ -377,50 +867,210 @@ export function Player(props: PlayerProps) {
     });
   });
 
+  const startReceiverPlayback = async (
+    itemId: number,
+    startMs: number,
+    autoplay: boolean,
+    audioIndex = itemId === mediaItemId() ? selectedAudioIndex() : undefined,
+    subtitleIndex: number | null | undefined = itemId === mediaItemId()
+      ? selectedSubtitleIndex() < 0
+        ? null
+        : selectedSubtitleIndex()
+      : undefined,
+    offset = audioSyncMs(),
+    preservePosition = false,
+  ) => {
+    if (castConnecting() || changingQuality()) return false;
+    if (isCasting() && !receiverAutoplaySupported()) {
+      setCastStatus(
+        "This receiver uses the current source. Disconnect before changing media or audio tracks.",
+      );
+      return false;
+    }
+    const previous = playbackData();
+    if (!previous) return false;
+    setShowSpeedMenu(false);
+    setShowSubtitlesMenu(false);
+    setCastConnecting(true);
+    setCastStatus(null);
+    let oldPosition = currentTime();
+    let negotiatedStartMs = startMs;
+    const preserveReceiverState =
+      isCasting() && itemId === mediaItemId() && autoplay === isPlaying();
+    let negotiated: PlaybackResponse | null = null;
+    let negotiatedTitle = itemId === mediaItemId() ? mediaTitle() || "MBL" : "MBL";
+    videoRef?.pause();
+    try {
+      const success = await castManager.requestCastSession(
+        {
+          contentId: previous.url,
+          title: mediaTitle(),
+          subtitle: itemId === props.itemId ? props.subtitle : undefined,
+          currentTime: startMs / 1000,
+          duration: duration(),
+          itemId,
+          autoplay,
+        },
+        videoRef,
+        async () => {
+          const result = await negotiatePlayback({
+            itemId,
+            partId: itemId === mediaItemId() ? mediaPartId() : undefined,
+            profile: "chromecast" as unknown as Record<string, never>,
+            startMs,
+            audioOffsetMs: offset,
+            audioStreamIndex: audioIndex,
+            subtitleStreamIndex: subtitleIndex ?? undefined,
+          });
+          if (result.error || !result.data)
+            throw new Error(
+              playbackFailureMessage(
+                result.error,
+                "Could not negotiate playback for the Cast receiver.",
+              ),
+            );
+          negotiated = result.data;
+          try {
+            const detail = await client.GET("/api/v1/items/{id}", {
+              params: { path: { id: itemId } },
+            });
+            negotiatedTitle = detail.data?.title || negotiatedTitle;
+          } catch {
+            /* Optional title lookup must not reject valid receiver playback. */
+          }
+          oldPosition = isCasting() ? currentTime() : (videoRef?.currentTime ?? currentTime());
+          negotiatedStartMs = preservePosition
+            ? Math.floor(oldPosition * 1000)
+            : result.data.startMs;
+          const title = negotiatedTitle;
+          return {
+            contentId: result.data.url,
+            contentType: result.data.contentType,
+            title,
+            currentTime: negotiatedStartMs / 1000,
+            duration: result.data.durationMs / 1000,
+            itemId,
+            autoplay: preserveReceiverState ? isPlaying() : autoplay,
+            subtitles: result.data.subtitles,
+            subtitleIndex: result.data.burnedSubtitleStreamIndex != null ? null : subtitleIndex,
+          };
+        },
+      );
+      // Native Remote Playback uses the browser's existing source; Google Cast uses
+      // the server-negotiated receiver profile, MIME and externally reachable URLs.
+      const accepted = negotiated as PlaybackResponse | null;
+      if (success && accepted && !disposed) {
+        if (stoppedSession === previous.sessionId) await stoppingSession;
+        else await stopSession(previous.sessionId, Math.floor(oldPosition * 1000));
+        setPlaybackData(accepted);
+        setFailedPositionMs(null);
+        setSessionExpired(false);
+        setError(null);
+        setQuality(0);
+        setAudioSyncMs(accepted.audioOffsetMs ?? offset);
+        setMediaItemId(itemId);
+        setMediaPartId(accepted.partId);
+        setSelectedAudioIndex(
+          accepted.audioStreamIndex !== undefined
+            ? (accepted.audioStreamIndex ?? undefined)
+            : audioIndex,
+        );
+        setCurrentTime(negotiatedStartMs / 1000);
+        setDuration(accepted.durationMs / 1000);
+        setSelectedSubtitleIndex(
+          accepted.burnedSubtitleStreamIndex ??
+            (subtitleIndex === null
+              ? -1
+              : (subtitleIndex ?? accepted.subtitles.find((s) => s.isDefault)?.index ?? -1)),
+        );
+        setMediaTitle(negotiatedTitle);
+        void reportProgress(isPlaying() ? "playing" : "paused");
+      } else if (accepted) {
+        await stopSession(accepted.sessionId, accepted.startMs);
+      }
+      if (!success) {
+        setCastStatus(castManager.getLastError());
+        if (autoplay && !disposed && !isCasting()) void videoRef?.play().catch(() => {});
+      }
+      return success && !!accepted && !disposed;
+    } finally {
+      if (!disposed) setCastConnecting(false);
+    }
+  };
+
   const handleCast = async () => {
     if (isCasting()) {
       castManager.stopCasting();
       return;
     }
-    const data = playbackData();
-    if (!data) return;
-    if (videoRef) {
-      videoRef.pause();
-    }
-    await castManager.requestCastSession(
-      {
-        contentId: data.url,
-        title: props.title,
-        subtitle: props.subtitle,
-        currentTime: currentTime(),
-        duration: duration(),
-        itemId: props.itemId,
-      },
-      videoRef,
+    await startReceiverPlayback(
+      mediaItemId(),
+      currentTime() * 1000,
+      isPlaying(),
+      selectedAudioIndex(),
+      selectedSubtitleIndex() < 0 ? null : selectedSubtitleIndex(),
+      audioSyncMs(),
+      true,
     );
+  };
+
+  const playNextEpisode = async () => {
+    const next = nextEpisode();
+    if (
+      !next ||
+      startingNext() ||
+      castConnecting() ||
+      changingQuality() ||
+      (isCasting() && !receiverAutoplaySupported())
+    )
+      return;
+    setStartingNext(true);
+    setControlNotice("");
+    try {
+      if (isCasting()) {
+        if (ended()) await stopPlayback();
+        if (!disposed) await startReceiverPlayback(next.id, 0, true);
+      } else if (props.onPlayNext) {
+        await stopPlayback();
+        if (!disposed)
+          props.onPlayNext({
+            itemId: next.id,
+            title: next.title,
+            initialStartMs: 0,
+            autoplayNext: autoplayNext(),
+          });
+      }
+    } catch {
+      if (!disposed) setControlNotice("Could not start next episode. Try again.");
+    } finally {
+      if (!disposed) setStartingNext(false);
+    }
   };
 
   const togglePlay = () => {
     if (isCasting()) {
       if (isPlaying()) {
         castManager.pause();
-        setIsPlaying(false);
       } else {
         castManager.play();
-        setIsPlaying(true);
       }
       return;
     }
     const vid = videoRef;
-    if (!vid) return;
+    if (!vid || error()) return;
+    localAutoplay = vid.paused;
     if (vid.paused) {
-      vid.play();
+      void vid.play().catch(() => {});
     } else {
       vid.pause();
     }
   };
 
   const toggleMute = () => {
+    if (isCasting()) {
+      castManager.toggleMute();
+      return;
+    }
     const vid = videoRef;
     if (!vid) return;
     vid.muted = !vid.muted;
@@ -438,31 +1088,32 @@ export function Player(props: PlayerProps) {
     }
   };
 
-  const handleSeek = (e: Event & { currentTarget: HTMLInputElement }) => {
-    const targetTime = Number(e.currentTarget.value);
+  const seekTo = (targetTime: number) => {
     setCurrentTime(targetTime);
     if (isCasting()) {
       castManager.seek(targetTime);
       return;
     }
-    const vid = videoRef;
-    if (!vid) return;
-    vid.currentTime = targetTime;
+    lastAdvancingTime = targetTime;
+    if (videoRef) videoRef.currentTime = targetTime;
   };
+  const handleSeek = (e: Event & { currentTarget: HTMLInputElement }) =>
+    seekTo(Number(e.currentTarget.value));
 
-  const handleVolumeChange = (e: Event & { currentTarget: HTMLInputElement }) => {
-    const v = Number(e.currentTarget.value);
+  const setPlaybackVolume = (v: number) => {
     setVolume(v);
-    setIsMuted(false);
     if (isCasting()) {
       castManager.setVolume(v);
       return;
     }
-    const vid = videoRef;
-    if (!vid) return;
-    vid.volume = v;
-    vid.muted = false;
+    if (videoRef) {
+      videoRef.volume = v;
+      videoRef.muted = false;
+    }
+    setIsMuted(false);
   };
+  const handleVolumeChange = (e: Event & { currentTarget: HTMLInputElement }) =>
+    setPlaybackVolume(Number(e.currentTarget.value));
 
   const handleSetSpeed = (rate: number) => {
     if (videoRef) {
@@ -476,8 +1127,58 @@ export function Player(props: PlayerProps) {
     props.onClose();
   };
 
-  const selectSubtitle = (index: number) => {
-    setSelectedSubtitleIndex(index);
+  const subtitleChoices = () =>
+    playbackData()?.subtitleOptions ??
+    (playbackData()?.subtitles ?? []).map((sub) => ({ ...sub, requiresTranscode: false }));
+  const changeAudioTrack = async (index: number) => {
+    if (index === selectedAudioIndex()) return;
+    if (isCasting()) {
+      if (!receiverAutoplaySupported()) return;
+      await startReceiverPlayback(
+        mediaItemId(),
+        currentTime() * 1000,
+        isPlaying(),
+        index,
+        selectedSubtitleIndex() < 0 ? null : selectedSubtitleIndex(),
+        audioSyncMs(),
+        true,
+      );
+    } else {
+      await changeQuality(quality(), audioSyncMs(), index);
+    }
+  };
+  const selectSubtitle = async (index: number) => {
+    if (loading() || changingQuality() || castConnecting()) return;
+    const requiresStream =
+      playbackData()?.burnedSubtitleStreamIndex != null ||
+      subtitleChoices().find((s) => s.index === index)?.requiresTranscode;
+    if (requiresStream) {
+      if (isCasting()) {
+        if (!receiverAutoplaySupported()) {
+          setControlNotice("This receiver cannot renegotiate image subtitles.");
+          return;
+        }
+        if (
+          !(await startReceiverPlayback(
+            mediaItemId(),
+            currentTime() * 1000,
+            isPlaying(),
+            selectedAudioIndex(),
+            index < 0 ? null : index,
+            audioSyncMs(),
+            true,
+          ))
+        )
+          return;
+      } else if (!(await changeQuality(quality(), audioSyncMs(), selectedAudioIndex(), index)))
+        return;
+    } else {
+      if (isCasting() && !(await castManager.selectSubtitle(index < 0 ? null : index))) {
+        setCastStatus("The receiver could not change subtitles.");
+        return;
+      }
+      setSelectedSubtitleIndex(index);
+    }
     setShowSubtitlesMenu(false);
   };
 
@@ -637,6 +1338,7 @@ export function Player(props: PlayerProps) {
             }}
           >
             <p
+              role="alert"
               style={{
                 color: "var(--danger)",
                 "font-size": "var(--font-size-lg)",
@@ -645,6 +1347,30 @@ export function Player(props: PlayerProps) {
             >
               {err()}
             </p>
+            <Show when={!isCasting()}>
+              <Button
+                variant="secondary"
+                disabled={retryingPlayback() || changingQuality() || loading()}
+                aria-busy={retryingPlayback()}
+                onClick={retryPlayback}
+              >
+                {retryingPlayback()
+                  ? "Preparing playback…"
+                  : sessionExpired()
+                    ? "Resume playback"
+                    : "Retry playback"}
+              </Button>
+            </Show>
+            <Show when={!playbackData() && audioSyncMs() !== 0}>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (await startPlaybackSession(requestedStartMs, 0)) setAudioOffsetMs?.(0);
+                }}
+              >
+                Retry without audio sync
+              </Button>
+            </Show>
             <Button variant="secondary" onClick={props.onClose}>
               Close
             </Button>
@@ -652,40 +1378,144 @@ export function Player(props: PlayerProps) {
         )}
       </Show>
 
+      <Show when={castStatus()}>
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: "70px",
+            padding: "12px",
+            background: "var(--bg-surface)",
+            "z-index": 30,
+          }}
+        >
+          {castStatus()}
+        </div>
+      </Show>
+      <Show when={retryingPlayback() || changingQuality() || castConnecting()}>
+        <p
+          role="status"
+          style={{
+            position: "absolute",
+            top: "100px",
+            left: "30px",
+            "z-index": 10010,
+            background: "#222",
+            color: "white",
+            padding: "12px",
+          }}
+        >
+          Preparing playback…
+        </p>
+      </Show>
+      <Show when={recoveryNotice()}>
+        <p
+          role="status"
+          style={{
+            position: "absolute",
+            top: "145px",
+            left: "30px",
+            "z-index": 10010,
+            background: "#222",
+            padding: "12px",
+          }}
+        >
+          {recoveryNotice()}
+        </p>
+      </Show>
+      <Show when={controlNotice()}>
+        <p
+          role="alert"
+          style={{
+            position: "absolute",
+            top: "100px",
+            left: "30px",
+            "z-index": 10010,
+            background: "#222",
+            color: "white",
+            padding: "12px",
+          }}
+        >
+          {controlNotice()}
+        </p>
+      </Show>
       {/* Main Video Element */}
       {/* biome-ignore lint/a11y/useMediaCaption: dynamic subtitle tracks loaded conditionally */}
       <video
         ref={videoRef}
         playsinline
+        crossorigin="anonymous"
         style={{
           width: "100%",
           height: "100%",
           "object-fit": "contain",
         }}
         onTimeUpdate={(e) => {
-          setCurrentTime(e.currentTarget.currentTime);
-          setDuration(e.currentTarget.duration || 0);
+          if (!isCasting()) {
+            const video = e.currentTarget;
+            if (
+              !localBuffering &&
+              !video.paused &&
+              !video.seeking &&
+              video.currentTime > lastAdvancingTime + 0.25
+            )
+              hlsRecovery?.progress();
+            lastAdvancingTime = video.currentTime;
+            setCurrentTime(video.currentTime);
+            setDuration(e.currentTarget.duration || 0);
+          }
         }}
         onPlay={() => {
-          setIsPlaying(true);
-          reportProgress("playing");
+          if (!isCasting() && !error()) {
+            localAutoplay = true;
+            setIsPlaying(true);
+            if (nightMode()) {
+              initWebAudio();
+              if (audioCtx?.state === "suspended") void audioCtx.resume().catch(() => {});
+            }
+          }
+        }}
+        onPlaying={() => {
+          if (!isCasting() && !error()) {
+            confirmedSessionId = playbackData()?.sessionId ?? null;
+            localBuffering = false;
+            setIsPlaying(true);
+            void reportProgress("playing");
+          }
         }}
         onPause={() => {
-          setIsPlaying(false);
-          reportProgress("paused");
+          if (!isCasting()) {
+            localAutoplay = false;
+            setIsPlaying(false);
+            void reportProgress(localProgressState());
+          }
         }}
         onLoadedMetadata={(e) => {
-          setDuration(e.currentTarget.duration || 0);
+          if (!isCasting()) {
+            setDuration(e.currentTarget.duration || 0);
+            collectLocalStats();
+          }
         }}
         onEnded={() => {
+          if (isCasting()) return;
           setIsPlaying(false);
-          void stopPlayback();
+          setEnded(true);
+          setShowControls(true);
+          if (autoplayNext() && nextEpisode()) void playNextEpisode();
+          else void stopPlayback();
         }}
         onError={() => {
-          setLoading(false);
-          setError("The media could not be played.");
+          if (isCasting()) return;
+          failLocalPlayback(
+            "The media could not be played. Retry playback at the current position.",
+          );
         }}
-        onWaiting={() => reportProgress("buffering")}
+        onWaiting={() => {
+          if (!isCasting()) {
+            localBuffering = true;
+            void reportProgress("buffering");
+          }
+        }}
         onClick={togglePlay}
       >
         <Show when={activeSubtitleTrack()}>
@@ -724,7 +1554,8 @@ export function Player(props: PlayerProps) {
             Casting to {castDevice() || "Chromecast"}
           </div>
           <div style={{ "font-size": "14px", color: "var(--text-secondary)" }}>
-            {props.title} {props.subtitle ? `• ${props.subtitle}` : ""}
+            {mediaTitle()}{" "}
+            {mediaItemId() === props.itemId && props.subtitle ? `• ${props.subtitle}` : ""}
           </div>
           <Button variant="secondary" onClick={() => castManager.stopCasting()}>
             Disconnect Cast
@@ -740,7 +1571,7 @@ export function Player(props: PlayerProps) {
               variant="primary"
               size="lg"
               onClick={() => {
-                if (videoRef) videoRef.currentTime = intro().endMs / 1000;
+                seekTo(intro().endMs / 1000);
               }}
             >
               Skip Intro ›
@@ -755,7 +1586,7 @@ export function Player(props: PlayerProps) {
               variant="primary"
               size="lg"
               onClick={() => {
-                if (videoRef) videoRef.currentTime = credits().endMs / 1000;
+                seekTo(credits().endMs / 1000);
               }}
             >
               Skip Credits ›
@@ -810,28 +1641,140 @@ export function Player(props: PlayerProps) {
               </strong>
             </div>
             <div>
-              Reasons: <span>{playbackData()?.reasons?.join("; ") || "Direct stream capable"}</span>
+              Reasons:{" "}
+              <span>{playbackData()?.reasons?.join("; ") || "No server reason reported"}</span>
             </div>
+            <Show
+              when={!isCasting()}
+              fallback={
+                <p>
+                  Receiver video dimensions, decoded frames and buffer are not reported by this
+                  integration.
+                </p>
+              }
+            >
+              <div>Local resolution: {videoSize()}</div>
+              <div>
+                Local buffer:{" "}
+                {bufferAheadSecs() === null ? "Not measured" : `${bufferAheadSecs()}s`}
+              </div>
+              <div>Local dropped frames: {droppedFrames() ?? "Not reported"}</div>
+              <div>
+                Night Mode EQ:{" "}
+                {nightMode() && audioCtx
+                  ? "Active"
+                  : nightMode()
+                    ? "Requested; processing unavailable"
+                    : "Off"}
+              </div>
+              <div>Local speed: {playbackRate()}x</div>
+            </Show>
+            <div>Selected audio stream: {selectedAudioIndex() ?? "None"}</div>
+            <div>Server audio sync: {playbackData()?.audioOffsetMs ?? 0} ms</div>
             <div>
-              Resolution:{" "}
-              <span>
-                {videoRef?.videoWidth}x{videoRef?.videoHeight}
-              </span>
+              Requested quality limit: {quality() ? `${quality() / 1000000} Mbps` : "Automatic"}
             </div>
-            <div>
-              Buffer Health: <span>{bufferAheadSecs()}s</span>
-            </div>
-            <div>
-              Dropped Frames: <span>{droppedFrames()}</span>
-            </div>
-            <div>
-              Night Mode EQ: <span>{nightMode() ? "Active (WebAudio Boost & Comp)" : "Off"}</span>
-            </div>
-            <div>
-              Speed: <span>{playbackRate()}x</span>
-            </div>
+            <Show when={diagnosticsError()}>
+              <p role="alert">{diagnosticsError()}</p>
+            </Show>
+            <Show when={diagnostics()}>
+              {(server) => (
+                <>
+                  <div>
+                    Session request network:{" "}
+                    {server().network === "tailnetDirect"
+                      ? "Tailscale (route not measured)"
+                      : server().network}
+                  </div>
+                  <div>Server profile: {server().profileName}</div>
+                  <Show when={server().isHls} fallback={<div>Server transcoding: not used</div>}>
+                    <Show
+                      when={server().transcode}
+                      fallback={<div>Transcode runtime: unavailable</div>}
+                    >
+                      {(runtime) => (
+                        <>
+                          <div>
+                            {runtime().processRunning ? "Active backend" : "Last backend"}:{" "}
+                            {runtime().backend}
+                          </div>
+                          <div>
+                            FFmpeg:{" "}
+                            {runtime().processRunning
+                              ? runtime().throttled
+                                ? "Paused ahead of playback"
+                                : "Running"
+                              : runtime().lastExitFailed
+                                ? "Exited with an error"
+                                : "Not running; buffered segments may remain"}
+                          </div>
+                          <div>Transcode restarts: {runtime().restarts}</div>
+                        </>
+                      )}
+                    </Show>
+                  </Show>
+                </>
+              )}
+            </Show>
           </div>
         </div>
+      </Show>
+
+      <Show
+        when={
+          props.onPlayNext &&
+          (nextEpisode() || nextError()) &&
+          (ended() || (duration() > 0 && duration() - currentTime() <= 30))
+        }
+      >
+        <aside
+          aria-label="Up Next"
+          style={{
+            position: "absolute",
+            right: "24px",
+            bottom: "160px",
+            padding: "16px",
+            background: "#17191f",
+            color: "white",
+            "z-index": 10006,
+            "max-width": "min(360px, 90vw)",
+          }}
+        >
+          <Show when={nextError()}>
+            <p role="alert">{nextError()}</p>
+            <Button onClick={() => loadNext(mediaItemId())}>Retry next episode</Button>
+          </Show>
+          <Show when={nextEpisode()}>
+            {(episode) => (
+              <>
+                <h2>Up Next</h2>
+                <p>{episode().title}</p>
+                <Button
+                  disabled={
+                    startingNext() ||
+                    castConnecting() ||
+                    changingQuality() ||
+                    (isCasting() && !receiverAutoplaySupported())
+                  }
+                  onClick={playNextEpisode}
+                >
+                  Play next episode
+                </Button>
+                <label style={{ display: "block" }}>
+                  <input
+                    type="checkbox"
+                    disabled={isCasting() && !receiverAutoplaySupported()}
+                    checked={autoplayNext()}
+                    onChange={(event) => {
+                      setAutoplayNext(event.currentTarget.checked);
+                    }}
+                  />
+                  Automatically play next episode
+                </label>
+              </>
+            )}
+          </Show>
+        </aside>
       </Show>
 
       {/* Player Header Overlay */}
@@ -842,6 +1785,7 @@ export function Player(props: PlayerProps) {
           left: 0,
           right: 0,
           padding: "24px 32px",
+          "z-index": 20,
           background: "linear-gradient(to bottom, rgba(0, 0, 0, 0.85) 0%, transparent 100%)",
           display: "flex",
           "align-items": "center",
@@ -874,9 +1818,9 @@ export function Player(props: PlayerProps) {
           </button>
           <div>
             <div style={{ "font-size": "18px", "font-weight": "700", color: "#fff" }}>
-              {props.title || "Now Playing"}
+              {mediaTitle() || "Now Playing"}
             </div>
-            {props.subtitle && (
+            {mediaItemId() === props.itemId && props.subtitle && (
               <div style={{ "font-size": "13px", color: "var(--text-muted)" }}>
                 {props.subtitle}
               </div>
@@ -887,6 +1831,7 @@ export function Player(props: PlayerProps) {
         <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
           <button
             type="button"
+            disabled={isCasting()}
             onClick={toggleNightMode}
             title="Toggle Night Mode (n)"
             style={{
@@ -928,6 +1873,7 @@ export function Player(props: PlayerProps) {
           bottom: 0,
           left: 0,
           right: 0,
+          "z-index": 20,
           padding: "24px 32px 28px",
           background: "linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, transparent 100%)",
           display: "flex",
@@ -954,7 +1900,23 @@ export function Player(props: PlayerProps) {
               max={duration() || 100}
               step={0.5}
               value={currentTime()}
-              onInput={handleSeek}
+              aria-label="Seek video"
+              onPointerMove={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                if (rect.width > 0 && duration() > 0)
+                  setPreviewTime(
+                    Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) *
+                      duration() *
+                      1000,
+                  );
+              }}
+              onPointerLeave={() => setPreviewTime(null)}
+              onFocus={(event) => setPreviewTime(Number(event.currentTarget.value) * 1000)}
+              onBlur={() => setPreviewTime(null)}
+              onInput={(event) => {
+                handleSeek(event);
+                setPreviewTime(Number(event.currentTarget.value) * 1000);
+              }}
               style={{
                 width: "100%",
                 height: "6px",
@@ -962,6 +1924,22 @@ export function Player(props: PlayerProps) {
                 "accent-color": "var(--accent)",
               }}
             />
+            <Show when={previewTime() !== null && playbackData()?.partId}>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "24px",
+                  "z-index": 2,
+                  left: `clamp(85px, ${Math.max(0, Math.min(100, ((previewTime() ?? 0) / ((duration() || 1) * 1000)) * 100))}%, calc(100% - 85px))`,
+                  transform: "translateX(-50%)",
+                }}
+              >
+                <TrickplayPreview
+                  partId={playbackData()?.partId ?? 0}
+                  timeMs={previewTime() ?? 0}
+                />
+              </div>
+            </Show>
             {/* Chapter ticks */}
             <Show when={duration() > 0}>
               <For each={currentMarkers().filter((m) => m.kind === "chapter")}>
@@ -1018,7 +1996,7 @@ export function Player(props: PlayerProps) {
             <button
               type="button"
               onClick={() => {
-                if (videoRef) videoRef.currentTime = Math.max(0, videoRef.currentTime - 10);
+                seekTo(Math.max(0, currentTime() - 10));
               }}
               style={{
                 background: "transparent",
@@ -1033,11 +2011,7 @@ export function Player(props: PlayerProps) {
             <button
               type="button"
               onClick={() => {
-                if (videoRef)
-                  videoRef.currentTime = Math.min(
-                    videoRef.duration || 0,
-                    videoRef.currentTime + 10,
-                  );
+                seekTo(Math.min(duration() || 0, currentTime() + 10));
               }}
               style={{
                 background: "transparent",
@@ -1086,10 +2060,101 @@ export function Player(props: PlayerProps) {
           <div
             style={{ display: "flex", "align-items": "center", gap: "14px", position: "relative" }}
           >
+            <div style={{ display: "grid", gap: "4px" }}>
+              <Show when={(playbackData()?.audioTracks?.length ?? 0) > 0}>
+                <label for="player-audio-track">Audio track</label>
+                <select
+                  id="player-audio-track"
+                  value={selectedAudioIndex()}
+                  disabled={
+                    loading() ||
+                    changingQuality() ||
+                    castConnecting() ||
+                    (isCasting() && !receiverAutoplaySupported())
+                  }
+                  onChange={(event) => {
+                    const select = event.currentTarget;
+                    void changeAudioTrack(Number(select.value)).finally(() => {
+                      select.value = String(selectedAudioIndex() ?? "");
+                    });
+                  }}
+                >
+                  <For each={playbackData()?.audioTracks}>
+                    {(track) => (
+                      <option value={track.index}>
+                        {track.title || track.language || `Track ${track.index}`} · {track.codec}
+                        {track.channels ? ` · ${track.channels}ch` : ""}
+                      </option>
+                    )}
+                  </For>
+                </select>
+              </Show>
+              <label for="player-quality">Quality limit</label>
+              <select
+                id="player-quality"
+                value={quality()}
+                disabled={isCasting() || loading() || changingQuality() || castConnecting()}
+                onChange={(event) => {
+                  const select = event.currentTarget;
+                  void changeQuality(Number(select.value)).finally(() => {
+                    select.value = String(quality());
+                  });
+                }}
+              >
+                <option value={0}>Automatic</option>
+                <option value={2000000}>2 Mbps</option>
+                <option value={4000000}>4 Mbps</option>
+                <option value={8000000}>8 Mbps</option>
+                <option value={20000000}>20 Mbps</option>
+              </select>
+              <label for="player-audio-delay">Audio sync (− earlier, + later)</label>
+              <select
+                id="player-audio-delay"
+                value={audioSyncMs()}
+                disabled={
+                  loading() ||
+                  changingQuality() ||
+                  castConnecting() ||
+                  (isCasting() && !receiverAutoplaySupported())
+                }
+                onChange={(event) => {
+                  const select = event.currentTarget;
+                  void changeAudioSync(Number(select.value)).finally(() => {
+                    select.value = String(audioSyncMs());
+                  });
+                }}
+              >
+                <For
+                  each={Array.from(
+                    new Set([
+                      -10000,
+                      -5000,
+                      -2000,
+                      -1000,
+                      -500,
+                      -250,
+                      -100,
+                      0,
+                      100,
+                      250,
+                      500,
+                      1000,
+                      2000,
+                      5000,
+                      10000,
+                      audioSyncMs(),
+                    ]),
+                  )}
+                >
+                  {(milliseconds) => <option value={milliseconds}>{milliseconds} ms</option>}
+                </For>
+              </select>
+            </div>
             {/* Speed Selector */}
             <div style={{ position: "relative" }}>
               <button
                 type="button"
+                disabled={isCasting()}
                 onClick={() => setShowSpeedMenu(!showSpeedMenu())}
                 style={{
                   background: "rgba(255, 255, 255, 0.1)",
@@ -1144,10 +2209,12 @@ export function Player(props: PlayerProps) {
             </div>
 
             {/* Subtitles Menu */}
-            <Show when={playbackData() && (playbackData()?.subtitles.length ?? 0) > 0}>
+            <Show when={subtitleChoices().length > 0}>
               <div style={{ position: "relative" }}>
                 <button
                   type="button"
+                  aria-label="Subtitle tracks"
+                  disabled={loading() || changingQuality() || castConnecting()}
                   onClick={() => setShowSubtitlesMenu(!showSubtitlesMenu())}
                   style={{
                     background:
@@ -1195,7 +2262,7 @@ export function Player(props: PlayerProps) {
                     >
                       Off
                     </button>
-                    <For each={playbackData()?.subtitles}>
+                    <For each={subtitleChoices()}>
                       {(sub) => (
                         <button
                           type="button"
@@ -1217,6 +2284,7 @@ export function Player(props: PlayerProps) {
                         >
                           {sub.title || sub.language || `Track ${sub.index}`}
                           {sub.isForced ? " (Forced)" : ""}
+                          {sub.requiresTranscode ? " (video conversion)" : ""}
                         </button>
                       )}
                     </For>
@@ -1230,6 +2298,7 @@ export function Player(props: PlayerProps) {
               <button
                 type="button"
                 onClick={handleCast}
+                disabled={castConnecting() || changingQuality()}
                 title={
                   isCasting()
                     ? `Casting to ${castDevice() || "Chromecast"}`

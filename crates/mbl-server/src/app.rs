@@ -72,8 +72,13 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         0 => default_probe_concurrency(profile, cpus),
         n => usize::try_from(n).unwrap_or(1),
     };
-    let scanner =
-        Scanner::new(db.clone(), tools, events.clone(), Some(runner.queue()), probe_concurrency);
+    let scanner = Scanner::new(
+        db.clone(),
+        tools.clone(),
+        events.clone(),
+        Some(runner.queue()),
+        probe_concurrency,
+    );
     runner.register(Arc::new(ScanHandler { scanner }));
 
     let tmdb = match config.metadata.tmdb_api_key.trim() {
@@ -101,6 +106,11 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         AppState::new(db.clone(), runner.queue(), images, events.clone(), info, secure_cookies);
     state.services.stream =
         state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
+    state.services.livetv = state
+        .services
+        .livetv
+        .with_stream(state.services.stream.clone())
+        .with_recordings(paths.data.join("recordings").into_std_path_buf(), tools);
     state.services.hw = mbl_service::HwService::new(db.clone(), state.services.stream.clone());
     state.services.intelligence =
         state.services.intelligence.with_stream(state.services.stream.clone());
@@ -111,7 +121,13 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         .services
         .playback
         .with_stream(state.services.stream.clone())
-        .with_hw(state.services.hw.clone());
+        .with_hw(state.services.hw.clone())
+        .with_remote_policy(state.services.remote.bandwidth().clone(), &config.server.public_url);
+    runner.register(Arc::new(mbl_service::TrickplayJobHandler {
+        intelligence: state.services.intelligence.clone(),
+        playback: state.services.playback.clone(),
+    }));
+    state.services.remote.restore_policy().await?;
     runner.set_activity_probe(Arc::new(state.services.playback.clone()));
     let services = state.services.clone();
     let mcp_state = mbl_mcp::McpState::new(
@@ -145,32 +161,63 @@ impl Server {
         self,
         shutdown: impl Future<Output = ()> + Send + 'static,
     ) -> anyhow::Result<()> {
-        let stop = CancellationToken::new();
-        self.start_watcher(&stop);
-        let jobs = self.runner.start(stop.clone()).await?;
-
+        // Bind before starting any background tasks; a port conflict must not leak workers.
         let addr = format!("{}:{}", self.config.server.bind, self.config.server.port);
         let listener = tokio::net::TcpListener::bind(&addr).await?;
+        let stop = CancellationToken::new();
+        self.start_watcher(&stop);
+        let jobs = match self.runner.start(stop.clone()).await {
+            Ok(jobs) => jobs,
+            Err(error) => {
+                stop.cancel();
+                return Err(error.into());
+            }
+        };
+        let playback = spawn_playback_maintenance(
+            self.services.playback.clone(),
+            self.services.livetv.clone(),
+            stop.clone(),
+        );
+        let recordings = tokio::spawn(crate::recorder::run(
+            self.db.clone(),
+            self.services.livetv.clone(),
+            self.services.stream.ffmpeg_bin().to_path_buf(),
+            self.paths.data.join("recordings").into_std_path_buf(),
+            stop.clone(),
+        ));
+
         tracing::info!(%addr, "listening");
         let stop_on_signal = stop.clone();
-        axum::serve(listener, self.router.into_make_service_with_connect_info::<SocketAddr>())
-            .with_graceful_shutdown(async move {
-                shutdown.await;
-                stop_on_signal.cancel();
-            })
-            .await?;
+        let served =
+            axum::serve(listener, self.router.into_make_service_with_connect_info::<SocketAddr>())
+                .with_graceful_shutdown(async move {
+                    shutdown.await;
+                    stop_on_signal.cancel();
+                })
+                .await;
 
         stop.cancel();
+        let _ = playback.await;
+        let _ = recordings.await;
         let _ = jobs.await;
         self.db.close().await;
         tracing::info!("stopped");
+        served?;
         Ok(())
     }
 
     /// Start the job runner and watcher without serving HTTP (used by integration tests).
     pub async fn start_jobs(self, stop: CancellationToken) -> anyhow::Result<(Router, Db)> {
         self.start_watcher(&stop);
-        self.runner.start(stop).await?;
+        if let Err(error) = self.runner.start(stop.clone()).await {
+            stop.cancel();
+            return Err(error.into());
+        }
+        spawn_playback_maintenance(
+            self.services.playback.clone(),
+            self.services.livetv.clone(),
+            stop,
+        );
         Ok((self.router, self.db))
     }
 
@@ -187,4 +234,25 @@ impl Server {
         mbl_scanner::LibraryWatcher::new(self.db.clone(), self.runner.queue(), cfg)
             .spawn(stop.clone());
     }
+}
+
+/// The HTTP and integration-test server lifecycles share the same owned maintenance task.
+fn spawn_playback_maintenance(
+    playback: mbl_service::PlaybackService,
+    livetv: mbl_service::LiveTvService,
+    stop: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tokio::select! {
+                biased;
+                () = stop.cancelled() => break,
+                _ = interval.tick() => { livetv.maintain().await; playback.maintain_sessions().await; },
+            }
+        }
+        livetv.shutdown().await;
+        playback.shutdown().await;
+    })
 }

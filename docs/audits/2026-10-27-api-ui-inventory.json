@@ -1,5 +1,6 @@
 {
-  "note": "Static literal-call inventory, not a usability or coverage guarantee. Dynamic URL calls, media element URLs and direct fetch calls require manual review. Internal endpoints need not have UI controls.",
+  "baseCommit": "d05a03f",
+  "note": "Static literal-call inventory after Chromecast review, including current working-tree repairs. Not a usability or coverage guarantee. Dynamic URL calls, media element URLs and direct fetch calls require manual review. Internal endpoints need not have UI controls.",
   "operations": [
     {
       "method": "GET",
@@ -659,6 +660,12 @@
       "method": "POST",
       "path": "/api/v1/players",
       "operationId": "register_player",
+      "literalWebCall": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/players/{id}",
+      "operationId": "unregister_player",
       "literalWebCall": true
     },
     {

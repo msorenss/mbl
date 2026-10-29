@@ -129,7 +129,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
             scope: Scope::Admin,
             definition: ToolDefinition {
                 name: "cancel_recording".into(),
-                description: "Cancel or remove a scheduled or completed TV recording.".into(),
+                description: "Cancel a scheduled or active TV recording, or delete a completed recording with its saved file and catalogue item.".into(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -177,8 +177,11 @@ pub async fn execute(
         }
         "list_recordings" => {
             let status = args.get("status").and_then(Value::as_str);
-            let recordings =
-                services.livetv.list_recordings(status).await.map_err(map_service_error)?;
+            let recordings = services
+                .livetv
+                .list_recordings_for(&caller.actor, status)
+                .await
+                .map_err(map_service_error)?;
 
             let summary = format!("Found {} recording(s)", recordings.len());
             Ok(CallToolResult::structured(&recordings, summary))
@@ -320,20 +323,22 @@ pub async fn execute(
             let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
             let confirm = args.get("confirm").and_then(Value::as_bool).unwrap_or(false);
 
-            let recording = match services.livetv.get_recording(recording_id).await {
-                Ok(r) => r,
-                Err(e) => return Ok(service_error_to_tool_result(e)),
-            };
+            let recording =
+                match services.livetv.get_recording_for(&caller.actor, recording_id).await {
+                    Ok(r) => r,
+                    Err(e) => return Ok(service_error_to_tool_result(e)),
+                };
 
             if dry_run {
                 return Ok(CallToolResult::structured(
                     &json!({
                         "dryRun": true,
                         "recordingId": recording_id.0,
-                        "title": recording.title
+                        "title": recording.title,
+                        "deletesSavedFile": matches!(recording.status, mbl_core::RecordingStatus::Completed | mbl_core::RecordingStatus::Failed)
                     }),
                     format!(
-                        "dry run: would cancel recording {} ('{}')",
+                        "dry run: would cancel or delete recording {} ('{}') and remove any saved file",
                         recording_id.0, recording.title
                     ),
                 ));
@@ -341,7 +346,7 @@ pub async fn execute(
 
             if !confirm {
                 return Ok(CallToolResult::error(format!(
-                    "confirmation required: set confirm: true to cancel recording {} ('{}')",
+                    "confirmation required: set confirm: true to cancel or delete recording {} ('{}'), including its saved file",
                     recording_id.0, recording.title
                 )));
             }

@@ -66,6 +66,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
                         "part_id": { "type": "integer", "description": "Optional specific media part ID" },
                         "profile": { "description": "Device profile name ('chrome', 'firefox', 'safari', 'edge') or full device profile object" },
                         "max_bitrate": { "type": "integer", "description": "Optional maximum streaming bitrate in bps" },
+                        "audio_offset_ms": { "type": "integer", "minimum": -10000, "maximum": 10000, "description": "Positive delays audio; negative advances it (ms)" },
                         "audio_stream_index": { "type": "integer", "description": "Optional audio stream index" },
                         "subtitle_stream_index": { "type": "integer", "description": "Optional subtitle stream index" }
                     },
@@ -106,12 +107,12 @@ pub async fn execute(
                 .and_then(Value::as_str)
                 .ok_or_else(|| JsonRpcError::invalid_params("session_id is required"))?;
 
-            let session =
-                services.playback.get_session(&caller.actor, session_id).ok_or_else(|| {
-                    JsonRpcError::forbidden(format!(
-                        "session '{session_id}' not found or inaccessible"
-                    ))
-                })?;
+            let diagnostics = services
+                .playback
+                .diagnostics(&caller.actor, session_id)
+                .await
+                .map_err(crate::server::map_service_error)?;
+            let session = &diagnostics.session;
 
             let reasons_str = if session.reasons.is_empty() {
                 "direct play".to_string()
@@ -124,7 +125,7 @@ pub async fn execute(
                 session.method, session.profile_name
             );
 
-            Ok(CallToolResult::structured(&session, summary))
+            Ok(CallToolResult::structured(&diagnostics, summary))
         }
         "preview_playback" => {
             let item_id = args
@@ -151,17 +152,10 @@ pub async fn execute(
             let max_bitrate =
                 args.get("max_bitrate").or_else(|| args.get("maxBitrate")).and_then(Value::as_u64);
 
-            let audio_stream_index = args
-                .get("audio_stream_index")
-                .or_else(|| args.get("audioStreamIndex"))
-                .and_then(Value::as_u64)
-                .map(|u| u as u32);
-
-            let subtitle_stream_index = args
-                .get("subtitle_stream_index")
-                .or_else(|| args.get("subtitleStreamIndex"))
-                .and_then(Value::as_u64)
-                .map(|u| u as u32);
+            let audio_stream_index =
+                optional_stream_index(args, "audio_stream_index", "audioStreamIndex")?;
+            let subtitle_stream_index =
+                optional_stream_index(args, "subtitle_stream_index", "subtitleStreamIndex")?;
 
             let req = PlaybackRequest {
                 item_id,
@@ -169,15 +163,22 @@ pub async fn execute(
                 profile: profile_input,
                 max_bitrate,
                 audio_stream_index,
+                audio_offset_ms: args
+                    .get("audio_offset_ms")
+                    .or_else(|| args.get("audioOffsetMs"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0),
                 subtitle_stream_index,
                 start_ms: None,
+                wait_for_ready: false,
+                network: None,
             };
 
             let preview = services
                 .playback
                 .preview(&caller.actor, req)
                 .await
-                .map_err(|e| JsonRpcError::forbidden(format!("preview failed: {e}")))?;
+                .map_err(crate::server::map_service_error)?;
 
             let reasons_str = if preview.reasons.is_empty() {
                 "direct play".to_string()
@@ -193,5 +194,22 @@ pub async fn execute(
             Ok(CallToolResult::structured(&preview, summary))
         }
         _ => Err(JsonRpcError::invalid_params(format!("unknown playback tool: {tool_name}"))),
+    }
+}
+
+fn optional_stream_index(
+    args: &Value,
+    snake: &str,
+    camel: &str,
+) -> Result<Option<u32>, JsonRpcError> {
+    match args.get(snake).or_else(|| args.get(camel)) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => {
+            value.as_u64().and_then(|n| u32::try_from(n).ok()).map(Some).ok_or_else(|| {
+                JsonRpcError::invalid_params(format!(
+                    "{snake} must be an unsigned 32-bit stream index"
+                ))
+            })
+        }
     }
 }

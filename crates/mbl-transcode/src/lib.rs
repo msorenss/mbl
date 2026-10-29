@@ -14,5 +14,5 @@ pub use pipeline::{
 pub use session::{
     CreateSessionReq, DEFAULT_AHEAD_SEGMENTS, DEFAULT_INACTIVITY_TIMEOUT,
     DEFAULT_MAX_REMUX_SESSIONS, DEFAULT_SEGMENT_WAIT_TIMEOUT, HlsSession, SessionManager,
-    SessionManagerConfig,
+    SessionManagerConfig, VideoCapacity,
 };

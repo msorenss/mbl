@@ -30,6 +30,7 @@ export function AiAgents() {
   const [customScopes, setCustomScopes] = createSignal<string[]>(["read"]);
   const [isCustomScopes, setIsCustomScopes] = createSignal(false);
   const [expiryDays, setExpiryDays] = createSignal<number>(90);
+  const [allowedNetworks, setAllowedNetworks] = createSignal<string[]>(["lan", "tailnet"]);
   const [mintingToken, setMintingToken] = createSignal(false);
 
   // Newly minted token modal
@@ -50,31 +51,46 @@ export function AiAgents() {
 
   const loadStatus = async () => {
     try {
-      const { data } = await client.GET("/api/v1/mcp/status");
+      const { data, error } = await client.GET("/api/v1/mcp/status");
+      if (error) throw new Error("Could not load MCP status");
       if (data) setMcpStatus(data);
     } catch {
-      // Ignore
+      showToast({
+        title: "Load failed",
+        message: "Server data could not be loaded. Reload to retry.",
+        type: "error",
+      });
     }
   };
 
   const loadPresets = async () => {
     try {
-      const { data } = await client.GET("/api/v1/mcp/presets");
+      const { data, error } = await client.GET("/api/v1/mcp/presets");
+      if (error) throw new Error("Could not load presets");
       if (data) setPresets(data);
     } catch {
-      // Ignore
+      showToast({
+        title: "Load failed",
+        message: "Server data could not be loaded. Reload to retry.",
+        type: "error",
+      });
     }
   };
 
   const loadTokens = async () => {
     setLoadingTokens(true);
     try {
-      const { data } = await client.GET("/api/v1/auth/tokens", {
+      const { data, error } = await client.GET("/api/v1/auth/tokens", {
         params: { query: { all: true } },
       });
+      if (error) throw new Error("Could not load tokens");
       if (data) setTokens(data);
     } catch {
-      // Ignore
+      showToast({
+        title: "Load failed",
+        message: "Server data could not be loaded. Reload to retry.",
+        type: "error",
+      });
     } finally {
       setLoadingTokens(false);
     }
@@ -90,12 +106,17 @@ export function AiAgents() {
       if (filterOutcome()) query.outcome = filterOutcome();
       if (filterTokenId()) query.tokenId = Number.parseInt(filterTokenId(), 10);
 
-      const { data } = await client.GET("/api/v1/mcp/audit", {
+      const { data, error } = await client.GET("/api/v1/mcp/audit", {
         params: { query },
       });
+      if (error) throw new Error("Could not load audit log");
       if (data) setAuditEntries(data);
     } catch {
-      // Ignore
+      showToast({
+        title: "Load failed",
+        message: "Server data could not be loaded. Reload to retry.",
+        type: "error",
+      });
     } finally {
       setLoadingAudit(false);
     }
@@ -146,6 +167,7 @@ export function AiAgents() {
       const { error } = await client.DELETE("/api/v1/auth/tokens/{id}", {
         params: { path: { id } },
       });
+      if (error) throw new Error("Revoke failed");
       if (!error) {
         showToast({
           title: "Token Revoked",
@@ -161,7 +183,16 @@ export function AiAgents() {
 
   const handleCreateToken = async (e: Event) => {
     e.preventDefault();
-    if (!tokenName()) {
+    if (mintingToken()) return;
+    if (!allowedNetworks().length) {
+      showToast({
+        title: "Validation Error",
+        message: "Select at least one allowed network",
+        type: "error",
+      });
+      return;
+    }
+    if (!tokenName().trim()) {
       showToast({ title: "Validation Error", message: "Token name is required", type: "error" });
       return;
     }
@@ -180,26 +211,36 @@ export function AiAgents() {
     try {
       const { data, error } = await client.POST("/api/v1/auth/tokens", {
         body: {
-          name: tokenName(),
+          name: tokenName().trim(),
           scopes,
           expiresAt,
+          allowedNetworks: allowedNetworks(),
         },
       });
 
       if (data && !error) {
+        setSnippets(null);
         setNewPlaintextToken(data.token);
         setWizardOpen(false);
         setTokenName("");
         loadTokens();
 
         // Fetch pre-filled snippets
-        const { data: snippetData } = await client.POST("/api/v1/mcp/snippets", {
-          body: {
-            serverUrl: window.location.origin,
-            token: data.token,
-          },
-        });
-        if (snippetData) setSnippets(snippetData);
+        const snippetResult = await client
+          .POST("/api/v1/mcp/snippets", {
+            body: {
+              serverUrl: window.location.origin,
+              token: data.token,
+            },
+          })
+          .catch(() => null);
+        if (snippetResult?.data && !snippetResult.error) setSnippets(snippetResult.data);
+        else
+          showToast({
+            title: "Token created",
+            message: "Configuration snippets could not be loaded. Copy the token shown above.",
+            type: "warning",
+          });
       } else {
         showToast({ title: "Error", message: "Failed to create token", type: "error" });
       }
@@ -210,9 +251,17 @@ export function AiAgents() {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    showToast({ title: "Copied!", message: `${label} copied to clipboard`, type: "success" });
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast({ title: "Copied!", message: `${label} copied to clipboard`, type: "success" });
+    } catch {
+      showToast({
+        title: "Copy failed",
+        message: "Select and copy the text manually.",
+        type: "error",
+      });
+    }
   };
 
   return (
@@ -342,6 +391,7 @@ export function AiAgents() {
             <input
               type="text"
               readOnly
+              aria-label="New API token"
               value={newPlaintextToken() || ""}
               style={{
                 flex: 1,
@@ -659,6 +709,37 @@ export function AiAgents() {
                 </div>
               </Show>
 
+              <fieldset disabled={mintingToken()}>
+                <legend>Allowed networks</legend>
+                <p>
+                  WAN permits token use from the public internet only when server policy also allows
+                  it.
+                </p>
+                <For
+                  each={[
+                    { id: "lan", label: "Local network (LAN)" },
+                    { id: "tailnet", label: "Tailscale network" },
+                    { id: "wan", label: "Public internet (WAN)" },
+                  ]}
+                >
+                  {(network) => (
+                    <label style={{ display: "block" }}>
+                      <input
+                        type="checkbox"
+                        checked={allowedNetworks().includes(network.id)}
+                        onChange={(event) =>
+                          setAllowedNetworks((values) =>
+                            event.currentTarget.checked
+                              ? [...values, network.id]
+                              : values.filter((value) => value !== network.id),
+                          )
+                        }
+                      />
+                      {network.label}
+                    </label>
+                  )}
+                </For>
+              </fieldset>
               <div>
                 <label
                   for="expiry"
@@ -772,6 +853,7 @@ export function AiAgents() {
                   <th style={{ padding: "12px 16px" }}>Name</th>
                   <th style={{ padding: "12px 16px" }}>Scopes</th>
                   <th style={{ padding: "12px 16px" }}>Created</th>
+                  <th style={{ padding: "12px 16px" }}>Networks</th>
                   <th style={{ padding: "12px 16px" }}>Expires</th>
                   <th style={{ padding: "12px 16px" }}>Last Used</th>
                   <th style={{ padding: "12px 16px", "text-align": "right" }}>Actions</th>
@@ -804,6 +886,7 @@ export function AiAgents() {
                       <td style={{ padding: "12px 16px", color: "var(--text-muted)" }}>
                         {new Date(tok.createdAt).toLocaleDateString()}
                       </td>
+                      <td style={{ padding: "12px 16px" }}>{tok.allowedNetworks.join(", ")}</td>
                       <td style={{ padding: "12px 16px", color: "var(--text-muted)" }}>
                         {tok.expiresAt ? new Date(tok.expiresAt).toLocaleDateString() : "Never"}
                       </td>

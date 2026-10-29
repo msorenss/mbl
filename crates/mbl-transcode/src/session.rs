@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -25,6 +26,15 @@ pub const DEFAULT_INACTIVITY_TIMEOUT: Duration = Duration::from_secs(60);
 pub const DEFAULT_SEGMENT_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
 /// Maximum concurrent remux (`-c:v copy`) sessions.
 pub const DEFAULT_MAX_REMUX_SESSIONS: usize = 8;
+
+/// A live encoder shares the same bounded video budget as VOD; dropping this releases its slot.
+#[derive(Debug)]
+pub struct VideoCapacity(Arc<AtomicUsize>);
+impl Drop for VideoCapacity {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
 
 /// Configuration for [`SessionManager`].
 #[derive(Debug, Clone)]
@@ -81,6 +91,7 @@ pub struct CreateSessionReq {
 }
 
 struct SessionState {
+    closed: bool,
     child: Option<Child>,
     last_exit_failed: bool,
     last_spawn_at: Instant,
@@ -92,6 +103,12 @@ struct SessionState {
     last_requested_segment: u32,
     last_access: Instant,
     restart_count: u32,
+}
+
+impl SessionState {
+    fn ensure_open(&self) -> Result<()> {
+        if self.closed { Err(Error::NotFound) } else { Ok(()) }
+    }
 }
 
 /// An active HLS transcode or remux session.
@@ -125,11 +142,66 @@ impl std::fmt::Debug for HlsSession {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SessionRuntime {
+    pub backend: Backend,
+    pub process_running: bool,
+    pub throttled: bool,
+    pub restarts: u32,
+    pub last_exit_failed: bool,
+}
+
 impl HlsSession {
+    /// Capture backend and process state under one lock so diagnostics cannot mix snapshots.
+    pub async fn runtime_status(&self) -> SessionRuntime {
+        let mut state = self.state.lock().await;
+        let running = poll_child_state(&mut state);
+        SessionRuntime {
+            backend: state.active_backend,
+            process_running: running,
+            throttled: running && state.paused,
+            restarts: state.restart_count,
+            last_exit_failed: state.last_exit_failed,
+        }
+    }
+
+    /// Validate the initial init/closed fragment for every advertised rendition under one deadline.
+    pub async fn prepare(&self) -> Result<()> {
+        tokio::time::timeout(self.segment_wait_timeout, async {
+            loop {
+                for rendition in &self.base_pipeline.output.renditions {
+                    self.request_segment(&rendition.name, self.base_pipeline.output.start_number)
+                        .await?;
+                    self.request_init(&rendition.name).await?;
+                }
+                let mut state = self.state.lock().await;
+                state.ensure_open()?;
+                if !poll_child_state(&mut state) && state.last_exit_failed {
+                    if state.fallback_backends.is_empty() {
+                        return Err(Error::Unavailable(
+                            "FFmpeg failed during playback startup".into(),
+                        ));
+                    }
+                    self.advance_fallback_locked(&mut state);
+                    self.spawn_at_segment_locked(
+                        &mut state,
+                        self.base_pipeline.output.start_number,
+                    )
+                    .await?;
+                    continue;
+                }
+                return Ok(());
+            }
+        })
+        .await
+        .map_err(|_| Error::Unavailable("timed out preparing playback media".into()))?
+    }
+
     /// Touch the session's activity timestamp and return the upfront `master.m3u8` content.
     pub async fn request_master_playlist(&self) -> Result<String> {
         {
             let mut st = self.state.lock().await;
+            st.ensure_open()?;
             st.last_access = Instant::now();
         }
         let path = self.dir.join("master.m3u8");
@@ -147,6 +219,7 @@ impl HlsSession {
         validate_rendition_name(rendition)?;
         {
             let mut st = self.state.lock().await;
+            st.ensure_open()?;
             st.last_access = Instant::now();
         }
         let path = self.dir.join(rendition).join("index.m3u8");
@@ -170,9 +243,10 @@ impl HlsSession {
 
         {
             let mut st = self.state.lock().await;
+            st.ensure_open()?;
             st.last_access = Instant::now();
             let running = poll_child_state(&mut st);
-            if is_init_complete(&rendition_dir, running) {
+            if is_init_complete(&rendition_dir, running, st.last_exit_failed) {
                 return Ok(init_path);
             }
             if running {
@@ -196,8 +270,9 @@ impl HlsSession {
         loop {
             {
                 let mut st = self.state.lock().await;
+                st.ensure_open()?;
                 let running = poll_child_state(&mut st);
-                if is_init_complete(&rendition_dir, running) {
+                if is_init_complete(&rendition_dir, running, st.last_exit_failed) {
                     return Ok(init_path);
                 }
                 if !running {
@@ -237,6 +312,7 @@ impl HlsSession {
 
         {
             let mut st = self.state.lock().await;
+            st.ensure_open()?;
             st.last_access = Instant::now();
             st.last_requested_segment = segment_num;
 
@@ -251,7 +327,7 @@ impl HlsSession {
                 st.paused = false;
             }
 
-            if is_segment_complete(&rendition_dir, segment_num, running) {
+            if is_segment_complete(&rendition_dir, segment_num, running, st.last_exit_failed) {
                 return Ok(seg_path);
             }
 
@@ -282,9 +358,10 @@ impl HlsSession {
         loop {
             {
                 let mut st = self.state.lock().await;
+                st.ensure_open()?;
                 let running = poll_child_state(&mut st);
                 refresh_head_segment(&rendition_dir, &mut st, running);
-                if is_segment_complete(&rendition_dir, segment_num, running) {
+                if is_segment_complete(&rendition_dir, segment_num, running, st.last_exit_failed) {
                     return Ok(seg_path);
                 }
                 if !running {
@@ -371,6 +448,27 @@ impl HlsSession {
         self.state.lock().await.last_access
     }
 
+    /// Renew the lease without advancing the segment cursor (e.g. a paused player's heartbeat).
+    pub async fn renew_activity(&self) -> Result<()> {
+        let mut state = self.state.lock().await;
+        state.ensure_open()?;
+        state.last_access = Instant::now();
+        Ok(())
+    }
+
+    /// Claim expiry under the same lock as requests/heartbeats, preventing a stale reaper decision.
+    async fn mark_expired(&self, now: Instant, timeout: Duration) -> bool {
+        let mut state = self.state.lock().await;
+        if state.closed {
+            return true; // Finish a shutdown interrupted after it claimed the session.
+        }
+        if now.saturating_duration_since(state.last_access) < timeout {
+            return false;
+        }
+        state.closed = true;
+        true
+    }
+
     /// Last requested segment index on this session.
     pub async fn last_requested_segment(&self) -> u32 {
         self.state.lock().await.last_requested_segment
@@ -379,6 +477,7 @@ impl HlsSession {
     /// Kill FFmpeg and remove the session's temporary directory.
     pub async fn shutdown(&self) {
         let mut st = self.state.lock().await;
+        st.closed = true;
         kill_existing_child(&mut st).await;
         for attempt in 0..5 {
             match tokio::fs::remove_dir_all(self.dir.as_std_path()).await {
@@ -432,6 +531,7 @@ impl HlsSession {
     }
 
     async fn spawn_at_segment_locked(&self, st: &mut SessionState, segment_num: u32) -> Result<()> {
+        st.ensure_open()?;
         kill_existing_child(st).await;
 
         let rendition_count = self.base_pipeline.output.renditions.len().max(1);
@@ -440,11 +540,24 @@ impl HlsSession {
             std::fs::create_dir_all(rendition_dir.as_std_path())
                 .map_err(|e| Error::Internal(Box::new(e)))?;
 
-            // Remove stale FFmpeg internal playlist and any half-written target segment before spawning.
+            // The new writer will replace this range. Old later files must not make a
+            // half-written new segment look complete via the next-segment heuristic.
             let _ = std::fs::remove_file(rendition_dir.join("ffmpeg.m3u8").as_std_path());
-            let _ = std::fs::remove_file(
-                rendition_dir.join(format!("{segment_num}.m4s")).as_std_path(),
-            );
+            for entry in
+                std::fs::read_dir(rendition_dir.as_std_path()).map_err(Error::internal)?.flatten()
+            {
+                let name = entry.file_name();
+                if let Some(index) = name
+                    .to_str()
+                    .and_then(|name| {
+                        name.strip_suffix(".m4s").or_else(|| name.strip_suffix(".m4s.tmp"))
+                    })
+                    .and_then(|index| index.parse::<u32>().ok())
+                    && index >= segment_num
+                {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
         }
 
         let mut p = self.base_pipeline.clone();
@@ -492,6 +605,9 @@ impl HlsSession {
 /// Manages active HLS sessions, concurrency caps, inactivity cleanup, disk quotas, and bad-backend TTLs.
 #[derive(Clone, Debug)]
 pub struct SessionManager {
+    admission: Arc<Mutex<()>>,
+    closed: Arc<AtomicBool>,
+    live_video: Arc<AtomicUsize>,
     config: Arc<SessionManagerConfig>,
     sessions: Arc<RwLock<HashMap<String, Arc<HlsSession>>>>,
     bad_backends: Arc<RwLock<HashMap<(Backend, String), Instant>>>,
@@ -503,6 +619,9 @@ impl SessionManager {
         std::fs::create_dir_all(config.transcode_dir.as_std_path())
             .map_err(|e| Error::Internal(Box::new(e)))?;
         Ok(Self {
+            admission: Arc::new(Mutex::new(())),
+            closed: Arc::new(AtomicBool::new(false)),
+            live_video: Arc::default(),
             config: Arc::new(config),
             sessions: Arc::new(RwLock::new(HashMap::new())),
             bad_backends: Arc::new(RwLock::new(HashMap::new())),
@@ -517,6 +636,11 @@ impl SessionManager {
 
     pub fn config(&self) -> &SessionManagerConfig {
         &self.config
+    }
+
+    /// Current temporary usage, including live HLS children sharing this root.
+    pub fn temp_usage_bytes(&self) -> u64 {
+        dir_size_bytes(self.config.transcode_dir.as_std_path())
     }
 
     /// Check whether `(backend, codec)` is currently marked bad in the TTL tracker (M4.9).
@@ -538,8 +662,21 @@ impl SessionManager {
     pub fn active_video_transcode_count(&self) -> usize {
         self.sessions
             .read()
-            .map(|m| m.values().filter(|s| s.is_video_transcode).count())
+            .map(|m| {
+                m.values().filter(|s| s.is_video_transcode).count()
+                    + self.live_video.load(Ordering::Acquire)
+            })
             .unwrap_or(0)
+    }
+
+    /// Reserve an encoder slot for live HLS under the same admission lock as VOD.
+    pub async fn reserve_video_capacity(&self) -> Result<VideoCapacity> {
+        let _admission = self.admission.lock().await;
+        if self.closed.load(Ordering::Acquire) || !self.has_video_transcode_capacity() {
+            return Err(Error::Unavailable("video encoder capacity unavailable".into()));
+        }
+        self.live_video.fetch_add(1, Ordering::AcqRel);
+        Ok(VideoCapacity(self.live_video.clone()))
     }
 
     /// Whether at least one video transcode slot is free.
@@ -568,6 +705,12 @@ impl SessionManager {
         req: CreateSessionReq,
         mut fallback_backends: Vec<Backend>,
     ) -> Result<Arc<HlsSession>> {
+        // Hold admission until insertion or failure; counting under the map lock
+        // alone leaves a race while playlists are written and FFmpeg is started.
+        let _admission = self.admission.lock().await;
+        if self.closed.load(Ordering::Acquire) {
+            return Err(Error::Unavailable("playback server is shutting down".into()));
+        }
         // Reap any expired sessions first so their slots and disk space are reclaimed.
         self.run_maintenance_once().await;
 
@@ -577,7 +720,8 @@ impl SessionManager {
                 Error::Internal(std::io::Error::other("session map lock poisoned").into())
             })?;
             if is_video_transcode {
-                let active_video = map.values().filter(|s| s.is_video_transcode).count();
+                let active_video = map.values().filter(|s| s.is_video_transcode).count()
+                    + self.live_video.load(Ordering::Acquire);
                 if active_video >= self.config.max_video_sessions {
                     return Err(Error::Unavailable(format!(
                         "maximum concurrent video transcode sessions ({}) reached",
@@ -648,6 +792,7 @@ impl SessionManager {
             bad_backends: self.bad_backends.clone(),
             bad_backend_ttl: self.bad_backend_ttl,
             state: Mutex::new(SessionState {
+                closed: false,
                 child: None,
                 last_exit_failed: false,
                 last_spawn_at: Instant::now(),
@@ -680,13 +825,24 @@ impl SessionManager {
 
     /// Stop and clean up a specific session by ID.
     pub async fn stop_session(&self, id: &str) -> bool {
-        let removed = self.sessions.write().ok().and_then(|mut m| m.remove(id));
-        if let Some(session) = removed {
+        if let Some(session) = self.get_session(id) {
+            // Keep the session discoverable until cleanup finishes. If this caller is
+            // cancelled, the periodic reaper must still own the child and directory.
             session.shutdown().await;
+            if let Ok(mut map) = self.sessions.write() {
+                map.remove(id);
+            }
             true
         } else {
             false
         }
+    }
+
+    /// Permanently close admission before stopping all sessions on server shutdown.
+    pub async fn close(&self) {
+        let _admission = self.admission.lock().await;
+        self.closed.store(true, Ordering::Release);
+        self.shutdown_all().await;
     }
 
     /// Stop all active sessions and delete their temporary directories.
@@ -712,8 +868,7 @@ impl SessionManager {
         let now = Instant::now();
         let mut expired_ids = Vec::new();
         for session in &snapshot {
-            let last = session.last_access().await;
-            if now.saturating_duration_since(last) >= self.config.inactivity_timeout {
+            if session.mark_expired(now, self.config.inactivity_timeout).await {
                 expired_ids.push(session.id.clone());
             } else {
                 session.tick_throttle().await;
@@ -774,18 +929,6 @@ impl SessionManager {
             );
             self.stop_session(&session.id).await;
         }
-    }
-
-    /// Spawn a periodic background maintenance loop that runs every `interval` until cancelled.
-    pub fn spawn_maintenance_loop(&self, interval: Duration) -> tokio::task::JoinHandle<()> {
-        let mgr = self.clone();
-        tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(interval);
-            loop {
-                ticker.tick().await;
-                mgr.run_maintenance_once().await;
-            }
-        })
     }
 }
 
@@ -858,7 +1001,7 @@ fn send_unix_signal(pid: u32, sig_flag: &str) {
 #[cfg(not(unix))]
 fn send_unix_signal(_pid: u32, _sig_flag: &str) {}
 
-fn is_init_complete(rendition_dir: &Utf8PathBuf, child_running: bool) -> bool {
+fn is_init_complete(rendition_dir: &Utf8PathBuf, child_running: bool, exit_failed: bool) -> bool {
     let init_path = rendition_dir.join("init.mp4");
     let Ok(meta) = std::fs::metadata(init_path.as_std_path()) else {
         return false;
@@ -866,7 +1009,7 @@ fn is_init_complete(rendition_dir: &Utf8PathBuf, child_running: bool) -> bool {
     if meta.len() == 0 {
         return false;
     }
-    if !child_running {
+    if !child_running && !exit_failed {
         return true;
     }
     // FFmpeg closes init.mp4 before writing #EXT-X-MAP:URI="init.mp4" to ffmpeg.m3u8 and before
@@ -876,17 +1019,15 @@ fn is_init_complete(rendition_dir: &Utf8PathBuf, child_running: bool) -> bool {
     {
         return true;
     }
-    if let Ok(entries) = std::fs::read_dir(rendition_dir.as_std_path()) {
-        for entry in entries.flatten() {
-            if entry.file_name().to_str().is_some_and(|n| n.ends_with(".m4s")) {
-                return true;
-            }
-        }
-    }
     false
 }
 
-fn is_segment_complete(rendition_dir: &Utf8PathBuf, segment_num: u32, child_running: bool) -> bool {
+fn is_segment_complete(
+    rendition_dir: &Utf8PathBuf,
+    segment_num: u32,
+    child_running: bool,
+    exit_failed: bool,
+) -> bool {
     let seg_path = rendition_dir.join(format!("{segment_num}.m4s"));
     let Ok(meta) = std::fs::metadata(seg_path.as_std_path()) else {
         return false;
@@ -894,12 +1035,13 @@ fn is_segment_complete(rendition_dir: &Utf8PathBuf, segment_num: u32, child_runn
     if meta.len() == 0 {
         return false;
     }
-    if !child_running {
+    if !child_running && !exit_failed {
         return true;
     }
-    // If FFmpeg has already created the next segment file, `segment_num.m4s` is closed.
-    let next_seg = rendition_dir.join(format!("{}.m4s", segment_num.saturating_add(1)));
-    if next_seg.exists() {
+    // Only files from the current writer exist at/after its start (cleared on spawn).
+    if child_running
+        && rendition_dir.join(format!("{}.m4s", segment_num.saturating_add(1))).exists()
+    {
         return true;
     }
     // FFmpeg appends `{segment_num}.m4s` to `ffmpeg.m3u8` only after closing the segment file.
@@ -927,7 +1069,8 @@ fn refresh_head_segment(rendition_dir: &Utf8PathBuf, st: &mut SessionState, chil
         let Ok(num) = stem.parse::<u32>() else {
             continue;
         };
-        if num >= st.current_start_segment && is_segment_complete(rendition_dir, num, child_running)
+        if num >= st.current_start_segment
+            && is_segment_complete(rendition_dir, num, child_running, st.last_exit_failed)
         {
             max_completed = max_completed.max(num);
         }
@@ -964,4 +1107,73 @@ fn new_session_id() -> Result<String> {
         let _ = write!(hex, "{b:02x}");
     }
     Ok(hex)
+}
+
+#[cfg(all(test, unix))]
+mod lifecycle_tests {
+    use super::*;
+    use crate::pipeline::{AudioOp, HlsOutput, Rendition, SubtitleOp};
+    use std::os::unix::fs::PermissionsExt;
+
+    #[tokio::test]
+    #[allow(clippy::unwrap_used)]
+    async fn cancelled_stop_stays_registered_and_closed_sessions_finish_cleanup() {
+        let temp = tempfile::tempdir().unwrap();
+        let binary = temp.path().join("stall.sh");
+        std::fs::write(&binary, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let directory = Utf8PathBuf::from_path_buf(temp.path().join("hls")).unwrap();
+        let manager = SessionManager::new(SessionManagerConfig::new(
+            binary,
+            directory,
+            PlatformProfile::Generic,
+        ))
+        .unwrap();
+        let session = manager
+            .create_session(CreateSessionReq {
+                user_id: UserId(1),
+                part_id: PartId(1),
+                duration_ms: 600000,
+                pipeline: Pipeline {
+                    input: Utf8PathBuf::from_path_buf(temp.path().join("input.mp4")).unwrap(),
+                    start_ms: 0,
+                    video: VideoOp::Copy,
+                    audio: AudioOp::None,
+                    subtitle: SubtitleOp::None,
+                    backend: Backend::Software,
+                    output: HlsOutput {
+                        dir: Utf8PathBuf::from("unused"),
+                        segment_secs: 6,
+                        start_number: 0,
+                        renditions: vec![Rendition {
+                            name: "0".into(),
+                            width: None,
+                            max_bitrate: 1000000,
+                        }],
+                    },
+                },
+                master_playlist: "#EXTM3U\n".into(),
+                media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
+                fast_start_segments: false,
+            })
+            .await
+            .unwrap();
+        // Keep stop suspended at the session lock, then drop its caller like a disconnected HTTP request.
+        let mut state = session.state.lock().await;
+        let stopping_manager = manager.clone();
+        let id = session.id.clone();
+        let stopping = tokio::spawn(async move { stopping_manager.stop_session(&id).await });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        stopping.abort();
+        assert!(stopping.await.unwrap_err().is_cancelled());
+        assert_eq!(manager.active_count(), 1, "cleanup ownership must survive caller cancellation");
+        // Also cover a cancellation after a shutdown has claimed the closed flag.
+        state.closed = true;
+        drop(state);
+        manager.run_maintenance_once().await;
+        assert_eq!(manager.active_count(), 0);
+        assert!(session.ffmpeg_pid().await.is_none());
+        assert!(!session.dir.exists());
+        assert!(session.renew_activity().await.is_err());
+    }
 }

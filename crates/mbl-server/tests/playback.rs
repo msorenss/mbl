@@ -246,3 +246,151 @@ async fn playback_progress_resume_and_watched_thresholds_and_cascade() {
         assert_eq!(d.body["watch"]["viewCount"], 0, "item {id} should be unwatched");
     }
 }
+
+#[tokio::test]
+async fn capacity_rejection_keeps_the_users_previous_hls_session() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = mbl_server::Config::default();
+    config.paths.data_dir = directory.path().join("data").to_str().unwrap().into();
+    config.transcode.max_sessions = 1;
+    let server = mbl_server::build(config).await.unwrap();
+    let manager = server.services.stream.hls_manager().unwrap().clone();
+    let db = server.db;
+    let app = TestApp { router: server.router, dir: directory };
+    let admin = app.setup_admin().await;
+    let fixtures = seed_playback_fixtures(&app, &db, &admin).await;
+    // A strict bitrate cap forces video transcoding even for browser-compatible H.264.
+    let request =
+        json!({"itemId":fixtures.movie_id,"profile":"chrome","maxBitrate":500000,"startMs":0});
+    let first =
+        app.call(Method::POST, "/api/v1/playback", Some(&admin), Some(request.clone())).await;
+    assert_eq!(first.status, StatusCode::OK, "{}", first.body);
+    let id = first.body["sessionId"].as_str().unwrap();
+    assert!(manager.get_session(id).is_some());
+    let second = app.call(Method::POST, "/api/v1/playback", Some(&admin), Some(request)).await;
+    assert_eq!(second.status, StatusCode::SERVICE_UNAVAILABLE, "{}", second.body);
+    assert!(
+        manager.get_session(id).is_some(),
+        "a failed quality switch must not evict the previous session"
+    );
+    let master = app.call(Method::GET, first.body["url"].as_str().unwrap(), None, None).await;
+    assert_eq!(master.status, StatusCode::OK);
+    assert_eq!(manager.active_video_transcode_count(), 1);
+    manager.shutdown_all().await;
+}
+
+#[tokio::test]
+async fn diagnostics_are_owner_scoped_and_disappear_after_stop() {
+    let (app, db, _) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let alice = app.create_user(&admin, "alice").await;
+    let bob = app.create_user(&admin, "bob").await;
+    let fixture = seed_playback_fixtures(&app, &db, &admin).await;
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&alice),
+            Some(json!({"itemId":fixture.movie_id,"profile":"chrome","network":"wan"})),
+        )
+        .await;
+    assert_eq!(start.status, StatusCode::OK);
+    let id = start.body["sessionId"].as_str().unwrap();
+    let uri = format!("/api/v1/playback/{id}/diagnostics");
+    let result = app.call(Method::GET, &uri, Some(&alice), None).await;
+    assert_eq!(result.status, StatusCode::OK);
+    assert_eq!(result.body["sessionId"], id);
+    assert_eq!(
+        result.body["network"], "lan",
+        "the client cannot spoof the trusted network classification"
+    );
+    assert!(result.body["transcode"].is_null());
+    assert_eq!(app.call(Method::GET, &uri, Some(&bob), None).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(app.call(Method::GET, &uri, None, None).await.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(app.call(Method::GET, &uri, Some(&admin), None).await.status, StatusCode::OK);
+    app.call(Method::POST, &format!("/api/v1/playback/{id}/stop"), Some(&alice), None).await;
+    assert_eq!(app.call(Method::GET, &uri, Some(&alice), None).await.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn signed_audio_sync_forces_audio_encoding_and_is_reported_by_preview_and_diagnostics() {
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let seeded = seed_playback_fixtures(&app, &db, &admin).await;
+    for offset in [-250, 250] {
+        let preview = app
+            .call(
+                Method::POST,
+                &format!("/api/v1/items/{}/playback-preview", seeded.movie_id),
+                Some(&admin),
+                Some(json!({"profile": "chrome", "audioOffsetMs": offset})),
+            )
+            .await;
+        assert_eq!(preview.status, StatusCode::OK, "{}", preview.body);
+        assert_eq!(preview.body["audioOffsetMs"], offset);
+        assert_eq!(preview.body["method"], "transcode");
+        assert_eq!(preview.body["video"]["action"], "copy");
+        assert_eq!(preview.body["audio"]["action"], "transcode");
+        let start = app
+            .call(
+                Method::POST,
+                "/api/v1/playback",
+                Some(&admin),
+                Some(json!({"itemId": seeded.movie_id, "profile": "chrome", "startMs": 37000,
+                "audioOffsetMs": offset})),
+            )
+            .await;
+        assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+        assert_eq!(start.body["audioOffsetMs"], offset);
+        assert_eq!(start.body["method"], preview.body["method"]);
+        assert_eq!(start.body["startMs"], 37000);
+        assert_eq!(start.body["reasons"], preview.body["reasons"]);
+        let session = start.body["sessionId"].as_str().unwrap();
+        let diagnostics = app
+            .call(
+                Method::GET,
+                &format!("/api/v1/playback/{session}/diagnostics"),
+                Some(&admin),
+                None,
+            )
+            .await;
+        assert_eq!(diagnostics.status, StatusCode::OK);
+        assert_eq!(diagnostics.body["audioOffsetMs"], offset);
+        assert_eq!(diagnostics.body["isHls"], true);
+        let stop = app
+            .call(Method::POST, &format!("/api/v1/playback/{session}/stop"), Some(&admin), None)
+            .await;
+        assert_eq!(stop.status, StatusCode::NO_CONTENT);
+    }
+    for offset in [-10001, 10001] {
+        let response = app
+            .call(
+                Method::POST,
+                "/api/v1/playback",
+                Some(&admin),
+                Some(json!({"itemId": seeded.movie_id, "audioOffsetMs": offset})),
+            )
+            .await;
+        assert_eq!(response.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", response.body);
+    }
+    // A saved global sync preference must not prevent silent videos from playing.
+    sqlx::query("UPDATE media_parts SET probe = json_remove(probe, '$.streams[1]') WHERE id = ?")
+        .bind(seeded.movie_part_id)
+        .execute(&db.write)
+        .await
+        .unwrap();
+    let silent = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin),
+            Some(json!({"itemId": seeded.movie_id, "audioOffsetMs": -500})),
+        )
+        .await;
+    assert_eq!(silent.status, StatusCode::OK, "{}", silent.body);
+    assert_eq!(silent.body["audioOffsetMs"], 0);
+    assert_eq!(silent.body["method"], "directPlay");
+    let session = silent.body["sessionId"].as_str().unwrap();
+    app.call(Method::POST, &format!("/api/v1/playback/{session}/stop"), Some(&admin), None).await;
+    assert!(!services.playback.playback_active());
+}

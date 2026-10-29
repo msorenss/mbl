@@ -11,7 +11,8 @@ const EDGE_TOML: &str = include_str!("../profiles/edge.toml");
 const GENERIC_HLS_TOML: &str = include_str!("../profiles/generic-hls.toml");
 
 /// Names of all built-in device profiles.
-pub const BUILTIN_PROFILES: &[&str] = &["chrome", "firefox", "safari", "edge", "generic-hls"];
+pub const BUILTIN_PROFILES: &[&str] =
+    &["chrome", "firefox", "safari", "edge", "generic-hls", "chromecast"];
 
 /// Full capability description of a playback client (Appendix A.7).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -131,6 +132,11 @@ impl DeviceProfile {
 
     /// Look up one of the built-in profiles (`chrome`, `firefox`, `safari`, `edge`, `generic-hls`).
     pub fn builtin(name: &str) -> Result<Self> {
+        if name.eq_ignore_ascii_case("chromecast") {
+            let mut profile = Self::from_toml(GENERIC_HLS_TOML)?;
+            profile.name = "chromecast".into();
+            return Ok(profile);
+        }
         let raw = match name.trim().to_ascii_lowercase().as_str() {
             "chrome" => CHROME_TOML,
             "firefox" => FIREFOX_TOML,

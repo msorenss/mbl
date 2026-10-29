@@ -235,3 +235,69 @@ async fn scans_external_sidecar_subtitles() {
     assert!(!rows[2].is_forced);
     assert!(rows[2].external_path.as_deref().unwrap().ends_with("Movie.eng.sdh.srt"));
 }
+
+#[tokio::test]
+async fn importing_video_queues_idle_previews_without_requeueing_unchanged_files() {
+    let tools = FfTools::locate("", "").await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("movies");
+    std::fs::create_dir_all(&root).unwrap();
+    assert!(
+        tokio::process::Command::new(&tools.ffmpeg)
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=red:s=64x36:r=1:d=2",
+                "-c:v",
+                "mpeg4"
+            ])
+            .arg(root.join("Preview (2020).mkv"))
+            .status()
+            .await
+            .unwrap()
+            .success()
+    );
+    let db = Db::connect(
+        &Utf8PathBuf::from_path_buf(dir.path().join("mbl.db")).unwrap(),
+        &DbOptions::default(),
+    )
+    .await
+    .unwrap();
+    let runner = mbl_jobs::JobRunner::new(
+        db.clone(),
+        EventBus::default(),
+        mbl_jobs::RunnerConfig::default(),
+    );
+    let queue = runner.queue();
+    let scanner =
+        Scanner::new(db.clone(), Some(tools), EventBus::default(), Some(queue.clone()), 1);
+    let id = library(&db, LibraryKind::Movie, &root).await;
+    let stats = scanner.scan(id, &CancellationToken::new(), |_| {}).await.unwrap();
+    assert_eq!(stats.failed, 0);
+    let previews: Vec<_> = queue
+        .list_recent(10)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|job| job.kind == mbl_jobs::kinds::MEDIA_TRICKPLAY)
+        .collect();
+    assert_eq!(previews.len(), 1);
+    assert_eq!(previews[0].priority, mbl_jobs::Priority::Idle as i64);
+    let parts = media::video_part_ids_for_library(&db, id).await.unwrap();
+    assert_eq!(parts.len(), 1);
+    scanner.scan(id, &CancellationToken::new(), |_| {}).await.unwrap();
+    assert_eq!(
+        queue
+            .list_recent(10)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|job| job.kind == mbl_jobs::kinds::MEDIA_TRICKPLAY)
+            .count(),
+        1
+    );
+}

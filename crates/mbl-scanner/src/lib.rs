@@ -98,6 +98,12 @@ impl Scanner {
         let started = std::time::Instant::now();
         let library =
             LibrariesRepo::new(self.db.clone()).get(library_id).await?.ok_or(Error::NotFound)?;
+        // DVR publishes only finalized, probed files atomically. A filesystem scan could
+        // otherwise import an active/failed recording and bypass that publication gate.
+        if mbl_db::repo::dvr::is_library(&self.db, library_id).await? {
+            on_progress(1.0);
+            return Ok(ScanStats::default());
+        }
         let tools = self
             .tools
             .clone()
@@ -270,6 +276,22 @@ impl Scanner {
             for id in &new_top_items {
                 jobs.enqueue(MATCH_JOB, &json!({ "itemId": id }), Priority::Normal).await?;
             }
+        }
+        if total > 0
+            && matches!(
+                library.kind,
+                mbl_core::LibraryKind::Movie
+                    | mbl_core::LibraryKind::Show
+                    | mbl_core::LibraryKind::HomeVideo
+            )
+            && let Some(jobs) = &self.jobs
+        {
+            jobs.enqueue(
+                mbl_jobs::kinds::MEDIA_TRICKPLAY,
+                &json!({"libraryId": library_id}),
+                Priority::Idle,
+            )
+            .await?;
         }
         media::touch_library_paths(&self.db, library_id, now).await?;
         self.events.publish(Event::ScanProgress {

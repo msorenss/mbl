@@ -196,6 +196,9 @@ export function Layout(props: { children?: JSX.Element }) {
           <A href="/collections" style={navLinkStyle("/collections")}>
             Collections & playlists
           </A>
+          <A href="/requests" style={navLinkStyle("/requests")}>
+            Media requests
+          </A>
           <A href="/account" style={navLinkStyle("/account")}>
             Account & security
           </A>
@@ -479,6 +482,9 @@ export function Layout(props: { children?: JSX.Element }) {
         <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-6)" }}>
           <A href="/collections" onClick={() => setSettingsOpen(false)}>
             Collections & playlists
+          </A>
+          <A href="/requests" onClick={() => setSettingsOpen(false)}>
+            Media requests
           </A>
           <A href="/account" onClick={() => setSettingsOpen(false)}>
             Account & security

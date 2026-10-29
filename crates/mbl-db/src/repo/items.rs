@@ -68,7 +68,7 @@ impl ItemFilter {
         mbl_core::actor::allows_content_rating(ceiling, rating)
     }
 
-    fn push_acl(&self, qb: &mut QueryBuilder<Sqlite>) {
+    pub(crate) fn push_acl(&self, qb: &mut QueryBuilder<Sqlite>) {
         if let Some(ids) = &self.libraries {
             qb.push(" AND i.library_id IN (");
             let mut sep = qb.separated(", ");
