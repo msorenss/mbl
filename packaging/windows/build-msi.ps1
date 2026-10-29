@@ -1,6 +1,6 @@
 # PowerShell script to build MBL Media Server WiX MSI installer
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [string]$OutputDir = "staging",
     [string]$BinDir = "target\release"
 )
@@ -45,7 +45,7 @@ $wixObj = "$OutputDir\mbl.wixobj"
 $msiOut = "$OutputDir\mbl-$Version-windows-x86_64.msi"
 
 Write-Host "Compiling $wxsPath to $wixObj..."
-candle.exe -ext WixFirewallExtension -dVersion="$Version" -out "$wixObj" "$wxsPath"
+candle.exe -arch x64 -ext WixFirewallExtension -dVersion="$Version" -out "$wixObj" "$wxsPath"
 if ($LASTEXITCODE -ne 0) {
     throw "WiX compilation failed with exit code $LASTEXITCODE"
 }

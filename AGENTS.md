@@ -80,6 +80,13 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-29 — v1.1.0 package publication preparation
+- User requested actual v1.1.0 binaries/releases after the green CI. The old Release run 40898181936 was cancelled, no v1.1.0 GitHub Release exists, and the unpublished annotated tag still points to edafb80 before the Windows fixes.
+- Release workflow now supports codex/release-vX.Y.Z pushes and manual version resolution, waits for green CI on its exact source commit, builds all platforms, and only then updates an unpublished tag with an explicit force-with-lease. A published release with different source is refused; concurrent tag changes abort publication.
+- Linux packages build natively in Debian Bookworm containers (separate cache key), with version/architecture and glibc-symbol checks. Added complete server Linux tarballs alongside the existing worker/node tarballs. Windows MSI is explicitly x64; fallback/readme versions are 1.1.0 and ZIPs include LICENSE.
+- Publication stages a draft, uploads/validates all 16 packages plus SHA256SUMS, then publishes it. Release notes are taken from CHANGELOG, including the verified Windows fixes and actual limitations.
+- Seven local Python release-guard/manifest/upload tests and YAML/bash/Python syntax checks pass. Application source is unchanged from green CI 40919393004 (388 Windows/412 Linux tests). Next: push preparation to main and codex/release-v1.1.0, follow package jobs and verify the release/tag/assets before reporting publication.
+
 ### 2026-10-29 — Windows subtitle burn-in and FFmpeg process ownership
 - CI run 40915072455 verified the original Windows Live TV readiness and DVR detail failures are fixed. All five other jobs passed. Windows completed the full suite: 386/387 passed, with one ASS/burn-in playback failure and one leaky DVR size-cap test.
 - Reproduced the subtitle failure using real FFmpeg on Linux with colon/backslash and apostrophe filenames. Filter paths were escaped for only one of FFmpeg's two parsers; the graph parser consumed escaping needed by the subtitle option parser. Escape option values and graph syntax separately, including whitespace, and validate options after decoding the graph layer.

@@ -4,13 +4,13 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
-### Fixed
-- Subtitle burn-in handles Windows drive paths, apostrophes and filter syntax characters without losing filenames during FFmpeg parsing.
-- Windows Live TV HLS keeps its initialization fragment beside the playlist instead of writing it outside the session directory.
-
 ## [1.1.0] - 2026-10-29
 
 ### Added
+- Account security page for TOTP setup/verification/disable and viewing/revoking login sessions; the login form accepts two-factor codes.
+- Remote-access administration for server status, policy, WAN bandwidth limits and existing diagnostics.
+- Basic collection/playlist web management: create, browse, rename, delete and add/remove permitted media.
+- MCP now exposes 75 administrator tools (30 read and 35 read+library), including confirmed/dry-run DVR recovery.
 - Explicit recovery of saved failed/interrupted DVR media as a playable partial snapshot, with REST/MCP previews, profile checks and web controls.
 - Radio DVR recordings use the normal player with an audio view, track metadata, history and profile restrictions. DVB subtitles and multiple audio languages are preserved in broadcast recordings.
 - Read-only canonical DVR previews shared by REST and MCP, plus a configurable free-space reserve and per-recording size cap.
@@ -42,6 +42,17 @@ All notable changes to this project are documented here. The format is based on 
   - Comprehensive integration test suite in `crates/mbl-server/tests/m12.rs`.
 
 ### Fixed
+- Protected library/rating content is filtered from collections and public playlists, including counts, item IDs and additions.
+- Setting up TOTP cannot reset an already enabled second factor. Profile selection requires real account authentication instead of a local placeholder PIN.
+- Library pagination loads beyond the first 200 items; search and command-palette results reject stale responses.
+- Item details reload correctly on navigation, selected media/audio/subtitle versions reach playback, and an explicit part ID must belong to its requested item.
+- Start from beginning sends an explicit zero position; late session responses and media changes cannot retain an abandoned player.
+- Watch-state, Live TV mutations and worker administration report HTTP errors instead of false success.
+- EPG windows/positions use consistent millisecond timestamps; DVR overlap checks include all channels and requested padding on the same tuner.
+- WAN bandwidth allocation respects budgets below 1.5 Mbps, treats zero as unlimited and avoids overflow.
+- Subtitle burn-in handles Windows drive paths, apostrophes and filter syntax characters without losing filenames during FFmpeg parsing.
+- Windows Live TV HLS keeps its initialization fragment beside the playlist instead of writing it outside the session directory.
+- Windows CI uses the real FFmpeg executables directly, preserving encoder cancellation and eliminating leaked test processes.
 - DVR deletions retain their cleanup intent across crashes and file locks; tombstones are pruned only after known recording files have been removed.
 - Copied AAC from transport streams is converted from ADTS to MP4 headers, fixing intermittent HLS startup/muxing failures without re-encoding audio.
 - HLS master playlists advertise the actual video codec for copied streams and audio-only codecs/bitrate for radio. Copied HEVC fragments use the matching hvc1 sample entry.
@@ -89,6 +100,19 @@ All notable changes to this project are documented here. The format is based on 
   - Added status badge (`Active` vs `Disabled`) and dynamic button label (`Enable` / `Disable`) with conditional feed browsing.
 - **Player Registry Serialization:**
   - Added `#[serde(default)]` to `PlayerInfo.last_seen_at` in `crates/mbl-service/src/players.rs`, preventing 422 Unprocessable Entity errors during player heartbeats and registration.
+
+### Verification and packages
+- Regression baseline: 388 Windows Rust tests and 412 Linux Rust tests pass without skips; Windows reports no leaked test processes. The web suite passes 155 tests.
+- Packaging requires successful CI for the exact release commit. Workspace lint, SQLx, OpenAPI, tokens and API/MCP checks are part of the verified workflow/tooling.
+- Linux x86_64 and ARM64: Debian packages and standalone tarballs for the server, worker and node; GNU/Linux binaries are built on Debian 12 and checked for glibc 2.36 compatibility.
+- Windows x86_64: 64-bit MSI, server/TV/worker/node ZIP, and separate worker/node ZIPs. The web client is embedded in the server.
+- All 16 packages have SHA-256 checksums. Upload size/digests are checked before the complete release is published.
+
+### Known limitations
+- Physical Chromecast/tuner/WAN acceptance remains outstanding; automated integration tests do not certify every receiver or broadcast format.
+- New M11 mobile/TV/VR client work remains on hold; existing mbl-tv packaging is retained. Virtual-channel playback is disabled until its full media transition path is implemented.
+- Broader DVR transport/subtitle profiles and archive-wide storage quotas remain follow-up work.
+- Hailo scene-analysis status is documented as CPU heuristics; production NPU inference is not claimed by this release.
 
 ## [1.0.0] - 2026-10-26
 

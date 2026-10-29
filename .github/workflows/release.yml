@@ -4,21 +4,71 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'codex/release-v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag matching Cargo.toml (defaults to the workspace version)'
+        required: false
+        type: string
 
 permissions:
   contents: write
+  actions: read
+
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
   SQLX_OFFLINE: "true"
   RUSTFLAGS: "-D warnings"
+  XDG_RUNTIME_DIR: /tmp
 
 jobs:
-  build-deb-linux-x86_64:
+  prepare:
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      version: ${{ steps.metadata.outputs.version }}
+      sha: ${{ steps.metadata.outputs.sha }}
+      expected_tag_sha: ${{ steps.metadata.outputs.expected_tag_sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify release guards
+        run: python3 -m unittest discover -s .github/scripts -p test_release.py
+      - name: Resolve release version and source
+        id: metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_REQUESTED_TAG: ${{ inputs.tag }}
+        run: python3 .github/scripts/release.py prepare
+      - name: Require green CI for this exact commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ steps.metadata.outputs.sha }}
+        run: python3 .github/scripts/release.py verify-ci
+
+  build-deb-linux-x86_64:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    container: debian:bookworm
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Install Debian build dependencies
+        run: apt-get update && apt-get install --yes --no-install-recommends build-essential ca-certificates curl git libssl-dev pkg-config python3 xz-utils zstd
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 12.15.0
@@ -33,19 +83,27 @@ jobs:
         with:
           toolchain: "1.99.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-bookworm
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb
-      - run: cargo build --release -p mbl-worker -p mbl-node
-      - run: cargo deb -p mbl-server
-      - run: cargo deb -p mbl-worker
-      - run: cargo deb -p mbl-node
+      - run: cargo build --release -p mbl-server -p mbl-worker -p mbl-node
+      - run: cargo deb --no-build -p mbl-server
+      - run: cargo deb --no-build -p mbl-worker
+      - run: cargo deb --no-build -p mbl-node
       - name: Package standalone Linux x86_64 tarballs
         run: |
+          tar -czvf target/debian/mbl-linux-x86_64.tar.gz -C target/release mbl-server mbl-worker mbl-node -C "$GITHUB_WORKSPACE/packaging/linux" README.txt -C "$GITHUB_WORKSPACE" LICENSE
           tar -czvf target/debian/mbl-worker-linux-x86_64.tar.gz -C target/release mbl-worker
           tar -czvf target/debian/mbl-node-linux-x86_64.tar.gz -C target/release mbl-node
       - name: Verify Debian binaries
         run: |
+          for package in target/debian/*.deb; do
+            test "$(dpkg-deb --field "$package" Version)" = "$RELEASE_VERSION-1"
+            test "$(dpkg-deb --field "$package" Architecture)" = "$(dpkg --print-architecture)"
+          done
+          python3 .github/scripts/release.py verify-linux
           dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server
           dpkg-deb --fsys-tarfile target/debian/mbl-worker_*.deb | tar -tf - ./usr/bin/mbl-worker
           dpkg-deb --fsys-tarfile target/debian/mbl-node_*.deb | tar -tf - ./usr/bin/mbl-node
@@ -57,9 +115,20 @@ jobs:
             target/debian/*.tar.gz
 
   build-deb-linux-arm64:
+    needs: prepare
     runs-on: ubuntu-24.04-arm
+    container: debian:bookworm
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
+      - name: Install Debian build dependencies
+        run: apt-get update && apt-get install --yes --no-install-recommends build-essential ca-certificates curl git libssl-dev pkg-config python3 xz-utils zstd
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 12.15.0
@@ -74,19 +143,27 @@ jobs:
         with:
           toolchain: "1.99.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-bookworm
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb
-      - run: cargo build --release -p mbl-worker -p mbl-node
-      - run: cargo deb -p mbl-server
-      - run: cargo deb -p mbl-worker
-      - run: cargo deb -p mbl-node
+      - run: cargo build --release -p mbl-server -p mbl-worker -p mbl-node
+      - run: cargo deb --no-build -p mbl-server
+      - run: cargo deb --no-build -p mbl-worker
+      - run: cargo deb --no-build -p mbl-node
       - name: Package standalone Linux arm64 tarballs
         run: |
+          tar -czvf target/debian/mbl-linux-arm64.tar.gz -C target/release mbl-server mbl-worker mbl-node -C "$GITHUB_WORKSPACE/packaging/linux" README.txt -C "$GITHUB_WORKSPACE" LICENSE
           tar -czvf target/debian/mbl-worker-linux-arm64.tar.gz -C target/release mbl-worker
           tar -czvf target/debian/mbl-node-linux-arm64.tar.gz -C target/release mbl-node
       - name: Verify Debian binaries
         run: |
+          for package in target/debian/*.deb; do
+            test "$(dpkg-deb --field "$package" Version)" = "$RELEASE_VERSION-1"
+            test "$(dpkg-deb --field "$package" Architecture)" = "$(dpkg --print-architecture)"
+          done
+          python3 .github/scripts/release.py verify-linux
           dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server
           dpkg-deb --fsys-tarfile target/debian/mbl-worker_*.deb | tar -tf - ./usr/bin/mbl-worker
           dpkg-deb --fsys-tarfile target/debian/mbl-node_*.deb | tar -tf - ./usr/bin/mbl-node
@@ -98,9 +175,14 @@ jobs:
             target/debian/*.tar.gz
 
   build-windows-x86_64:
+    needs: prepare
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 12.15.0
@@ -121,8 +203,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path staging
           Copy-Item packaging\windows\README.txt staging\
-          $rawTag = "${{ github.ref_name }}"
-          if (-not $rawTag) { $rawTag = "v1.1.0" }
+          Copy-Item LICENSE staging\LICENSE.txt
+          $rawTag = $env:RELEASE_TAG
           $version = $rawTag.TrimStart('v')
 
           # Build MSI
@@ -138,7 +220,8 @@ jobs:
             "staging\mbl-tv.exe",
             "staging\mbl-worker.exe",
             "staging\mbl-node.exe",
-            "staging\README.txt"
+            "staging\README.txt",
+            "staging\LICENSE.txt"
           )
           Compress-Archive -Path $zipFiles -DestinationPath $zipName
           Move-Item $zipName dist-windows.zip
@@ -146,14 +229,16 @@ jobs:
           # Package Standalone Worker ZIP
           $workerFiles = @(
             "staging\mbl-worker.exe",
-            "packaging\windows\README-worker.txt"
+            "packaging\windows\README-worker.txt",
+            "staging\LICENSE.txt"
           )
           Compress-Archive -Path $workerFiles -DestinationPath dist-worker-windows.zip
 
           # Package Standalone Node ZIP
           $nodeFiles = @(
             "staging\mbl-node.exe",
-            "packaging\windows\README-node.txt"
+            "packaging\windows\README-node.txt",
+            "staging\LICENSE.txt"
           )
           Compress-Archive -Path $nodeFiles -DestinationPath dist-node-windows.zip
       - uses: actions/upload-artifact@v4
@@ -166,50 +251,26 @@ jobs:
             dist-node-windows.zip
 
   create-release:
-    needs: [build-deb-linux-x86_64, build-deb-linux-arm64, build-windows-x86_64]
+    needs: [prepare, build-deb-linux-x86_64, build-deb-linux-arm64, build-windows-x86_64]
     runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      EXPECTED_TAG_SHA: ${{ needs.prepare.outputs.expected_tag_sha }}
+      RELEASE_NOTES: mbl-release-notes.md
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: release-dist
           merge-multiple: true
-      - name: Rename release artifacts if needed
-        run: |
-          cd release-dist
-          TAG="${{ github.ref_name }}"
-          [ -z "$TAG" ] && TAG="v1.1.0"
-          VER="${TAG#v}"
-          if [ -f dist-windows.zip ]; then
-            mv dist-windows.zip "mbl-${TAG}-windows-x86_64.zip"
-          fi
-          if [ -f dist-windows.msi ]; then
-            mv dist-windows.msi "mbl-${VER}-windows-x86_64.msi"
-          fi
-          if [ -f dist-worker-windows.zip ]; then
-            mv dist-worker-windows.zip "mbl-worker-${TAG}-windows-x86_64.zip"
-          fi
-          if [ -f dist-node-windows.zip ]; then
-            mv dist-node-windows.zip "mbl-node-${TAG}-windows-x86_64.zip"
-          fi
-          if [ -f mbl-worker-linux-x86_64.tar.gz ]; then
-            mv mbl-worker-linux-x86_64.tar.gz "mbl-worker-${TAG}-linux-x86_64.tar.gz"
-          fi
-          if [ -f mbl-node-linux-x86_64.tar.gz ]; then
-            mv mbl-node-linux-x86_64.tar.gz "mbl-node-${TAG}-linux-x86_64.tar.gz"
-          fi
-          if [ -f mbl-worker-linux-arm64.tar.gz ]; then
-            mv mbl-worker-linux-arm64.tar.gz "mbl-worker-${TAG}-linux-arm64.tar.gz"
-          fi
-          if [ -f mbl-node-linux-arm64.tar.gz ]; then
-            mv mbl-node-linux-arm64.tar.gz "mbl-node-${TAG}-linux-arm64.tar.gz"
-          fi
-      - name: Generate SHA-256 Checksums
-        working-directory: release-dist
-        run: |
-          sha256sum * > SHA256SUMS
-          cat SHA256SUMS
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          files: release-dist/*
+      - name: Verify all packages and generate checksums and release notes
+        run: python3 .github/scripts/release.py assets
+      - name: Publish the verified release tag with a lease
+        run: python3 .github/scripts/release.py publish-tag
+      - name: Upload all files, verify them and publish GitHub Release
+        run: python3 .github/scripts/release.py publish-assets
