@@ -19,7 +19,12 @@ async fn cache_probe(db: &mbl_db::Db, tools: &FfTools, path: &str, part: i64) {
 }
 async fn playlist(services: &mbl_service::Services, response: &Value) -> std::path::PathBuf {
     let session = services.stream.hls_session(response["sessionId"].as_str().unwrap()).unwrap();
-    session.request_segment("0", 0).await.unwrap();
+    session.request_segment("0", 0).await.unwrap_or_else(|error| {
+        panic!(
+            "HLS segment failed (audio={}, burned subtitle={}): {error}",
+            response["audioStreamIndex"], response["burnedSubtitleStreamIndex"]
+        )
+    });
     let path = session.dir.join("0/ffmpeg.m3u8").into_std_path_buf();
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {

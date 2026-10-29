@@ -2,14 +2,15 @@
 
 use mbl_core::{Error, Result};
 
-/// Characters that hold syntactic meaning in FFmpeg's `libavfilter` graph and option parsers.
-const SPECIAL_CHARS: &[char] = &['\\', ':', '\'', '[', ']', ',', ';'];
+const OPTION_SPECIAL_CHARS: &[char] = &['\\', ':', '\'', ' ', '\t'];
+const GRAPH_SPECIAL_CHARS: &[char] = &['\\', '\'', '[', ']', ',', ';', ' ', '\t'];
 
 /// Escape a filesystem path so it can be embedded safely as a filter option value
 /// (for example `subtitles=filename=<escaped>:si=0`) without breaking the filter graph.
 ///
-/// Handles `\ : ' [ ] , ;` and Windows drive letters (`C:\...`). Rejects NUL and newline
-/// characters that cannot appear in valid media paths.
+/// Escape the option value first, then the filter graph that contains it. These
+/// are two separate FFmpeg parsers, even when argv is passed without a shell.
+/// Handles Windows drive letters, quotes and whitespace; rejects NUL/newlines.
 pub fn escape_filter_path(path: &str) -> Result<String> {
     if path.is_empty() {
         return Err(Error::Validation("filter path must not be empty".into()));
@@ -20,17 +21,23 @@ pub fn escape_filter_path(path: &str) -> Result<String> {
         ));
     }
 
-    let mut out = String::with_capacity(path.len() + 16);
-    for ch in path.chars() {
-        if SPECIAL_CHARS.contains(&ch) {
+    let option = escape_layer(path, OPTION_SPECIAL_CHARS);
+    Ok(escape_layer(&option, GRAPH_SPECIAL_CHARS))
+}
+
+fn escape_layer(value: &str, special: &[char]) -> String {
+    let mut out = String::with_capacity(value.len() + 16);
+    for ch in value.chars() {
+        if special.contains(&ch) {
             out.push('\\');
         }
         out.push(ch);
     }
-    Ok(out)
+    out
 }
 
-/// Unescape a single filter option value produced by [`escape_filter_path`].
+/// Unescape one FFmpeg parser layer. Filter paths contain a graph layer and an
+/// option layer; decode the graph before splitting options, then decode the value.
 pub fn unescape_filter_value(escaped: &str) -> Result<String> {
     let mut out = String::with_capacity(escaped.len());
     let mut chars = escaped.chars();
@@ -136,7 +143,8 @@ fn validate_single_filter(filter: &str) -> Result<()> {
         return Err(Error::Validation("filter missing name".into()));
     }
     if let Some((_, args)) = body.split_once('=') {
-        let opts = split_unescaped(args, ':')?;
+        let args = unescape_filter_value(args)?;
+        let opts = split_unescaped(&args, ':')?;
         if opts.iter().any(String::is_empty) {
             return Err(Error::Validation("empty filter option in filter args".into()));
         }
@@ -150,14 +158,9 @@ mod tests {
     use proptest::prelude::*;
 
     #[test]
-    fn escapes_windows_drive_letters_and_special_chars() {
-        let escaped =
-            escape_filter_path(r"C:\Movies\Mission: Impossible [2023]\Part 1, 'Cut';Final.mkv")
-                .unwrap();
-        assert_eq!(
-            escaped,
-            r"C\:\\Movies\\Mission\: Impossible \[2023\]\\Part 1\, \'Cut\'\;Final.mkv"
-        );
+    fn escapes_windows_drive_letters_for_both_filter_parsers() {
+        let escaped = escape_filter_path(r"C:\Movies\film.mkv").unwrap();
+        assert_eq!(escaped, r"C\\:\\\\Movies\\\\film.mkv");
         let graph = format!("subtitles=filename={escaped}:si=0,scale=w=1920:h=-2,format=yuv420p");
         validate_filter_graph(&graph).unwrap();
     }
@@ -168,6 +171,46 @@ mod tests {
         assert!(escape_filter_path("/media/bad\0file.mkv").is_err());
         assert!(escape_filter_path("/media/bad\nfile.mkv").is_err());
         assert!(escape_filter_path("/media/bad\rfile.mkv").is_err());
+    }
+
+    #[test]
+    fn real_ffmpeg_renders_subtitles_from_special_character_paths() {
+        let dir = tempfile::Builder::new().prefix("mbl' [filters],; ").tempdir().unwrap();
+        let mut names = vec!["caption's [cut],; track.srt"];
+        if !cfg!(windows) {
+            // Linux permits drive-like characters in a filename; Windows adds
+            // its real drive letter via the temporary directory's absolute path.
+            names.push(r"C:\caption's [cut],; track.srt");
+        }
+        for name in names {
+            let path = dir.path().join(name);
+            std::fs::write(&path, "1\n00:00:00,000 --> 00:00:02,500\nVisible caption\n").unwrap();
+            let escaped = escape_filter_path(path.to_str().unwrap()).unwrap();
+            let graph = format!("subtitles=filename={escaped}:si=0,format=gray");
+            validate_filter_graph(&graph).unwrap();
+            let output = std::process::Command::new("ffmpeg")
+                .args([
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=black:s=320x180:d=1",
+                    "-vf",
+                    &graph,
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "rawvideo",
+                    "pipe:1",
+                ])
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            assert_eq!(output.stdout.len(), 320 * 180);
+            assert!(output.stdout.iter().any(|pixel| *pixel > 100), "caption must be rendered");
+        }
     }
 
     proptest! {
@@ -189,7 +232,8 @@ mod tests {
             prop_assert_eq!(filters.len(), 4);
             let sub_filter = &filters[1];
             let (_, sub_args) = sub_filter.split_once('=').unwrap();
-            let opts = split_unescaped(sub_args, ':').unwrap();
+            let sub_args = unescape_filter_value(sub_args).unwrap();
+            let opts = split_unescaped(&sub_args, ':').unwrap();
             prop_assert_eq!(opts.len(), 2);
             let filename_val = opts[0].strip_prefix("filename=").unwrap();
             let recovered = unescape_filter_value(filename_val).unwrap();

@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Fixed
+- Subtitle burn-in handles Windows drive paths, apostrophes and filter syntax characters without losing filenames during FFmpeg parsing.
 - Windows Live TV HLS keeps its initialization fragment beside the playlist instead of writing it outside the session directory.
 
 ## [1.1.0] - 2026-10-29

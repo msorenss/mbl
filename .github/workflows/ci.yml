@@ -48,7 +48,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install FFmpeg
-        run: choco install ffmpeg --yes --no-progress
+        shell: pwsh
+        run: |
+          choco install ffmpeg --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "FFmpeg installation failed" }
+          # Own the real encoder process, rather than Chocolatey's launcher.
+          $ffmpegTools = Join-Path $env:ChocolateyInstall 'lib\ffmpeg\tools'
+          $ffmpegBinary = Get-ChildItem $ffmpegTools -Filter ffmpeg.exe -File -Recurse |
+            Where-Object { Test-Path (Join-Path $_.DirectoryName 'ffprobe.exe') } |
+            Select-Object -First 1
+          if (-not $ffmpegBinary) { throw "Installed FFmpeg binaries were not found" }
+          $ffmpegBinary.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.99.1"

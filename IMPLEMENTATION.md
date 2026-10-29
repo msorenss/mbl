@@ -1406,3 +1406,7 @@ Användaren har godkänt att batch 20–24 sparas som lokal commit med Signed-of
 
 ### 2026-10-29 — Windows CI: Live TV HLS and DVR library roots
 CI #42 exposed mixed-separator DVR fixture roots and missing Windows live HLS initialization files. DVR fixtures now share the server's native root spelling, and live HLS uses the existing FFmpeg path normalizer for both playlist and segment output. The partial-capture test asserts library identity; Windows nextest runs through all tests with `--no-fail-fast`. All 53 focused DVR/Live TV regressions pass on Linux/ARM64 (0 skipped); Clippy for the three affected crates/all targets with -D warnings, formatting and diff checks pass; Windows CI verification is pending. The v1.1.0 tag is unchanged.
+
+
+### 2026-10-29 — Windows subtitle filter escaping
+The full Windows run after a398dd1 passed the original Live TV/DVR regressions and exposed a remaining ASS burn-in failure. Reproduced the two-parser escaping bug with real FFmpeg; filter options and graph syntax now have separate escaping layers and a pixel-based subtitle regression. Windows CI uses installed FFmpeg binaries directly rather than Chocolatey launchers. All 19 mbl-transcode tests pass, including actual subtitle pixels, parser properties, argument snapshots and session lifecycle. Formatting/diff checks pass; Clippy and the next full Windows run are pending.

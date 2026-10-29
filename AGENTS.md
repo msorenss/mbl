@@ -80,6 +80,13 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-29 — Windows subtitle burn-in and FFmpeg process ownership
+- CI run 40915072455 verified the original Windows Live TV readiness and DVR detail failures are fixed. All five other jobs passed. Windows completed the full suite: 386/387 passed, with one ASS/burn-in playback failure and one leaky DVR size-cap test.
+- Reproduced the subtitle failure using real FFmpeg on Linux with colon/backslash and apostrophe filenames. Filter paths were escaped for only one of FFmpeg's two parsers; the graph parser consumed escaping needed by the subtitle option parser. Escape option values and graph syntax separately, including whitespace, and validate options after decoding the graph layer.
+- Added a real FFmpeg pixel regression using quote/bracket/comma/semicolon paths (and drive-like paths on Linux), plus updated parser properties and argument snapshots. Existing embedded ASS/external SRT playback coverage remains enabled; startup assertions now identify the selected audio and burned subtitle indices.
+- The Windows CI install step adds the actual FFmpeg/ffprobe binary directory to PATH instead of relying on Chocolatey's launchers, so cancellation controls the encoder directly. The prior log confirmed shim creation; leak-free execution still needs Windows verification.
+- Verification: all 19 mbl-transcode tests pass on Linux/ARM64 (0 skipped), including the new real pixel regression, parser properties, argument snapshots, real HLS output and session cleanup. Snapshot diff was reviewed; only three subtitle filter argument strings changed. Formatting and diff checks pass. Clippy and the next full Windows run are pending. The published Live TV/DVR fix is `a398dd1`; the v1.1.0 tag and native client scope are unchanged.
+
 ### 2026-10-29 — Windows Live TV HLS and DVR fixture paths
 - Investigated CI run 40905467648 (Windows job 123558903665). The other five jobs passed. The DVR detail 404 came from a fixture root built with mixed Windows separators: SQLite treated it as a different DVR library from the server's root, so the viewer was granted the wrong library ID.
 - Added `TestApp::recordings_dir()` using separate native path components and applied it throughout the DVR/capture/recovery fixtures. The partial-capture regression now also asserts that the published recording uses the granted DVR library.
