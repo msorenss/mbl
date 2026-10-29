@@ -83,7 +83,7 @@ When a milestone is complete and the relevant checks are green:
 ### 2026-10-29 — Release v1.1.0 tag pushed
 - Bumped workspace/package versions, release notes, README, Windows package README and OpenAPI schema to 1.1.0. The release workflow now publishes the GitHub Release after Linux/Windows artifacts build; fallback tag references are v1.1.0.
 - `cargo run -p mbl-server -- openapi` and `cargo xtask openapi-check` pass. Full batch 25 verification is recorded below. Release commit `edafb80` and tag `v1.1.0` are pushed; remote `main` and tag were verified.
-- The GitHub release page returned 404 in the available unauthenticated browser session, so Actions completion and attached artifacts could not be verified here. Next: confirm the workflow completed and release assets are present; M11 remains on hold.
+- The GitHub release page returned 404 in the available unauthenticated browser session, so release assets could not be verified here. CI run 40898182098 failed on Windows because `Duration` was imported unconditionally although all usages are Unix-only. Guarded the import with `#[cfg(unix)]`; the focused test target compiles on Linux, formatting and diff checks pass, and fix commit `c6b8614` is pushed to `main`. Next: confirm the new CI run and release assets; M11 remains on hold.
 
 ### 2026-10-29 — Git-kontrollpunkt efter batch 25
 - Användaren har godkänt checkpoint och publicering på GitHub. Batch 25 sparas ovanpå `a4efebb` med Signed-off-by; tidigare lokala checkpoints för Chromecast och batch 1–24 ingår i den samlade ändringen mot GitHub.
