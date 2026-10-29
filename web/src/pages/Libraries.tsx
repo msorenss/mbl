@@ -15,6 +15,7 @@ export function Libraries() {
 
   const [libraries, setLibraries] = createSignal<LibraryDto[]>([]);
   const [loading, setLoading] = createSignal(true);
+  const [editingId, setEditingId] = createSignal<number | null>(null);
   const [showAddModal, setShowAddModal] = createSignal(false);
 
   // Add Library form state
@@ -30,10 +31,15 @@ export function Libraries() {
   const loadLibraries = async () => {
     setLoading(true);
     try {
-      const { data } = await client.GET("/api/v1/libraries");
+      const { data, error } = await client.GET("/api/v1/libraries");
+      if (error) throw new Error("Could not load libraries");
       if (data) setLibraries(data);
     } catch {
-      // Ignore
+      showToast({
+        title: "Error",
+        message: "The server request failed. Try again.",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -51,13 +57,18 @@ export function Libraries() {
         setBrowseEntries(data.entries || []);
       }
     } catch {
-      // Ignore
+      showToast({
+        title: "Error",
+        message: "The server request failed. Try again.",
+        type: "error",
+      });
     } finally {
       setBrowseLoading(false);
     }
   };
 
   const handleOpenAddModal = () => {
+    setEditingId(null);
     setNewLibName("");
     setNewLibKind("movie");
     setSelectedPaths([]);
@@ -92,25 +103,34 @@ export function Libraries() {
 
     setIsCreating(true);
     try {
-      const { data, error } = await client.POST("/api/v1/libraries", {
-        body: {
-          name: newLibName().trim(),
-          kind: newLibKind(),
-          paths: selectedPaths(),
-        },
-      });
+      const editId = editingId();
+      const { data, error } =
+        editId === null
+          ? await client.POST("/api/v1/libraries", {
+              body: { name: newLibName().trim(), kind: newLibKind(), paths: selectedPaths() },
+            })
+          : await client.PATCH("/api/v1/libraries/{id}", {
+              params: { path: { id: editId } },
+              body: { name: newLibName().trim(), paths: selectedPaths() },
+            });
 
       if (data && !error) {
         showToast({
-          title: "Library Created",
-          message: `Library '${data.name}' created`,
+          title: editingId() === null ? "Library Created" : "Library Updated",
+          message: `Library '${data.name}' saved`,
           type: "success",
         });
         setShowAddModal(false);
         // Automatically start scan
-        client
-          .POST("/api/v1/libraries/{id}/scan", { params: { path: { id: data.id } } })
-          .catch(() => {});
+        const scan = await client.POST("/api/v1/libraries/{id}/scan", {
+          params: { path: { id: data.id } },
+        });
+        if (scan.error)
+          showToast({
+            title: "Scan failed",
+            message: "Library was saved. Retry its scan.",
+            type: "error",
+          });
         await loadLibraries();
       } else {
         showToast({
@@ -127,6 +147,30 @@ export function Libraries() {
       });
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const editLibrary = (library: LibraryDto) => {
+    setEditingId(library.id);
+    setNewLibName(library.name);
+    setNewLibKind(library.kind);
+    setSelectedPaths([...library.paths]);
+    setShowAddModal(true);
+    void browseFolder();
+  };
+  const deleteLibrary = async (library: LibraryDto) => {
+    if (
+      !window.confirm(`Remove library '${library.name}' and its index? Media files remain on disk.`)
+    )
+      return;
+    try {
+      const result = await client.DELETE("/api/v1/libraries/{id}", {
+        params: { path: { id: library.id } },
+      });
+      if (result.error) throw new Error("Could not remove library");
+      await loadLibraries();
+    } catch {
+      showToast({ title: "Error", message: "Library could not be removed", type: "error" });
     }
   };
 
@@ -331,6 +375,12 @@ export function Libraries() {
                       >
                         🔄 Scan
                       </button>
+                      <button type="button" onClick={() => editLibrary(lib)}>
+                        Edit
+                      </button>
+                      <button type="button" onClick={() => deleteLibrary(lib)}>
+                        Remove
+                      </button>
                     </Show>
                   </div>
                 </div>
@@ -375,7 +425,7 @@ export function Libraries() {
               }}
             >
               <h2 style={{ margin: 0, "font-size": "20px", "font-weight": "700" }}>
-                Add New Library
+                {editingId() === null ? "Add New Library" : "Edit Library"}
               </h2>
               <button
                 type="button"
@@ -440,6 +490,7 @@ export function Libraries() {
                 </label>
                 <select
                   id="lib-kind"
+                  disabled={editingId() !== null}
                   value={newLibKind()}
                   onChange={(e) => setNewLibKind(e.currentTarget.value as LibraryKind)}
                   style={{

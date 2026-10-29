@@ -16,6 +16,19 @@ use crate::server::{
 pub fn definitions() -> Vec<RegisteredTool> {
     vec![
         RegisteredTool {
+            scope: Scope::Admin,
+            definition: ToolDefinition {
+                name: "recover_recording".into(),
+                description: "Recover saved media from a failed or interrupted recording as an incomplete recording. Copies a stable snapshot without fetching a new broadcast; the original owner's current permissions apply. Existing series retention may delete the recovered file.".into(),
+                input_schema: json!({"type":"object","properties":{
+                    "recording_id":{"type":"integer","minimum":1},
+                    "dry_run":{"type":"boolean","description":"Preview saved bytes and storage without creating a snapshot or catalogue entry"},
+                    "confirm":{"type":"boolean","description":"Explicitly confirm recovery as an incomplete recording with its existing series policy"}
+                },"required":["recording_id"],"additionalProperties":false}),
+                annotations: Some(ToolAnnotations {title:Some("Recover Saved Recording".into()),read_only_hint:Some(false),destructive_hint:Some(false),idempotent_hint:Some(true),open_world_hint:Some(false)}),
+            },
+        },
+        RegisteredTool {
             scope: Scope::Read,
             definition: ToolDefinition {
                 name: "search_guide".into(),
@@ -42,13 +55,13 @@ pub fn definitions() -> Vec<RegisteredTool> {
             scope: Scope::Read,
             definition: ToolDefinition {
                 name: "list_recordings".into(),
-                description: "List scheduled, in-progress, completed, or failed TV recordings.".into(),
+                description: "List scheduled, in-progress, completed, partial, or failed TV recordings.".into(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
                         "status": {
                             "type": "string",
-                            "enum": ["scheduled", "recording", "completed", "failed", "cancelled"],
+                            "enum": ["scheduled", "recording", "completed", "partial", "failed", "cancelled"],
                             "description": "Filter recordings by status"
                         }
                     },
@@ -73,6 +86,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
                     "properties": {
                         "channel_id": { "type": "integer", "description": "Channel ID" },
                         "program_id": { "type": "integer", "description": "Optional EPG program ID" },
+                        "retry_of": { "type": "integer", "description": "Retry an owned failed/partial recording, preserving its owner and current series retention policy; other schedule fields are ignored" },
                         "title": { "type": "string", "description": "Recording title" },
                         "start_time": { "type": "integer", "description": "Start timestamp in Unix milliseconds" },
                         "end_time": { "type": "integer", "description": "End timestamp in Unix milliseconds" },
@@ -105,11 +119,11 @@ pub fn definitions() -> Vec<RegisteredTool> {
                         "channel_id": { "type": "integer", "description": "Optional channel ID (leave null for all channels)" },
                         "series_only": { "type": "boolean", "description": "Only record series programs" },
                         "season_number": { "type": "integer", "description": "Optional specific season to record" },
+                        "keep_max": { "type": "integer", "minimum": 1, "maximum": 10000, "description": "Keep only this many saved recordings; older saved files are deleted" },
+                        "auto_delete_watched": { "type": "boolean", "description": "Delete saved recordings after the rule owner watches them" },
                         "new_only": { "type": "boolean", "description": "Only record first-run / new broadcasts" },
                         "start_padding_secs": { "type": "integer", "description": "Extra seconds before broadcast" },
                         "end_padding_secs": { "type": "integer", "description": "Extra seconds after broadcast" },
-                        "keep_max": { "type": "integer", "description": "Maximum number of recorded episodes to keep" },
-                        "auto_delete_watched": { "type": "boolean", "description": "Automatically delete watched recordings" },
                         "dry_run": { "type": "boolean", "description": "Simulate rule creation without creating recordings" },
                         "confirm": { "type": "boolean", "description": "Explicit confirmation for rule creation" }
                     },
@@ -119,7 +133,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
                 annotations: Some(ToolAnnotations {
                     title: Some("Create Series Recording Rule".into()),
                     read_only_hint: Some(false),
-                    destructive_hint: Some(false),
+                    destructive_hint: Some(true),
                     idempotent_hint: Some(false),
                     open_world_hint: Some(false),
                 }),
@@ -129,7 +143,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
             scope: Scope::Admin,
             definition: ToolDefinition {
                 name: "cancel_recording".into(),
-                description: "Cancel or remove a scheduled or completed TV recording.".into(),
+                description: "Cancel a scheduled or active TV recording, or delete a completed/partial recording with its saved file and catalogue item.".into(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -159,16 +173,49 @@ pub async fn execute(
     services: &Services,
 ) -> Result<CallToolResult, JsonRpcError> {
     match tool_name {
+        "recover_recording" => {
+            caller.require(Scope::Admin).map_err(map_service_error)?;
+            let id = RecordingId(
+                args.get("recording_id")
+                    .and_then(Value::as_i64)
+                    .filter(|id| *id > 0)
+                    .ok_or_else(|| JsonRpcError::invalid_params("recording_id must be positive"))?,
+            );
+            if args.get("dry_run").and_then(Value::as_bool).unwrap_or(false)
+                || !args.get("confirm").and_then(Value::as_bool).unwrap_or(false)
+            {
+                let plan = match services.livetv.preview_recording_recovery(&caller.actor, id).await
+                {
+                    Ok(plan) => plan,
+                    Err(e) => return Ok(service_error_to_tool_result(e)),
+                };
+                if args.get("dry_run").and_then(Value::as_bool).unwrap_or(false) {
+                    return Ok(CallToolResult::structured(
+                        &json!({"dryRun":true,"plan":plan}),
+                        "Recovery preview: no media or catalogue changes",
+                    ));
+                }
+                return Ok(CallToolResult::error(
+                    "confirmation required: set confirm: true to recover saved media as an incomplete recording; existing series retention applies",
+                ));
+            }
+            match services.livetv.recover_recording(&caller.actor, id).await {
+                Ok(recording) => {
+                    Ok(CallToolResult::structured(&recording, "Recovered saved recording"))
+                }
+                Err(e) => Ok(service_error_to_tool_result(e)),
+            }
+        }
         "search_guide" => {
             let query = args
                 .get("query")
                 .and_then(Value::as_str)
                 .ok_or_else(|| JsonRpcError::invalid_params("missing query parameter"))?;
-            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(50) as u32;
+            let limit = optional_u32(args, "limit")?.unwrap_or(50);
 
             let programs = services
                 .livetv
-                .search_guide(query, None, None, limit)
+                .search_guide_for(&caller.actor, query, None, None, limit)
                 .await
                 .map_err(map_service_error)?;
 
@@ -177,8 +224,11 @@ pub async fn execute(
         }
         "list_recordings" => {
             let status = args.get("status").and_then(Value::as_str);
-            let recordings =
-                services.livetv.list_recordings(status).await.map_err(map_service_error)?;
+            let recordings = services
+                .livetv
+                .list_recordings_for(&caller.actor, status)
+                .await
+                .map_err(map_service_error)?;
 
             let summary = format!("Found {} recording(s)", recordings.len());
             Ok(CallToolResult::structured(&recordings, summary))
@@ -202,37 +252,21 @@ pub async fn execute(
                 .get("end_time")
                 .and_then(Value::as_i64)
                 .ok_or_else(|| JsonRpcError::invalid_params("missing end_time"))?;
-            let start_padding_secs =
-                args.get("start_padding_secs").and_then(Value::as_u64).map(|p| p as u32);
-            let end_padding_secs =
-                args.get("end_padding_secs").and_then(Value::as_u64).map(|p| p as u32);
+            let start_padding_secs = optional_u32(args, "start_padding_secs")?;
+            let end_padding_secs = optional_u32(args, "end_padding_secs")?;
 
             let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
             let confirm = args.get("confirm").and_then(Value::as_bool).unwrap_or(false);
 
-            if dry_run {
-                return Ok(CallToolResult::structured(
-                    &json!({
-                        "dryRun": true,
-                        "channelId": channel_id.0,
-                        "title": title,
-                        "startTime": start_time,
-                        "endTime": end_time
-                    }),
-                    format!(
-                        "dry run: would schedule recording '{title}' on channel {}",
-                        channel_id.0
-                    ),
-                ));
-            }
-
-            if !confirm {
-                return Ok(CallToolResult::error(format!(
-                    "confirmation required: set confirm: true to schedule recording '{title}'"
-                )));
-            }
-
             let req = ScheduleRecordingRequest {
+                retry_of: match args.get("retry_of") {
+                    None | Some(Value::Null) => None,
+                    Some(value) => {
+                        Some(RecordingId(value.as_i64().filter(|id| *id > 0).ok_or_else(|| {
+                            JsonRpcError::invalid_params("retry_of must be a positive recording ID")
+                        })?))
+                    }
+                },
                 channel_id,
                 program_id,
                 title: title.to_string(),
@@ -241,8 +275,30 @@ pub async fn execute(
                 start_padding_secs,
                 end_padding_secs,
             };
+            if dry_run || !confirm {
+                let plan = match services.livetv.preview_recording(&caller.actor, req).await {
+                    Ok(plan) => plan,
+                    Err(e) => return Ok(service_error_to_tool_result(e)),
+                };
+                if dry_run {
+                    let mut value = serde_json::to_value(&plan)
+                        .map_err(|e| JsonRpcError::invalid_params(e.to_string()))?;
+                    value["dryRun"] = json!(true);
+                    return Ok(CallToolResult::structured(
+                        &value,
+                        format!(
+                            "dry run: would schedule recording '{}' on channel {}",
+                            plan.title, plan.channel_id.0
+                        ),
+                    ));
+                }
+                return Ok(CallToolResult::error(format!(
+                    "confirmation required: set confirm: true to schedule recording '{}'",
+                    plan.title
+                )));
+            }
 
-            match services.livetv.schedule_recording(req).await {
+            match services.livetv.schedule_recording(&caller.actor, req).await {
                 Ok(rec) => Ok(CallToolResult::structured(
                     &rec,
                     format!("Successfully scheduled recording '{}' (ID: {})", rec.title, rec.id.0),
@@ -257,13 +313,11 @@ pub async fn execute(
                 .ok_or_else(|| JsonRpcError::invalid_params("missing title"))?;
             let channel_id = args.get("channel_id").and_then(Value::as_i64).map(ChannelId);
             let series_only = args.get("series_only").and_then(Value::as_bool).unwrap_or(false);
-            let season_number = args.get("season_number").and_then(Value::as_u64).map(|s| s as u32);
+            let season_number = optional_u32(args, "season_number")?;
             let new_only = args.get("new_only").and_then(Value::as_bool).unwrap_or(false);
-            let start_padding_secs =
-                args.get("start_padding_secs").and_then(Value::as_u64).map(|p| p as u32);
-            let end_padding_secs =
-                args.get("end_padding_secs").and_then(Value::as_u64).map(|p| p as u32);
-            let keep_max = args.get("keep_max").and_then(Value::as_u64).map(|k| k as u32);
+            let start_padding_secs = optional_u32(args, "start_padding_secs")?;
+            let end_padding_secs = optional_u32(args, "end_padding_secs")?;
+            let keep_max = optional_u32(args, "keep_max")?;
             let auto_delete_watched = args.get("auto_delete_watched").and_then(Value::as_bool);
 
             let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
@@ -275,6 +329,8 @@ pub async fn execute(
                         "dryRun": true,
                         "title": title,
                         "channelId": channel_id.map(|c| c.0),
+                        "keepMax": keep_max,
+                        "autoDeleteWatched": auto_delete_watched.unwrap_or(false),
                         "newOnly": new_only
                     }),
                     format!("dry run: would create series rule for '{title}'"),
@@ -283,7 +339,7 @@ pub async fn execute(
 
             if !confirm {
                 return Ok(CallToolResult::error(format!(
-                    "confirmation required: set confirm: true to create series rule for '{title}'"
+                    "confirmation required (retention settings may delete saved files): set confirm: true to create series rule for '{title}'"
                 )));
             }
 
@@ -299,7 +355,7 @@ pub async fn execute(
                 auto_delete_watched,
             };
 
-            match services.livetv.create_series_rule(caller.actor.user_id, req).await {
+            match services.livetv.create_series_rule(&caller.actor, req).await {
                 Ok(rule) => Ok(CallToolResult::structured(
                     &rule,
                     format!(
@@ -320,20 +376,25 @@ pub async fn execute(
             let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
             let confirm = args.get("confirm").and_then(Value::as_bool).unwrap_or(false);
 
-            let recording = match services.livetv.get_recording(recording_id).await {
-                Ok(r) => r,
-                Err(e) => return Ok(service_error_to_tool_result(e)),
-            };
+            let recording =
+                match services.livetv.get_recording_for(&caller.actor, recording_id).await {
+                    Ok(r) => r,
+                    Err(e) => return Ok(service_error_to_tool_result(e)),
+                };
 
+            if !recording.can_delete {
+                return Ok(service_error_to_tool_result(mbl_core::Error::Forbidden));
+            }
             if dry_run {
                 return Ok(CallToolResult::structured(
                     &json!({
                         "dryRun": true,
                         "recordingId": recording_id.0,
-                        "title": recording.title
+                        "title": recording.title,
+                        "deletesSavedFile": matches!(recording.status, mbl_core::RecordingStatus::Completed | mbl_core::RecordingStatus::Partial | mbl_core::RecordingStatus::Failed)
                     }),
                     format!(
-                        "dry run: would cancel recording {} ('{}')",
+                        "dry run: would cancel or delete recording {} ('{}') and remove any saved file",
                         recording_id.0, recording.title
                     ),
                 ));
@@ -341,12 +402,12 @@ pub async fn execute(
 
             if !confirm {
                 return Ok(CallToolResult::error(format!(
-                    "confirmation required: set confirm: true to cancel recording {} ('{}')",
+                    "confirmation required: set confirm: true to cancel or delete recording {} ('{}'), including its saved file",
                     recording_id.0, recording.title
                 )));
             }
 
-            match services.livetv.cancel_recording(recording_id).await {
+            match services.livetv.cancel_recording(&caller.actor, recording_id).await {
                 Ok(_) => Ok(CallToolResult::structured(
                     &json!({ "recordingId": recording_id.0, "cancelled": true }),
                     format!(
@@ -359,4 +420,22 @@ pub async fn execute(
         }
         _ => Err(JsonRpcError::method_not_found(tool_name)),
     }
+}
+
+fn optional_u32(args: &Value, name: &str) -> Result<Option<u32>, JsonRpcError> {
+    args.get(name)
+        .map(|value| {
+            let n = value.as_u64().and_then(|n| u32::try_from(n).ok()).ok_or_else(|| {
+                JsonRpcError::invalid_params(format!("{name} must be an unsigned 32-bit integer"))
+            })?;
+            if (name == "keep_max" && !(1..=10000).contains(&n))
+                || (name.ends_with("padding_secs") && n > 86400)
+            {
+                return Err(JsonRpcError::invalid_params(format!(
+                    "{name} is outside its supported range"
+                )));
+            }
+            Ok(n)
+        })
+        .transpose()
 }

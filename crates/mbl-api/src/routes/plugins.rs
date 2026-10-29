@@ -48,7 +48,7 @@ async fn list_plugins(
     _auth: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PluginManifest>>, ApiError> {
-    let manifests = state.services.plugins.list_manifests();
+    let manifests = state.services.plugins.list_plugins().await?;
     Ok(Json(manifests))
 }
 

@@ -1,18 +1,22 @@
 import { useNavigate } from "@solidjs/router";
-import { createSignal, onMount, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
 export function Login() {
-  const [username, setUsername] = createSignal("");
+  const [username, setUsername] = createSignal(
+    new URLSearchParams(window.location.search).get("username") ?? "",
+  );
   const [password, setPassword] = createSignal("");
+  const [totpCode, setTotpCode] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [isSubmitting, setIsSubmitting] = createSignal(false);
-  const { login, user, needsSetup } = useAuth();
+  const { login, user, needsSetup, loading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  onMount(() => {
+  createEffect(() => {
+    if (loading()) return;
     if (needsSetup()) {
       navigate("/setup", { replace: true });
     } else if (user()) {
@@ -28,14 +32,14 @@ export function Login() {
     }
     setError(null);
     setIsSubmitting(true);
-    const success = await login(username(), password());
+    const success = await login(username(), password(), totpCode());
     setIsSubmitting(false);
 
     if (success) {
       showToast({ title: "Welcome back", message: "Successfully logged in", type: "success" });
       navigate("/");
     } else {
-      setError("Invalid username or password");
+      setError("Sign-in failed. Check your credentials and authentication code.");
     }
   };
 
@@ -123,6 +127,7 @@ export function Login() {
               type="text"
               value={username()}
               onInput={(e) => setUsername(e.currentTarget.value)}
+              autocomplete="username"
               placeholder="Username"
               style={{
                 width: "100%",
@@ -155,6 +160,7 @@ export function Login() {
               type="password"
               value={password()}
               onInput={(e) => setPassword(e.currentTarget.value)}
+              autocomplete="current-password"
               placeholder="••••••••"
               style={{
                 width: "100%",
@@ -166,6 +172,21 @@ export function Login() {
                 "font-size": "14px",
                 outline: "none",
               }}
+            />
+          </div>
+
+          <div>
+            <label for="totp-code">Authentication code (if enabled)</label>
+            <input
+              id="totp-code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxlength={6}
+              value={totpCode()}
+              onInput={(e) => setTotpCode(e.currentTarget.value)}
+              style={{ width: "100%", padding: "10px", "margin-top": "6px" }}
             />
           </div>
 

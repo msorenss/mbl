@@ -693,8 +693,13 @@ fn edge_cases_and_constraints_matrix() {
         decide(&dv_mkv, &safari, &DecisionContext { audio_index: Some(2), ..Default::default() });
     assert_eq!(dec.method, PlayMethod::DirectStream);
     assert_eq!(dec.video, StreamAction::Copy);
-    assert_eq!(dec.audio, StreamAction::Copy);
-    assert_eq!(dec.reasons, vec![Reason::ContainerUnsupported("matroska,webm".into())]);
+    assert_eq!(
+        dec.reasons,
+        vec![
+            Reason::Other("Selected audio track requires stream remuxing".into()),
+            Reason::ContainerUnsupported("matroska,webm".into()),
+        ]
+    );
 
     // Case 61: Bitrate limit in DecisionContext forces video transcode and resolution scaling
     let mp4 = probe_fixture("h264_aac_mp4");
@@ -1016,4 +1021,32 @@ fn reason_messages_snapshot() {
         }
     }
     insta::assert_debug_snapshot!("fixture_profile_decisions", matrix_summary);
+}
+#[test]
+fn selecting_alternate_audio_remuxes_without_reencoding_video() {
+    let mut media = synthetic_video_media(
+        "mp4",
+        "h264",
+        Some("High"),
+        Some(40),
+        1920,
+        1080,
+        8,
+        None,
+        false,
+        "aac",
+        2,
+        Some(4_000_000),
+    );
+    let mut alternate = media.streams[1].clone();
+    alternate.index = 2;
+    alternate.default = false;
+    alternate.language = Some("swe".into());
+    media.streams.push(alternate);
+    let profile = DeviceProfile::builtin("chrome").unwrap();
+    let ctx = DecisionContext { audio_index: Some(2), ..Default::default() };
+    let decision = decide(&media, &profile, &ctx);
+    assert_eq!(decision.method, PlayMethod::DirectStream);
+    assert_eq!(decision.video, StreamAction::Copy);
+    assert_eq!(decision.audio, StreamAction::Copy);
 }

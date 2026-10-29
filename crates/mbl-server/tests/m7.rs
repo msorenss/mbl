@@ -317,6 +317,9 @@ async fn m7_players_and_companion_interaction() {
     assert_eq!(players.len(), 1);
     assert_eq!(players[0]["name"], "Living Room Apple TV");
 
+    let auth = services.auth.authenticate(&admin_token).await.unwrap();
+    let mut connection =
+        services.players.connect(&auth.actor, auth.session_id, "living-room-tv").unwrap();
     // 3. Send Player Command
     let res = app
         .call(
@@ -331,8 +334,22 @@ async fn m7_players_and_companion_interaction() {
         .await;
     assert_eq!(res.status, StatusCode::NO_CONTENT);
 
+    assert!(matches!(
+        connection.commands.recv().await.unwrap(),
+        mbl_service::PlayerCommand::SetVolume { volume: 85 }
+    ));
     // 4. Companion co-watching join and reaction
-    let session_id = "test-live-session-123";
+    let fixture = common::seed_playback_fixtures(&app, &_db, &admin_token).await;
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin_token),
+            Some(json!({"itemId": fixture.movie_id, "profile": "chrome", "startMs": 42000})),
+        )
+        .await;
+    assert_eq!(start.status, StatusCode::OK);
+    let session_id = start.body["sessionId"].as_str().unwrap();
     let res = app
         .call(
             Method::POST,
@@ -399,6 +416,16 @@ async fn m7_matchmaker_swipe_session() {
     assert_eq!(res.status, StatusCode::CREATED);
     let session_id = res.body["id"].as_str().unwrap();
 
+    let bob = app.create_user(&admin_token, "bob").await;
+    let join = app
+        .call(
+            Method::POST,
+            &format!("/api/v1/matchmaker/sessions/{session_id}/join"),
+            Some(&bob),
+            None,
+        )
+        .await;
+    assert_eq!(join.status, StatusCode::NO_CONTENT);
     // 2. Submit swipe votes from user 1
     let res = app
         .call(
@@ -420,7 +447,7 @@ async fn m7_matchmaker_swipe_session() {
         .call(
             Method::POST,
             &format!("/api/v1/matchmaker/sessions/{session_id}/vote"),
-            Some(&admin_token),
+            Some(&bob),
             Some(json!({
                 "userName": "Bob",
                 "itemId": item_id,

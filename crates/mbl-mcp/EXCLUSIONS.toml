@@ -21,7 +21,7 @@ reason = "WebVTT / ASS subtitle stream consumed by video players."
 
 [[exclusions]]
 path = "/api/v1/stream/trickplay/{partId}/index.json"
-reason = "Player scrubber sprite-sheet index."
+reason = "Player scrubber sprite-sheet index and idle-generation pending status; binary presentation cache, not an agent workflow."
 
 [[exclusions]]
 path = "/api/v1/stream/trickplay/{partId}/{sprite}"
@@ -183,3 +183,30 @@ reason = "Remote storage node daemon delta catalog sync."
 path = "/api/v1/nodes/{id}/stream/handover/{itemId}"
 reason = "Player direct LAN streaming handover evaluation."
 
+[[exclusions]]
+path = "/api/v1/players/{id}"
+reason = "Client presence unregistration on Cast/native player disconnect; lifecycle cleanup performed by the owning client."
+
+[[exclusions]]
+path = "/api/v1/players/{id}/connect"
+reason = "Session-bound WebSocket command transport for registered players; MCP sends commands using the command endpoint."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/sessions/{id}/join"
+reason = "Explicit authenticated lobby invitation redemption; MCP does not join a user's social session on their behalf."
+
+[[exclusions]]
+path = "/api/v1/libraries/{id}/photos"
+reason = "Specialized date-grouped gallery pagination; media discovery and item details remain available through existing library tools."
+
+[[exclusions]]
+path = "/api/v1/stream/live/{session}/{file}"
+reason = "Binary live HLS/fMP4 capability URL; lease creation and renewal remain authenticated player operations."
+
+[[exclusions]]
+path = "/api/v1/livetv/stream/{channelId}"
+reason = "Interactive player lease creation/renewal bound to the authenticated login session; guide and DVR are available through MCP."
+
+[[exclusions]]
+path = "/api/v1/livetv/stream/{channelId}/release"
+reason = "Interactive player cleanup of an owned live-stream lease."

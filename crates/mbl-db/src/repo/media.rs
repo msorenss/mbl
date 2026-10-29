@@ -542,3 +542,12 @@ pub async fn part_chapters(db: &Db, part_id: PartId) -> Result<Option<String>> {
         .fetch_optional(&db.read)
         .await?)
 }
+
+/// Video parts eligible for background previews after a library scan.
+pub async fn video_part_ids_for_library(
+    db: &Db,
+    library: mbl_core::LibraryId,
+) -> Result<Vec<PartId>> {
+    Ok(sqlx::query_scalar::<_, i64>("SELECT p.id FROM media_parts p JOIN media_versions v ON v.id=p.version_id JOIN media_items i ON i.id=v.item_id WHERE i.library_id=? AND i.kind IN ('movie','episode') AND p.missing_since IS NULL")
+        .bind(library.0).fetch_all(&db.read).await?.into_iter().map(PartId).collect())
+}

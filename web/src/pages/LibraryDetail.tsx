@@ -23,6 +23,9 @@ export function LibraryDetail() {
 
   const [library, setLibrary] = createSignal<LibraryDto | null>(null);
   const [items, setItems] = createSignal<ItemSummary[]>([]);
+  const [nextCursor, setNextCursor] = createSignal<string | null>(null);
+  const [loadError, setLoadError] = createSignal<string | null>(null);
+  let requestVersion = 0;
   const [loading, setLoading] = createSignal(true);
   const [isScanning, setIsScanning] = createSignal(false);
   const [sortField, setSortField] = createSignal<SortField>("title");
@@ -61,31 +64,46 @@ export function LibraryDetail() {
       const { data } = await client.GET("/api/v1/libraries/{id}", {
         params: { path: { id: libraryId() } },
       });
-      if (data) setLibrary(data);
+      if (data && data.id === libraryId()) setLibrary(data);
     } catch {
       // Ignore
     }
   };
 
-  const loadItems = async () => {
+  const loadItems = async (append = false) => {
+    const version = ++requestVersion;
+    const id = libraryId();
+    const cursor = append ? nextCursor() : null;
+    const sort = sortField();
+    const order = sortOrder();
+    const unwatched = unwatchedOnly();
     setLoading(true);
+    setLoadError(null);
+    if (!append) {
+      setItems([]);
+      setNextCursor(null);
+    }
     try {
-      const { data } = await client.GET("/api/v1/libraries/{id}/items", {
+      const { data, error } = await client.GET("/api/v1/libraries/{id}/items", {
         params: {
-          path: { id: libraryId() },
+          path: { id },
           query: {
-            sort: sortField(),
-            order: sortOrder(),
-            unwatched: unwatchedOnly() ? true : undefined,
+            sort,
+            order,
+            unwatched: unwatched || undefined,
             limit: 200,
+            cursor: cursor ?? undefined,
           },
         },
       });
-      if (data) setItems(data.items || []);
+      if (version !== requestVersion) return;
+      if (error || !data) throw new Error("Could not load library items.");
+      setItems((previous) => (append ? [...previous, ...data.items] : data.items));
+      setNextCursor(data.nextCursor ?? null);
     } catch {
-      // Ignore
+      if (version === requestVersion) setLoadError("Could not load library items. Please retry.");
     } finally {
-      setLoading(false);
+      if (version === requestVersion) setLoading(false);
     }
   };
 
@@ -121,9 +139,6 @@ export function LibraryDetail() {
   };
 
   onMount(() => {
-    loadLibrary();
-    loadItems();
-
     const updateWidth = () => {
       if (parentRef) {
         setContainerWidth(parentRef.clientWidth);
@@ -138,16 +153,35 @@ export function LibraryDetail() {
     });
   });
 
+  createEffect(() => {
+    libraryId();
+    setLibrary(null);
+    void loadLibrary();
+  });
+
   // Reload when sort or filter changes
   createEffect(() => {
     sortField();
     sortOrder();
     unwatchedOnly();
-    loadItems();
+    void loadItems();
   });
 
   return (
     <div style={{ display: "flex", "flex-direction": "column", height: "100%" }}>
+      <Show when={loadError()}>
+        <p role="alert">
+          {loadError()}{" "}
+          <button type="button" onClick={() => loadItems()}>
+            Retry
+          </button>
+        </p>
+      </Show>
+      <Show when={nextCursor()}>
+        <button type="button" disabled={loading()} onClick={() => loadItems(true)}>
+          {loading() ? "Loading…" : "Load more items"}
+        </button>
+      </Show>
       {/* Header bar */}
       <div
         style={{
@@ -175,6 +209,11 @@ export function LibraryDetail() {
             >
               &larr;
             </button>
+            <Show when={library()?.kind === "photo"}>
+              <button type="button" onClick={() => navigate(`/photos/${libraryId()}`)}>
+                Open photo timeline
+              </button>
+            </Show>
             <h1 style={{ margin: 0, "font-size": "24px", "font-weight": "800" }}>
               {library()?.name || "Library"}
             </h1>

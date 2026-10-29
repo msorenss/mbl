@@ -53,6 +53,10 @@ impl StreamService {
         self
     }
 
+    pub fn ffmpeg_bin(&self) -> &std::path::Path {
+        &self.ffmpeg_bin
+    }
+
     pub fn with_ffmpeg_bin(mut self, ffmpeg_bin: impl Into<PathBuf>) -> Self {
         self.ffmpeg_bin = ffmpeg_bin.into();
         self

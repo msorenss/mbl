@@ -442,17 +442,10 @@ impl AuthService {
         if is_admin {
             return Ok((LibraryAccess::All, false, None));
         }
-        let info = mbl_db::repo::m6::get_user_security_info(&self.db, user_id).await?;
-        if let Some(sec) = info {
-            let libs = if sec.library_ids.is_empty() && !sec.is_managed {
-                LibraryAccess::All
-            } else {
-                LibraryAccess::Only(sec.library_ids)
-            };
-            Ok((libs, sec.is_managed, sec.content_rating_ceiling))
-        } else {
-            Ok((LibraryAccess::All, false, None))
-        }
+        let actor = mbl_db::repo::m6::actor_for_user(&self.db, user_id)
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        Ok((actor.library_access, actor.is_managed, actor.content_rating_ceiling))
     }
 
     // -------------------------------------------------------------------------
@@ -479,7 +472,7 @@ impl AuthService {
             expires_at,
         )
         .await?;
-        tracing::info!(code = %row.code, by = %actor.user_id, "share invite created");
+        tracing::info!(invite_id = row.id, by = %actor.user_id, "share invite created");
         Ok(row)
     }
 
@@ -528,23 +521,10 @@ impl AuthService {
             is_admin: false,
         };
 
-        let user_id = self.users.insert(&new_user, now).await?;
-
-        // Assign libraries and content rating ceiling from invite
-        m6::update_user_permissions(
-            &self.db,
-            user_id,
-            Some(false),
-            Some(invite.content_rating_ceiling),
-            Some(invite.library_ids),
-        )
-        .await?;
-
-        // Mark invite consumed
-        m6::mark_invite_used(&self.db, &req.code, user_id, now).await?;
+        let user_id = m6::register_with_invite(&self.db, &req.code, &new_user, now_ms()).await?;
 
         let user = self.users.get(user_id).await?.ok_or(Error::NotFound)?;
-        tracing::info!(user_id = %user_id, code = %req.code, "registered new user via invite");
+        tracing::info!(user_id = %user_id, "registered new user via invite");
         self.start_session(user, device).await
     }
 
@@ -555,7 +535,11 @@ impl AuthService {
     pub async fn totp_setup(&self, actor: &Actor) -> Result<TotpSetup> {
         let secret = mbl_auth::totp::generate_secret()?;
         let user = self.users.get(actor.user_id).await?.ok_or(Error::NotFound)?;
-        m6::set_user_totp(&self.db, actor.user_id, Some(&secret), false).await?;
+        if !m6::begin_user_totp_setup(&self.db, actor.user_id, &secret).await? {
+            return Err(Error::Conflict(
+                "TOTP is already enabled; disable it before replacing it".into(),
+            ));
+        }
 
         let uri = mbl_auth::totp::otpauth_uri(&secret, &user.username, "MBL");
         Ok(TotpSetup { secret, uri })

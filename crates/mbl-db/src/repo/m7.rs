@@ -10,8 +10,8 @@
 //! - Subsonic credentials (`subsonic_salt`, `subsonic_token`)
 
 use mbl_core::{
-    ArtworkId, CollectionId, ItemId, LibraryId, PlaylistId, RequestId, Result, UserId, WebhookId,
-    time::now_ms,
+    ArtworkId, CollectionId, Error, ItemId, LibraryId, PlaylistId, RequestId, Result, UserId,
+    WebhookId, time::now_ms,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -522,21 +522,15 @@ pub struct PhotoTimelineBucket {
 pub async fn get_photo_timeline(
     db: &Db,
     library_id: LibraryId,
+    filter: &super::items::ItemFilter,
 ) -> Result<Vec<PhotoTimelineBucket>> {
-    // Group by year and month from exif_date (stored in epoch ms) or added_at
-    let rows = sqlx::query(
-        r#"SELECT
-             CAST(strftime('%Y', COALESCE(exif_date, added_at) / 1000, 'unixepoch') AS INTEGER) as year,
-             CAST(strftime('%m', COALESCE(exif_date, added_at) / 1000, 'unixepoch') AS INTEGER) as month,
-             COUNT(*) as count
-           FROM media_items
-           WHERE library_id = ? AND kind = 'photo'
-           GROUP BY year, month
-           ORDER BY year DESC, month DESC"#,
-    )
-    .bind(library_id.0)
-    .fetch_all(&db.read)
-    .await?;
+    let mut query = sqlx::QueryBuilder::<sqlx::Sqlite>::new(
+        "SELECT CAST(strftime('%Y', COALESCE(i.exif_date, i.added_at) / 1000, 'unixepoch') AS INTEGER) AS year, CAST(strftime('%m', COALESCE(i.exif_date, i.added_at) / 1000, 'unixepoch') AS INTEGER) AS month, COUNT(*) AS count FROM media_items i WHERE i.kind = 'photo' AND i.library_id = ",
+    );
+    query.push_bind(library_id.0);
+    filter.push_acl(&mut query);
+    query.push(" GROUP BY year, month ORDER BY year DESC, month DESC");
+    let rows = query.build().fetch_all(&db.read).await?;
 
     Ok(rows
         .into_iter()
@@ -750,6 +744,7 @@ pub async fn create_matchmaker_session(
     filter_config: &str,
 ) -> Result<()> {
     let now = now_ms();
+    let mut tx = db.write.begin().await?;
     sqlx::query(
         "INSERT INTO matchmaker_sessions (id, created_by, filter_config, status, created_at) VALUES (?, ?, ?, 'active', ?)",
     )
@@ -757,9 +752,16 @@ pub async fn create_matchmaker_session(
     .bind(created_by.0)
     .bind(filter_config)
     .bind(now)
-    .execute(&db.write)
+    .execute(&mut *tx)
     .await?;
 
+    sqlx::query("INSERT INTO matchmaker_members (session_id, user_id, joined_at) VALUES (?, ?, ?)")
+        .bind(id)
+        .bind(created_by.0)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -884,4 +886,110 @@ pub async fn get_subsonic_credentials(
             r.get("password_hash"),
         )
     }))
+}
+
+/// Joining requires the unguessable session link and an active authenticated identity.
+pub async fn join_matchmaker(db: &Db, id: &str, user: UserId) -> Result<()> {
+    let mut tx = db.write.begin().await?;
+    let active: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM matchmaker_sessions WHERE id = ? AND status = 'active' AND created_at > ?)")
+        .bind(id).bind(now_ms() - 86_400_000).fetch_one(&mut *tx).await?;
+    if !active {
+        return Err(Error::NotFound);
+    }
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM matchmaker_members WHERE session_id = ?")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if count >= 16 {
+        return Err(Error::Conflict("matchmaker lobby is full".into()));
+    }
+    sqlx::query("INSERT OR IGNORE INTO matchmaker_members (session_id, user_id, joined_at) VALUES (?, ?, ?)")
+        .bind(id).bind(user.0).bind(now_ms()).execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn is_matchmaker_member(db: &Db, id: &str, user: UserId) -> Result<bool> {
+    sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM matchmaker_members WHERE session_id = ? AND user_id = ?)",
+    )
+    .bind(id)
+    .bind(user.0)
+    .fetch_one(&db.read)
+    .await
+    .map_err(Error::from)
+}
+
+pub async fn matchmaker_member_count(db: &Db, id: &str) -> Result<usize> {
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM matchmaker_members WHERE session_id = ?")
+            .bind(id)
+            .fetch_one(&db.read)
+            .await?;
+    Ok(count as usize)
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PhotoSummary {
+    pub id: ItemId,
+    pub title: String,
+    pub taken_at: i64,
+    pub part_id: Option<mbl_core::PartId>,
+}
+
+pub async fn list_photos(
+    db: &Db,
+    library: LibraryId,
+    filter: &super::items::ItemFilter,
+    year: Option<i32>,
+    month: Option<u32>,
+    cursor: Option<&str>,
+    limit: u32,
+) -> Result<mbl_core::Paginated<PhotoSummary>> {
+    if year.is_some() != month.is_some()
+        || year.is_some_and(|n| !(1..=9999).contains(&n))
+        || month.is_some_and(|n| !(1..=12).contains(&n))
+    {
+        return Err(Error::Validation("year and month must be a valid pair".into()));
+    }
+    let mut query = sqlx::QueryBuilder::<sqlx::Sqlite>::new(
+        "SELECT i.id, i.title, COALESCE(i.exif_date, i.added_at) AS taken_at, (SELECT p.id FROM media_versions v JOIN media_parts p ON p.version_id = v.id WHERE v.item_id = i.id AND p.missing_since IS NULL ORDER BY v.id, p.part_index LIMIT 1) AS part_id FROM media_items i WHERE i.kind = 'photo' AND i.library_id = ",
+    );
+    query.push_bind(library.0);
+    filter.push_acl(&mut query);
+    if let (Some(year), Some(month)) = (year, month) {
+        query.push(
+            " AND strftime('%Y-%m', COALESCE(i.exif_date, i.added_at) / 1000, 'unixepoch') = ",
+        );
+        query.push_bind(format!("{year:04}-{month:02}"));
+    }
+    if let Some(cursor) = cursor {
+        let (date, id) = cursor
+            .split_once(':')
+            .ok_or_else(|| Error::Validation("invalid photo cursor".into()))?;
+        let date: i64 =
+            date.parse().map_err(|_| Error::Validation("invalid photo cursor".into()))?;
+        let id: i64 = id.parse().map_err(|_| Error::Validation("invalid photo cursor".into()))?;
+        query
+            .push(" AND (COALESCE(i.exif_date, i.added_at) < ")
+            .push_bind(date)
+            .push(" OR (COALESCE(i.exif_date, i.added_at) = ")
+            .push_bind(date)
+            .push(" AND i.id < ")
+            .push_bind(id)
+            .push("))");
+    }
+    let limit = limit.clamp(1, 100) as usize;
+    query.push(" ORDER BY taken_at DESC, i.id DESC LIMIT ").push_bind((limit + 1) as i64);
+    let mut items = query.build_query_as::<PhotoSummary>().fetch_all(&db.read).await?;
+    let more = items.len() > limit;
+    items.truncate(limit);
+    let next_cursor = if more {
+        items.last().map(|item| mbl_core::Cursor(format!("{}:{}", item.taken_at, item.id.0)))
+    } else {
+        None
+    };
+    Ok(mbl_core::Paginated { items, next_cursor, total: None })
 }

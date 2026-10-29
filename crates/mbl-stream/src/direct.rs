@@ -93,6 +93,15 @@ pub fn content_type_for_path(path: &Path, container: Option<&str>) -> &'static s
     let ext =
         path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).unwrap_or_default();
     match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "tif" | "tiff" => "image/tiff",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
         "mp4" | "m4v" => "video/mp4",
         "m4a" => "audio/mp4",
         "mov" => "video/quicktime",

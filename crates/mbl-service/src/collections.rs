@@ -2,8 +2,8 @@
 
 use mbl_core::{Actor, CollectionId, Error, ItemId, PlaylistId, Result};
 use mbl_db::Db;
-use mbl_db::repo::m7;
 pub use mbl_db::repo::m7::{CollectionRow, PlaylistRow};
+use mbl_db::repo::{items::visible_ids, m7};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -70,14 +70,22 @@ impl CollectionService {
 
     pub async fn get_collection(
         &self,
-        _actor: &Actor,
+        actor: &Actor,
         id: CollectionId,
     ) -> Result<Option<CollectionRow>> {
-        m7::get_collection(&self.db, id).await
+        let mut row = m7::get_collection(&self.db, id).await?;
+        if let Some(ref mut collection) = row {
+            collection.item_count = self.get_items(actor, id).await?.len() as i64;
+        }
+        Ok(row)
     }
 
-    pub async fn list_collections(&self, _actor: &Actor) -> Result<Vec<CollectionRow>> {
-        m7::list_collections(&self.db).await
+    pub async fn list_collections(&self, actor: &Actor) -> Result<Vec<CollectionRow>> {
+        let mut rows = m7::list_collections(&self.db).await?;
+        for row in &mut rows {
+            row.item_count = self.get_items(actor, row.id).await?.len() as i64;
+        }
+        Ok(rows)
     }
 
     pub async fn update_collection(
@@ -103,6 +111,8 @@ impl CollectionService {
 
     pub async fn add_item(&self, actor: &Actor, id: CollectionId, item_id: ItemId) -> Result<()> {
         actor.require_admin()?;
+        m7::get_collection(&self.db, id).await?.ok_or(Error::NotFound)?;
+        require_visible_item(&self.db, actor, item_id).await?;
         m7::add_item_to_collection(&self.db, id, item_id).await
     }
 
@@ -119,8 +129,10 @@ impl CollectionService {
         Ok(())
     }
 
-    pub async fn get_items(&self, _actor: &Actor, id: CollectionId) -> Result<Vec<ItemId>> {
-        m7::get_collection_item_ids(&self.db, id).await
+    pub async fn get_items(&self, actor: &Actor, id: CollectionId) -> Result<Vec<ItemId>> {
+        m7::get_collection(&self.db, id).await?.ok_or(Error::NotFound)?;
+        let ids = m7::get_collection_item_ids(&self.db, id).await?;
+        visible_ids(&self.db, actor, &ids).await
     }
 }
 
@@ -154,7 +166,7 @@ impl PlaylistService {
     }
 
     pub async fn get_playlist(&self, actor: &Actor, id: PlaylistId) -> Result<Option<PlaylistRow>> {
-        let row = m7::get_playlist(&self.db, id).await?;
+        let mut row = m7::get_playlist(&self.db, id).await?;
         if let Some(ref pl) = row
             && !pl.is_public
             && !actor.is_admin
@@ -162,11 +174,18 @@ impl PlaylistService {
         {
             return Err(Error::Forbidden);
         }
+        if let Some(ref mut playlist) = row {
+            playlist.item_count = self.get_items(actor, id).await?.len() as i64;
+        }
         Ok(row)
     }
 
     pub async fn list_playlists(&self, actor: &Actor) -> Result<Vec<PlaylistRow>> {
-        m7::list_playlists_for_user(&self.db, actor.user_id).await
+        let mut rows = m7::list_playlists_for_user(&self.db, actor.user_id).await?;
+        for row in &mut rows {
+            row.item_count = self.get_items(actor, row.id).await?.len() as i64;
+        }
+        Ok(rows)
     }
 
     pub async fn update_playlist(
@@ -203,6 +222,7 @@ impl PlaylistService {
         if !actor.is_admin && actor.user_id != pl.user_id {
             return Err(Error::Forbidden);
         }
+        require_visible_item(&self.db, actor, item_id).await?;
         m7::add_item_to_playlist(&self.db, id, item_id).await
     }
 
@@ -222,6 +242,14 @@ impl PlaylistService {
         if !pl.is_public && !actor.is_admin && actor.user_id != pl.user_id {
             return Err(Error::Forbidden);
         }
-        m7::get_playlist_item_ids(&self.db, id).await
+        let ids = m7::get_playlist_item_ids(&self.db, id).await?;
+        visible_ids(&self.db, actor, &ids).await
     }
+}
+
+async fn require_visible_item(db: &Db, actor: &Actor, id: ItemId) -> Result<()> {
+    if visible_ids(db, actor, &[id]).await?.is_empty() {
+        return Err(Error::NotFound);
+    }
+    Ok(())
 }

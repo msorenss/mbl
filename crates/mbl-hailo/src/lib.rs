@@ -49,6 +49,7 @@ pub struct FrameAnalysis {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HailoEmbeddingBenchmark {
+    pub backend: String,
     pub npu_profile: NpuProfile,
     pub device_nodes: Vec<String>,
     pub sharing_mode: String,
@@ -115,20 +116,10 @@ impl HailoEngine {
         NpuCoordinator::new(self.config.clone()).status(&fp, None)
     }
 
-    /// Active backend identifier (`"hailo-10h-SHARED"`, `"hailo-8-SHARED"`, or `"cpu-clip"`).
+    /// This implementation computes image heuristics on the CPU; device discovery
+    /// alone does not establish a loaded model or an executed NPU inference.
     pub fn active_backend_name(&self) -> String {
-        let status = self.runtime_status();
-        if !status.device_busy_or_locked && !status.supported_pipelines.is_empty() {
-            match status.npu_profile {
-                NpuProfile::Hailo10H => format!("hailo-10h-{}", self.config.vdevice_group_id),
-                NpuProfile::Hailo8 | NpuProfile::Hailo8L => {
-                    format!("hailo-8-{}", self.config.vdevice_group_id)
-                }
-                NpuProfile::None => "cpu-clip".into(),
-            }
-        } else {
-            "cpu-clip".into()
-        }
+        "cpu-heuristic".into()
     }
 
     /// Analyze a video keyframe or photo: extract scene/object tags, estimate face regions,
@@ -296,6 +287,7 @@ impl HailoEngine {
         let device_nodes = fp.hailo_devices.iter().map(|d| d.device_node.clone()).collect();
 
         HailoEmbeddingBenchmark {
+            backend: self.active_backend_name(),
             npu_profile: status.npu_profile,
             device_nodes,
             sharing_mode: format!("{:?}", status.sharing_mode),
@@ -366,7 +358,7 @@ impl HailoEngine {
                 excluded,
                 bullets.join(" -> ")
             ),
-            model_backend: self.active_backend_name(),
+            model_backend: "deterministic-summary".into(),
         }
     }
 

@@ -14,6 +14,30 @@ use utoipa::ToSchema;
 
 use crate::Db;
 
+/// Current profile policy, shared by authenticated requests and background DVR jobs.
+pub async fn actor_for_user(db: &Db, id: UserId) -> Result<Option<mbl_core::Actor>> {
+    let Some(user) = super::users::UsersRepo::new(db.clone()).get(id).await? else {
+        return Ok(None);
+    };
+    if user.is_admin {
+        return Ok(Some(mbl_core::Actor::admin(id)));
+    }
+    let Some(profile) = get_user_security_info(db, id).await? else {
+        return Ok(None);
+    };
+    Ok(Some(mbl_core::Actor {
+        user_id: id,
+        is_admin: false,
+        library_access: if profile.library_ids.is_empty() && !profile.is_managed {
+            mbl_core::LibraryAccess::All
+        } else {
+            mbl_core::LibraryAccess::Only(profile.library_ids)
+        },
+        is_managed: profile.is_managed,
+        content_rating_ceiling: profile.content_rating_ceiling,
+    }))
+}
+
 /// Security and access profile for a user.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -209,6 +233,16 @@ pub async fn get_user_pin_hash(db: &Db, user_id: UserId) -> Result<Option<String
         .fetch_optional(&db.read)
         .await?;
     Ok(row.and_then(|r| r.get("pin_hash")))
+}
+
+/// Begin enrollment only while no active factor exists, atomically with the write.
+pub async fn begin_user_totp_setup(db: &Db, user_id: UserId, secret: &str) -> Result<bool> {
+    let result = sqlx::query("UPDATE users SET totp_secret = ? WHERE id = ? AND totp_enabled = 0")
+        .bind(secret)
+        .bind(user_id.0)
+        .execute(&db.write)
+        .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn set_user_totp(
@@ -612,4 +646,40 @@ pub async fn revoke_oauth_grant_by_token(db: &Db, token_hash: &[u8]) -> Result<b
     .execute(&db.write)
     .await?;
     Ok(res.rows_affected() > 0)
+}
+
+/// Create the account, inherit permissions and consume its invitation atomically.
+pub async fn register_with_invite(
+    db: &Db,
+    code: &str,
+    user: &super::users::NewUser<'_>,
+    now: i64,
+) -> Result<UserId> {
+    let mut tx = db.write.begin().await?;
+    let now = now.max(now_ms());
+    let row = sqlx::query("SELECT library_ids, content_rating_ceiling FROM invites WHERE code = ? AND used_at IS NULL AND expires_at > ?")
+        .bind(code).bind(now).fetch_optional(&mut *tx).await?.ok_or(mbl_core::Error::NotFound)?;
+    let libraries: Vec<LibraryId> = serde_json::from_str(row.get::<&str, _>("library_ids"))
+        .map_err(mbl_core::Error::internal)?;
+    let ceiling: Option<String> = row.get("content_rating_ceiling");
+    let inserted = sqlx::query("INSERT INTO users (username, display_name, password_hash, is_admin, created_at, content_rating_ceiling) VALUES (?, ?, ?, 0, ?, ?)")
+        .bind(user.username).bind(user.display_name).bind(user.password_hash).bind(now).bind(ceiling).execute(&mut *tx).await.map_err(|error| crate::map_unique(error, "username already exists"))?;
+    let id = UserId(inserted.last_insert_rowid());
+    for library in libraries {
+        sqlx::query(
+            "INSERT INTO user_library_access (user_id, library_id, created_at) VALUES (?, ?, ?)",
+        )
+        .bind(id.0)
+        .bind(library.0)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let consumed = sqlx::query("UPDATE invites SET used_at = ?, used_by = ? WHERE code = ? AND used_at IS NULL AND expires_at > ?")
+        .bind(now).bind(id.0).bind(code).bind(now).execute(&mut *tx).await?;
+    if consumed.rows_affected() != 1 {
+        return Err(mbl_core::Error::NotFound);
+    }
+    tx.commit().await?;
+    Ok(id)
 }

@@ -150,6 +150,7 @@ pub struct PlaybackPreviewQuery {
     pub part_id: Option<PartId>,
     pub max_bitrate: Option<u64>,
     pub audio_stream_index: Option<u32>,
+    pub audio_offset_ms: Option<i64>,
     pub subtitle_stream_index: Option<u32>,
 }
 
@@ -161,6 +162,7 @@ pub struct PlaybackPreviewRequestBody {
     pub profile: Option<PlaybackProfileInput>,
     pub max_bitrate: Option<u64>,
     pub audio_stream_index: Option<u32>,
+    pub audio_offset_ms: Option<i64>,
     pub subtitle_stream_index: Option<u32>,
 }
 
@@ -192,8 +194,11 @@ async fn playback_preview_get(
                 profile: profile_input,
                 max_bitrate: q.max_bitrate,
                 audio_stream_index: q.audio_stream_index,
+                audio_offset_ms: q.audio_offset_ms.unwrap_or(0),
                 subtitle_stream_index: q.subtitle_stream_index,
                 start_ms: None,
+                wait_for_ready: false,
+                network: None,
             },
         )
         .await?;
@@ -222,8 +227,11 @@ async fn playback_preview_post(
                 profile: body.profile,
                 max_bitrate: body.max_bitrate,
                 audio_stream_index: body.audio_stream_index,
+                audio_offset_ms: body.audio_offset_ms.unwrap_or(0),
                 subtitle_stream_index: body.subtitle_stream_index,
                 start_ms: None,
+                wait_for_ready: false,
+                network: None,
             },
         )
         .await?;

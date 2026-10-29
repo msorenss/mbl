@@ -185,11 +185,23 @@ export function Layout(props: { children?: JSX.Element }) {
               <span>⚡</span>
               <span>{t("hardware")}</span>
             </A>
+            <A href="/admin/remote" style={navLinkStyle("/admin/remote")}>
+              Remote access
+            </A>
             <A href="/admin/workers" style={navLinkStyle("/admin/workers")}>
               <span>🖥️</span>
               <span>Distributed Nodes</span>
             </A>
           </Show>
+          <A href="/collections" style={navLinkStyle("/collections")}>
+            Collections & playlists
+          </A>
+          <A href="/requests" style={navLinkStyle("/requests")}>
+            Media requests
+          </A>
+          <A href="/account" style={navLinkStyle("/account")}>
+            Account & security
+          </A>
         </nav>
 
         {/* User bar at bottom of sidebar */}
@@ -468,6 +480,25 @@ export function Layout(props: { children?: JSX.Element }) {
       {/* Settings & Appearance Sheet */}
       <Sheet open={settingsOpen()} onOpenChange={setSettingsOpen} title={t("settings")}>
         <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-6)" }}>
+          <A href="/collections" onClick={() => setSettingsOpen(false)}>
+            Collections & playlists
+          </A>
+          <A href="/requests" onClick={() => setSettingsOpen(false)}>
+            Media requests
+          </A>
+          <A href="/account" onClick={() => setSettingsOpen(false)}>
+            Account & security
+          </A>
+          <Show when={user()?.isAdmin}>
+            <A href="/admin/users" onClick={() => setSettingsOpen(false)}>
+              Manage users
+            </A>
+          </Show>
+          <Show when={user()?.isAdmin}>
+            <A href="/admin/remote" onClick={() => setSettingsOpen(false)}>
+              Remote access
+            </A>
+          </Show>
           {/* Theme Selector */}
           <div>
             <span
@@ -525,7 +556,7 @@ export function Layout(props: { children?: JSX.Element }) {
                         cursor: "pointer",
                       }}
                     >
-                      {t(ac as any)}
+                      {t(ac)}
                     </button>
                   );
                 },

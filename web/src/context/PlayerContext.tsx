@@ -3,8 +3,12 @@ import { createContext, createSignal, type JSX, lazy, Show, useContext } from "s
 const Player = lazy(() => import("../components/Player"));
 
 export interface PlayRequest {
+  autoplayNext?: boolean;
   itemId: number;
+  partId?: number;
   initialStartMs?: number;
+  audioStreamIndex?: number;
+  subtitleStreamIndex?: number | null;
   title?: string;
   subtitle?: string;
 }
@@ -31,14 +35,19 @@ export function PlayerProvider(props: { children: JSX.Element }) {
   return (
     <PlayerContext.Provider value={{ playItem, closePlayer, activeItem }}>
       {props.children}
-      <Show when={activeItem()}>
+      <Show keyed when={activeItem()}>
         {(item) => (
           <Player
-            itemId={item().itemId}
-            initialStartMs={item().initialStartMs}
-            title={item().title}
-            subtitle={item().subtitle}
+            itemId={item.itemId}
+            partId={item.partId}
+            initialStartMs={item.initialStartMs}
+            audioStreamIndex={item.audioStreamIndex}
+            subtitleStreamIndex={item.subtitleStreamIndex}
+            title={item.title}
+            subtitle={item.subtitle}
             onClose={closePlayer}
+            onPlayNext={playItem}
+            autoplayNext={item.autoplayNext}
           />
         )}
       </Show>

@@ -50,5 +50,6 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::import::routes())
         .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), routes::stream::limit_wan))
         .with_state(state)
 }

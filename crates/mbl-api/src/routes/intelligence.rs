@@ -135,6 +135,11 @@ pub(crate) async fn detect_season_intros(
     Ok(Json(markers))
 }
 
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct TrickplayPending {
+    pub status: String,
+}
+
 /// Get the trickplay sprite sheet manifest (`10x10` 320px tiles every 10s) for a media part (M5.5).
 #[utoipa::path(
     get,
@@ -143,6 +148,8 @@ pub(crate) async fn detect_season_intros(
     params(("partId" = i64, Path, description = "Media part ID")),
     responses(
         (status = 200, body = TrickplayManifest),
+        (status = 202, body = TrickplayPending, description = "Previews queued for idle generation; retry later"),
+        (status = 503, description = "Preview generation failed"),
         (status = 401),
         (status = 404)
     )
@@ -151,10 +158,22 @@ pub(crate) async fn trickplay_manifest(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
     Path(part_id): Path<i64>,
-) -> Result<Json<TrickplayManifest>, ApiError> {
+) -> Result<Response, ApiError> {
     let manifest =
         state.services.intelligence.trickplay_manifest(&auth.actor, PartId(part_id)).await?;
-    Ok(Json(manifest))
+    let mut response = match manifest {
+        Some(manifest) => Json(manifest).into_response(),
+        None => (
+            StatusCode::ACCEPTED,
+            [(header::RETRY_AFTER, "5")],
+            Json(TrickplayPending { status: "queued".into() }),
+        )
+            .into_response(),
+    };
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    Ok(response)
 }
 
 /// Serve a trickplay 10x10 JPEG sprite sheet (`sprite_000.jpg`) (M5.5).
@@ -185,8 +204,7 @@ pub(crate) async fn trickplay_sprite(
     let bytes = tokio::fs::read(&path).await.map_err(mbl_core::Error::internal)?;
     let mut resp = (StatusCode::OK, bytes).into_response();
     resp.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
-    resp.headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=86400"));
+    resp.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
     Ok(resp)
 }
 

@@ -14,6 +14,8 @@ export function Home() {
   const { playItem } = usePlayer();
   const { t } = useI18n();
 
+  const [layoutError, setLayoutError] = createSignal<string | null>(null);
+  const [savingLayout, setSavingLayout] = createSignal(false);
   const [hubs, setHubs] = createSignal<Hub[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [featuredItem, setFeaturedItem] = createSignal<ItemSummary | null>(null);
@@ -21,6 +23,7 @@ export function Home() {
   const loadData = async () => {
     try {
       const hubsRes = await client.GET("/api/v1/hubs/home");
+      if (hubsRes.error) throw new Error("Home could not be loaded");
       if (hubsRes.data) {
         const loadedHubs = hubsRes.data as Hub[];
         setHubs(loadedHubs);
@@ -34,7 +37,7 @@ export function Home() {
         setFeaturedItem(cand);
       }
     } catch {
-      // Ignore
+      setLayoutError("Home could not be loaded. Reload to try again.");
     } finally {
       setLoading(false);
     }
@@ -45,7 +48,9 @@ export function Home() {
   });
 
   const handleMoveHub = async (index: number, direction: "up" | "down") => {
-    const list = [...hubs()];
+    if (savingLayout()) return;
+    const previous = hubs();
+    const list = [...previous];
     const targetIdx = direction === "up" ? index - 1 : index + 1;
     if (targetIdx < 0 || targetIdx >= list.length) return;
 
@@ -55,14 +60,20 @@ export function Home() {
     list[targetIdx] = temp;
     setHubs(list);
 
+    setSavingLayout(true);
+    setLayoutError(null);
     // Persist new layout order
     const hubOrder = list.map((h) => h.key);
     try {
-      await client.PUT("/api/v1/users/me/home-layout", {
+      const result = await client.PUT("/api/v1/users/me/home-layout", {
         body: { homeLayout: hubOrder },
       });
+      if (result.error) throw new Error("Save failed");
     } catch {
-      // Ignore
+      setHubs(previous);
+      setLayoutError("Layout could not be saved. Previous order restored.");
+    } finally {
+      setSavingLayout(false);
     }
   };
 
@@ -70,6 +81,9 @@ export function Home() {
 
   return (
     <div style={{ "max-width": "1600px", margin: "0 auto" }}>
+      <Show when={layoutError()}>
+        <p role="alert">{layoutError()}</p>
+      </Show>
       {/* Loading Skeletons */}
       <Show when={loading()}>
         <Skeleton height="380px" borderRadius="var(--radius-lg)" />

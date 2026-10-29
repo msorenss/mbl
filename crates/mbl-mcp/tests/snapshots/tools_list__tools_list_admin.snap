@@ -485,6 +485,12 @@ expression: tools
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "audio_offset_ms": {
+          "description": "Positive delays audio; negative advances it (ms)",
+          "maximum": 10000,
+          "minimum": -10000,
+          "type": "integer"
+        },
         "audio_stream_index": {
           "description": "Optional audio stream index",
           "type": "integer"
@@ -1862,6 +1868,38 @@ expression: tools
     }
   },
   {
+    "name": "recover_recording",
+    "description": "Recover saved media from a failed or interrupted recording as an incomplete recording. Copies a stable snapshot without fetching a new broadcast; the original owner's current permissions apply. Existing series retention may delete the recovered file.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "description": "Explicitly confirm recovery as an incomplete recording with its existing series policy",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Preview saved bytes and storage without creating a snapshot or catalogue entry",
+          "type": "boolean"
+        },
+        "recording_id": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "recording_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Recover Saved Recording",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "search_guide",
     "description": "Search EPG program schedules across all TV channels by title, category, or description.",
     "inputSchema": {
@@ -1891,7 +1929,7 @@ expression: tools
   },
   {
     "name": "list_recordings",
-    "description": "List scheduled, in-progress, completed, or failed TV recordings.",
+    "description": "List scheduled, in-progress, completed, partial, or failed TV recordings.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1901,6 +1939,7 @@ expression: tools
             "scheduled",
             "recording",
             "completed",
+            "partial",
             "failed",
             "cancelled"
           ],
@@ -1947,6 +1986,10 @@ expression: tools
           "description": "Optional EPG program ID",
           "type": "integer"
         },
+        "retry_of": {
+          "description": "Retry an owned failed/partial recording, preserving its owner and current series retention policy; other schedule fields are ignored",
+          "type": "integer"
+        },
         "start_padding_secs": {
           "description": "Extra seconds before scheduled start",
           "type": "integer"
@@ -1983,7 +2026,7 @@ expression: tools
       "additionalProperties": false,
       "properties": {
         "auto_delete_watched": {
-          "description": "Automatically delete watched recordings",
+          "description": "Delete saved recordings after the rule owner watches them",
           "type": "boolean"
         },
         "channel_id": {
@@ -2003,7 +2046,9 @@ expression: tools
           "type": "integer"
         },
         "keep_max": {
-          "description": "Maximum number of recorded episodes to keep",
+          "description": "Keep only this many saved recordings; older saved files are deleted",
+          "maximum": 10000,
+          "minimum": 1,
           "type": "integer"
         },
         "new_only": {
@@ -2035,14 +2080,14 @@ expression: tools
     "annotations": {
       "title": "Create Series Recording Rule",
       "readOnlyHint": false,
-      "destructiveHint": false,
+      "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false
     }
   },
   {
     "name": "cancel_recording",
-    "description": "Cancel or remove a scheduled or completed TV recording.",
+    "description": "Cancel a scheduled or active TV recording, or delete a completed/partial recording with its saved file and catalogue item.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

@@ -13,6 +13,10 @@ pub enum PluginCapability {
     AudioSource,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PluginManifest {
     pub id: String,
@@ -23,6 +27,8 @@ pub struct PluginManifest {
     pub capabilities: Vec<PluginCapability>,
     #[serde(rename = "iconUrl", skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

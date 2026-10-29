@@ -82,6 +82,7 @@ https://live.example.com/svt2/index.m3u8
     assert_eq!(patch_res.status, StatusCode::OK);
     assert_eq!(patch_res.body["channelNumber"].as_str().unwrap(), "101");
     assert!(patch_res.body["isFavorite"].as_bool().unwrap());
+    assert_eq!(patch_res.body["canPlay"], true, "channel updates must retain caller availability");
 
     // 6. Delete tuner
     let del_res = app
@@ -192,9 +193,9 @@ async fn m9_live_stream_engine_and_concurrency() {
     let (app, _db, _services) = TestApp::new_with_services().await;
     let admin_token = app.setup_admin().await;
 
-    // 1. Create Tuner with 1 tuner stream capacity
-    let m3u =
-        "#EXTM3U\n#EXTINF:-1 tvg-id=\"live1\",Live Channel 1\nhttp://stream.example.com/ch1.ts\n";
+    let source = common::live_source().await;
+    // 1. Create a local synthetic tuner source
+    let m3u = format!("#EXTM3U\n#EXTINF:-1 tvg-id=\"live1\",Live Channel 1\n{}\n", source.url);
     let tuner_res = app
         .call(
             Method::POST,
@@ -215,13 +216,17 @@ async fn m9_live_stream_engine_and_concurrency() {
     assert_eq!(s1_res.status, StatusCode::OK);
     assert_eq!(s1_res.body["channelId"].as_i64().unwrap(), ch_id);
     assert_eq!(s1_res.body["channelName"].as_str().unwrap(), "Live Channel 1");
-    assert_eq!(s1_res.body["streamUrl"].as_str().unwrap(), "http://stream.example.com/ch1.ts");
+    assert!(s1_res.body["streamUrl"].as_str().unwrap().starts_with("/api/v1/stream/live/"));
+    assert_eq!(s1_res.body["targetFormat"], "hls");
 
     // 3. Release Live Stream
     let rel_res = app
         .call(
             Method::POST,
-            &format!("/api/v1/livetv/stream/{ch_id}/release"),
+            &format!(
+                "/api/v1/livetv/stream/{ch_id}/release?sessionId={}",
+                s1_res.body["sessionId"].as_str().unwrap()
+            ),
             Some(&admin_token),
             None,
         )
@@ -248,7 +253,7 @@ async fn m9_recordings_and_series_rules() {
     let ch_id = chan_res.body[0]["id"].as_i64().unwrap();
 
     // 1. Schedule a DVR recording
-    let now = 1793041200i64;
+    let now = mbl_core::time::now_ms() / 1000;
     let rec_res = app
         .call(
             Method::POST,
@@ -424,12 +429,12 @@ async fn m9_streaming_plugins() {
     let plugins = list_res.body.as_array().unwrap();
     assert_eq!(plugins.len(), 3);
     let yt = plugins.iter().find(|p| p["id"] == "youtube").unwrap();
-    assert_eq!(yt["name"].as_str().unwrap(), "YouTube");
+    assert_eq!(yt["name"].as_str().unwrap(), "YouTube (demo)");
 
     // 2. Get and update plugin config
     let get_res = app.call(Method::GET, "/api/v1/plugins/youtube", Some(&admin_token), None).await;
     assert_eq!(get_res.status, StatusCode::OK);
-    assert!(get_res.body["enabled"].as_bool().unwrap());
+    assert!(!get_res.body["enabled"].as_bool().unwrap());
 
     let patch_res = app
         .call(
@@ -476,8 +481,7 @@ async fn m9_streaming_plugins() {
             None,
         )
         .await;
-    assert_eq!(stream_res.status, StatusCode::OK);
-    assert!(stream_res.body["streamUrl"].as_str().unwrap().contains("example.com/yt"));
+    assert_eq!(stream_res.status, StatusCode::SERVICE_UNAVAILABLE);
 }
 
 #[tokio::test]
@@ -538,6 +542,7 @@ async fn m9_mcp_livetv_tools() {
     assert_eq!(progs.len(), 1);
     assert_eq!(progs[0]["title"].as_str().unwrap(), "Bäst i test");
 
+    let recording_start = mbl_core::time::now_ms() + 3_600_000;
     // 3. Tool: schedule_recording with dry_run
     let dry_rec = client
         .call_tool(
@@ -545,8 +550,8 @@ async fn m9_mcp_livetv_tools() {
             json!({
                 "channel_id": 1,
                 "title": "Bäst i test",
-                "start_time": 1793041200,
-                "end_time": 1793044800,
+                "start_time": recording_start,
+                "end_time": recording_start + 3_600_000,
                 "dry_run": true
             }),
         )
@@ -562,8 +567,8 @@ async fn m9_mcp_livetv_tools() {
             json!({
                 "channel_id": 1,
                 "title": "Bäst i test",
-                "start_time": 1793041200,
-                "end_time": 1793044800,
+                "start_time": recording_start,
+                "end_time": recording_start + 3_600_000,
                 "dry_run": false,
                 "confirm": true
             }),
@@ -597,6 +602,15 @@ async fn m9_mcp_livetv_tools() {
     assert!(!rule_tool.is_error);
     let rule_id = rule_tool.structured_content.as_ref().unwrap()["id"].as_i64().unwrap();
     assert!(rule_id > 0);
+
+    for bad_args in [
+        json!({"title":"Invalid retention","keep_max":0,"dry_run":true}),
+        json!({"title":"Invalid retention","keep_max":4294967296u64,"dry_run":true}),
+        json!({"title":"Invalid padding","start_padding_secs":4294967296u64,"dry_run":true}),
+    ] {
+        let rejected = client.call_tool("create_series_rule", bad_args).await;
+        assert!(rejected.is_err() || rejected.as_ref().is_ok_and(|r| r.is_error));
+    }
 
     // 6. Tool: cancel_recording
     let cancel_tool = client

@@ -12,11 +12,13 @@
 - [Quick Start Guide](quickstart.md)
 
 # Core Features
+- [Web player & seek previews](playback.md)
 - [Hardware Acceleration](hardware-acceleration.md)
 - [Remote Access & Networking](remote-access.md)
 - [Distributed Nodes & Workers](distributed-workers.md)
 - [Live TV, EPG & DVR](live-tv-dvr.md)
 - [Music, Photos & Media Breadth](media-breadth.md)
+- [Chromecast & Remote Playback](chromecast.md)
 
 # AI & Automation
 - [Model Context Protocol (MCP)](mcp-ai-agents.md)

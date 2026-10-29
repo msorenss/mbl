@@ -560,6 +560,22 @@ fn rejects_invalid_pipeline_combinations() {
         backend: Backend::Software,
     };
     assert!(build_args(&bad_burn, &caps).is_err());
+    // The ABR graph must reject burn-in until it can actually render it on every branch.
+    let mut abr_burn = bad_burn.clone();
+    abr_burn.video = VideoOp::Encode {
+        codec: VideoCodec::H264,
+        width: Some(320),
+        max_bitrate: 800_000,
+        deinterlace: false,
+        tonemap: false,
+    };
+    abr_burn.backend = Backend::Vaapi;
+    abr_burn.output.renditions.push(Rendition {
+        name: "1".into(),
+        width: Some(320),
+        max_bitrate: 800_000,
+    });
+    assert!(build_args(&abr_burn, &caps).is_err());
 
     // Tone mapping on Pi profile (PiDrmDecode or V4l2m2m) is rejected (M4.10).
     let bad_pi_tonemap = Pipeline {
@@ -845,4 +861,123 @@ async fn transcodes_10s_test_media_to_fmp4_hls_and_verifies_with_ffprobe() {
     let audio = probed.streams.iter().find(|s| s.kind == StreamKind::Audio).unwrap();
     assert_eq!(audio.codec, "aac");
     assert_eq!(audio.channels, Some(2));
+}
+
+#[tokio::test]
+async fn signed_audio_sync_preserves_video_timeline_including_seek() {
+    let Ok(tools) = mbl_probe::FfTools::locate("", "").await else {
+        eprintln!("skipping: ffmpeg/ffprobe not found on PATH");
+        return;
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("pulse.mkv");
+    let source = tokio::process::Command::new(&tools.ffmpeg)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=black:s=64x64:r=24:d=6",
+            "-f",
+            "lavfi",
+            "-i",
+            "aevalsrc=if(between(t\\,3\\,3.1)\\,0.8*sin(2*PI*1000*t)\\,0):s=48000:d=6",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "24",
+            "-c:a",
+            "flac",
+        ])
+        .arg(&input)
+        .output()
+        .await
+        .unwrap();
+    assert!(source.status.success(), "{}", String::from_utf8_lossy(&source.stderr));
+    for start_ms in [0, 2000] {
+        for offset_ms in [-250, 250] {
+            let dir = tmp.path().join(format!("{start_ms}_{offset_ms}"));
+            std::fs::create_dir_all(dir.join("0")).unwrap();
+            let pipeline = Pipeline {
+                input: Utf8PathBuf::from_path_buf(input.clone()).unwrap(),
+                start_ms,
+                video: VideoOp::Copy,
+                audio: AudioOp::EncodeShifted {
+                    index: 1,
+                    codec: AudioCodec::Aac,
+                    channels: 1,
+                    bitrate: 128_000,
+                    offset_ms,
+                },
+                subtitle: SubtitleOp::None,
+                output: HlsOutput {
+                    dir: Utf8PathBuf::from_path_buf(dir.clone()).unwrap(),
+                    segment_secs: 2,
+                    start_number: 0,
+                    renditions: vec![Rendition {
+                        name: "0".into(),
+                        width: Some(64),
+                        max_bitrate: 200_000,
+                    }],
+                },
+                backend: Backend::Software,
+            };
+            let output = tokio::process::Command::new(&tools.ffmpeg)
+                .args(build_args(&pipeline, &FfmpegCaps::default()).unwrap())
+                .output()
+                .await
+                .unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            let decoded = tokio::process::Command::new(&tools.ffmpeg)
+                .args(["-nostdin", "-v", "error", "-copyts", "-i"])
+                .arg(dir.join("0/ffmpeg.m3u8"))
+                .args([
+                    "-map",
+                    "0:a:0",
+                    "-af",
+                    "aresample=async=1:first_pts=0",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "48000",
+                    "-f",
+                    "f32le",
+                    "pipe:1",
+                ])
+                .output()
+                .await
+                .unwrap();
+            assert!(decoded.status.success(), "{}", String::from_utf8_lossy(&decoded.stderr));
+            let pulse = decoded
+                .stdout
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .position(|bytes| f32::from_le_bytes(*bytes).abs() > 0.2)
+                .expect("audio pulse was lost") as f64
+                / 48_000.0;
+            let expected = 3.0 + offset_ms as f64 / 1000.0;
+            assert!(
+                (pulse - expected).abs() < 0.08,
+                "start={start_ms} offset={offset_ms}: pulse at {pulse}s, expected {expected}s"
+            );
+            // Invalid values must be rejected before launching FFmpeg.
+            let invalid = Pipeline {
+                audio: AudioOp::EncodeShifted {
+                    index: 1,
+                    codec: AudioCodec::Aac,
+                    channels: 1,
+                    bitrate: 128_000,
+                    offset_ms: 10001,
+                },
+                ..pipeline
+            };
+            assert!(build_args(&invalid, &FfmpegCaps::default()).is_err());
+        }
+    }
 }

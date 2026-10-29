@@ -1,6 +1,7 @@
 //! Repositories. Reads use `db.read`, writes use `db.write`.
 
 pub mod artwork;
+pub mod dvr;
 pub mod hw;
 pub mod items;
 pub mod jobs;

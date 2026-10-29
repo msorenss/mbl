@@ -324,3 +324,89 @@ pub async fn seed_playback_fixtures(app: &TestApp, db: &mbl_db::Db, admin: &str)
 
     SeededShow { show_id, season_id, ep1_id, ep1_part_id, ep2_id, movie_id, movie_part_id }
 }
+
+/// An isolated HTTP tuner fixture: real MPEG-TS bytes, no external network or tuner hardware.
+pub struct TestLiveSource {
+    pub url: String,
+    pub bytes: axum::body::Bytes,
+    task: tokio::task::JoinHandle<()>,
+}
+impl Drop for TestLiveSource {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+pub async fn live_source() -> TestLiveSource {
+    live_source_with_duration(6).await
+}
+pub async fn live_source_with_duration(seconds: u32) -> TestLiveSource {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("source.ts");
+    let video = format!("testsrc=size=128x72:rate=50:duration={seconds}");
+    let audio = format!("sine=frequency=880:sample_rate=48000:duration={seconds}");
+    let status = tokio::process::Command::new("ffmpeg")
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            &video,
+            "-f",
+            "lavfi",
+            "-i",
+            &audio,
+            "-vf",
+            "format=yuv420p,tinterlace=mode=interleave_top",
+            "-c:v",
+            "mpeg2video",
+            "-flags",
+            "+ildct+ilme",
+            "-top",
+            "1",
+            "-threads",
+            "1",
+            "-g",
+            "25",
+            "-c:a",
+            "ac3",
+            "-ac",
+            "2",
+            "-f",
+            "mpegts",
+        ])
+        .arg(&path)
+        .status()
+        .await
+        .unwrap();
+    assert!(status.success());
+    let probe = tokio::process::Command::new("ffprobe")
+        .args(["-v", "error", "-show_entries", "stream=codec_name,field_order", "-of", "json"])
+        .arg(&path)
+        .output()
+        .await
+        .unwrap();
+    assert!(probe.status.success());
+    let info: Value = serde_json::from_slice(&probe.stdout).unwrap();
+    assert!(info["streams"].as_array().unwrap().iter().any(|s| s["codec_name"] == "mpeg2video"
+        && s["field_order"] != "progressive"
+        && s["field_order"] != "unknown"));
+    assert!(info["streams"].as_array().unwrap().iter().any(|s| s["codec_name"] == "ac3"));
+    let bytes = axum::body::Bytes::from(tokio::fs::read(path).await.unwrap());
+    let source_bytes = bytes.clone();
+    let router = axum::Router::new().route(
+        "/live.ts",
+        axum::routing::get(move || {
+            let bytes = bytes.clone();
+            async move { ([("Content-Type", "video/mp2t")], bytes) }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/live.ts", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    TestLiveSource { url, bytes: source_bytes, task }
+}

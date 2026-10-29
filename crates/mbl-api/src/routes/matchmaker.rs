@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/matchmaker/sessions", post(create_matchmaker_session))
         .route("/api/v1/matchmaker/sessions/{id}", get(get_matchmaker_session))
         .route("/api/v1/matchmaker/sessions/{id}/vote", post(record_vote))
+        .route("/api/v1/matchmaker/sessions/{id}/join", post(join_session))
 }
 
 #[utoipa::path(
@@ -84,4 +85,14 @@ async fn record_vote(
 ) -> Result<Json<MatchmakerMatchResult>, ApiError> {
     let res = state.services.matchmaker.record_vote(&auth.actor, &id, body, 2).await?;
     Ok(Json(res))
+}
+
+#[utoipa::path(post, path = "/api/v1/matchmaker/sessions/{id}/join", params(("id" = String, Path)), responses((status = 204), (status = 404), (status = 409)))]
+pub(crate) async fn join_session(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    state.services.matchmaker.join_session(&auth.actor, &id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

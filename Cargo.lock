@@ -1688,6 +1688,7 @@ version = "1.0.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
+ "futures-util",
  "governor",
  "mbl-analysis",
  "mbl-auth",
@@ -1926,6 +1927,7 @@ name = "mbl-platform"
 version = "1.0.0"
 dependencies = [
  "camino",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",

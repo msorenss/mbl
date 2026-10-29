@@ -162,7 +162,9 @@ pub async fn execute(
         "get_settings" => {
             caller.require(Scope::Admin).map_err(crate::server::map_service_error)?;
             let remote_status = services.remote.get_status(&caller.actor).await.ok();
+            let dvr_status = services.livetv.recording_storage_status().await.ok();
             let out = json!({
+                "dvr": dvr_status,
                 "server": {
                     "version": env!("CARGO_PKG_VERSION"),
                 },

@@ -69,9 +69,16 @@ impl LibraryService {
         patch: UpdateLibrary,
     ) -> Result<Library> {
         actor.require_admin()?;
-        self.repo.get(id).await?.ok_or(Error::NotFound)?;
+        let existing = self.repo.get(id).await?.ok_or(Error::NotFound)?;
+        let managed = self.repo.is_dvr(id).await?;
+        if patch.paths.as_ref().is_some_and(|paths| paths != &existing.paths) && managed {
+            return Err(Error::Conflict(
+                "The recording library's location is managed by DVR".into(),
+            ));
+        }
         let name = patch.name.as_deref().map(library_name).transpose()?;
         let roots = match patch.paths {
+            Some(_) if managed => None,
             Some(p) => Some(self.validate_roots(p, Some(id)).await?),
             None => None,
         };
@@ -86,6 +93,9 @@ impl LibraryService {
 
     pub async fn delete(&self, actor: &Actor, id: LibraryId) -> Result<()> {
         actor.require_admin()?;
+        if self.repo.is_dvr(id).await? {
+            return Err(Error::Conflict("Use DVR Recordings to delete saved recordings; the recording library is managed automatically".into()));
+        }
         if !self.repo.delete(id).await? {
             return Err(Error::NotFound);
         }

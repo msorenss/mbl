@@ -818,6 +818,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/libraries/{id}/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_photos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/libraries/{id}/scan": {
         parameters: {
             query?: never;
@@ -947,6 +963,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/livetv/recordings/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preview_recording"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/livetv/recordings/{id}": {
         parameters: {
             query?: never;
@@ -958,6 +990,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["cancel_recording"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/livetv/recordings/{id}/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["preview_recording_recovery"];
+        put?: never;
+        post: operations["recover_recording"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1165,6 +1213,22 @@ export interface paths {
         get: operations["get_matchmaker_session"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/sessions/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["join_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1385,6 +1449,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/playback/{session}/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["diagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/playback/{session}/progress": {
         parameters: {
             query?: never;
@@ -1394,7 +1474,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Report playback progress (`playing` | `paused` | `buffering`) every ~10 seconds. */
+        /**
+         * Report playback progress (`playing` | `paused` | `buffering`) every 5–10 seconds,
+         *     including while paused or buffering, to renew the session lease. A reaped session returns 404.
+         */
         post: operations["progress"];
         delete?: never;
         options?: never;
@@ -1435,6 +1518,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/players/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["unregister_player"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/players/{id}/command": {
         parameters: {
             query?: never;
@@ -1445,6 +1544,23 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["send_player_command"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/players/{id}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Session-bound command transport for an explicitly registered player. */
+        get: operations["connect_player"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1787,6 +1903,23 @@ export interface paths {
          *     or numbered media segment (`{n}.m4s`).
          */
         get: operations["hls_rendition_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stream/live/{session}/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a live HLS capability URL while its authenticated owner's lease remains active. */
+        get: operations["live_file"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2356,6 +2489,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Live playback session metadata tracked in memory. */
+        ActivePlaybackSession: {
+            /** Format: int64 */
+            audioOffsetMs: number;
+            /** Format: int32 */
+            audioStreamIndex?: number | null;
+            /** Format: int32 */
+            burnedSubtitleStreamIndex?: number | null;
+            /** Format: int64 */
+            durationMs: number;
+            isHls: boolean;
+            itemId: components["schemas"]["ItemId"];
+            /** Format: int64 */
+            lastUpdatedAt: number;
+            markedWatched: boolean;
+            method: components["schemas"]["PlayMethod"];
+            network: components["schemas"]["Network"];
+            partId: components["schemas"]["PartId"];
+            /** Format: int64 */
+            positionMs: number;
+            profileName: string;
+            reasons: string[];
+            sessionId: string;
+            /** Format: int64 */
+            startedAt: number;
+            state: components["schemas"]["PlaybackState"];
+            title: string;
+            userId: components["schemas"]["UserId"];
+        };
         ApiTokenInfo: {
             allowedNetworks: string[];
             /** Format: int64 */
@@ -2415,6 +2577,8 @@ export interface components {
         };
         Channel: {
             callsign?: string | null;
+            /** @description Whether the current programme can be played by this caller. */
+            canPlay?: boolean;
             channelNumber: string;
             /** Format: int64 */
             createdAt: number;
@@ -2596,6 +2760,16 @@ export interface components {
             renderNode?: string | null;
             vendorId?: string | null;
         };
+        DvrStorageStatus: {
+            /** Format: int64 */
+            availableBytes?: number | null;
+            canStart: boolean;
+            error?: string | null;
+            /** Format: int64 */
+            maxRecordingBytes?: number | null;
+            /** Format: int64 */
+            minFreeBytes: number;
+        };
         /** @description Windows DXGI display/compute adapter. */
         DxgiAdapter: {
             /** Format: int64 */
@@ -2664,6 +2838,7 @@ export interface components {
             activeCoTenants: number;
             /** Format: double */
             avgLatencyUs: number;
+            backend: string;
             deviceNodes: string[];
             /** Format: double */
             elapsedMs: number;
@@ -2915,9 +3090,17 @@ export interface components {
             title: string;
         };
         LiveStreamInfo: {
+            /**
+             * Format: int64
+             * @description Hard programme boundary for an age-limited profile; select a channel again afterwards.
+             */
+            accessEndsAt?: number | null;
             channelId: components["schemas"]["ChannelId"];
             channelName: string;
+            /** Format: int64 */
+            expiresAt: number;
             isDeinterlacingRequired: boolean;
+            sessionId: string;
             streamUrl: string;
             targetFormat: string;
         };
@@ -3034,6 +3217,11 @@ export interface components {
             /** Format: int64 */
             seasonNumber: number;
         };
+        /**
+         * @description Network classification of the playback session.
+         * @enum {string}
+         */
+        Network: "lan" | "tailnetDirect" | "tailnetRelayed" | "wan";
         /**
          * @description The network environment from which a request originated.
          * @enum {string}
@@ -3190,6 +3378,18 @@ export interface components {
             /** Format: int64 */
             total?: number | null;
         };
+        Paginated_PhotoSummary: {
+            items: {
+                id: components["schemas"]["ItemId"];
+                partId?: components["schemas"]["PartId"] | null;
+                /** Format: int64 */
+                takenAt: number;
+                title: string;
+            }[];
+            nextCursor?: components["schemas"]["Cursor"] | null;
+            /** Format: int64 */
+            total?: number | null;
+        };
         PairingCodeResponse: {
             code: string;
             /** Format: int32 */
@@ -3208,6 +3408,13 @@ export interface components {
         };
         /** Format: int64 */
         PartId: number;
+        PhotoSummary: {
+            id: components["schemas"]["ItemId"];
+            partId?: components["schemas"]["PartId"] | null;
+            /** Format: int64 */
+            takenAt: number;
+            title: string;
+        };
         PhotoTimelineBucket: {
             /** Format: int64 */
             count: number;
@@ -3241,6 +3448,20 @@ export interface components {
          * @enum {string}
          */
         PlayMethod: "directPlay" | "directStream" | "transcode";
+        /** @description Audio streams available in the selected media version. */
+        PlaybackAudioTrack: {
+            /** Format: int32 */
+            channels?: number | null;
+            codec: string;
+            /** Format: int32 */
+            index: number;
+            isDefault: boolean;
+            language?: string | null;
+            title?: string | null;
+        };
+        PlaybackDiagnostics: components["schemas"]["ActivePlaybackSession"] & {
+            transcode?: components["schemas"]["TranscodeDiagnostics"] | null;
+        };
         /** @description Timeline marker (intro, credits, chapter) returned in [`PlaybackResponse`]. */
         PlaybackMarker: {
             /** Format: int64 */
@@ -3253,6 +3474,8 @@ export interface components {
         /** @description Decision preview returned by `preview_playback`. */
         PlaybackPreview: {
             audio: components["schemas"]["StreamAction"];
+            /** Format: int64 */
+            audioOffsetMs: number;
             container: string;
             /** Format: int64 */
             durationMs: number;
@@ -3264,6 +3487,8 @@ export interface components {
             video: components["schemas"]["StreamAction"];
         };
         PlaybackPreviewRequestBody: {
+            /** Format: int64 */
+            audioOffsetMs?: number | null;
             /** Format: int32 */
             audioStreamIndex?: number | null;
             /** Format: int64 */
@@ -3281,6 +3506,12 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/playback`. */
         PlaybackRequest: {
+            /**
+             * Format: int64
+             * @description Positive delays audio; negative advances audio (−10000..10000 ms).
+             *     Encodes audio; ignored for media with no audio stream.
+             */
+            audioOffsetMs?: number;
             /** Format: int32 */
             audioStreamIndex?: number | null;
             itemId: components["schemas"]["ItemId"];
@@ -3292,17 +3523,35 @@ export interface components {
             startMs?: number | null;
             /** Format: int32 */
             subtitleStreamIndex?: number | null;
+            /**
+             * @description Wait for readable source / first complete HLS media before acknowledging startup.
+             *     Opt-in for existing API clients; enabled by the web player for atomic stream changes.
+             */
+            waitForReady?: boolean;
         };
         /** @description Response body for `POST /api/v1/playback`. */
         PlaybackResponse: {
             /** Format: int64 */
+            audioOffsetMs: number;
+            /** Format: int32 */
+            audioStreamIndex?: number | null;
+            audioTracks: components["schemas"]["PlaybackAudioTrack"][];
+            /** Format: int32 */
+            burnedSubtitleStreamIndex?: number | null;
+            contentType: string;
+            /** Format: int64 */
             durationMs: number;
+            /** @description Whether the negotiated source has a real video stream (cover art does not count). */
+            hasVideo: boolean;
+            itemId: components["schemas"]["ItemId"];
             markers: components["schemas"]["PlaybackMarker"][];
             method: components["schemas"]["PlayMethod"];
+            partId: components["schemas"]["PartId"];
             reasons: string[];
             sessionId: string;
             /** Format: int64 */
             startMs: number;
+            subtitleOptions: components["schemas"]["PlaybackSubtitleOption"][];
             subtitles: components["schemas"]["PlaybackSubtitleTrack"][];
             url: string;
         };
@@ -3315,6 +3564,17 @@ export interface components {
         PlaybackStopRequest: {
             /** Format: int64 */
             positionMs?: number | null;
+        };
+        /** @description Selectable subtitles, including image tracks requiring a new encoded video stream. */
+        PlaybackSubtitleOption: {
+            codec: string;
+            /** Format: int32 */
+            index: number;
+            isDefault: boolean;
+            isForced: boolean;
+            language?: string | null;
+            requiresTranscode: boolean;
+            title?: string | null;
         };
         /** @description Subtitle track descriptor returned in [`PlaybackResponse`]. */
         PlaybackSubtitleTrack: {
@@ -3378,7 +3638,7 @@ export interface components {
             durationMs: number;
             id: string;
             /** Format: int64 */
-            lastSeenAt: number;
+            lastSeenAt?: number;
             name: string;
             nowPlayingItemId?: components["schemas"]["ItemId"] | null;
             /** Format: int64 */
@@ -3461,6 +3721,7 @@ export interface components {
             author: string;
             capabilities: components["schemas"]["PluginCapability"][];
             description: string;
+            enabled?: boolean;
             iconUrl?: string | null;
             id: string;
             name: string;
@@ -3515,7 +3776,9 @@ export interface components {
             publicIpOverride?: string | null;
         };
         Recording: {
-            channelId: components["schemas"]["ChannelId"];
+            /** @description Whether this caller may cancel/delete the recording. */
+            canDelete?: boolean;
+            channelId?: components["schemas"]["ChannelId"] | null;
             channelName?: string | null;
             /** Format: int64 */
             createdAt: number;
@@ -3525,6 +3788,7 @@ export interface components {
             endTime: number;
             errorMessage?: string | null;
             id: components["schemas"]["RecordingId"];
+            itemId?: components["schemas"]["ItemId"] | null;
             outputPath?: string | null;
             programId?: components["schemas"]["ProgramId"] | null;
             ruleId?: components["schemas"]["RecordingRuleId"] | null;
@@ -3537,6 +3801,44 @@ export interface components {
         };
         /** Format: int64 */
         RecordingId: number;
+        /** @description Read-only normalization and admission snapshot; it does not reserve a tuner or create a library. */
+        RecordingPlan: {
+            autoDeleteWatched: boolean;
+            channelId: components["schemas"]["ChannelId"];
+            conflict?: string | null;
+            /** Format: int32 */
+            endPaddingSecs: number;
+            /** Format: int64 */
+            endTime: number;
+            existingRecordingId?: components["schemas"]["RecordingId"] | null;
+            /** Format: int32 */
+            keepMax?: number | null;
+            libraryId?: components["schemas"]["LibraryId"] | null;
+            ownerId: components["schemas"]["UserId"];
+            /** Format: int64 */
+            programEndTime: number;
+            programId?: components["schemas"]["ProgramId"] | null;
+            /** Format: int64 */
+            programStartTime: number;
+            retryOf?: components["schemas"]["RecordingId"] | null;
+            ruleId?: components["schemas"]["RecordingRuleId"] | null;
+            /** Format: int32 */
+            startPaddingSecs: number;
+            /** Format: int64 */
+            startTime: number;
+            storage: components["schemas"]["DvrStorageStatus"];
+            title: string;
+        };
+        /** @description Read-only file and storage check; recoverable bytes are not yet proof of playable media. */
+        RecordingRecoveryPlan: {
+            canRecover: boolean;
+            existingItemId?: components["schemas"]["ItemId"] | null;
+            reason?: string | null;
+            recordingId: components["schemas"]["RecordingId"];
+            /** Format: int64 */
+            sizeBytes: number;
+            title: string;
+        };
         RecordingRule: {
             autoDeleteWatched: boolean;
             channelId?: components["schemas"]["ChannelId"] | null;
@@ -3559,7 +3861,7 @@ export interface components {
         /** Format: int64 */
         RecordingRuleId: number;
         /** @enum {string} */
-        RecordingStatus: "scheduled" | "recording" | "completed" | "failed" | "cancelled";
+        RecordingStatus: "scheduled" | "recording" | "completed" | "partial" | "failed" | "cancelled";
         RegisterClientRequest: {
             client_name: string;
             grant_types?: string[] | null;
@@ -3660,6 +3962,7 @@ export interface components {
             /** Format: int64 */
             endTime: number;
             programId?: components["schemas"]["ProgramId"] | null;
+            retryOf?: components["schemas"]["RecordingId"] | null;
             /** Format: int32 */
             startPaddingSecs?: number | null;
             /** Format: int64 */
@@ -3890,6 +4193,14 @@ export interface components {
             preferredBackend: string;
             supportsAbrLadder: boolean;
         };
+        TranscodeDiagnostics: {
+            backend: string;
+            lastExitFailed: boolean;
+            processRunning: boolean;
+            /** Format: int32 */
+            restarts: number;
+            throttled: boolean;
+        };
         TrickplayManifest: {
             /** Format: int32 */
             columns: number;
@@ -3908,6 +4219,9 @@ export interface components {
             /** Format: int32 */
             tileWidth: number;
             tiles: components["schemas"]["TrickplayTile"][];
+        };
+        TrickplayPending: {
+            status: string;
         };
         TrickplaySprite: {
             /** Format: int64 */
@@ -4833,6 +5147,12 @@ export interface operations {
                 };
                 content?: never;
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     totp_verify: {
@@ -5700,6 +6020,7 @@ export interface operations {
                 part_id?: components["schemas"]["PartId"];
                 max_bitrate?: number;
                 audio_stream_index?: number;
+                audio_offset_ms?: number;
                 subtitle_stream_index?: number;
             };
             header?: never;
@@ -5913,6 +6234,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description DVR library is managed automatically */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     update_library: {
@@ -5939,6 +6267,13 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DVR library paths are managed automatically */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5977,6 +6312,44 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_photos: {
+        parameters: {
+            query?: {
+                year?: number;
+                month?: number;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Paginated_PhotoSummary"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6306,8 +6679,81 @@ export interface operations {
                     "application/json": components["schemas"]["Recording"];
                 };
             };
+            /** @description Age-limited profiles require an EPG programme */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Programme or DVR library unavailable to this profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Tuner conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired recording window */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRecordingRequest"];
+            };
+        };
+        responses: {
+            /** @description Read-only canonical recording plan and current resource snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingPlan"];
+                };
+            };
+            /** @description Retry is not owned or programme is not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Source or recording is unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recording cannot be retried */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid recording window */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6366,6 +6812,114 @@ export interface operations {
                     "application/json": components["schemas"]["SuccessResponse"];
                 };
             };
+            /** @description Only the owner or an administrator may delete a shared recording */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recording not found or inaccessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_recording_recovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingRecoveryPlan"];
+                };
+            };
+            /** @description Owner or administrator required; current owner profile must allow the archive */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    recover_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Owner or administrator required; current owner profile must allow the archive */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Saved media cannot be recovered */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recovery storage unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     list_recording_rules: {
@@ -6416,6 +6970,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RecordingRule"];
                 };
+            };
+            /** @description Channel or recording library inaccessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid recording or retention policy */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -6474,7 +7042,10 @@ export interface operations {
     };
     resolve_live_stream: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Renew an existing live lease */
+                sessionId?: string;
+            };
             header?: never;
             path: {
                 /** @description Channel ID */
@@ -6484,7 +7055,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Resolved live stream with deinterlacing flags */
+            /** @description Ready server-owned live HLS relay with a 45-second renewable lease */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6493,7 +7064,14 @@ export interface operations {
                     "application/json": components["schemas"]["LiveStreamInfo"];
                 };
             };
-            /** @description Channel not found */
+            /** @description Current programme is unavailable to this profile */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Channel or lease not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6507,11 +7085,21 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Encoder capacity, source or live HLS startup unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     release_live_stream: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Owned live lease ID */
+                sessionId: string;
+            };
             header?: never;
             path: {
                 /** @description Channel ID */
@@ -6617,6 +7205,13 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6910,6 +7505,37 @@ export interface operations {
             };
             /** @description Session not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    join_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7415,6 +8041,46 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Playback capacity unavailable, startup failed, or server shutting down */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    diagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackDiagnostics"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     progress: {
@@ -7535,6 +8201,27 @@ export interface operations {
             };
         };
     };
+    unregister_player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Target player ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Player unregistered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     send_player_command: {
         parameters: {
             query?: never;
@@ -7560,6 +8247,45 @@ export interface operations {
             };
             /** @description Player not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Player command connection unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    connect_player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Player command WebSocket */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8373,6 +9099,48 @@ export interface operations {
             };
         };
     };
+    live_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session: string;
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Live HLS playlist or fMP4 media */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Owner login expired or revoked */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Programme no longer allowed for this profile */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Expired lease or unavailable media */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     subtitle: {
         parameters: {
             query?: {
@@ -8453,6 +9221,15 @@ export interface operations {
                     "application/json": components["schemas"]["TrickplayManifest"];
                 };
             };
+            /** @description Previews queued for idle generation; retry later */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrickplayPending"];
+                };
+            };
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -8460,6 +9237,13 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Preview generation failed */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -82,6 +82,9 @@ pub struct CreateTunerRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Channel {
+    /// Whether the current programme can be played by this caller.
+    #[serde(rename = "canPlay", default)]
+    pub can_play: bool,
     pub id: ChannelId,
     #[serde(rename = "tunerId", skip_serializing_if = "Option::is_none")]
     pub tuner_id: Option<TunerId>,
@@ -221,6 +224,7 @@ pub enum RecordingStatus {
     Scheduled,
     Recording,
     Completed,
+    Partial,
     Failed,
     Cancelled,
 }
@@ -231,6 +235,7 @@ impl RecordingStatus {
             Self::Scheduled => "scheduled",
             Self::Recording => "recording",
             Self::Completed => "completed",
+            Self::Partial => "partial",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
         }
@@ -241,6 +246,7 @@ impl RecordingStatus {
             "scheduled" => Some(Self::Scheduled),
             "recording" => Some(Self::Recording),
             "completed" => Some(Self::Completed),
+            "partial" => Some(Self::Partial),
             "failed" => Some(Self::Failed),
             "cancelled" => Some(Self::Cancelled),
             _ => None,
@@ -251,10 +257,16 @@ impl RecordingStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Recording {
     pub id: RecordingId,
+    /// Ordinary library item, available only after the recorded file has been probed.
+    #[serde(rename = "itemId", skip_serializing_if = "Option::is_none")]
+    pub item_id: Option<crate::ItemId>,
     #[serde(rename = "ruleId", skip_serializing_if = "Option::is_none")]
     pub rule_id: Option<RecordingRuleId>,
     #[serde(rename = "channelId")]
-    pub channel_id: ChannelId,
+    pub channel_id: Option<ChannelId>,
+    /// Whether this caller may cancel/delete the recording.
+    #[serde(rename = "canDelete", default)]
+    pub can_delete: bool,
     #[serde(rename = "channelName", skip_serializing_if = "Option::is_none")]
     pub channel_name: Option<String>,
     #[serde(rename = "programId", skip_serializing_if = "Option::is_none")]
@@ -279,6 +291,9 @@ pub struct Recording {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ScheduleRecordingRequest {
+    /// Retry this owned failed/partial recording, preserving its owner and surviving series rule.
+    #[serde(rename = "retryOf", default)]
+    pub retry_of: Option<RecordingId>,
     #[serde(rename = "channelId")]
     pub channel_id: ChannelId,
     #[serde(rename = "programId", default)]
@@ -294,8 +309,70 @@ pub struct ScheduleRecordingRequest {
     pub end_padding_secs: Option<u32>,
 }
 
+/// Read-only file and storage check; recoverable bytes are not yet proof of playable media.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingRecoveryPlan {
+    pub recording_id: RecordingId,
+    pub title: String,
+    pub size_bytes: u64,
+    pub existing_item_id: Option<crate::ItemId>,
+    pub can_recover: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DvrStoragePolicy {
+    pub min_free_bytes: u64,
+    pub max_recording_bytes: Option<u64>,
+}
+impl Default for DvrStoragePolicy {
+    fn default() -> Self {
+        Self { min_free_bytes: 512 * 1024 * 1024, max_recording_bytes: None }
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DvrStorageStatus {
+    pub available_bytes: Option<u64>,
+    pub min_free_bytes: u64,
+    pub max_recording_bytes: Option<u64>,
+    pub can_start: bool,
+    pub error: Option<String>,
+}
+/// Read-only normalization and admission snapshot; it does not reserve a tuner or create a library.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingPlan {
+    pub owner_id: UserId,
+    pub library_id: Option<crate::LibraryId>,
+    pub rule_id: Option<RecordingRuleId>,
+    pub retry_of: Option<RecordingId>,
+    pub channel_id: ChannelId,
+    pub program_id: Option<ProgramId>,
+    pub title: String,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub program_start_time: i64,
+    pub program_end_time: i64,
+    pub start_padding_secs: u32,
+    pub end_padding_secs: u32,
+    pub keep_max: Option<u32>,
+    pub auto_delete_watched: bool,
+    pub existing_recording_id: Option<RecordingId>,
+    pub conflict: Option<String>,
+    pub storage: DvrStorageStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct LiveStreamInfo {
+    /// Hard programme boundary for an age-limited profile; select a channel again afterwards.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_ends_at: Option<i64>,
+    pub session_id: String,
+    pub expires_at: i64,
     #[serde(rename = "channelId")]
     pub channel_id: ChannelId,
     #[serde(rename = "channelName")]

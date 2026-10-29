@@ -11,9 +11,10 @@ export function Search() {
   const [loading, setLoading] = createSignal(false);
   const [hasSearched, setHasSearched] = createSignal(false);
 
+  let searchVersion = 0;
   let debounceTimer: number | null = null;
 
-  const performSearch = async (searchTerm: string) => {
+  const performSearch = async (searchTerm: string, version: number) => {
     const q = searchTerm.trim();
     if (!q) {
       setResults([]);
@@ -28,29 +29,32 @@ export function Search() {
       const { data } = await client.GET("/api/v1/search", {
         params: { query: { q } },
       });
-      if (data) setResults(data);
+      if (version === searchVersion) setResults(data ?? []);
     } catch {
-      // Ignore
+      if (version === searchVersion) setResults([]);
     } finally {
-      setLoading(false);
+      if (version === searchVersion) setLoading(false);
     }
   };
 
   createEffect(() => {
     const q = query();
+    const version = ++searchVersion;
     if (debounceTimer) clearTimeout(debounceTimer);
     if (!q.trim()) {
       setResults([]);
       setHasSearched(false);
+      setLoading(false);
       return;
     }
 
     debounceTimer = window.setTimeout(() => {
-      performSearch(q);
+      performSearch(q, version);
     }, 300);
   });
 
   onCleanup(() => {
+    searchVersion++;
     if (debounceTimer) clearTimeout(debounceTimer);
   });
 

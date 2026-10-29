@@ -1,7 +1,9 @@
 //! Playback session creation (`decide` -> DirectPlay / HLS), progress reporting, and stop handling.
 
 use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
+use tokio::io::AsyncReadExt;
 
 use camino::Utf8PathBuf;
 use mbl_core::time::now_ms;
@@ -68,6 +70,17 @@ pub struct PlaybackRequest {
     pub audio_stream_index: Option<u32>,
     pub subtitle_stream_index: Option<u32>,
     pub start_ms: Option<u64>,
+    /// Positive delays audio; negative advances audio (−10000..10000 ms).
+    /// Encodes audio; ignored for media with no audio stream.
+    #[serde(default)]
+    pub audio_offset_ms: i64,
+    /// Wait for readable source / first complete HLS media before acknowledging startup.
+    /// Opt-in for existing API clients; enabled by the web player for atomic stream changes.
+    #[serde(default)]
+    pub wait_for_ready: bool,
+    /// Set by the trusted HTTP adapter, never accepted from a request body.
+    #[serde(skip)]
+    pub network: Option<Network>,
 }
 
 /// Subtitle track descriptor returned in [`PlaybackResponse`].
@@ -84,6 +97,31 @@ pub struct PlaybackSubtitleTrack {
     pub url: String,
 }
 
+/// Audio streams available in the selected media version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackAudioTrack {
+    pub index: u32,
+    pub codec: String,
+    pub language: Option<String>,
+    pub title: Option<String>,
+    pub channels: Option<u8>,
+    pub is_default: bool,
+}
+
+/// Selectable subtitles, including image tracks requiring a new encoded video stream.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackSubtitleOption {
+    pub index: u32,
+    pub codec: String,
+    pub language: Option<String>,
+    pub title: Option<String>,
+    pub is_default: bool,
+    pub is_forced: bool,
+    pub requires_transcode: bool,
+}
+
 /// Timeline marker (intro, credits, chapter) returned in [`PlaybackResponse`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +136,16 @@ pub struct PlaybackMarker {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackResponse {
+    /// Whether the negotiated source has a real video stream (cover art does not count).
+    pub has_video: bool,
+    pub audio_tracks: Vec<PlaybackAudioTrack>,
+    pub audio_stream_index: Option<u32>,
+    pub subtitle_options: Vec<PlaybackSubtitleOption>,
+    pub burned_subtitle_stream_index: Option<u32>,
+    pub audio_offset_ms: i64,
+    pub item_id: ItemId,
+    pub part_id: PartId,
+    pub content_type: String,
     pub session_id: String,
     pub method: PlayMethod,
     pub reasons: Vec<String>,
@@ -112,6 +160,7 @@ pub struct PlaybackResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackPreview {
+    pub audio_offset_ms: i64,
     pub item_id: ItemId,
     pub part_id: PartId,
     pub method: PlayMethod,
@@ -153,6 +202,12 @@ pub struct PlaybackStopRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivePlaybackSession {
+    #[serde(skip)]
+    record_history: bool,
+    pub audio_stream_index: Option<u32>,
+    pub burned_subtitle_stream_index: Option<u32>,
+    pub audio_offset_ms: i64,
+    pub title: String,
     pub session_id: String,
     pub user_id: UserId,
     pub item_id: ItemId,
@@ -167,6 +222,25 @@ pub struct ActivePlaybackSession {
     pub last_updated_at: i64,
     pub is_hls: bool,
     pub marked_watched: bool,
+    pub network: Network,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeDiagnostics {
+    pub backend: String,
+    pub process_running: bool,
+    pub throttled: bool,
+    pub restarts: u32,
+    pub last_exit_failed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackDiagnostics {
+    #[serde(flatten)]
+    pub session: ActivePlaybackSession,
+    pub transcode: Option<TranscodeDiagnostics>,
 }
 
 #[derive(Debug, Clone)]
@@ -179,10 +253,23 @@ pub struct PlaybackService {
     hw: Option<crate::hw::HwService>,
     thermal_root: Option<std::path::PathBuf>,
     sessions: Arc<RwLock<HashMap<String, ActivePlaybackSession>>>,
+    media_lifecycle: Arc<tokio::sync::RwLock<()>>,
+    starting: Arc<AtomicUsize>,
+    closing: Arc<AtomicBool>,
+    bandwidth: Arc<mbl_remote::BandwidthManager>,
+    public_url: Option<String>,
 }
 
 impl ActivityProbe for PlaybackService {
     fn playback_active(&self) -> bool {
+        if self.starting.load(Ordering::Acquire) > 0
+            || self
+                .stream
+                .hls_manager()
+                .is_some_and(|m| m.active_count() > 0 || m.active_video_transcode_count() > 0)
+        {
+            return true;
+        }
         let now = now_ms();
         let Ok(map) = self.sessions.read() else {
             return false;
@@ -191,10 +278,11 @@ impl ActivityProbe for PlaybackService {
     }
 
     fn thermal_throttled(&self) -> bool {
-        let Some(root) = &self.thermal_root else {
-            return false;
-        };
-        mbl_platform::thermal::read_thermal_status_from_root(root).should_pause_idle_jobs()
+        match &self.thermal_root {
+            Some(root) => mbl_platform::thermal::read_thermal_status_from_root(root),
+            None => mbl_platform::thermal::read_thermal_status(),
+        }
+        .should_pause_idle_jobs()
     }
 }
 
@@ -209,7 +297,23 @@ impl PlaybackService {
             hw: None,
             thermal_root: None,
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            media_lifecycle: Arc::default(),
+            starting: Arc::default(),
+            closing: Arc::default(),
+            bandwidth: Arc::new(mbl_remote::BandwidthManager::default()),
+            public_url: None,
         }
+    }
+
+    pub fn with_remote_policy(
+        mut self,
+        bandwidth: Arc<mbl_remote::BandwidthManager>,
+        public_url: &str,
+    ) -> Self {
+        self.bandwidth = bandwidth;
+        self.public_url =
+            (!public_url.trim().is_empty()).then(|| public_url.trim_end_matches('/').to_owned());
+        self
     }
 
     pub fn with_stream(mut self, stream: StreamService) -> Self {
@@ -243,9 +347,17 @@ impl PlaybackService {
             hw = hw_sum;
         }
 
+        let network = req.network.unwrap_or_default();
+        let max_bitrate = if network == Network::Wan {
+            let recommended =
+                self.bandwidth.calculate_wan_fair_share(None).saturating_mul(1000).min(8_000_000);
+            Some(req.max_bitrate.map_or(recommended, |n| n.min(recommended)))
+        } else {
+            req.max_bitrate
+        };
         DecisionContext {
-            max_bitrate: req.max_bitrate,
-            network: Network::Lan,
+            max_bitrate,
+            network,
             can_transcode_video,
             hw,
             audio_index: req.audio_stream_index,
@@ -264,6 +376,9 @@ impl PlaybackService {
     ) -> Result<(media::StreamPart, MediaInfo, Decision)> {
         if let Some(pid) = req.part_id {
             let part = media::part_for_stream(&self.db, pid).await?.ok_or(Error::NotFound)?;
+            if part.item_id != req.item_id {
+                return Err(Error::NotFound);
+            }
             let info = self.load_media_info(&part).await?;
             let dec = decide(&info, profile, ctx);
             return Ok((part, info, dec));
@@ -301,7 +416,7 @@ impl PlaybackService {
             None => DeviceProfile::builtin("chrome")?,
         };
         let ctx = self.build_decision_context(&req).await;
-        let (part, media_info, decision) = self.select_best_part(&req, &profile, &ctx).await?;
+        let (part, media_info, mut decision) = self.select_best_part(&req, &profile, &ctx).await?;
 
         if !actor.can_access_library(part.library_id) {
             return Err(Error::NotFound);
@@ -313,14 +428,21 @@ impl PlaybackService {
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let _ = verify_under_library_roots(&part.path, &lib.paths)?;
 
+        validate_stream_selection(&req, &media_info)?;
+        let audio_offset_ms =
+            apply_audio_offset(&mut decision, &profile, &media_info, req.audio_offset_ms)?;
         let duration_ms = if media_info.duration_ms > 0 {
             media_info.duration_ms
         } else {
             part.duration_ms.and_then(|d| u64::try_from(d).ok()).unwrap_or(0)
         };
-        let reasons: Vec<String> = decision.reasons.iter().map(Reason::message).collect();
+        let mut reasons: Vec<String> = decision.reasons.iter().map(Reason::message).collect();
+        if audio_offset_ms != 0 {
+            reasons.push(format!("Audio synchronization: {} ms (audio encoded)", audio_offset_ms));
+        }
 
         Ok(PlaybackPreview {
+            audio_offset_ms,
             item_id: part.item_id,
             part_id: part.id,
             method: decision.method,
@@ -336,12 +458,18 @@ impl PlaybackService {
     /// Start a playback session: run the pure decision engine, create an HLS session when remuxing
     /// or transcoding, and return the stream URL, subtitle tracks, start offset, and markers.
     pub async fn start(&self, actor: &Actor, req: PlaybackRequest) -> Result<PlaybackResponse> {
+        // A retention pass cannot unlink a source halfway through registering a start.
+        let _media_guard = self.media_lifecycle.read().await;
+        if self.closing.load(Ordering::Acquire) {
+            return Err(Error::Unavailable("playback server is shutting down".into()));
+        }
+        let item = crate::ItemService::new(self.db.clone()).get(actor, req.item_id).await?;
         let profile = match &req.profile {
             Some(input) => input.resolve()?,
             None => DeviceProfile::builtin("chrome")?,
         };
         let ctx = self.build_decision_context(&req).await;
-        let (part, media_info, decision) = self.select_best_part(&req, &profile, &ctx).await?;
+        let (part, media_info, mut decision) = self.select_best_part(&req, &profile, &ctx).await?;
 
         if !actor.can_access_library(part.library_id) {
             return Err(Error::NotFound);
@@ -353,6 +481,9 @@ impl PlaybackService {
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let verified_path = verify_under_library_roots(&part.path, &lib.paths)?;
 
+        validate_stream_selection(&req, &media_info)?;
+        let audio_offset_ms =
+            apply_audio_offset(&mut decision, &profile, &media_info, req.audio_offset_ms)?;
         let duration_ms = if media_info.duration_ms > 0 {
             media_info.duration_ms
         } else {
@@ -371,8 +502,17 @@ impl PlaybackService {
         let subtitles = build_subtitle_tracks(&media_info, &profile, part.id, &stream_token);
         let markers = self.load_markers(part.item_id, part.id, &media_info).await;
 
+        let _starting = PlaybackStarting::new(self.starting.clone());
         let (session_id, url, is_hls) = match decision.method {
             PlayMethod::DirectPlay => {
+                if req.wait_for_ready {
+                    let mut file = tokio::fs::File::open(&verified_path).await.map_err(|_| {
+                        Error::Unavailable("media source could not be opened".into())
+                    })?;
+                    if file.read(&mut [0u8; 1]).await.map_err(Error::internal)? == 0 {
+                        return Err(Error::Unavailable("media source is empty".into()));
+                    }
+                }
                 let sid = generate_session_id()?;
                 let url = format!("/api/v1/stream/direct/{}?token={stream_token}", part.id.0);
                 (sid, url, false)
@@ -388,6 +528,9 @@ impl PlaybackService {
                         &ctx,
                         start_ms,
                         duration_ms,
+                        audio_offset_ms,
+                        &lib.paths,
+                        req.wait_for_ready,
                     )
                     .await?;
                 let url = format!("/api/v1/stream/hls/{sid}/master.m3u8");
@@ -395,9 +538,56 @@ impl PlaybackService {
             }
         };
 
-        let reasons: Vec<String> = decision.reasons.iter().map(Reason::message).collect();
+        if self.closing.load(Ordering::Acquire) {
+            if is_hls && let Some(manager) = self.stream.hls_manager() {
+                manager.stop_session(&session_id).await;
+            }
+            return Err(Error::Unavailable("playback server is shutting down".into()));
+        }
+
+        let mut reasons: Vec<String> = decision.reasons.iter().map(Reason::message).collect();
+        if audio_offset_ms != 0 {
+            reasons.push(format!("Audio synchronization: {} ms (audio encoded)", audio_offset_ms));
+        }
+        let audio_stream_index = req.audio_stream_index.or_else(|| {
+            media_info
+                .streams_of(StreamKind::Audio)
+                .find(|s| s.default)
+                .or_else(|| media_info.streams_of(StreamKind::Audio).next())
+                .map(|s| s.index)
+        });
+        let burned_subtitle_stream_index =
+            if decision.subtitle == SubtitleDelivery::BurnIn { ctx.subtitle_index } else { None };
+        let audio_tracks = media_info
+            .streams_of(StreamKind::Audio)
+            .map(|s| PlaybackAudioTrack {
+                index: s.index,
+                codec: s.codec.clone(),
+                language: s.language.clone(),
+                title: s.title.clone(),
+                channels: s.channels,
+                is_default: s.default,
+            })
+            .collect();
+        let subtitle_options = media_info
+            .streams_of(StreamKind::Subtitle)
+            .map(|s| PlaybackSubtitleOption {
+                index: s.index,
+                codec: s.codec.clone(),
+                language: s.language.clone(),
+                title: s.title.clone(),
+                is_default: s.default,
+                is_forced: s.forced,
+                requires_transcode: subtitle_requires_transcode(&s.codec, &profile),
+            })
+            .collect();
         let now = now_ms();
         let active = ActivePlaybackSession {
+            record_history: !req.wait_for_ready,
+            audio_stream_index,
+            burned_subtitle_stream_index,
+            audio_offset_ms,
+            title: item.title.clone(),
             session_id: session_id.clone(),
             user_id: actor.user_id,
             item_id: part.item_id,
@@ -407,22 +597,78 @@ impl PlaybackService {
             profile_name: profile.name.clone(),
             position_ms: start_ms,
             duration_ms,
-            state: PlaybackState::Playing,
+            state: if req.wait_for_ready {
+                PlaybackState::Buffering
+            } else {
+                PlaybackState::Playing
+            },
             started_at: now,
             last_updated_at: now,
             is_hls,
             marked_watched: false,
+            network: ctx.network,
         };
 
-        if let Ok(mut map) = self.sessions.write() {
-            map.insert(session_id.clone(), active);
+        let accepted = if let Ok(mut map) = self.sessions.write() {
+            if self.closing.load(Ordering::Acquire) {
+                false
+            } else {
+                if ctx.network == Network::Wan {
+                    self.bandwidth.register_session(&session_id);
+                }
+                map.insert(session_id.clone(), active);
+                true
+            }
+        } else {
+            false
+        };
+        if !accepted {
+            if is_hls && let Some(manager) = self.stream.hls_manager() {
+                manager.stop_session(&session_id).await;
+            }
+            return Err(Error::Unavailable("playback server is shutting down".into()));
         }
-
+        let receiver_url = |path: String| -> String {
+            if profile.name == "chromecast"
+                && let Some(base) = &self.public_url
+            {
+                format!("{base}{path}")
+            } else {
+                path
+            }
+        };
+        let content_type = if is_hls {
+            "application/vnd.apple.mpegurl"
+        } else if media_info.primary_video().is_some() {
+            "video/mp4"
+        } else if media_info.container.split(',').any(|n| n == "mp3") {
+            "audio/mpeg"
+        } else if media_info.container == "aac" {
+            "audio/aac"
+        } else {
+            "audio/mp4"
+        };
+        let subtitles = subtitles
+            .into_iter()
+            .map(|mut subtitle| {
+                subtitle.url = receiver_url(subtitle.url);
+                subtitle
+            })
+            .collect();
         Ok(PlaybackResponse {
+            has_video: media_info.primary_video().is_some(),
+            audio_tracks,
+            audio_stream_index,
+            subtitle_options,
+            burned_subtitle_stream_index,
+            audio_offset_ms,
+            item_id: part.item_id,
+            part_id: part.id,
+            content_type: content_type.into(),
             session_id,
             method: decision.method,
             reasons,
-            url,
+            url: receiver_url(url),
             subtitles,
             start_ms,
             markers,
@@ -437,7 +683,17 @@ impl PlaybackService {
         session_id: &str,
         req: PlaybackProgressRequest,
     ) -> Result<()> {
-        let (item_id, duration_ms, already_watched) = {
+        let _media_guard = self.media_lifecycle.read().await;
+        // Check ownership before renewing the HLS lease. Diagnostics and foreign heartbeats
+        // must never keep another user's stream alive or revive an evicted session.
+        let existing = self.get_session(actor, session_id).ok_or(Error::NotFound)?;
+        if existing.user_id != actor.user_id {
+            return Err(Error::NotFound);
+        }
+        if existing.is_hls {
+            self.stream.hls_session(session_id)?.renew_activity().await?;
+        }
+        let (item_id, duration_ms, already_watched, record_progress) = {
             let mut map = self
                 .sessions
                 .write()
@@ -446,12 +702,17 @@ impl PlaybackService {
             if session.user_id != actor.user_id {
                 return Err(Error::NotFound);
             }
+            session.record_history |= req.state != PlaybackState::Buffering;
             session.position_ms = req.position_ms;
             session.state = req.state;
             session.last_updated_at = now_ms();
-            (session.item_id, session.duration_ms, session.marked_watched)
+            (session.item_id, session.duration_ms, session.marked_watched, session.record_history)
         };
 
+        self.bandwidth.record_feedback(session_id, None, None);
+        if !record_progress {
+            return Ok(());
+        }
         let newly_watched = self
             .watch
             .record_progress(actor, item_id, req.position_ms, duration_ms, !already_watched)
@@ -475,6 +736,7 @@ impl PlaybackService {
         session_id: &str,
         req: PlaybackStopRequest,
     ) -> Result<()> {
+        let _media_guard = self.media_lifecycle.read().await;
         let session = {
             let mut map = self
                 .sessions
@@ -487,22 +749,40 @@ impl PlaybackService {
             map.remove(session_id).ok_or(Error::NotFound)?
         };
 
-        let final_pos = req.position_ms.unwrap_or(session.position_ms);
-        let _ = self
-            .watch
-            .record_progress(
-                actor,
-                session.item_id,
-                final_pos,
-                session.duration_ms,
-                !session.marked_watched,
-            )
-            .await;
+        self.finish_session(actor, session, req.position_ms, true).await
+    }
 
+    async fn finish_session(
+        &self,
+        actor: &Actor,
+        session: ActivePlaybackSession,
+        position_ms: Option<u64>,
+        record_final_progress: bool,
+    ) -> Result<()> {
+        let session_id = &session.session_id;
+        self.bandwidth.unregister_session(session_id);
         if session.is_hls
             && let Some(hls_mgr) = self.stream.hls_manager()
         {
             hls_mgr.stop_session(session_id).await;
+        }
+        if !session.record_history {
+            return Ok(());
+        }
+        let final_pos = position_ms.unwrap_or(session.position_ms);
+        // Expiry/shutdown use the last persisted heartbeat. Replaying it could overwrite
+        // newer progress from a replacement session for the same title.
+        if record_final_progress {
+            let _ = self
+                .watch
+                .record_progress(
+                    actor,
+                    session.item_id,
+                    final_pos,
+                    session.duration_ms,
+                    !session.marked_watched,
+                )
+                .await;
         }
 
         let method_str = match session.method {
@@ -519,12 +799,93 @@ impl PlaybackService {
                 stopped_at: now_ms(),
                 method: method_str,
                 client: Some(&session.profile_name),
-                network: "lan",
+                network: if session.network == Network::Wan {
+                    "wan"
+                } else if session.network.is_remote() {
+                    "tailnet"
+                } else {
+                    "lan"
+                },
             },
         )
         .await?;
 
         Ok(())
+    }
+
+    /// Reap HLS leases and matching playback metadata, including abandoned direct sessions.
+    pub async fn maintain_sessions(&self) {
+        let manager = self.stream.hls_manager();
+        if let Some(manager) = manager {
+            manager.run_maintenance_once().await;
+        }
+        let _media_guard = self.media_lifecycle.read().await;
+        let timeout = manager
+            .map_or(mbl_transcode::DEFAULT_INACTIVITY_TIMEOUT, |m| m.config().inactivity_timeout);
+        let timeout_ms = i64::try_from(timeout.as_millis()).unwrap_or(i64::MAX);
+        let now = now_ms();
+        // Decide and remove under one lock, so a renewed direct lease cannot be reaped
+        // using an older snapshot. HLS expiry is decided atomically by its own manager.
+        let expired = if let Ok(mut map) = self.sessions.write() {
+            let ids: Vec<_> = map
+                .values()
+                .filter(|session| {
+                    if session.is_hls {
+                        manager.is_none_or(|m| m.get_session(&session.session_id).is_none())
+                    } else {
+                        now.saturating_sub(session.last_updated_at) >= timeout_ms
+                    }
+                })
+                .map(|s| s.session_id.clone())
+                .collect();
+            ids.into_iter().filter_map(|id| map.remove(&id)).collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        for session in expired {
+            let actor = Actor::admin(session.user_id);
+            if let Err(error) = self.finish_session(&actor, session, None, false).await {
+                tracing::warn!(%error, "failed to finalize expired playback session");
+            }
+        }
+    }
+
+    /// Retention must preserve files used by any active or paused playback session.
+    pub fn active_item_ids(&self) -> Result<Vec<ItemId>> {
+        let sessions = self
+            .sessions
+            .read()
+            .map_err(|_| Error::Unavailable("playback state lock poisoned".into()))?;
+        Ok(sessions.values().map(|session| session.item_id).collect())
+    }
+
+    pub async fn maintain_dvr(&self, livetv: &crate::LiveTvService) -> Result<()> {
+        // Guide matching can be slow; only file retention blocks new playback admission.
+        livetv.refresh_recording_rules().await?;
+        let _media_guard = self.media_lifecycle.write().await;
+        livetv.apply_recording_retention(&self.active_item_ids()?).await
+    }
+
+    /// Reject new starts and tear down children before the server closes its database.
+    pub async fn shutdown(&self) {
+        self.closing.store(true, Ordering::Release);
+        if let Some(manager) = self.stream.hls_manager() {
+            manager.close().await;
+        }
+        // Close HLS first: a queued retention writer may be waiting for a stalled
+        // start's read guard, and closing its child is what releases that start.
+        let _media_guard = self.media_lifecycle.read().await;
+        let sessions = self
+            .sessions
+            .write()
+            .map(|mut m| m.drain().map(|(_, s)| s).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for session in sessions {
+            let actor = Actor::admin(session.user_id);
+            if let Err(error) = self.finish_session(&actor, session, None, false).await {
+                tracing::warn!(%error, "failed to finalize playback during shutdown");
+            }
+        }
     }
 
     /// List active playback sessions visible to `actor` (admins see all, users see their own).
@@ -536,6 +897,24 @@ impl PlaybackService {
     }
 
     /// Get an active playback session by ID visible to `actor`.
+    pub async fn diagnostics(&self, actor: &Actor, id: &str) -> Result<PlaybackDiagnostics> {
+        let session = self.get_session(actor, id).ok_or(Error::NotFound)?;
+        let hls = self.stream.hls_manager().and_then(|manager| manager.get_session(id));
+        let transcode = if let Some(hls) = hls {
+            let runtime = hls.runtime_status().await;
+            Some(TranscodeDiagnostics {
+                backend: runtime.backend.as_str().into(),
+                process_running: runtime.process_running,
+                throttled: runtime.throttled,
+                restarts: runtime.restarts,
+                last_exit_failed: runtime.last_exit_failed,
+            })
+        } else {
+            None
+        };
+        Ok(PlaybackDiagnostics { session, transcode })
+    }
+
     pub fn get_session(&self, actor: &Actor, session_id: &str) -> Option<ActivePlaybackSession> {
         let Ok(map) = self.sessions.read() else {
             return None;
@@ -721,9 +1100,12 @@ impl PlaybackService {
         ctx: &DecisionContext,
         start_ms: u64,
         duration_ms: u64,
+        audio_offset_ms: i64,
+        library_roots: &[String],
+        wait_for_ready: bool,
     ) -> Result<String> {
         let Some(hls_mgr) = self.stream.hls_manager() else {
-            return generate_session_id();
+            return Err(Error::Unavailable("HLS session manager is unavailable".into()));
         };
 
         let video_stream = media_info.primary_video();
@@ -748,6 +1130,11 @@ impl PlaybackService {
         let needs_tonemap = decision.reasons.contains(&Reason::HdrUnsupported) && can_tonemap;
 
         let video_op = match &decision.video {
+            StreamAction::Copy
+                if video_stream.is_some_and(|v| v.codec.eq_ignore_ascii_case("hevc")) =>
+            {
+                VideoOp::CopyHevc
+            }
             StreamAction::Copy => VideoOp::Copy,
             StreamAction::Transcode { codec, bitrate, width } => VideoOp::Encode {
                 codec: codec.parse::<VideoCodec>().unwrap_or(VideoCodec::H264),
@@ -760,7 +1147,12 @@ impl PlaybackService {
         };
 
         let audio_index = audio_stream.map_or(1, |a| a.index);
-        let audio_op = match &decision.audio {
+        let mut audio_op = match &decision.audio {
+            StreamAction::Copy
+                if audio_stream.is_some_and(|a| a.codec.eq_ignore_ascii_case("aac")) =>
+            {
+                AudioOp::CopyAac { index: audio_index }
+            }
             StreamAction::Copy => AudioOp::Copy { index: audio_index },
             StreamAction::Transcode { codec, bitrate, .. } => AudioOp::Encode {
                 index: audio_index,
@@ -768,8 +1160,20 @@ impl PlaybackService {
                 channels: audio_stream.and_then(|a| a.channels).unwrap_or(2).min(6),
                 bitrate: *bitrate,
             },
-            StreamAction::Drop => AudioOp::Copy { index: audio_index },
+            StreamAction::Drop => AudioOp::None,
         };
+
+        if audio_offset_ms != 0
+            && let AudioOp::Encode { index, codec, channels, bitrate } = audio_op
+        {
+            audio_op = AudioOp::EncodeShifted {
+                index,
+                codec,
+                channels,
+                bitrate,
+                offset_ms: audio_offset_ms,
+            };
+        }
 
         let subtitle_op = match (&decision.subtitle, ctx.subtitle_index) {
             (SubtitleDelivery::BurnIn, Some(sub_idx)) => {
@@ -781,7 +1185,28 @@ impl PlaybackService {
                 if is_img {
                     SubtitleOp::BurnImage { index: sub_idx }
                 } else {
-                    SubtitleOp::BurnText { index: sub_idx }
+                    let selected = media_info
+                        .streams_of(StreamKind::Subtitle)
+                        .find(|s| s.index == sub_idx)
+                        .ok_or(Error::NotFound)?;
+                    if let Some(path) = &selected.external_path {
+                        let path = verify_under_library_roots(path, library_roots)?;
+                        SubtitleOp::BurnTextFile {
+                            path: Utf8PathBuf::from_path_buf(path).map_err(|_| {
+                                Error::Validation("subtitle path is not UTF-8".into())
+                            })?,
+                        }
+                    } else {
+                        // The subtitles filter counts subtitle streams, unlike FFmpeg's absolute -map indices.
+                        let ordinal = media_info
+                            .streams_of(StreamKind::Subtitle)
+                            .filter(|s| s.external_path.is_none())
+                            .position(|s| s.index == sub_idx)
+                            .ok_or(Error::NotFound)?;
+                        SubtitleOp::BurnText {
+                            index: u32::try_from(ordinal).map_err(Error::internal)?,
+                        }
+                    }
                 }
             }
             _ => SubtitleOp::None,
@@ -789,6 +1214,10 @@ impl PlaybackService {
 
         let max_bitrate = match &decision.video {
             StreamAction::Transcode { bitrate, .. } => *bitrate,
+            StreamAction::Drop => match &decision.audio {
+                StreamAction::Transcode { bitrate, .. } => *bitrate,
+                _ => media_info.bitrate.unwrap_or(192_000),
+            },
             _ => media_info.bitrate.unwrap_or(6_000_000),
         };
         let width = match &decision.video {
@@ -816,10 +1245,11 @@ impl PlaybackService {
             backend: selected_backend,
         };
 
-        let eff_duration = duration_ms.max(6_000);
+        let eff_duration = if duration_ms == 0 { 6_000 } else { duration_ms };
         let video_codec_str = match &decision.video {
             StreamAction::Transcode { codec, .. } => Some(codec.clone()),
-            _ => Some("h264".to_owned()),
+            StreamAction::Copy => video_stream.map(|s| s.codec.clone()),
+            StreamAction::Drop => None,
         };
         let master = render_master_playlist(&[HlsRendition {
             name: "0".to_owned(),
@@ -827,27 +1257,16 @@ impl PlaybackService {
             height,
             bandwidth: max_bitrate,
             video_codec: video_codec_str,
-            audio_codec: Some("aac".to_owned()),
+            audio_codec: audio_stream.map(|_| match &decision.audio {
+                StreamAction::Transcode { codec, .. } => codec.clone(),
+                _ => audio_stream.map_or("aac", |s| s.codec.as_str()).to_owned(),
+            }),
         }]);
         let media_m3u8 = render_media_playlist(eff_duration, DEFAULT_SEGMENT_SECS);
 
-        if !hls_mgr.has_video_transcode_capacity() {
-            let prev_ids: Vec<String> = self
-                .sessions
-                .read()
-                .map(|m| {
-                    m.values()
-                        .filter(|s| s.user_id == user_id && s.is_hls)
-                        .map(|s| s.session_id.clone())
-                        .collect()
-                })
-                .unwrap_or_default();
-            for prev_id in prev_ids {
-                let _ = hls_mgr.stop_session(&prev_id).await;
-            }
-        }
-
-        match hls_mgr
+        // Admission failure must leave existing playback untouched. The client
+        // releases its prior session only after a new session has been accepted.
+        let session = hls_mgr
             .create_session(CreateSessionReq {
                 user_id,
                 part_id,
@@ -857,16 +1276,108 @@ impl PlaybackService {
                 media_playlists: vec![("0".to_owned(), media_m3u8)],
                 fast_start_segments: true,
             })
-            .await
+            .await?;
+        let mut candidate = HlsStartup { session: Some((hls_mgr.clone(), session.clone())) };
+        if wait_for_ready && let Err(error) = session.prepare().await {
+            candidate.abort().await;
+            return Err(error);
+        }
+        candidate.session = None;
+        Ok(session.id.clone())
+    }
+}
+
+/// Counts in-flight starts so idle analysis yields while FFmpeg prepares its first fragment.
+struct PlaybackStarting(Arc<AtomicUsize>);
+impl PlaybackStarting {
+    fn new(count: Arc<AtomicUsize>) -> Self {
+        count.fetch_add(1, Ordering::AcqRel);
+        Self(count)
+    }
+}
+impl Drop for PlaybackStarting {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// A cancelled HTTP future must not leave a candidate child or capacity reservation behind.
+struct HlsStartup {
+    session: Option<(mbl_transcode::SessionManager, Arc<mbl_transcode::HlsSession>)>,
+}
+impl HlsStartup {
+    async fn abort(&mut self) {
+        if let Some((manager, session)) = &self.session
+            && !manager.stop_session(&session.id).await
         {
-            Ok(session) => Ok(session.id.clone()),
-            Err(Error::Unavailable(_)) if !hls_mgr.config().ffmpeg_bin.exists() => {
-                // Allow pure decision-to-URL tests to succeed even when FFmpeg is absent.
-                generate_session_id()
-            }
-            Err(e) => Err(e),
+            session.shutdown().await;
+        }
+        self.session = None;
+    }
+}
+impl Drop for HlsStartup {
+    fn drop(&mut self) {
+        if let Some((manager, session)) = self.session.take()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            runtime.spawn(async move {
+                if !manager.stop_session(&session.id).await {
+                    session.shutdown().await;
+                }
+            });
         }
     }
+}
+
+fn validate_stream_selection(req: &PlaybackRequest, info: &MediaInfo) -> Result<()> {
+    for (index, kind, label) in [
+        (req.audio_stream_index, StreamKind::Audio, "audioStreamIndex"),
+        (req.subtitle_stream_index, StreamKind::Subtitle, "subtitleStreamIndex"),
+    ] {
+        if let Some(index) = index
+            && !info.streams_of(kind).any(|s| s.index == index)
+        {
+            return Err(Error::Validation(format!(
+                "{label} does not identify an available stream"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn subtitle_requires_transcode(codec: &str, profile: &DeviceProfile) -> bool {
+    match profile.subtitle_rule(codec) {
+        Some(rule) => rule.method == SubtitleMethod::Burn,
+        None => !matches!(
+            codec.to_ascii_lowercase().as_str(),
+            "subrip" | "srt" | "ass" | "ssa" | "webvtt" | "vtt" | "mov_text" | "text"
+        ),
+    }
+}
+
+fn apply_audio_offset(
+    decision: &mut Decision,
+    profile: &DeviceProfile,
+    info: &MediaInfo,
+    offset: i64,
+) -> Result<i64> {
+    if !(-10_000..=10_000).contains(&offset) {
+        return Err(Error::Validation("audioOffsetMs must be within -10000..10000".into()));
+    }
+    if offset == 0 || info.streams_of(StreamKind::Audio).next().is_none() {
+        return Ok(0);
+    }
+    let codec = profile
+        .transcode_target
+        .audio_codecs
+        .iter()
+        .find_map(|name| name.parse::<AudioCodec>().ok())
+        .ok_or_else(|| Error::Validation("profile has no supported audio encoder".into()))?;
+    decision.audio =
+        StreamAction::Transcode { codec: codec.as_str().into(), bitrate: 192_000, width: None };
+    decision.method = PlayMethod::Transcode;
+    decision.container = profile.transcode_target.container.clone();
+    Ok(offset)
 }
 
 fn segment_index_for_ms(start_ms: u64, segment_secs: u32) -> u32 {
@@ -893,18 +1404,20 @@ fn build_subtitle_tracks(
     part_id: PartId,
     stream_token: &str,
 ) -> Vec<PlaybackSubtitleTrack> {
-    let supports_external_ass = profile.subtitles.iter().any(|r| {
-        r.method == SubtitleMethod::External
-            && matches!(r.format.to_ascii_lowercase().as_str(), "ass" | "ssa")
-    });
-
     media_info
         .streams
         .iter()
-        .filter(|s| s.kind == StreamKind::Subtitle && !is_image_subtitle(&s.codec))
+        .filter(|s| {
+            s.kind == StreamKind::Subtitle
+                && !is_image_subtitle(&s.codec)
+                && !subtitle_requires_transcode(&s.codec, profile)
+        })
         .map(|s| {
-            let is_ass = matches!(s.codec.to_ascii_lowercase().as_str(), "ass" | "ssa");
-            let format = if is_ass && supports_external_ass { "ass" } else { "vtt" };
+            let ass_target = profile
+                .subtitle_rule(&s.codec)
+                .and_then(|r| r.target_format.as_deref())
+                .is_some_and(|f| f.eq_ignore_ascii_case("ass") || f.eq_ignore_ascii_case("ssa"));
+            let format = if ass_target { "ass" } else { "vtt" };
             PlaybackSubtitleTrack {
                 index: s.index,
                 codec: s.codec.clone(),

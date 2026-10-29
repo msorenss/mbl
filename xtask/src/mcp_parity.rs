@@ -87,6 +87,7 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
                 mcp_tool_names.contains("preview_playback")
                     || mcp_tool_names.contains("list_sessions")
             }
+            "/api/v1/playback/{session}/diagnostics" => mcp_tool_names.contains("explain_session"),
             "/api/v1/playback/{session}/progress" => mcp_tool_names.contains("explain_session"),
             "/api/v1/playback/{session}/stop" => mcp_tool_names.contains("stop_session"),
             "/api/v1/hw/report" => mcp_tool_names.contains("get_hw_report"),
@@ -164,6 +165,9 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             | "/api/v1/nodes/{id}/stream/handover/{itemId}" => {
                 mcp_tool_names.contains("list_remote_nodes")
             }
+            "/api/v1/livetv/recordings/{id}/recovery" => {
+                mcp_tool_names.contains("recover_recording")
+            }
             "/api/v1/livetv/tuners"
             | "/api/v1/livetv/tuners/discover"
             | "/api/v1/livetv/tuners/{id}"
@@ -176,6 +180,7 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             | "/api/v1/livetv/stream/{channelId}"
             | "/api/v1/livetv/stream/{channelId}/release"
             | "/api/v1/livetv/recordings"
+            | "/api/v1/livetv/recordings/preview"
             | "/api/v1/livetv/recordings/{id}"
             | "/api/v1/livetv/rules"
             | "/api/v1/livetv/rules/{id}"

@@ -190,7 +190,7 @@ async fn m5_4_optimized_version_e2e_direct_plays_on_h264_only_client() {
 
 #[tokio::test]
 async fn m5_5_6_7_8_13_trickplay_markers_quick_connect_and_hailo_intelligence() {
-    let (app, db, _services) = TestApp::new_with_services().await;
+    let (app, db, services) = TestApp::new_with_services().await;
     let admin_session = app.setup_admin().await;
     let s = seed_playback_fixtures(&app, &db, &admin_session).await;
 
@@ -204,6 +204,38 @@ async fn m5_5_6_7_8_13_trickplay_markers_quick_connect_and_hailo_intelligence() 
     .fetch_one(&db.read)
     .await
     .unwrap();
+
+    // Real media is required: a broken source must never generate synthetic previews.
+    let path: String = sqlx::query_scalar("SELECT path FROM media_parts WHERE id=?")
+        .bind(part_id)
+        .fetch_one(&db.read)
+        .await
+        .unwrap();
+    assert!(
+        tokio::process::Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=red:s=64x36:r=1:d=1",
+                "-c:v",
+                "mpeg4"
+            ])
+            .arg(&path)
+            .status()
+            .await
+            .unwrap()
+            .success()
+    );
+    sqlx::query("UPDATE media_parts SET duration_ms=1000 WHERE id=?")
+        .bind(part_id)
+        .execute(&db.write)
+        .await
+        .unwrap();
+    services.intelligence.generate_trickplay_part(mbl_core::PartId(part_id)).await.unwrap();
 
     let tp_index = app
         .call(

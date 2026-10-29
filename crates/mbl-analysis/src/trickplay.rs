@@ -7,12 +7,15 @@ use std::time::Instant;
 use image::{ImageBuffer, Rgb};
 use mbl_core::{Error, PartId, Result};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 pub const DEFAULT_INTERVAL_MS: u64 = 10_000;
 pub const DEFAULT_TILE_WIDTH: u32 = 320;
 pub const DEFAULT_TILE_HEIGHT: u32 = 180;
 pub const DEFAULT_COLUMNS: u32 = 10;
 pub const DEFAULT_ROWS: u32 = 10;
+/// Bound manifest allocation and output for videos up to 48 hours.
+pub const MAX_FRAME_COUNT: u64 = 17_280;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -64,11 +67,11 @@ impl TrickplayManifest {
     }
 }
 
-/// Build FFmpeg arguments for keyframe-only (`-skip_frame nokey`) 10x10 sprite extraction at 320x180 (M5.5).
+/// Sample actual keyframes at 320x180; JPEGs are assembled into sheets after extraction.
 pub fn build_trickplay_ffmpeg_args(input: &Path, out_dir: &Path) -> Vec<OsString> {
     let mut input_arg = OsString::from("file:");
     input_arg.push(input.as_os_str());
-    let out_pattern = out_dir.join("sprite_%03d.jpg");
+    let out_pattern = out_dir.join("frame_%06d.jpg");
 
     vec![
         OsString::from("-hide_banner"),
@@ -76,6 +79,8 @@ pub fn build_trickplay_ffmpeg_args(input: &Path, out_dir: &Path) -> Vec<OsString
         OsString::from("-loglevel"),
         OsString::from("error"),
         OsString::from("-y"),
+        OsString::from("-threads"),
+        OsString::from("1"),
         OsString::from("-skip_frame"),
         OsString::from("nokey"),
         OsString::from("-i"),
@@ -85,10 +90,12 @@ pub fn build_trickplay_ffmpeg_args(input: &Path, out_dir: &Path) -> Vec<OsString
         OsString::from("-dn"),
         OsString::from("-vf"),
         OsString::from(
-            "fps=1/10,scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2,tile=10x10",
+            "tpad=stop_mode=clone:stop_duration=10,fps=1/10:start_time=0:round=up,scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2",
         ),
         OsString::from("-q:v"),
         OsString::from("5"),
+        OsString::from("-start_number"),
+        OsString::from("0"),
         out_pattern.into_os_string(),
     ]
 }
@@ -97,7 +104,7 @@ pub fn build_trickplay_ffmpeg_args(input: &Path, out_dir: &Path) -> Vec<OsString
 pub fn build_manifest(part_id: PartId, duration_ms: u64, generated_ms: u64) -> TrickplayManifest {
     let interval_ms = DEFAULT_INTERVAL_MS;
     let tiles_per_sprite = DEFAULT_COLUMNS * DEFAULT_ROWS;
-    let frame_count = ((duration_ms / interval_ms) as u32).max(1);
+    let frame_count = duration_ms.div_ceil(interval_ms).clamp(1, MAX_FRAME_COUNT) as u32;
     let sprite_count = frame_count.div_ceil(tiles_per_sprite).max(1);
 
     let mut sprites = Vec::with_capacity(sprite_count as usize);
@@ -151,8 +158,8 @@ pub fn build_manifest(part_id: PartId, duration_ms: u64, generated_ms: u64) -> T
     }
 }
 
-/// Generate trickplay sprite sheets and manifest into `out_dir` using FFmpeg (`-skip_frame nokey`),
-/// falling back to synthetic sprite generation if FFmpeg produces 0 sprites (e.g. very short test clips).
+/// Generate real keyframe previews. A failed command or incomplete output is an error;
+/// no placeholder files or successful manifest are produced for undecodable sources.
 pub async fn generate_trickplay(
     ffmpeg_bin: &Path,
     part_id: PartId,
@@ -160,62 +167,68 @@ pub async fn generate_trickplay(
     duration_ms: u64,
     out_dir: &Path,
 ) -> Result<TrickplayManifest> {
-    std::fs::create_dir_all(out_dir).map_err(Error::internal)?;
-    let started = Instant::now();
-    let args = build_trickplay_ffmpeg_args(input, out_dir);
-
-    let status = tokio::process::Command::new(ffmpeg_bin)
-        .args(&args)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .status()
-        .await;
-
-    if let Err(e) = status {
-        tracing::warn!(error = %e, part_id = part_id.0, "FFmpeg trickplay invocation failed; generating fallback sprite");
+    if duration_ms == 0 || duration_ms > MAX_FRAME_COUNT * DEFAULT_INTERVAL_MS {
+        return Err(Error::Validation("trickplay requires a duration within 0..48 hours".into()));
     }
-
+    let frames = out_dir.join("frames");
+    tokio::fs::create_dir_all(&frames).await.map_err(Error::internal)?;
+    let started = Instant::now();
+    let mut args = build_trickplay_ffmpeg_args(input, &frames);
+    // Put the frame limit before the image2 output URL.
+    let output = args.pop().ok_or_else(|| Error::Validation("missing trickplay output".into()))?;
+    args.extend([
+        OsString::from("-frames:v"),
+        OsString::from(duration_ms.div_ceil(DEFAULT_INTERVAL_MS).to_string()),
+        output,
+    ]);
+    let mut command = tokio::process::Command::new(ffmpeg_bin);
+    command
+        .args(args)
+        .kill_on_drop(true)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let status = tokio::time::timeout(Duration::from_secs(600), command.status())
+        .await
+        .map_err(|_| Error::Unavailable("trickplay generation timed out".into()))?
+        .map_err(|_| Error::Unavailable("could not start FFmpeg for trickplay".into()))?;
+    if !status.success() {
+        return Err(Error::Unavailable("FFmpeg could not decode trickplay source".into()));
+    }
     let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(1);
     let manifest = build_manifest(part_id, duration_ms, elapsed_ms);
-
-    // Ensure every declared sprite file exists on disk (if input had 1 keyframe or FFmpeg exited early).
-    for sprite in &manifest.sprites {
-        let sprite_path = out_dir.join(&sprite.file_name);
-        if !sprite_path.exists() {
-            write_placeholder_sprite(&sprite_path, sprite.tile_count)?;
-        }
-    }
-
-    tracing::info!(
-        part_id = part_id.0,
-        frame_count = manifest.frame_count,
-        sprites = manifest.sprites.len(),
-        elapsed_ms,
-        "trickplay sprites generated"
-    );
-
-    Ok(manifest)
-}
-
-fn write_placeholder_sprite(path: &Path, tile_count: u32) -> Result<()> {
-    let sheet_w = DEFAULT_TILE_WIDTH * DEFAULT_COLUMNS;
-    let sheet_h = DEFAULT_TILE_HEIGHT * DEFAULT_ROWS;
-    let mut img = ImageBuffer::from_pixel(sheet_w, sheet_h, Rgb([18u8, 20u8, 26u8]));
-
-    for idx in 0..tile_count.min(DEFAULT_COLUMNS * DEFAULT_ROWS) {
-        let col = idx % DEFAULT_COLUMNS;
-        let row = idx / DEFAULT_COLUMNS;
-        let x0 = col * DEFAULT_TILE_WIDTH;
-        let y0 = row * DEFAULT_TILE_HEIGHT;
-        let shade = u8::try_from((30 + idx * 2) % 200).unwrap_or(60);
-        for y in y0..(y0 + DEFAULT_TILE_HEIGHT).min(sheet_h) {
-            for x in x0..(x0 + DEFAULT_TILE_WIDTH).min(sheet_w) {
-                img.put_pixel(x, y, Rgb([shade, shade / 2 + 20, 48]));
+    let result = manifest.clone();
+    let out_dir = out_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || -> Result<()> {
+        for sprite in &manifest.sprites {
+            let mut image = ImageBuffer::from_pixel(
+                DEFAULT_TILE_WIDTH * DEFAULT_COLUMNS,
+                DEFAULT_TILE_HEIGHT * DEFAULT_ROWS,
+                Rgb([0u8, 0u8, 0u8]),
+            );
+            let first = sprite.index * DEFAULT_COLUMNS * DEFAULT_ROWS;
+            for local in 0..sprite.tile_count {
+                let path = frames.join(format!("frame_{:06}.jpg", first + local));
+                let tile = image::open(path)
+                    .map_err(|_| Error::Unavailable("incomplete trickplay frames".into()))?
+                    .to_rgb8();
+                if tile.dimensions() != (DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT) {
+                    return Err(Error::Unavailable("invalid trickplay frame dimensions".into()));
+                }
+                image::imageops::replace(
+                    &mut image,
+                    &tile,
+                    i64::from(local % DEFAULT_COLUMNS * DEFAULT_TILE_WIDTH),
+                    i64::from(local / DEFAULT_COLUMNS * DEFAULT_TILE_HEIGHT),
+                );
             }
+            image.save(out_dir.join(&sprite.file_name)).map_err(Error::internal)?;
         }
-    }
-
-    img.save(path).map_err(Error::internal)
+        std::fs::remove_dir_all(frames).map_err(Error::internal)?;
+        Ok(())
+    })
+    .await
+    .map_err(Error::internal)??;
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -230,7 +243,7 @@ mod tests {
         );
         let strs: Vec<String> = args.iter().map(|s| s.to_string_lossy().into_owned()).collect();
         assert!(strs.windows(2).any(|w| w[0] == "-skip_frame" && w[1] == "nokey"));
-        assert!(strs.iter().any(|s| s.contains("tile=10x10") && s.contains("fps=1/10")));
+        assert!(strs.iter().any(|s| s.contains("fps=1/10:start_time=0:round=up")));
     }
 
     #[test]
@@ -253,5 +266,104 @@ mod tests {
         assert_eq!(tile105.sprite_index, 1);
         assert_eq!(tile105.x, 5 * 320);
         assert_eq!(tile105.y, 0);
+    }
+}
+
+#[cfg(test)]
+mod real_media_tests {
+    use super::*;
+
+    #[test]
+    fn rounds_up_partial_intervals_and_bounds_untrusted_duration() {
+        assert_eq!(build_manifest(PartId(1), 100, 1).frame_count, 1);
+        assert_eq!(build_manifest(PartId(1), 10_001, 1).frame_count, 2);
+        assert_eq!(build_manifest(PartId(1), u64::MAX, 1).frame_count, MAX_FRAME_COUNT as u32);
+    }
+
+    #[tokio::test]
+    async fn actual_frames_cover_short_clips_and_sprite_boundaries() {
+        let tools = mbl_probe::FfTools::locate("", "").await.unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let source = tmp.path().join("source.mkv");
+        let status = tokio::process::Command::new(&tools.ffmpeg)
+            .args([
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=red:s=64x36:r=1:d=1000",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=blue:s=64x36:r=1:d=1",
+                "-filter_complex",
+                "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+                "-map",
+                "[v]",
+                "-c:v",
+                "mpeg4",
+                "-g",
+                "1",
+            ])
+            .arg(&source)
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success());
+        let out = tmp.path().join("sheets");
+        let manifest =
+            generate_trickplay(&tools.ffmpeg, PartId(1), &source, 1_001_000, &out).await.unwrap();
+        assert_eq!(manifest.frame_count, 101);
+        assert_eq!(manifest.sprites.len(), 2);
+        assert_eq!(manifest.sprites[1].tile_count, 1);
+        for sprite in &manifest.sprites {
+            let image = image::open(out.join(&sprite.file_name)).unwrap().to_rgb8();
+            assert_eq!(image.dimensions(), (3200, 1800));
+            let pixel = image.get_pixel(160, 90);
+            if sprite.index == 0 {
+                assert!(pixel[0] > 180 && pixel[2] < 50, "{pixel:?}");
+            } else {
+                assert!(pixel[2] > 180 && pixel[0] < 50, "{pixel:?}");
+            }
+        }
+        let short = tmp.path().join("short.mkv");
+        assert!(
+            tokio::process::Command::new(&tools.ffmpeg)
+                .args([
+                    "-v",
+                    "error",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=green:s=64x36:r=10:d=0.1",
+                    "-c:v",
+                    "mpeg4"
+                ])
+                .arg(&short)
+                .status()
+                .await
+                .unwrap()
+                .success()
+        );
+        let manifest =
+            generate_trickplay(&tools.ffmpeg, PartId(2), &short, 100, &tmp.path().join("short"))
+                .await
+                .unwrap();
+        assert_eq!(manifest.frame_count, 1);
+    }
+
+    #[tokio::test]
+    async fn broken_source_never_produces_placeholder_success() {
+        let tools = mbl_probe::FfTools::locate("", "").await.unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let input = tmp.path().join("broken.mkv");
+        std::fs::write(&input, b"invalid video").unwrap();
+        let out = tmp.path().join("out");
+        assert!(generate_trickplay(&tools.ffmpeg, PartId(1), &input, 10_000, &out).await.is_err());
+        assert!(!out.join("sprite_000.jpg").exists());
     }
 }

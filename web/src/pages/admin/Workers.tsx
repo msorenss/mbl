@@ -1,54 +1,12 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../../api/client";
+import type { components } from "../../api/schema";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { useToast } from "../../context/ToastContext";
 
-interface WorkerRow {
-  id: number;
-  name: string;
-  hostname?: string;
-  macAddress?: string;
-  capabilities: {
-    gpuVendor: string;
-    gpuDeviceName: string;
-    supportedVideoDecoders: string[];
-    supportedVideoEncoders: string[];
-    supportsHardwareTonemap: boolean;
-    maxConcurrentSessions: number;
-  };
-  maxSessions: number;
-  status: string;
-  lastHeartbeatAt?: number;
-}
-
-interface RemoteNodeRow {
-  id: number;
-  name: string;
-  baseUrl: string;
-  status: string;
-  lastSeenAt?: number;
-  capabilities: {
-    gpuVendor?: string;
-    supportedVideoEncoders: string[];
-    supportsHardwareTranscode: boolean;
-    storageTotalBytes?: number;
-    storageAvailableBytes?: number;
-  };
-}
-
-interface ApiData<T> {
-  data?: T;
-  error?: unknown;
-}
-
-interface DynamicApiClient {
-  GET: (url: string) => Promise<ApiData<unknown>>;
-  POST: (url: string, body?: unknown) => Promise<ApiData<unknown>>;
-  DELETE: (url: string) => Promise<ApiData<unknown>>;
-}
-
-const apiClient = client as unknown as DynamicApiClient;
+type WorkerRow = components["schemas"]["WorkerRow"];
+type RemoteNodeRow = components["schemas"]["RemoteNodeRow"];
 
 export function Workers() {
   const { showToast } = useToast();
@@ -68,9 +26,10 @@ export function Workers() {
     setLoading(true);
     try {
       const [workersRes, nodesRes] = await Promise.all([
-        apiClient.GET("/api/v1/workers").catch(() => ({ data: [] })),
-        apiClient.GET("/api/v1/nodes").catch(() => ({ data: [] })),
+        client.GET("/api/v1/workers"),
+        client.GET("/api/v1/nodes"),
       ]);
+      if (workersRes.error || nodesRes.error) throw new Error("Load failed");
       if (Array.isArray(workersRes.data)) {
         setWorkers(workersRes.data as WorkerRow[]);
       }
@@ -90,11 +49,16 @@ export function Workers() {
 
   onMount(() => {
     loadAll();
+    const timer = setInterval(() => {
+      if (!document.hidden) void loadAll();
+    }, 10_000);
+    onCleanup(() => clearInterval(timer));
   });
 
   const handleGenerateWorkerCode = async () => {
     try {
-      const { data } = await apiClient.POST("/api/v1/workers/pairing-code");
+      const { data, error } = await client.POST("/api/v1/workers/pairing-code");
+      if (error) throw new Error("Pairing failed");
       const codeResp = data as { code?: string } | undefined;
       if (codeResp?.code) {
         setWorkerPairingCode(codeResp.code);
@@ -111,7 +75,8 @@ export function Workers() {
 
   const handleGenerateNodeCode = async () => {
     try {
-      const { data } = await apiClient.POST("/api/v1/nodes/pairing-code");
+      const { data, error } = await client.POST("/api/v1/nodes/pairing-code");
+      if (error) throw new Error("Pairing failed");
       const codeResp = data as { code?: string } | undefined;
       if (codeResp?.code) {
         setNodePairingCode(codeResp.code);
@@ -128,7 +93,10 @@ export function Workers() {
 
   const handleWakeWorker = async (id: number) => {
     try {
-      await apiClient.POST(`/api/v1/workers/${id}/wake`);
+      const { error } = await client.POST("/api/v1/workers/{id}/wake", {
+        params: { path: { id } },
+      });
+      if (error) throw new Error("Wake failed");
       showToast({
         title: "Magic Packet Sent",
         message: `Wake-on-LAN packet transmitted to worker ${id}`,
@@ -146,7 +114,8 @@ export function Workers() {
   const handleRevokeWorker = async (id: number) => {
     if (!confirm(`Are you sure you want to revoke worker ${id}?`)) return;
     try {
-      await apiClient.DELETE(`/api/v1/workers/${id}`);
+      const { error } = await client.DELETE("/api/v1/workers/{id}", { params: { path: { id } } });
+      if (error) throw new Error("Revoke failed");
       showToast({
         title: "Worker Revoked",
         message: `Worker ${id} has been removed`,
@@ -165,7 +134,8 @@ export function Workers() {
   const handleRevokeNode = async (id: number) => {
     if (!confirm(`Are you sure you want to revoke storage node ${id}?`)) return;
     try {
-      await apiClient.DELETE(`/api/v1/nodes/${id}`);
+      const { error } = await client.DELETE("/api/v1/nodes/{id}", { params: { path: { id } } });
+      if (error) throw new Error("Revoke failed");
       showToast({
         title: "Node Revoked",
         message: `Storage node ${id} has been removed`,
@@ -181,7 +151,7 @@ export function Workers() {
     }
   };
 
-  const formatBytes = (bytes?: number) => {
+  const formatBytes = (bytes?: number | null) => {
     if (!bytes) return "Unknown";
     const tb = bytes / 1_000_000_000_000;
     return `${tb.toFixed(1)} TB`;

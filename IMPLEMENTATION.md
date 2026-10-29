@@ -4,6 +4,8 @@ This document turns [PLAN.md](PLAN.md) into an ordered list of small, verifiable
 
 ---
 
+> **Verifieringsanmärkning 2026-10-27:** Genomgången av befintlig server och webb visar att flera `[x]` nedan endast har API-/hjälpfunktionsstöd och saknar kompletta användarflöden. Se [kod- och UI-granskningen](docs/audits/2026-10-27-web-and-service-audit.md) för konkret täckning och återstående arbete. M11-klienterna avvaktar enligt användarens instruktion.
+
 ## 0. How to use this document
 
 ### 0.1 Agent operating rules
@@ -816,6 +818,26 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
   - Synchronized Watch Together rooms in VR with spatial voice chat and customized avatars.
   - Spatial AI Watch Companion (Hermes / AI avatar seated beside you in the virtual cinema, offering live commentary, trivia, and conversational reactions with spatialized voice audio).
 
+> **Cast-granskning 2026-10-27:** SDK-klient och registrering finns, men fysisk mottagaracceptans, Cast-specifik profil/MIME, receiver-spårval och genomgående fjärrkommandotransport återstår. `[x]` nedan beskriver implementerade delar, inte verifierad end-to-end-Cast. Se [fördjupad granskning av d05a03f](docs/audits/2026-10-27-web-and-service-audit.md).
+
+- [x] **M12 Chromecast & Remote Playback Support:**
+  - [x] **M12.1 Google Cast Web Sender SDK & Remote Playback:**
+    - Google Cast Web Sender SDK integration in `web/src/utils/cast.ts` with Default Media Receiver (`CC1AD845`).
+    - W3C Remote Playback API fallback where supported by the browser and remote display; no universal AirPlay/Miracast guarantee.
+    - Video player Cast button `[⎚]` in `web/src/components/Player.tsx` with dedicated active Cast overlay and remote play/pause/seek/volume synchronization.
+  - [x] **M12.2 PlayerRegistry Synchronization & Teardown:**
+    - Live reporting of Chromecast sessions to `POST /api/v1/players` (`device_type: "chromecast"`).
+    - `DELETE /api/v1/players/{id}` REST route for immediate unregistration on disconnect.
+    - Added `#[serde(default)]` to `PlayerInfo.last_seen_at` to resolve deserialization errors.
+  - [x] **M12.3 Plugin Toggle & Re-enable Lifecycle Bugfix:**
+    - Fixed frontend toggle in `web/src/pages/LiveTv.tsx` to pass dynamic status instead of hardcoded `true`.
+    - Added `enabled: bool` to `PluginManifest` and connected `list_plugins()` to query the SQLite `plugin_configs` table.
+    - Dynamic button label and badge indicators (`Active` vs `Disabled`) with conditional feed browsing.
+  - [x] **M12.4 Verification & Testing:**
+    - Automated integration test suite in `crates/mbl-server/tests/m12.rs` (3 tests covering plugin lifecycle, Chromecast player registry, and edge cases).
+    - Vitest unit tests in `web/src/utils/cast.test.ts`.
+    - Complete mdBook guide in `docs/book/src/chromecast.md`.
+
 ### M12+: Extended Ecosystem & Backlog
 Jellyfin API shim · **in-app AI assistant + natural-language search** (user-configured LLM endpoint, in-process MCP tools, PLAN §9.5.8) · WASM plugins (`wasmtime`) + catalog · OIDC SSO · smart collections/playlists · Watch Together (web/TV) · embedded Tailscale (`libtailscale`) · HTTP/3 · `mbl-relay` · Live TV time-shift · commercial detection · HEIC/RAW photos · Rockchip RKMPP tier-1.
 
@@ -861,6 +883,8 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-26 | M8 | Distributed nodes: worker protocol spec & typed JobSpec, mbl-worker daemon with capability reporting & heartbeat, signed source media range streaming & PUT segment upload, scheduler integration with Wake-on-LAN & local fallback, batch offload estimation, Windows worker tray & pause-while-gaming, Admin UI for workers & nodes, 5 new MCP tools (67 admin tools, 100% parity), mbl-node federated storage daemon with delta catalog sync, and smart handover for LAN direct play vs WAN relay | feat(m8) M8
 2026-10-26 | M9 | Live TV, channels and streaming plugins: HDHomeRun discovery & lineup, M3U & streaming XMLTV parsers, 2-axis EPG grid, live playback engine & concurrency control, DVR recording scheduler & series rules, 5 new MCP tools (72 admin tools, 100% parity), online media plugins (YouTube, Spotify, WebDrama), virtual 24/7 channels with zero-CPU live playhead calculation, SolidJS Live TV UI with EPG guide, tuners, DVR recordings and plugin browser | feat(livetv) M9
 2026-10-26 | M10 | Hardening → v1.0.0: Threat model doc & security hardening, property & libfuzzer targets (fuzz/), performance benchmark dashboard (docs/benchmarks.md), mdBook documentation site (docs/book/), Plex & Jellyfin watch history migration service & MCP tools (74 admin tools, 100% parity), 5-language i18n translations (en, sv, de, fr, es) with WCAG 2.2 AA accessibility, standalone mbl-worker & mbl-node release packaging, MCP evaluation scenarios & runner, v1.0.0 release preparation | feat(hardening) M10
+2026-10-27 | M12 | Chromecast & Remote Playback: Google Cast SDK sender, W3C Remote Playback fallback, Cast button in Player.tsx, active overlay, PlayerRegistry integration with DELETE unregistration, plugin toggle & re-enable bugfix, serde default last_seen_at hardening, m12 integration tests | feat(chromecast) M12
+2026-10-27 | M12 review | Granskning av d05a03f, Cast-livscykel/reglage/progress, media-CORS, dokumenterade kvarstående integrationshinder; 321 Rust- och 42 webbtester | working tree (base d05a03f)
 ```
 
 ---
@@ -1295,3 +1319,86 @@ Trade-offs, follow-up work, what becomes easier/harder.
 - [ ] User-visible changes noted in `CHANGELOG.md` (Unreleased).
 - [ ] New capability exposed as an MCP tool (Appendix A.10) with scope, annotations, tests and an updated `tools/list` snapshot, or listed in `EXCLUSIONS.toml` with a reason (applies from M2.13 onward).
 - [ ] Checkbox ticked and Progress Log line added.
+
+### 2026-10-28 — Granskningsrapport, implementation pågår
+Ägarbundet spelarprotokoll (ADR 0007), Cast-omförhandling, Live TV-leases, atomisk DVR/FFmpeg-körning, Companion/Matchmaker-skydd, WAN-pacing och webbflödesrättningar implementerade. Se granskningsrapportens statussektion för kvarvarande arbete; ingen ny milstolpe/release markeras färdig.
+
+### 2026-10-28 — Granskningsrapport batch 2
+Webbflöden för medieförfrågningar och Plex/Jellyfin-historikimport kopplade till befintliga API:er. Renderade fel-/återförsökstester; 48 webbtester passerar. Arr-leverans, Matchmaker och övriga rapportpunkter kvarstår. Git/release avvaktar.
+
+### 2026-10-28 — Granskningsrapport batch 3
+Adminprofilens bibliotek/hanterad status/åldersgräns/PIN kan hanteras i webben. Läs-/sparfel testade i renderad dialog. API-null för borttagen åldersgräns rättat och regressionstestat. Inbjudningar och PIN-inloggning kvarstår.
+
+### 2026-10-28 — Granskningsrapport batch 4
+Inbjudningsadministration och publik registreringssida tillagda. Atomisk engångsinlösen rättar race mellan kontoskapande och förbrukning; rollback- och samtidighetstest tillagt. Inbjudningskoder tas bort ur loggar. Release avvaktar återstående rapportpunkter.
+
+### 2026-10-28 — Granskningsrapport batch 5
+API-tokennät i UI, korrekt återkallnings-/snippet-/clipboard-felhantering och visning av tillåtna nät. Rättat sparning av fr/es och lagt till persistensregression. Övriga rapportpunkter kvarstår före Git/release.
+
+### 2026-10-28 — Granskningsrapport batch 6
+Spelarkvalitet med omförhandling, aktuell position och cleanup; lokal WebAudio-fördröjning 0–5 s med sparning, samt aktivering av sparat nattläge. Renderade regressioner tillagda. Up Next, negativ ljudoffset, full statistik och atomisk kapacitetsöverlämning återstår. Numrerad restlista: docs/audits/remaining-work.md.
+
+### 2026-10-28 — Granskningsrapport batch 7
+Kapacitetskontroll och sessionsstart serialiserade. Full kapacitet avvisar nytt byte utan att döda tidigare HLS-sessioner. Falsk HLS-framgång utan manager/FFmpeg borttagen. Samtidighets-, spawn-fel- och HTTP-regressioner tillagda. Up Next och övriga spelarpunkter kvarstår.
+
+### 2026-10-28 — Granskningsrapport batch 8
+Up Next med avsnitts-/säsongsordning, behörighetsfiltrerade API:er, avbrutna sena uppslag och lokal opt-in-fortsättning. Nästa start väntar på delat stoppanrop; spelarshortcuts stör inte formulärkontroller. Sju regressioner tillagda, 66 webbtester passerar. Receiveracceptans och övrig spelarstatistik/ljudsynk återstår.
+
+### 2026-10-28 — Granskningsrapport batch 9
+Google Cast-fortsättning med explicit FINISHED efter PLAYING, laddningsbundet lyssnarskydd och stängning av gammal serversession före nästa. Fyra regressioner, 70 webbtester passerar. Fysisk receiveracceptans och native Remote Playback-automatik återstår.
+
+### 2026-10-28 — Granskningsrapport batch 10
+Fototidslinje, cursorbaserade månadssidor, bilddialog och bildspel implementerade. Dolda foton räknas inte i tidslinjen; rättade bild-MIME. 74 webbtester och HTTP-regression, server-Clippy, OpenAPI och MCP 145/145 passerar. Restlista 06 färdigimplementerad; manuell slutacceptans återstår.
+
+### 2026-10-28 — Granskningsrapport batch 11 (spelare/core först)
+Ägarbunden sessionsdiagnostik i REST/MCP med låst HLS-runtime-snapshot. Statistikpanel pollar bara när öppen, skiljer server-/lokal-/receiverinformation och räknar rätt buffertintervall. Playback 4/4, MCP/HLS-regressioner, Clippy, OpenAPI och paritet 146/146 passerar. Full signerad ljudsynk återstår som nästa core-steg.
+
+### 2026-10-28 — Granskningsrapport batch 12 (signerad ljudsynk)
+Serverjustering −10..+10 s i FFmpeg, återanvänd i playback/preview/diagnostik/MCP och webben. Kvalitetsbyte och Google Cast behåller inställningen; nekad omförhandling behåller session/preferens. Lokal DelayNode ersatt, tysta videor fungerar med sparad offset. Verkligt signaltest verifierar båda riktningar också vid seek. 85 webbtester, pipeline 5/5, playback 5/5, MCP-regression/snapshots, Clippy, OpenAPI och paritet 146/146 passerar. Fysisk receiveracceptans och övriga öppna core-punkter kvarstår; se granskningsrapporten och restlistan.
+
+### 2026-10-28 — Granskningsrapport batch 13 (trickplay/sökförhandsbilder)
+Verkliga nyckelbilder ersätter syntetiska fallbackbilder. Idle-generering efter videoskanning och vid cachemiss, versionsbunden publicering/invalidering, ACL/åldersgränser/root-kontroll samt autentiserad förhandsvisning på tidslinjen. Idle-pauser förbrukar inte felåterförsök; produktionssensorn för termisk last är inkopplad. Skannerns saknade time/parsing-feature rättad. Restlista 04 implementerad; manuellt slutprov återstår. 91 webbtester och 40 riktade Rust-tester, Clippy, OpenAPI och MCP-paritet 146/146 passerar. Detaljer i granskningsrapportens batch 13.
+
+### 2026-10-28 — Granskningsrapport batch 14 (spårval i spelaren)
+Ljudspår och befintliga text-/bildspår kan bytas under uppspelning, med spår-/Off-/pausbevarande genom kvalitet och Google Cast. Rättad ASS/VTT-leverans, inbyggd undertextordinal, externa textfiler med root-vakt och ljudlös HLS/kort duration. Felaktiga track-index avvisas i REST/MCP. Serverns val exponeras i playback/diagnostik; Cast-metadatafel blockerar inte laddning och Native Remote Playback kan inte avsluta föregående session för ett streambyte som den saknar stöd för. 99 webbtester, 20 riktade Rust-tester, Clippy, OpenAPI och paritet 146/146 passerar. Detaljer i granskningsrapporten. Övriga core-flöden och fysisk acceptans återstår.
+
+### 2026-10-28 — Granskningsrapport batch 15 (beredskap före källbyte)
+Webben väntar på läsbar direktkälla eller färdigt första HLS-fragment/init; API-flaggan är frivillig för äldre klienter. Fel/timeout/avbrott städar kandidaten och gammal session behålls. Stoppade HLS-sessioner kan inte återstartas via sena segmentanrop; misslyckade processers halvskrivna och gamla framtida fragment godkänns inte som nya färdiga data. Lokalt/Cast-byte bevarar senaste position, väntande starter aborteras vid stängning och obekräftade kandidater skriver ingen historik/watch state. 102 webbtester, 25 riktade Rust-tester, Clippy, OpenAPI och paritet 146/146 passerar. Nästa core-steg är produktionsinkopplat periodiskt HLS-underhåll med paus-heartbeat/resume/serveravslut. Detaljer och begränsningar i granskningsrapporten; 23 breda arbetsområden kvar.
+
+### 2026-10-28 — Granskningsrapport batch 16 (HLS-underhåll och paus)
+Periodiskt ägt underhåll i serverns livscykel, ägarbunden lease-förnyelse under paus/buffring, timeout-/kvotstädning av sessioner och WAN-andelar samt stängd admission/processstädning vid serverstopp. Stop behåller städägarskap vid avbrott och automatisk slutregistrering skriver inte över nyare tittarpositioner. Webbheartbeat var 5 s med timeout/städning, bekräftelse först vid faktisk playing och lokal återupptagning vid expiry med bibehållen position, spår och paus. 107 webbtester, TypeScript/Vite/budget 42,23 KB och 27 riktade Rust-tester samt Clippy/fmt, OpenAPI och MCP-paritet 146/146 passerar; se batch 16 i granskningsrapporten. Fortsatt core-prioritet: övriga HLS-/mediefel samt Live TV/DVR; fysisk/bakgrundsacceptans och de 23 breda återstående områdena är fortsatt öppna.
+
+### 2026-10-28 — Granskningsrapport batch 17 (begränsad HLS-återhämtning)
+Cargo clean utförd före batchen (3,4 GiB borttaget). Två appförsök per lokal HLS-källa med backoff/deadline, begränsade SDK-hämtningar, korrekt master-omladdning och inga obegränsade avkodaråterstarter. Manuell Retry efter terminalt/initialt/native mediafel bevarar position/spår/synk/kvalitet/paus och väntar på kapacitetsstädning, med tidsbegränsat stopp och dubblettskydd. Pausavsikt, synkrona startfel, gamla callbacks och stängning/Cast är skyddade. 124 webbtester, Biome, TypeScript/Vite och budget 42,23 KB samt fmt/diff-check passerar. Serverkod oförändrad och inga Rust-byggen efter clean. Se rapportens batch 17. Nästa core-steg Live TV/DVR; fysisk acceptans och 23 breda återstående områden kvarstår.
+
+### 2026-10-28 — Granskningsrapport batch 18 (Live TV-relä och DVR-bokning)
+Serverägt HLS/fMP4-relä ersätter rå tuner-URL, med konservativ software H.264/AAC-profil, deinterlacing, verifierad första media, ägd lease och process-/cache-/kvotstädning. Live/VOD delar encoderbudget och live/DVR delar tunerbokning. Kanalbyte väntar på städning; start/renewal/callbacks är avbrottssäkra och virtuella ospelbara kanalknappar spärras. DVR-barn håller en tunerlease och städar avbokade partiella filer. 136 webbtester, 32 unika riktade Rust-regressioner, Clippy/fmt, OpenAPI och paritet 147/147 passerar. Verifierat interlaced MPEG-2/AC-3 konverteras till progressiv H.264/AAC; faktisk inspelning, full expiry, cancel och delad kapacitet samt Range/HEAD/CORS/cache är testade. API-typer regenererade; initial JS-budget 42,24 KB. Färdig DVR-uppspelning/korrekt duration är nästa core-del; profil-/ratingkontroll och fysisk acceptans kvarstår. Se batch 18 i granskningsrapporten; inga M11-/Git-/releasesteg.
+
+
+### 2026-10-28 — Granskningsrapport batch 19 (DVR-uppspelning och riktig mediemetadata)
+Färdiga DVR-filer publiceras atomiskt som vanliga katalogposter i ett hanterat inspelningsbibliotek och öppnas i den befintliga spelaren. ffprobe ersätter wall-clock-duration med verklig längd och format/spår; schemaläggning bevarar EPG-rating/beskrivning. ACL/rating gäller listning och uppspelning; begränsade profiler ser endast publicerade tillåtna inspelningar. Migration 0010 och bakgrundsåterställning tar hand om äldre giltiga filer utan att blockera nya inspelningstider. Scanner importerar inte DVR-partialer; root/symlink/filändring kontrolleras, samtidiga publiceringar är idempotenta och radering städar fil/katalogpost. Webb-DVR har Play, längd, tydlig raderingsbekräftelse och uppdatering; live-release inväntas. 138 webbtester, 10 riktade Rust-regressioner, Clippy för fem crates/alla targets, fmt/diff, OpenAPI och paritet 147/147 passerar. Verklig femminutersfil verifierar HLS, 61 s resume/historik; API-typer regenererade och budgeten är 42,24 KB. Retention, fortsatt serieregelmatchning, profilmedveten schemaläggning och fysisk acceptans återstår. Se batch 19 i granskningsrapporten; inga M11-/Git-/releasesteg.
+
+
+### 2026-10-29 — Samlad regression och Git-kontrollpunkt (granskningsbatch 1–19)
+Hela den samlade arbetskopian är verifierad med `cargo nextest run --workspace --no-tests=pass --no-fail-fast --test-threads=2`: 371/371 tester passerar, inga överhoppade. `just web-check` passerar med 138 tester, TypeScript, produktionsbygge och 42,24 KB initial JS gzip. Full workspace-Clippy med alla targets och `-D warnings`, fmt/diff, OpenAPI, design tokens och MCP-paritet 147/147 passerar. Inga kodrättningar behövdes under regressionen. Användaren har godkänt en lokal kontrollpunktscommit med Signed-off-by på befintlig `main`; versionsnummer och taggar ändras inte. Restlistan skiljer denna verifiering från slutlig releaseacceptans: fysisk tuner/Cast/WAN-/workerprovning och 23 breda arbetsområden kvarstår. Nästa arbete är fortsatt spelarrelaterade DVR-/profil-/serieregel-/retentionfrågor; M11 avvaktar.
+
+### 2026-10-29 — Granskningsrapport batch 20 (DVR-profiler, serieregler och retention)
+Cargo clean utförd före batchen: 8370 filer/4,2 GiB borttaget. Inspelningar har ägare, bibliotek och auktoritativ programmetadata; aktuell ACL/rating, ändrad guide och borttagna ägare/källor kontrolleras före och under capture. Begränsade profiler använder guidens exakta programfönster. Bakgrundsmatchning var 15:e sekund med 14 dagars fönster, keyset-paginering, stabila guide-ID, deduplicering, avbokningsskydd, synliga konflikter och explicit Retry är inkopplad. KeepMax/ägarens watch-retention raderar verkliga filer med skydd för spelarens livscykel, inklusive samtidig startup/shutdown. Arkiv överlever tuner-/kanalborttagning och hanterade biblioteksroots skyddas. Webb/MCP har ägarstyrd radering och fullständiga filter-/retentionsval med tydlig information om filradering; katalogens PG-filter följer Actor-policy för okända ratingetiketter. 140 webbtester, TypeScript/Vite/42,23 KB-budget, 45 riktade Rust-regressioner, Clippy för sex berörda crates/alla targets, fmt/diff, OpenAPI och MCP-paritet 147/147 passerar. API-typer är regenererade. Full workspace-regression från kontrollpunkten är inte omkörd efter denna batch; se granskningsrapportens batch 20. Restlista 02/09 förblir öppna för Live TV-profiler/programövergångar, DVR-källors tidiga avslut/format/undertexter/lagringsbudget och normaliserad MCP-preview samt fysisk tuner-/browser-/mottagaracceptans. Ändringarna ligger efter kontrollpunkten `fcdd83b`; ingen ny commit, release eller M11-utökning.
+
+### 2026-10-29 — Granskningsrapport batch 21 (Live TV-profiler och programgränser)
+Aktuell inloggning, profil och guide kontrolleras vid live-start/beredskap/förnyelse/media/underhåll. Leases binds till token-hash så återanvända sessions-ID inte återupplivar äldre medielänkar. Åldersbegränsade profiler får en programbunden lease/encoder och webbdeadline; nästa program kräver nytt kanalval. Guide/MCP-sökning filtreras före resultatgränsen, källadresser och dolda kanaler skyddas och tunerupptäckt kräver admin. UI har serverstyrd canPlay, periodisk guideuppdatering och tömning av buffrad media vid terminalt fel. 35 riktade Rust-tester och 147 webbtester, TypeScript/Vite/budget 42,24 KB, Clippy för sex crates/alla targets, fmt/diff, OpenAPI och MCP-paritet 147/147 passerar. API-typer är regenererade; se granskningsrapportens batch 21 för detaljer och begränsningar. Nästa core-steg är DVR-källors fel/format/undertexter, lagringsbudget och normaliserad MCP-preview; fysisk tuner/EPG-klocksynk/browser/Cast/WAN och live-hårdvaruprofiler/timeshift kvarstår. Ingen ny commit/release/M11; batch 20 bevarad efter fcdd83b.
+
+### 2026-10-29 — Granskningsrapport batch 22 (DVR-källfel och delinspelningar)
+Ny Partial-status ersätter falsk Completed vid tidig EOF eller giltig fil efter encoderfel. Probad medieduration jämförs med hela det planerade fönstret; paket-/starttolerans är 5 procent, minst 100 ms och högst 2 s. Hängande capturer stoppas vid schemalagt slut och rättigheter/guide kontrolleras efter analysen. Ofullständiga filer märks i bibliotek och DVR, kan spelas via normal spelare och följer ACL/ägarskap/retention. Retry behåller den tidigare filen. MCP-listning/filter/raderingspreview och tre snapshots uppdaterade. 31 riktade Rust-regressioner, 148 webbtester, TypeScript/Vite/budget 42,24 KB, Clippy för sex crates/alla targets, fmt/diff, OpenAPI och MCP-paritet 147/147 passerar. API-typer är regenererade; se granskningsrapportens batch 22 för detaljer. Full workspace-/fysisk acceptans, DVR-format/undertexter/radio, lagringsbudget/städning/avbrottsåterställning och normaliserad MCP-preview återstår; ingen ny commit/release/M11.
+
+### 2026-10-29 — Granskningsrapport batch 23 (Retry-planering och diskvakt)
+Retry bevarar ursprunglig ägare, kvarvarande serieregel, marginaler och retention med aktuell profilkontroll och transaktionell återvalidering. Ny POST recordings/preview och MCP dry_run använder samma normalisering som schemaläggning, utan bibliotek/kataloger/jobb/tunerbokningar. UI granskar ärvd radering innan Retry och spärrar dubbla klick/sena svar. DVR har 512 MiB standardreserv, valfritt filstorlekstak, kontroller före/under capture och tidsbegränsad/avbrytbar inspektion. Sparade filer raderas inte för att frigöra plats; giltig del kan bevaras som Partial. TOML/env och MCP get_settings.dvr visar policyn. Verifierat: 41 riktade Rust-tester, 151 webbtester, TypeScript/Vite, JS-budget 42,24 KB gzip, berörda crates Clippy/fmt och OpenAPI/MCP-paritet 148/148; se granskningsrapporten för omfattning. Helarkivskvot/prognoser, Failed-städning/återställning, DVR-format/undertexter/radio och fysisk acceptans återstår. Ingen ny commit/release/M11; tidigare batcher bevarade efter fcdd83b.
+
+### 2026-10-29 — Granskningsrapport batch 24 (DVR-media och radio)
+Valfria undertextspår tas med vid capture; DVB-bitmaptext och två ljudspråk följer med till spelarens spårval/inbränning/Off. Radio publiceras som Track i det vanliga DVR-biblioteket med befintlig ACL/rating/historik/ägarradering, för Completed och Partial. Positiv duration utan audio/video räcker inte för publicering. Ny PlaybackResponse.hasVideo styr webbens ljudvy, tidslinje och spärr för onödiga videokvalitets-/trickplay-flöden. HLS deklarerar rätt audio-/videocodec; kopierat ADTS-AAC konverteras till MP4-huvuden och HEVC får hvc1 i både lista och fragment. MPEG-2/AC-3, MP2-radio och HEVC/AAC täcks av verklig FFmpeg. Verifierat: 51 riktade Rust-tester, 152 webbtester, TypeScript/Vite, JS-budget 42,24 KB gzip, Clippy/fmt och OpenAPI/MCP-paritet 148/148. Se granskningsrapportens batch 24 för omfattning och gränser. Generella undertext-/transportprofiler, Failed-städning/återställning, arkivbudget och fysisk acceptans återstår; M11/commit/release avvaktar.
+
+### 2026-10-29 — Git-kontrollpunkt efter batch 24
+Användaren har godkänt att batch 20–24 sparas som lokal commit med Signed-off-by ovanpå `fcdd83b`. Checkpointen omfattar implementation, migration, regressionstester, API-generering och rapporter. De verifierade resultaten från batch 24 återanvänds: 51 riktade Rust-tester, 152 webbtester, TypeScript/Vite, Clippy/fmt/OpenAPI och MCP-paritet 148/148. Full workspace-/release- och fysisk acceptans återstår enligt restlistan; versionsnummer, taggar och M11 ändras inte.
+
+### 2026-10-29 — Granskningsrapport batch 25 (DVR-återställning och beständig städning)
+Ägare/admin kan återställa Failed-filers sparade media via REST/MCP-preview och explicit bekräftelse i webben. En fryst prefixkopia skyddar uppspelningen från äldre capture-skribenter; resultatet är alltid Partial med samma ägare/regel/retention efter ny profil-/guidekontroll. Originalet behålls och kopiering kräver extra plats. Delete sparar tombstone före filstädning, återförsöker vid start/underhåll och prunar först efter lyckad städning och ett dygn efter capture-/programslut. Endast hanterade ID-filer omfattas. MCP har nu 75 adminverktyg (30 read, 35 read+library), en ny REST-path och uppdaterad snapshot. Full verifiering genomförd: 411/411 Rust-tester (0 skipped), 155 webbtester, TypeScript/Vite/42,24 KB, workspace-Clippy, SQLx offline-cachekontroll mot temporär migrerad DB, cargo deny offline, workspace-binärer, fmt/diff, OpenAPI, tokens och MCP-paritet 149/149. Doctestkommandot passerar (0 definierade doctester). Se granskningsrapportens batch 25 för omfattning. Bas a4efebb; användaren har därefter godkänt Git-checkpoint och GitHub-publicering. Ingen ny release/M11.

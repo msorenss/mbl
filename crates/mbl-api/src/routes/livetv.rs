@@ -7,7 +7,7 @@ use axum::{Json, Router};
 use mbl_core::ids::{ChannelId, RecordingId, RecordingRuleId, TunerId, VirtualChannelId};
 use mbl_core::livetv::{
     Channel, CreateRecordingRuleRequest, CreateTunerRequest, EpgGridResponse, EpgProgram,
-    LiveStreamInfo, Recording, RecordingRule, ScheduleRecordingRequest, Tuner,
+    LiveStreamInfo, Recording, RecordingPlan, RecordingRule, ScheduleRecordingRequest, Tuner,
     UpdateChannelRequest,
 };
 use mbl_core::plugins::{CreateVirtualChannelRequest, VirtualChannel, VirtualPlayhead};
@@ -91,6 +91,11 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/livetv/stream/{channelId}/release", post(release_live_stream))
         // Recordings
         .route("/api/v1/livetv/recordings", get(list_recordings).post(schedule_recording))
+        .route("/api/v1/livetv/recordings/preview", post(preview_recording))
+        .route(
+            "/api/v1/livetv/recordings/{id}/recovery",
+            get(preview_recording_recovery).post(recover_recording),
+        )
         .route("/api/v1/livetv/recordings/{id}", get(get_recording).delete(cancel_recording))
         // Series Rules
         .route("/api/v1/livetv/rules", get(list_recording_rules).post(create_series_rule))
@@ -121,10 +126,10 @@ pub fn router() -> Router<AppState> {
     security(("bearer_auth" = []))
 )]
 async fn list_tuners(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Tuner>>, ApiError> {
-    let tuners = state.services.livetv.list_tuners().await?;
+    let tuners = state.services.livetv.list_tuners_for(&auth.actor).await?;
     Ok(Json(tuners))
 }
 
@@ -156,14 +161,16 @@ async fn add_tuner(
     path = "/api/v1/livetv/tuners/discover",
     responses(
         (status = 200, description = "Discovered tuners on local network", body = Vec<CreateTunerRequest>),
+        (status = 403, description = "Admin required"),
         (status = 401, description = "Unauthorized"),
     ),
     security(("bearer_auth" = []))
 )]
 async fn discover_tuners(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<CreateTunerRequest>>, ApiError> {
+    auth.actor.require_admin()?;
     let discovered = state.services.livetv.discover_hdhomerun().await?;
     Ok(Json(discovered))
 }
@@ -179,11 +186,11 @@ async fn discover_tuners(
     security(("bearer_auth" = []))
 )]
 async fn get_tuner(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<Tuner>, ApiError> {
-    let tuner = state.services.livetv.get_tuner(TunerId(id)).await?;
+    let tuner = state.services.livetv.get_tuner_for(&auth.actor, TunerId(id)).await?;
     Ok(Json(tuner))
 }
 
@@ -247,13 +254,13 @@ async fn import_m3u(
     security(("bearer_auth" = []))
 )]
 async fn list_channels(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<Channel>>, ApiError> {
     let include_hidden =
         params.get("includeHidden").map(|v| v == "true" || v == "1").unwrap_or(false);
-    let channels = state.services.livetv.list_channels(include_hidden).await?;
+    let channels = state.services.livetv.list_channels_for(&auth.actor, include_hidden).await?;
     Ok(Json(channels))
 }
 
@@ -268,11 +275,11 @@ async fn list_channels(
     security(("bearer_auth" = []))
 )]
 async fn get_channel(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<Channel>, ApiError> {
-    let channel = state.services.livetv.get_channel(ChannelId(id)).await?;
+    let channel = state.services.livetv.get_channel_for(&auth.actor, ChannelId(id)).await?;
     Ok(Json(channel))
 }
 
@@ -296,7 +303,8 @@ async fn update_channel(
     if !auth.actor.is_admin {
         return Err(ApiError::from(mbl_core::Error::Forbidden));
     }
-    let channel = state.services.livetv.update_channel(ChannelId(id), req).await?;
+    state.services.livetv.update_channel(ChannelId(id), req).await?;
+    let channel = state.services.livetv.get_channel_for(&auth.actor, ChannelId(id)).await?;
     Ok(Json(channel))
 }
 
@@ -337,14 +345,14 @@ async fn delete_channel(
     security(("bearer_auth" = []))
 )]
 async fn get_epg_grid(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Query(query): Query<EpgGridQuery>,
 ) -> Result<Json<EpgGridResponse>, ApiError> {
     let grid = state
         .services
         .livetv
-        .get_epg_grid(query.start_time, query.end_time, query.include_hidden)
+        .get_epg_grid_for(&auth.actor, query.start_time, query.end_time, query.include_hidden)
         .await?;
     Ok(Json(grid))
 }
@@ -360,14 +368,14 @@ async fn get_epg_grid(
     security(("bearer_auth" = []))
 )]
 async fn search_guide(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Query(query): Query<EpgSearchQuery>,
 ) -> Result<Json<Vec<EpgProgram>>, ApiError> {
     let programs = state
         .services
         .livetv
-        .search_guide(&query.query, query.start_time, query.end_time, query.limit)
+        .search_guide_for(&auth.actor, &query.query, query.start_time, query.end_time, query.limit)
         .await?;
     Ok(Json(programs))
 }
@@ -400,38 +408,67 @@ async fn import_xmltv(
 #[utoipa::path(
     get,
     path = "/api/v1/livetv/stream/{channelId}",
-    params(("channelId" = i64, Path, description = "Channel ID")),
+    params(("channelId" = i64, Path, description = "Channel ID"), ("sessionId" = Option<String>, Query, description = "Renew an existing live lease")),
     responses(
-        (status = 200, description = "Resolved live stream with deinterlacing flags", body = LiveStreamInfo),
-        (status = 404, description = "Channel not found"),
+        (status = 200, description = "Ready server-owned live HLS relay with a 45-second renewable lease", body = LiveStreamInfo),
+        (status = 404, description = "Channel or lease not found"),
+        (status = 403, description = "Current programme is unavailable to this profile"),
         (status = 409, description = "Tuner concurrency limit reached"),
+        (status = 503, description = "Encoder capacity, source or live HLS startup unavailable"),
     ),
     security(("bearer_auth" = []))
 )]
 async fn resolve_live_stream(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(channel_id): AxumPath<i64>,
-) -> Result<Json<LiveStreamInfo>, ApiError> {
-    let info = state.services.livetv.resolve_live_stream(ChannelId(channel_id)).await?;
-    Ok(Json(info))
+    axum::extract::Query(lease): axum::extract::Query<LiveRenewQuery>,
+) -> Result<axum::response::Response, ApiError> {
+    let info = state
+        .services
+        .livetv
+        .resolve_live_stream(auth.session_id, ChannelId(channel_id), lease.session_id.as_deref())
+        .await?;
+    let mut response = axum::response::IntoResponse::into_response(Json(info));
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveRenewQuery {
+    session_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveLeaseQuery {
+    session_id: String,
 }
 
 #[utoipa::path(
     post,
     path = "/api/v1/livetv/stream/{channelId}/release",
-    params(("channelId" = i64, Path, description = "Channel ID")),
+    params(("channelId" = i64, Path, description = "Channel ID"), ("sessionId" = String, Query, description = "Owned live lease ID")),
     responses(
         (status = 200, description = "Stream released and tuner freed", body = SuccessResponse),
     ),
     security(("bearer_auth" = []))
 )]
 async fn release_live_stream(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(channel_id): AxumPath<i64>,
+    axum::extract::Query(lease): axum::extract::Query<LiveLeaseQuery>,
 ) -> Result<Json<SuccessResponse>, ApiError> {
-    state.services.livetv.release_live_stream(ChannelId(channel_id)).await?;
+    state
+        .services
+        .livetv
+        .release_live_stream(auth.session_id, ChannelId(channel_id), &lease.session_id)
+        .await?;
     Ok(Json(SuccessResponse { success: true }))
 }
 
@@ -450,11 +487,12 @@ async fn release_live_stream(
     security(("bearer_auth" = []))
 )]
 async fn list_recordings(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Query(query): Query<RecordingsQuery>,
 ) -> Result<Json<Vec<Recording>>, ApiError> {
-    let recordings = state.services.livetv.list_recordings(query.status.as_deref()).await?;
+    let recordings =
+        state.services.livetv.list_recordings_for(&auth.actor, query.status.as_deref()).await?;
     Ok(Json(recordings))
 }
 
@@ -465,16 +503,53 @@ async fn list_recordings(
     responses(
         (status = 200, description = "Recording scheduled", body = Recording),
         (status = 409, description = "Tuner conflict"),
+        (status = 404, description = "Programme or DVR library unavailable to this profile"),
+        (status = 403, description = "Age-limited profiles require an EPG programme"),
+        (status = 422, description = "Invalid or expired recording window"),
     ),
     security(("bearer_auth" = []))
 )]
 async fn schedule_recording(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Json(req): Json<ScheduleRecordingRequest>,
 ) -> Result<Json<Recording>, ApiError> {
-    let rec = state.services.livetv.schedule_recording(req).await?;
+    let rec = state.services.livetv.schedule_recording(&auth.actor, req).await?;
     Ok(Json(rec))
+}
+
+#[utoipa::path(post, path="/api/v1/livetv/recordings/preview", request_body=ScheduleRecordingRequest,
+    responses((status=200, description="Read-only canonical recording plan and current resource snapshot", body=RecordingPlan),
+        (status=403, description="Retry is not owned or programme is not allowed"),
+        (status=404, description="Source or recording is unavailable"),
+        (status=409, description="Recording cannot be retried"),
+        (status=422, description="Invalid recording window")), security(("bearer_auth"=[])))]
+pub async fn preview_recording(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Json(req): Json<ScheduleRecordingRequest>,
+) -> Result<Json<RecordingPlan>, ApiError> {
+    Ok(Json(state.services.livetv.preview_recording(&auth.actor, req).await?))
+}
+
+#[utoipa::path(get,path="/api/v1/livetv/recordings/{id}/recovery",params(("id"=i64,Path)),
+    responses((status=200,body=mbl_core::livetv::RecordingRecoveryPlan),(status=403,description="Owner or administrator required; current owner profile must allow the archive"),(status=404),(status=409)),security(("bearer_auth"=[])))]
+pub async fn preview_recording_recovery(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<mbl_core::livetv::RecordingRecoveryPlan>, ApiError> {
+    Ok(Json(state.services.livetv.preview_recording_recovery(&auth.actor, RecordingId(id)).await?))
+}
+
+#[utoipa::path(post,path="/api/v1/livetv/recordings/{id}/recovery",params(("id"=i64,Path)),
+    responses((status=200,body=Recording),(status=403,description="Owner or administrator required; current owner profile must allow the archive"),(status=404),(status=409),(status=422,description="Saved media cannot be recovered"),(status=503,description="Recovery storage unavailable")),security(("bearer_auth"=[])))]
+pub async fn recover_recording(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<Recording>, ApiError> {
+    Ok(Json(state.services.livetv.recover_recording(&auth.actor, RecordingId(id)).await?))
 }
 
 #[utoipa::path(
@@ -488,11 +563,11 @@ async fn schedule_recording(
     security(("bearer_auth" = []))
 )]
 async fn get_recording(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<Recording>, ApiError> {
-    let rec = state.services.livetv.get_recording(RecordingId(id)).await?;
+    let rec = state.services.livetv.get_recording_for(&auth.actor, RecordingId(id)).await?;
     Ok(Json(rec))
 }
 
@@ -502,15 +577,18 @@ async fn get_recording(
     params(("id" = i64, Path, description = "Recording ID")),
     responses(
         (status = 200, description = "Recording cancelled or deleted", body = SuccessResponse),
+        (status = 403, description = "Only the owner or an administrator may delete a shared recording"),
+        (status = 404, description = "Recording not found or inaccessible"),
     ),
     security(("bearer_auth" = []))
 )]
 async fn cancel_recording(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<SuccessResponse>, ApiError> {
-    let success = state.services.livetv.cancel_recording(RecordingId(id)).await?;
+    state.services.livetv.get_recording_for(&auth.actor, RecordingId(id)).await?;
+    let success = state.services.livetv.cancel_recording(&auth.actor, RecordingId(id)).await?;
     Ok(Json(SuccessResponse { success }))
 }
 
@@ -527,8 +605,7 @@ async fn list_recording_rules(
     auth: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RecordingRule>>, ApiError> {
-    let user_id = if auth.actor.is_admin { None } else { Some(auth.actor.user_id) };
-    let rules = state.services.livetv.list_recording_rules(user_id).await?;
+    let rules = state.services.livetv.list_recording_rules(&auth.actor).await?;
     Ok(Json(rules))
 }
 
@@ -538,6 +615,8 @@ async fn list_recording_rules(
     request_body = CreateRecordingRuleRequest,
     responses(
         (status = 200, description = "Series recording rule created", body = RecordingRule),
+        (status = 404, description = "Channel or recording library inaccessible"),
+        (status = 422, description = "Invalid recording or retention policy"),
     ),
     security(("bearer_auth" = []))
 )]
@@ -546,7 +625,7 @@ async fn create_series_rule(
     State(state): State<AppState>,
     Json(req): Json<CreateRecordingRuleRequest>,
 ) -> Result<Json<RecordingRule>, ApiError> {
-    let rule = state.services.livetv.create_series_rule(auth.actor.user_id, req).await?;
+    let rule = state.services.livetv.create_series_rule(&auth.actor, req).await?;
     Ok(Json(rule))
 }
 
@@ -561,11 +640,11 @@ async fn create_series_rule(
     security(("bearer_auth" = []))
 )]
 async fn get_recording_rule(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<RecordingRule>, ApiError> {
-    let rule = state.services.livetv.get_recording_rule(RecordingRuleId(id)).await?;
+    let rule = state.services.livetv.get_recording_rule(&auth.actor, RecordingRuleId(id)).await?;
     Ok(Json(rule))
 }
 
@@ -583,11 +662,12 @@ async fn delete_recording_rule(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<i64>,
 ) -> Result<Json<SuccessResponse>, ApiError> {
-    let rule = state.services.livetv.get_recording_rule(RecordingRuleId(id)).await?;
+    let rule = state.services.livetv.get_recording_rule(&auth.actor, RecordingRuleId(id)).await?;
     if !auth.actor.is_admin && rule.user_id != auth.actor.user_id {
         return Err(ApiError::from(mbl_core::Error::Forbidden));
     }
-    let success = state.services.livetv.delete_recording_rule(RecordingRuleId(id)).await?;
+    let success =
+        state.services.livetv.delete_recording_rule(&auth.actor, RecordingRuleId(id)).await?;
     Ok(Json(SuccessResponse { success }))
 }
 

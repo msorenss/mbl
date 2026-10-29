@@ -4,40 +4,69 @@
 //! parsing, live stream resolution with deinterlacing, recording scheduling with series
 //! rules and tuner conflict detection, and virtual 24/7 linear channels.
 
+use crate::StreamService;
+#[path = "live_profile.rs"]
+mod profile;
+#[path = "dvr_scheduler.rs"]
+mod scheduler;
+use crate::live_relay::LiveRelay;
+use profile::LiveAccess;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock;
 
 use mbl_core::ids::{
     ChannelId, ProgramId, RecordingId, RecordingRuleId, TunerId, UserId, VirtualChannelId,
 };
 use mbl_core::livetv::{
-    Channel, CreateRecordingRuleRequest, CreateTunerRequest, EpgGridChannel, EpgGridResponse,
-    EpgProgram, LiveStreamInfo, Recording, RecordingRule, RecordingStatus,
-    ScheduleRecordingRequest, Tuner, TunerKind, TunerStatus, UpdateChannelRequest,
+    Channel, CreateTunerRequest, EpgGridChannel, EpgGridResponse, EpgProgram, LiveStreamInfo,
+    Recording, RecordingRule, RecordingStatus, Tuner, TunerKind, TunerStatus, UpdateChannelRequest,
 };
 use mbl_core::plugins::{
     CreateVirtualChannelRequest, VirtualChannel, VirtualChannelItem, VirtualChannelMode,
     VirtualPlayhead,
 };
-use mbl_core::{Error, Result};
+use mbl_core::{Error, Result, SessionId};
 use mbl_db::Db;
 use mbl_db::repo::m9::{self, EpgProgramInsert};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LiveOwner {
+    Client(SessionId),
+    Recording(RecordingId),
+}
+
+#[derive(Debug, Clone)]
+struct LiveLease {
+    access: Option<LiveAccess>,
+    owner: LiveOwner,
+    relay: Option<Arc<LiveRelay>>,
+    channel_id: ChannelId,
+    tuner_id: Option<TunerId>,
+    expires_at: i64,
+}
+
 /// Live TV management and playback coordinator.
 #[derive(Debug, Clone)]
 pub struct LiveTvService {
     db: Arc<Db>,
+    dvr: Option<crate::dvr::Dvr>,
+    stream: StreamService,
+    closed: Arc<AtomicBool>,
     client: reqwest::Client,
     /// In-memory counter for active streams per tuner to enforce tuner concurrency limits.
-    active_tuner_streams: Arc<RwLock<HashMap<TunerId, usize>>>,
+    active_tuner_streams: Arc<RwLock<HashMap<String, LiveLease>>>,
 }
 
 impl LiveTvService {
     pub fn new(db: Arc<Db>) -> Self {
         Self {
+            dvr: None,
+            stream: StreamService::new((*db).clone()),
+            closed: Arc::default(),
             db,
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(10))
@@ -47,6 +76,152 @@ impl LiveTvService {
         }
     }
 
+    pub fn with_stream(mut self, stream: StreamService) -> Self {
+        self.stream = stream;
+        self
+    }
+
+    pub fn with_recordings(
+        mut self,
+        root: std::path::PathBuf,
+        tools: Option<mbl_probe::FfTools>,
+    ) -> Self {
+        self.dvr = Some(crate::dvr::Dvr::new((*self.db).clone(), root, tools));
+        self
+    }
+
+    pub fn with_recording_storage(mut self, policy: mbl_core::livetv::DvrStoragePolicy) -> Self {
+        if let Some(dvr) = self.dvr.as_mut() {
+            dvr.policy = policy;
+        }
+        self
+    }
+
+    pub async fn recording_storage_status(&self) -> Result<mbl_core::livetv::DvrStorageStatus> {
+        Ok(self
+            .dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .storage_status()
+            .await)
+    }
+
+    pub async fn recording_storage_limit(&self) -> Result<u64> {
+        let status = self.recording_storage_status().await?;
+        if !status.can_start {
+            return Err(Error::Unavailable(
+                status.error.unwrap_or_else(|| "DVR storage unavailable".into()),
+            ));
+        }
+        let available = status.available_bytes.unwrap_or(0).saturating_sub(status.min_free_bytes);
+        let limit = status.max_recording_bytes.map_or(available, |max| max.min(available));
+        if limit == 0 {
+            return Err(Error::Unavailable("DVR recording size limit is zero".into()));
+        }
+        Ok(limit)
+    }
+
+    pub async fn publish_recording(&self, id: RecordingId) -> Result<mbl_core::ItemId> {
+        self.dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .publish(id)
+            .await
+    }
+
+    /// Finalize an owned capture, preserving valid partial media after a source failure.
+    pub async fn publish_recording_capture(
+        &self,
+        id: RecordingId,
+        failure: Option<&str>,
+    ) -> Result<mbl_core::ItemId> {
+        let row = m9::get_recording(&self.db, id).await?.ok_or(Error::NotFound)?;
+        self.authorize_recording_job(&row).await?;
+        self.dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .publish_capture(id, failure, Some(self))
+            .await
+    }
+
+    pub async fn reconcile_recordings(&self) {
+        if let Some(dvr) = &self.dvr {
+            dvr.reconcile().await;
+        }
+    }
+
+    pub async fn preview_recording_recovery(
+        &self,
+        actor: &mbl_core::Actor,
+        id: RecordingId,
+    ) -> Result<mbl_core::livetv::RecordingRecoveryPlan> {
+        let row = self.authorize_recording_recovery(actor, id).await?;
+        self.dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .preview_recovery(&row)
+            .await
+    }
+
+    pub async fn recover_recording(
+        &self,
+        actor: &mbl_core::Actor,
+        id: RecordingId,
+    ) -> Result<Recording> {
+        self.authorize_recording_recovery(actor, id).await?;
+        self.dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .recover(actor, id, self)
+            .await?;
+        self.get_recording_for(actor, id).await
+    }
+
+    pub(crate) async fn authorize_recording_recovery(
+        &self,
+        caller: &mbl_core::Actor,
+        id: RecordingId,
+    ) -> Result<m9::RecordingRow> {
+        let caller = mbl_db::repo::m6::actor_for_user(&self.db, caller.user_id)
+            .await?
+            .ok_or(Error::Forbidden)?;
+        let row = m9::get_recording(&self.db, id).await?.ok_or(Error::NotFound)?;
+        if !caller.is_admin && row.owner_id != Some(caller.user_id.0) {
+            return Err(Error::NotFound);
+        }
+        self.authorize_recording_archive(&row).await?;
+        Ok(row)
+    }
+
+    pub(crate) async fn authorize_recording_archive(&self, row: &m9::RecordingRow) -> Result<()> {
+        let owner = row.owner_id.map(UserId).ok_or(Error::Forbidden)?;
+        let owner =
+            mbl_db::repo::m6::actor_for_user(&self.db, owner).await?.ok_or(Error::Forbidden)?;
+        let library = row.library_id.map(mbl_core::LibraryId).ok_or(Error::Forbidden)?;
+        if !owner.can_access_library(library)
+            || !owner.can_view_rating(row.content_rating.as_deref())
+        {
+            return Err(Error::Forbidden);
+        }
+        if owner.content_rating_ceiling.is_some()
+            && (row.start_time != row.program_start_time || row.end_time != row.program_end_time)
+        {
+            return Err(Error::Forbidden);
+        }
+        if let Some(id) = row.program_id
+            && let Some(program) = m9::get_epg_program(&self.db, ProgramId(id)).await?
+            && (program.channel_id != row.channel_id
+                || program.start_time != row.program_start_time
+                || program.end_time != row.program_end_time
+                || !program.title.eq_ignore_ascii_case(&row.title)
+                || scheduler::rating_access_level(program.rating.as_deref())
+                    > scheduler::rating_access_level(row.content_rating.as_deref())
+                || !owner.can_view_rating(program.rating.as_deref()))
+        {
+            return Err(Error::Forbidden);
+        }
+        Ok(())
+    }
     pub fn db(&self) -> &Db {
         &self.db
     }
@@ -122,7 +297,21 @@ impl LiveTvService {
     }
 
     pub async fn delete_tuner(&self, id: TunerId) -> Result<bool> {
-        m9::delete_tuner(&self.db, id).await
+        let deleted = m9::delete_tuner(&self.db, id).await?;
+        if deleted {
+            let ids: Vec<_> = self
+                .active_tuner_streams
+                .read()
+                .await
+                .iter()
+                .filter(|(_, l)| l.tuner_id == Some(id))
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in ids {
+                self.release_internal(&id).await;
+            }
+        }
+        Ok(deleted)
     }
 
     /// Discovers HDHomeRun tuners on the local network via UDP broadcast, or via direct inspect.
@@ -323,7 +512,21 @@ impl LiveTvService {
     }
 
     pub async fn delete_channel(&self, id: ChannelId) -> Result<bool> {
-        m9::delete_channel(&self.db, id).await
+        let deleted = m9::delete_channel(&self.db, id).await?;
+        if deleted {
+            let ids: Vec<_> = self
+                .active_tuner_streams
+                .read()
+                .await
+                .iter()
+                .filter(|(_, l)| l.channel_id == id)
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in ids {
+                self.release_internal(&id).await;
+            }
+        }
+        Ok(deleted)
     }
 
     // -----------------------------------------------------------------------
@@ -391,176 +594,305 @@ impl LiveTvService {
     // Live Playback Engine
     // -----------------------------------------------------------------------
 
-    pub async fn resolve_live_stream(&self, channel_id: ChannelId) -> Result<LiveStreamInfo> {
-        let channel = self.get_channel(channel_id).await?;
-
-        // If channel is backed by a tuner, enforce concurrency limits
-        if let Some(tuner_id) = channel.tuner_id {
-            let tuner = self.get_tuner(tuner_id).await?;
-            let mut active = self.active_tuner_streams.write().await;
-            let current = active.entry(tuner_id).or_insert(0);
-
-            if *current >= tuner.tuner_count as usize {
-                return Err(Error::Conflict(format!(
-                    "All {} tuners on '{}' are currently in use",
-                    tuner.tuner_count, tuner.name
-                )));
-            }
-
-            *current += 1;
+    pub async fn resolve_live_stream(
+        &self,
+        owner: SessionId,
+        channel_id: ChannelId,
+        renew: Option<&str>,
+    ) -> Result<LiveStreamInfo> {
+        if self.closed.load(Ordering::Acquire) {
+            return Err(Error::Unavailable("live TV is shutting down".into()));
         }
-
+        let channel = self.get_channel(channel_id).await?;
+        if channel.is_virtual
+            || !(channel.stream_url.starts_with("http://")
+                || channel.stream_url.starts_with("https://"))
+        {
+            return Err(Error::Validation(
+                "live relay requires an HTTP or HTTPS tuner source".into(),
+            ));
+        }
+        let access_ends_at;
+        let id = if let Some(id) = renew {
+            let lease = {
+                let leases = self.active_tuner_streams.read().await;
+                let lease = leases.get(id).ok_or(Error::NotFound)?;
+                if lease.owner != LiveOwner::Client(owner)
+                    || lease.channel_id != channel_id
+                    || lease.expires_at <= mbl_core::time::now_ms()
+                {
+                    return Err(Error::NotFound);
+                }
+                lease.clone()
+            };
+            if let Err(error) = self.check_live_lease(&lease).await {
+                self.release_internal(id).await;
+                return Err(error);
+            }
+            access_ends_at = lease.access.as_ref().and_then(|a| a.program.map(|p| p.1));
+            let relay = lease.relay.ok_or(Error::NotFound)?;
+            if relay.failed().await {
+                self.release_internal(id).await;
+                return Err(Error::Unavailable("live encoder failed".into()));
+            }
+            let mut leases = self.active_tuner_streams.write().await;
+            let lease = leases.get_mut(id).ok_or(Error::NotFound)?;
+            if lease.expires_at <= mbl_core::time::now_ms() {
+                return Err(Error::NotFound);
+            }
+            lease.expires_at =
+                (mbl_core::time::now_ms() + 45_000).min(access_ends_at.unwrap_or(i64::MAX));
+            id.to_owned()
+        } else {
+            let access = self.live_access(owner, &channel).await?;
+            access_ends_at = access.program.map(|p| p.1);
+            let id = self
+                .reserve(
+                    LiveOwner::Client(owner),
+                    &channel,
+                    (mbl_core::time::now_ms() + 45_000).min(access_ends_at.unwrap_or(i64::MAX)),
+                    Some(access),
+                )
+                .await?;
+            let mut candidate =
+                LiveCandidate { service: self.clone(), id: Some(id.clone()), relay: None };
+            let started: Result<()> = async {
+                let manager = self
+                    .stream
+                    .hls_manager()
+                    .ok_or_else(|| Error::Unavailable("live encoder is not configured".into()))?;
+                let capacity = manager.reserve_video_capacity().await?;
+                let lease = self
+                    .active_tuner_streams
+                    .read()
+                    .await
+                    .get(&id)
+                    .cloned()
+                    .ok_or(Error::NotFound)?;
+                self.check_live_lease(&lease).await?;
+                let relay = {
+                    // Publish the child while holding the same lock used by shutdown's snapshot.
+                    // A cancelled/shutting-down request must never spawn an unowned late child.
+                    let mut leases = self.active_tuner_streams.write().await;
+                    if self.closed.load(Ordering::Acquire) {
+                        return Err(Error::Unavailable("live TV is shutting down".into()));
+                    }
+                    let lease = leases.get_mut(&id).ok_or(Error::NotFound)?;
+                    let relay = LiveRelay::spawn(
+                        self.stream.ffmpeg_bin(),
+                        manager.config().transcode_dir.join("live").as_std_path(),
+                        &channel.stream_url,
+                        capacity,
+                        access_ends_at
+                            .map(|end| end.saturating_sub(mbl_core::time::now_ms()).max(1)),
+                    )?;
+                    candidate.relay = Some(relay.clone());
+                    lease.relay = Some(relay.clone());
+                    relay
+                };
+                relay.prepare().await?;
+                self.check_live_lease(&lease).await?;
+                let mut leases = self.active_tuner_streams.write().await;
+                if self.closed.load(Ordering::Acquire) {
+                    return Err(Error::Unavailable("live TV is shutting down".into()));
+                }
+                let lease = leases.get_mut(&id).ok_or(Error::NotFound)?;
+                if lease.expires_at <= mbl_core::time::now_ms() {
+                    return Err(Error::NotFound);
+                }
+                lease.expires_at =
+                    (mbl_core::time::now_ms() + 45_000).min(access_ends_at.unwrap_or(i64::MAX));
+                Ok(())
+            }
+            .await;
+            if let Err(error) = started {
+                candidate.abort().await;
+                return Err(error);
+            }
+            candidate.id = None;
+            candidate.relay = None;
+            id
+        };
         Ok(LiveStreamInfo {
+            access_ends_at,
+            expires_at: self
+                .active_tuner_streams
+                .read()
+                .await
+                .get(&id)
+                .ok_or(Error::NotFound)?
+                .expires_at,
+            stream_url: format!("/api/v1/stream/live/{id}/index.m3u8"),
+            session_id: id,
             channel_id,
             channel_name: channel.name,
-            stream_url: channel.stream_url,
-            is_deinterlacing_required: true,
-            target_format: "mpegts".to_string(),
+            is_deinterlacing_required: false,
+            target_format: "hls".into(),
         })
     }
 
-    pub async fn release_live_stream(&self, channel_id: ChannelId) -> Result<()> {
-        let channel = self.get_channel(channel_id).await.ok();
-        if let Some(tuner_id) = channel.and_then(|c| c.tuner_id) {
-            let mut active = self.active_tuner_streams.write().await;
-            if let Some(current) = active.get_mut(&tuner_id) {
-                *current = current.saturating_sub(1);
+    async fn reserve(
+        &self,
+        owner: LiveOwner,
+        channel: &Channel,
+        expires_at: i64,
+        access: Option<LiveAccess>,
+    ) -> Result<String> {
+        self.maintain().await;
+        let capacity = if let Some(id) = channel.tuner_id {
+            Some(self.get_tuner(id).await?.tuner_count as usize)
+        } else {
+            None
+        };
+        let mut leases = self.active_tuner_streams.write().await;
+        // Serialize against deletion after an earlier channel/tuner lookup.
+        self.get_channel(channel.id).await?;
+        if self.closed.load(Ordering::Acquire) {
+            return Err(Error::Unavailable("live TV is shutting down".into()));
+        }
+        if let Some(capacity) = capacity
+            && leases.values().filter(|l| l.tuner_id == channel.tuner_id).count() >= capacity
+        {
+            return Err(Error::Conflict("all tuners are in use by live TV or DVR".into()));
+        }
+        if matches!(owner, LiveOwner::Client(_))
+            && leases.values().filter(|l| l.owner == owner).count() >= 8
+        {
+            return Err(Error::Conflict("too many live streams".into()));
+        }
+        let id = mbl_auth::new_token()?.value;
+        leases.insert(
+            id.clone(),
+            LiveLease {
+                access,
+                owner,
+                relay: None,
+                channel_id: channel.id,
+                tuner_id: channel.tuner_id,
+                expires_at,
+            },
+        );
+        Ok(id)
+    }
+
+    pub async fn release_live_stream(
+        &self,
+        owner: SessionId,
+        channel_id: ChannelId,
+        id: &str,
+    ) -> Result<()> {
+        {
+            let leases = self.active_tuner_streams.read().await;
+            if let Some(lease) = leases.get(id)
+                && (lease.owner != LiveOwner::Client(owner) || lease.channel_id != channel_id)
+            {
+                return Err(Error::NotFound);
             }
         }
+        self.release_internal(id).await;
         Ok(())
     }
 
-    // -----------------------------------------------------------------------
-    // Recording Scheduler & Series Rules
-    // -----------------------------------------------------------------------
+    async fn release_internal(&self, id: &str) {
+        let relay = {
+            let mut leases = self.active_tuner_streams.write().await;
+            if let Some(lease) = leases.get_mut(id) {
+                lease.expires_at = 0;
+                lease.relay.clone()
+            } else {
+                return;
+            }
+        };
+        if let Some(relay) = relay {
+            relay.shutdown().await;
+        }
+        self.active_tuner_streams.write().await.remove(id);
+    }
 
-    pub async fn schedule_recording(&self, req: ScheduleRecordingRequest) -> Result<Recording> {
-        let channel = self.get_channel(req.channel_id).await?;
+    pub async fn live_file(&self, id: &str, filename: &str) -> Result<std::path::PathBuf> {
+        let lease = {
+            let leases = self.active_tuner_streams.read().await;
+            let lease = leases.get(id).ok_or(Error::NotFound)?;
+            if lease.expires_at <= mbl_core::time::now_ms() {
+                return Err(Error::NotFound);
+            }
+            lease.clone()
+        };
+        if let Err(error) = self.check_live_lease(&lease).await {
+            self.release_internal(id).await;
+            return Err(error);
+        }
+        let relay = lease.relay.ok_or(Error::NotFound)?;
+        relay.file(filename).await
+    }
 
-        // Tuner conflict check
-        if let Some(tuner_id) = channel.tuner_id {
-            let tuner = self.get_tuner(tuner_id).await?;
-            let overlapping = m9::count_overlapping_recordings(
-                &self.db,
-                channel.id,
-                req.start_time,
-                req.end_time,
-            )
+    pub async fn reserve_recording(
+        &self,
+        id: RecordingId,
+        channel_id: ChannelId,
+        end_time: i64,
+    ) -> Result<RecordingLease> {
+        let channel = self.get_channel(channel_id).await?;
+        let key = self
+            .reserve(LiveOwner::Recording(id), &channel, end_time.saturating_add(30_000), None)
             .await?;
-
-            if overlapping >= tuner.tuner_count as i64 {
-                return Err(Error::Conflict(format!(
-                    "Tuner conflict: all {} tuners on '{}' are scheduled during this time window",
-                    tuner.tuner_count, tuner.name
-                )));
-            }
-        }
-
-        let start_pad_ms = (req.start_padding_secs.unwrap_or(0) as i64) * 1000;
-        let end_pad_ms = (req.end_padding_secs.unwrap_or(0) as i64) * 1000;
-
-        let id = m9::schedule_recording(
-            &self.db,
-            None,
-            req.channel_id,
-            req.program_id,
-            &req.title,
-            req.start_time - start_pad_ms,
-            req.end_time + end_pad_ms,
-        )
-        .await?;
-
-        self.get_recording(id).await
+        Ok(RecordingLease { service: self.clone(), key })
     }
 
-    pub async fn create_series_rule(
-        &self,
-        user_id: UserId,
-        req: CreateRecordingRuleRequest,
-    ) -> Result<RecordingRule> {
-        let start_pad = req.start_padding_secs.unwrap_or(0);
-        let end_pad = req.end_padding_secs.unwrap_or(0);
-        let auto_delete = req.auto_delete_watched.unwrap_or(false);
-
-        let rule_id = m9::create_recording_rule(
-            &self.db,
-            user_id,
-            &req.title,
-            req.channel_id,
-            req.series_only,
-            req.season_number,
-            req.new_only,
-            start_pad,
-            end_pad,
-            req.keep_max,
-            auto_delete,
-        )
-        .await?;
-
-        // Schedule all upcoming matching programs in the guide
-        let now = mbl_core::time::now_ms();
-        let matches =
-            m9::search_epg(&self.db, &req.title, Some(now), Some(now + 14 * 86_400_000), 100)
-                .await?;
-
-        for prog in matches {
-            let Some(cid) = prog.channel_id else {
-                continue;
-            };
-
-            if req.channel_id.is_none() || req.channel_id == Some(ChannelId(cid)) {
-                if req.new_only && prog.is_new == 0 {
-                    continue;
+    pub async fn maintain(&self) {
+        let leases: Vec<_> = self
+            .active_tuner_streams
+            .read()
+            .await
+            .iter()
+            .map(|(id, l)| (id.clone(), l.clone()))
+            .collect();
+        for (id, lease) in leases {
+            let failed = if let Some(relay) = &lease.relay { relay.failed().await } else { false };
+            let denied = self.check_live_lease(&lease).await.is_err();
+            let expired = {
+                let mut leases = self.active_tuner_streams.write().await;
+                if let Some(current) = leases.get_mut(&id) {
+                    if failed || denied || current.expires_at <= mbl_core::time::now_ms() {
+                        current.expires_at = 0;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
                 }
-
-                let start_pad_ms = (start_pad as i64) * 1000;
-                let end_pad_ms = (end_pad as i64) * 1000;
-
-                let _ = m9::schedule_recording(
-                    &self.db,
-                    Some(rule_id),
-                    ChannelId(cid),
-                    Some(ProgramId(prog.id)),
-                    &prog.title,
-                    prog.start_time - start_pad_ms,
-                    prog.end_time + end_pad_ms,
-                )
-                .await;
+            };
+            if expired {
+                self.release_internal(&id).await;
             }
         }
-
-        self.get_recording_rule(rule_id).await
+        if let Some(manager) = self.stream.hls_manager() {
+            let mut live: Vec<_> = self
+                .active_tuner_streams
+                .read()
+                .await
+                .iter()
+                .filter(|(_, l)| l.relay.is_some())
+                .map(|(id, l)| (l.expires_at, id.clone()))
+                .collect();
+            live.sort();
+            for (_, id) in live {
+                if manager.temp_usage_bytes() <= manager.config().temp_quota_bytes {
+                    break;
+                }
+                tracing::warn!(session_id = %id, "stopping live HLS to enforce transcode quota");
+                self.release_internal(&id).await;
+            }
+        }
     }
 
-    pub async fn list_recording_rules(
-        &self,
-        user_id: Option<UserId>,
-    ) -> Result<Vec<RecordingRule>> {
-        let rows = m9::list_recording_rules(&self.db, user_id).await?;
-        Ok(rows.into_iter().map(row_to_recording_rule).collect())
-    }
-
-    pub async fn get_recording_rule(&self, id: RecordingRuleId) -> Result<RecordingRule> {
-        let rows = m9::list_recording_rules(&self.db, None).await?;
-        rows.into_iter().find(|r| r.id == id.0).map(row_to_recording_rule).ok_or(Error::NotFound)
-    }
-
-    pub async fn delete_recording_rule(&self, id: RecordingRuleId) -> Result<bool> {
-        m9::delete_recording_rule(&self.db, id).await
-    }
-
-    pub async fn list_recordings(&self, status: Option<&str>) -> Result<Vec<Recording>> {
-        let rows = m9::list_recordings(&self.db, status).await?;
-        Ok(rows.into_iter().map(row_to_recording).collect())
-    }
-
-    pub async fn get_recording(&self, id: RecordingId) -> Result<Recording> {
-        let row = m9::get_recording(&self.db, id).await?.ok_or(Error::NotFound)?;
-        Ok(row_to_recording(row))
-    }
-
-    pub async fn cancel_recording(&self, id: RecordingId) -> Result<bool> {
-        m9::delete_recording(&self.db, id).await
+    pub async fn shutdown(&self) {
+        self.closed.store(true, Ordering::Release);
+        let ids: Vec<_> = self.active_tuner_streams.read().await.keys().cloned().collect();
+        for id in ids {
+            self.release_internal(&id).await;
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -759,6 +1091,65 @@ impl LiveTvService {
 // ---------------------------------------------------------------------------
 // Helpers & Parsers
 // ---------------------------------------------------------------------------
+
+/// Held by the DVR child for its full lifetime; cancellation also releases the tuner.
+#[derive(Debug)]
+pub struct RecordingLease {
+    service: LiveTvService,
+    key: String,
+}
+impl RecordingLease {
+    pub async fn release(mut self) {
+        self.service.release_internal(&self.key).await;
+        self.key.clear();
+    }
+}
+impl Drop for RecordingLease {
+    fn drop(&mut self) {
+        if !self.key.is_empty()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            let service = self.service.clone();
+            let key = self.key.clone();
+            runtime.spawn(async move {
+                service.release_internal(&key).await;
+            });
+        }
+    }
+}
+struct LiveCandidate {
+    service: LiveTvService,
+    id: Option<String>,
+    relay: Option<Arc<LiveRelay>>,
+}
+impl LiveCandidate {
+    async fn abort(&mut self) {
+        if let Some(id) = &self.id {
+            self.service.release_internal(id).await;
+        }
+        if let Some(relay) = &self.relay {
+            relay.shutdown().await;
+        }
+        self.id = None;
+        self.relay = None;
+    }
+}
+impl Drop for LiveCandidate {
+    fn drop(&mut self) {
+        if let Some(id) = self.id.take()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            let service = self.service.clone();
+            let relay = self.relay.take();
+            runtime.spawn(async move {
+                service.release_internal(&id).await;
+                if let Some(relay) = relay {
+                    relay.shutdown().await;
+                }
+            });
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ParsedM3uItem {
@@ -1042,6 +1433,7 @@ fn row_to_channel(
     next_program: Option<EpgProgram>,
 ) -> Channel {
     Channel {
+        can_play: false,
         id: ChannelId(r.id),
         tuner_id: r.tuner_id.map(TunerId),
         channel_number: r.channel_number,
@@ -1083,6 +1475,7 @@ fn row_to_recording(r: m9::RecordingRow) -> Recording {
     let status = match r.status.as_str() {
         "recording" => RecordingStatus::Recording,
         "completed" => RecordingStatus::Completed,
+        "partial" => RecordingStatus::Partial,
         "failed" => RecordingStatus::Failed,
         "cancelled" => RecordingStatus::Cancelled,
         _ => RecordingStatus::Scheduled,
@@ -1090,15 +1483,17 @@ fn row_to_recording(r: m9::RecordingRow) -> Recording {
 
     Recording {
         id: RecordingId(r.id),
+        item_id: r.item_id.map(mbl_core::ItemId),
         rule_id: r.rule_id.map(RecordingRuleId),
-        channel_id: ChannelId(r.channel_id),
+        channel_id: r.channel_id.map(ChannelId),
+        can_delete: false,
         channel_name: r.channel_name,
         program_id: r.program_id.map(ProgramId),
         title: r.title,
         start_time: r.start_time,
         end_time: r.end_time,
         status,
-        output_path: r.output_path,
+        output_path: None,
         size_bytes: r.size_bytes.map(|s| s as u64),
         duration_ms: r.duration_ms.map(|d| d as u64),
         error_message: r.error_message,

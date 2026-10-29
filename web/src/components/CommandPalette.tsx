@@ -31,9 +31,11 @@ export function CommandPalette(props: CommandPaletteProps) {
   let inputRef: HTMLInputElement | undefined;
 
   // Search debounce
-  let debounceTimer: any;
+  let searchVersion = 0;
+  let debounceTimer: ReturnType<typeof setTimeout>;
   createEffect(() => {
     const q = query().trim();
+    const version = ++searchVersion;
     clearTimeout(debounceTimer);
     if (!q) {
       setSearchResults([]);
@@ -44,14 +46,15 @@ export function CommandPalette(props: CommandPaletteProps) {
     debounceTimer = setTimeout(async () => {
       try {
         const res = await client.GET("/api/v1/search", { params: { query: { q } } });
+        if (version !== searchVersion) return;
         if (res.data) {
-          const flat = (res.data as any[]).flatMap((g) => g.items || []);
+          const flat = res.data.flatMap((g) => g.items || []);
           setSearchResults(flat.slice(0, 8));
         }
       } catch {
-        setSearchResults([]);
+        if (version === searchVersion) setSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (version === searchVersion) setIsSearching(false);
       }
     }, 200);
   });
@@ -94,7 +97,37 @@ export function CommandPalette(props: CommandPaletteProps) {
       },
     ];
 
+    actions.push(
+      {
+        id: "nav-collections",
+        category: "Navigation",
+        label: "Collections & playlists",
+        icon: "📚",
+        run: () => navigate("/collections"),
+      },
+      {
+        id: "nav-account",
+        category: "Navigation",
+        label: "Account & security",
+        icon: "🔒",
+        run: () => navigate("/account"),
+      },
+      {
+        id: "nav-live",
+        category: "Navigation",
+        label: t("liveTv"),
+        icon: "📺",
+        run: () => navigate("/livetv"),
+      },
+    );
     if (user()?.isAdmin) {
+      actions.push({
+        id: "admin-remote",
+        category: "Admin",
+        label: "Remote access",
+        icon: "🌐",
+        run: () => navigate("/admin/remote"),
+      });
       actions.push(
         {
           id: "admin-users",

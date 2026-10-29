@@ -94,7 +94,7 @@ async fn create(
 /// Update a library (admin).
 #[utoipa::path(patch, path = "/api/v1/libraries/{id}", tag = "libraries", operation_id = "update_library",
     params(("id" = i64, Path)), request_body = UpdateLibraryRequest,
-    responses((status = 200, body = LibraryDto), (status = 404)))]
+    responses((status = 200, body = LibraryDto), (status = 404), (status = 409, description = "DVR library paths are managed automatically")))]
 async fn update(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
@@ -107,7 +107,7 @@ async fn update(
 
 /// Delete a library and its items (admin).
 #[utoipa::path(delete, path = "/api/v1/libraries/{id}", tag = "libraries", operation_id = "delete_library",
-    params(("id" = i64, Path)), responses((status = 204), (status = 404)))]
+    params(("id" = i64, Path)), responses((status = 204), (status = 404), (status = 409, description = "DVR library is managed automatically")))]
 async fn remove(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,

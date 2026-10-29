@@ -419,7 +419,7 @@ async fn scope_filtering_escalation_redaction_and_rate_limiting() {
     let mut cookie_client = McpClient::connect_router(app.router.clone(), None)
         .with_session_cookie(admin_session, "localhost:8420", "http://localhost:8420");
     let cookie_tools = cookie_client.list_tools().await.unwrap();
-    assert_eq!(cookie_tools.tools.len(), 74);
+    assert_eq!(cookie_tools.tools.len(), 75);
 
     // 6. Verify 90-day audit pruning.
     let now = now_ms();
@@ -572,6 +572,8 @@ async fn mcp_tools_v0_all_tools_against_synthetic_library() {
         client.call_tool("explain_session", json!({ "session_id": session_id })).await.unwrap();
     assert!(!explain.is_error);
     assert_eq!(explain.structured_content.as_ref().unwrap()["method"], "directPlay");
+    assert_eq!(explain.structured_content.as_ref().unwrap()["network"], "lan");
+    assert!(explain.structured_content.as_ref().unwrap()["transcode"].is_null());
 
     let preview = client
         .call_tool("preview_playback", json!({ "item_id": s.movie_id, "profile": "chrome" }))
@@ -579,6 +581,41 @@ async fn mcp_tools_v0_all_tools_against_synthetic_library() {
         .unwrap();
     assert!(!preview.is_error);
     assert_eq!(preview.structured_content.as_ref().unwrap()["method"], "directPlay");
+
+    // Signed audio sync is exposed through the existing preview tool and matches REST.
+    for offset in [-500, 500] {
+        let rest = app
+            .call(
+                Method::POST,
+                &format!("/api/v1/items/{}/playback-preview", s.movie_id),
+                Some(&admin_session),
+                Some(json!({"profile": "chrome", "audioOffsetMs": offset})),
+            )
+            .await;
+        assert_eq!(rest.status, StatusCode::OK);
+        let preview = client
+            .call_tool(
+                "preview_playback",
+                json!({
+                    "item_id": s.movie_id, "profile": "chrome", "audio_offset_ms": offset
+                }),
+            )
+            .await
+            .unwrap();
+        assert!(!preview.is_error);
+        assert_eq!(preview.structured_content.unwrap(), rest.body);
+    }
+
+    for args in [
+        json!({"audio_stream_index":999}),
+        json!({"subtitle_stream_index":1}),
+        json!({"audio_stream_index":4_294_967_297_u64}),
+    ] {
+        let mut args = args;
+        args["item_id"] = json!(s.movie_id);
+        let error = client.call_tool("preview_playback", args).await.unwrap_err();
+        assert!(error.to_string().contains("-32602"), "{error}");
+    }
 
     // 6. Job tools
     let repo = mbl_db::repo::jobs::JobsRepo::new(db.clone());
@@ -756,6 +793,16 @@ async fn mcp_preview_playback_parity_10_fixtures() {
 
         assert_eq!(mcp_method, rest_method, "Method mismatch on {}", c.name);
         assert_eq!(mcp_reasons, rest_reasons, "Reasons mismatch on {}", c.name);
+        // Each fixture owns its live session; release it before the next capacity-limited case.
+        let stopped = app
+            .call(
+                Method::POST,
+                &format!("/api/v1/playback/{}/stop", rest_res.body["sessionId"].as_str().unwrap()),
+                Some(&admin_session),
+                None,
+            )
+            .await;
+        assert_eq!(stopped.status, StatusCode::NO_CONTENT);
     }
 }
 

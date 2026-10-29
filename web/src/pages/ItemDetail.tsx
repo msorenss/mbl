@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
+import { getPreferredProfile } from "../api/deviceProfile";
 import type { components } from "../api/schema";
 import { Badge, Button, Chip } from "../components/ui";
 import { usePlayer } from "../context/PlayerContext";
@@ -22,37 +23,78 @@ export function ItemDetail() {
   const [item, setItem] = createSignal<ItemDetailDto | null>(null);
   const [children, setChildren] = createSignal<ItemSummary[]>([]);
   const [preview, setPreview] = createSignal<PlaybackPreview | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = createSignal<number | null>(null);
   const [selectedAudioIdx, setSelectedAudioIdx] = createSignal<number | null>(null);
   const [selectedSubIdx, setSelectedSubIdx] = createSignal<number | null>(null);
+  const [loadError, setLoadError] = createSignal<string | null>(null);
+  let loadVersion = 0;
   const [loading, setLoading] = createSignal(true);
   const [watchUpdating, setWatchUpdating] = createSignal(false);
 
   const loadData = async () => {
+    const version = ++loadVersion;
+    const id = itemId();
     setLoading(true);
+    setLoadError(null);
+    setItem(null);
+    setChildren([]);
+    setPreview(null);
+    setSelectedVersionId(null);
+    setSelectedAudioIdx(null);
+    setSelectedSubIdx(null);
     try {
-      const [detailRes, childrenRes, previewRes] = await Promise.all([
+      const [detailRes, childrenRes] = await Promise.all([
         client.GET("/api/v1/items/{id}", {
-          params: { path: { id: itemId() } },
+          params: { path: { id } },
         }),
         client.GET("/api/v1/items/{id}/children", {
-          params: { path: { id: itemId() } },
-        }),
-        client.GET("/api/v1/items/{id}/playback-preview", {
-          params: { path: { id: itemId() }, query: { profile: "chrome" } },
+          params: { path: { id } },
         }),
       ]);
 
+      if (version !== loadVersion) return;
+      if (!detailRes.data) throw new Error("Media details could not be loaded.");
       if (detailRes.data) setItem(detailRes.data);
       if (childrenRes.data) setChildren(childrenRes.data);
-      if (previewRes.data) setPreview(previewRes.data);
     } catch {
-      // Ignore
+      if (version === loadVersion) setLoadError("Media details could not be loaded.");
     } finally {
-      setLoading(false);
+      if (version === loadVersion) setLoading(false);
     }
   };
 
-  onMount(loadData);
+  createEffect(() => {
+    itemId();
+    void loadData();
+  });
+
+  let previewVersion = 0;
+  createEffect(() => {
+    const id = itemId(),
+      part = selectedVersionId(),
+      audio = selectedAudioIdx(),
+      subtitle = selectedSubIdx();
+    const ready = item();
+    const version = ++previewVersion;
+    setPreview(null);
+    if (!ready) return;
+    void client
+      .GET("/api/v1/items/{id}/playback-preview", {
+        params: {
+          path: { id },
+          query: {
+            profile: getPreferredProfile(),
+            part_id: part ?? undefined,
+            audio_stream_index: audio ?? undefined,
+            subtitle_stream_index: subtitle !== null && subtitle >= 0 ? subtitle : undefined,
+          },
+        },
+      })
+      .then((result) => {
+        if (version === previewVersion && result.data) setPreview(result.data);
+      })
+      .catch(() => {});
+  });
 
   const formatDuration = (ms?: number | null) => {
     if (!ms || ms <= 0) return null;
@@ -94,7 +136,9 @@ export function ItemDetail() {
   const viewOffsetMs = () => item()?.watch.viewOffsetMs ?? 0;
 
   // Primary video version & streams
-  const primaryVersion = () => item()?.versions?.[0];
+  const primaryVersion = () =>
+    item()?.versions?.find((version) => version.id === selectedVersionId()) ??
+    item()?.versions?.[0];
   const primaryPart = () => primaryVersion()?.parts?.[0];
   const audioStreams = () => primaryPart()?.streams.filter((s) => s.kind === "audio") || [];
   const subStreams = () => primaryPart()?.streams.filter((s) => s.kind === "subtitle") || [];
@@ -104,6 +148,12 @@ export function ItemDetail() {
     if (!it) return;
     playItem({
       itemId: it.id,
+      partId:
+        selectedVersionId() !== null || selectedAudioIdx() !== null || selectedSubIdx() !== null
+          ? primaryPart()?.id
+          : undefined,
+      audioStreamIndex: selectedAudioIdx() ?? undefined,
+      subtitleStreamIndex: selectedSubIdx(),
       initialStartMs: startOffset,
       title: it.title,
       subtitle: it.originallyAvailableAt ? it.originallyAvailableAt.substring(0, 4) : undefined,
@@ -116,14 +166,16 @@ export function ItemDetail() {
 
     try {
       if (isWatched()) {
-        await client.DELETE("/api/v1/items/{id}/watched", {
+        const result = await client.DELETE("/api/v1/items/{id}/watched", {
           params: { path: { id: itemId() } },
         });
+        if (result.error) throw new Error("Could not update watch state.");
         showToast({ title: "Marked Unwatched", message: item()?.title || "", type: "info" });
       } else {
-        await client.POST("/api/v1/items/{id}/watched", {
+        const result = await client.POST("/api/v1/items/{id}/watched", {
           params: { path: { id: itemId() } },
         });
+        if (result.error) throw new Error("Could not update watch state.");
         showToast({ title: "Marked Watched", message: item()?.title || "", type: "success" });
       }
       await loadData();
@@ -143,7 +195,7 @@ export function ItemDetail() {
       when={!loading() && item()}
       fallback={
         <div style={{ padding: "60px 0", "text-align": "center", color: "var(--text-muted)" }}>
-          Loading media details...
+          {loadError() || "Loading media details..."}
         </div>
       }
     >
@@ -245,11 +297,36 @@ export function ItemDetail() {
               </Show>
             </div>
 
+            <Show when={(item()?.versions.length ?? 0) > 1}>
+              <label for="media-version">Version</label>
+              <select
+                id="media-version"
+                value={selectedVersionId() ?? ""}
+                onChange={(e) => {
+                  setSelectedVersionId(
+                    e.currentTarget.value ? Number(e.currentTarget.value) : null,
+                  );
+                  setSelectedAudioIdx(null);
+                  setSelectedSubIdx(null);
+                }}
+              >
+                <option value="">Automatic</option>
+                <For each={item()?.versions}>
+                  {(version) => (
+                    <option value={version.id}>
+                      {version.width ?? ""}×{version.height ?? ""} {version.videoCodec ?? ""}{" "}
+                      {version.container ?? ""}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </Show>
             {/* Action Buttons below poster */}
             <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-3)" }}>
               <Button
                 size="lg"
                 variant="primary"
+                disabled={!primaryPart()}
                 onClick={() => handlePlay(Math.max(0, viewOffsetMs()))}
               >
                 <span>▶</span>
@@ -486,7 +563,11 @@ export function ItemDetail() {
                   <select
                     id="audio-stream-select"
                     value={selectedAudioIdx() ?? ""}
-                    onChange={(e) => setSelectedAudioIdx(Number(e.currentTarget.value))}
+                    onChange={(e) =>
+                      setSelectedAudioIdx(
+                        e.currentTarget.value === "" ? null : Number(e.currentTarget.value),
+                      )
+                    }
                     style={{
                       background: "var(--bg-surface)",
                       border: "1px solid var(--border)",
@@ -495,6 +576,7 @@ export function ItemDetail() {
                       "border-radius": "var(--radius-sm)",
                     }}
                   >
+                    <option value="">Automatic</option>
                     <For each={audioStreams()}>
                       {(s) => (
                         <option value={s.idx}>

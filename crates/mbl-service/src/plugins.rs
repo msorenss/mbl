@@ -31,12 +31,15 @@ impl PluginService {
             "youtube".to_string(),
             PluginManifest {
                 id: "youtube".into(),
-                name: "YouTube".into(),
+                name: "YouTube (demo)".into(),
                 version: "1.0.0".into(),
-                description: "Watch YouTube channels, feeds, and trending videos".into(),
+                description:
+                    "Demo provider: sample catalogue only. YouTube streaming is not implemented."
+                        .into(),
                 author: "MBL Team".into(),
                 icon_url: Some("https://www.youtube.com/s/desktop/f1721516/img/favicon.ico".into()),
                 capabilities: vec![PluginCapability::LiveTvChannel, PluginCapability::MediaScraper],
+                enabled: false,
             },
         );
 
@@ -44,14 +47,17 @@ impl PluginService {
             "spotify".to_string(),
             PluginManifest {
                 id: "spotify".into(),
-                name: "Spotify".into(),
+                name: "Spotify (demo)".into(),
                 version: "1.0.0".into(),
-                description: "Listen to Spotify playlists, podcasts, and albums".into(),
+                description:
+                    "Demo provider: sample catalogue only. Spotify streaming is not implemented."
+                        .into(),
                 author: "MBL Team".into(),
                 icon_url: Some(
                     "https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico".into(),
                 ),
                 capabilities: vec![PluginCapability::AudioSource],
+                enabled: false,
             },
         );
 
@@ -59,12 +65,15 @@ impl PluginService {
             "webdrama".to_string(),
             PluginManifest {
                 id: "webdrama".into(),
-                name: "WebDrama".into(),
+                name: "WebDrama (demo)".into(),
                 version: "1.0.0".into(),
-                description: "Asian and online drama series streaming scraper".into(),
+                description:
+                    "Demo provider: sample catalogue only. WebDrama streaming is not implemented."
+                        .into(),
                 author: "MBL Community".into(),
                 icon_url: None,
                 capabilities: vec![PluginCapability::MediaScraper, PluginCapability::LiveTvChannel],
+                enabled: false,
             },
         );
 
@@ -75,6 +84,26 @@ impl PluginService {
         let mut list: Vec<PluginManifest> = self.manifests.values().cloned().collect();
         list.sort_by(|a, b| a.name.cmp(&b.name));
         list
+    }
+
+    pub async fn list_plugins(&self) -> Result<Vec<PluginManifest>> {
+        let configs = m9::list_plugin_configs(&self.db).await.unwrap_or_default();
+        let config_map: HashMap<String, bool> =
+            configs.into_iter().map(|c| (c.plugin_id, c.enabled != 0)).collect();
+
+        let mut list: Vec<PluginManifest> = self
+            .manifests
+            .values()
+            .map(|m| {
+                let mut manifest = m.clone();
+                if let Some(&enabled) = config_map.get(&m.id) {
+                    manifest.enabled = enabled;
+                }
+                manifest
+            })
+            .collect();
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(list)
     }
 
     pub fn get_manifest(&self, id: &str) -> Result<PluginManifest> {
@@ -102,7 +131,7 @@ impl PluginService {
                 id: PluginId(1),
                 plugin_id: plugin_id.to_string(),
                 name: manifest.name,
-                enabled: true,
+                enabled: false,
                 settings: serde_json::Value::Object(serde_json::Map::new()),
                 created_at: now,
                 updated_at: now,
@@ -194,7 +223,7 @@ impl PluginService {
                         "https://images.unsplash.com/photo-1451187580459-43490279c0fa".into(),
                     ),
                     duration_ms: Some(1820 * 1000),
-                    stream_url: Some("https://example.com/yt/stream1.m3u8".into()),
+                    stream_url: None,
                     subtitles: vec![PluginSubtitle {
                         language: "eng".into(),
                         label: "English".into(),
@@ -209,7 +238,7 @@ impl PluginService {
                     overview: Some("Global breaking news and live report coverage.".into()),
                     thumbnail_url: None,
                     duration_ms: None,
-                    stream_url: Some("https://example.com/yt/live_news.m3u8".into()),
+                    stream_url: None,
                     subtitles: Vec::new(),
                 },
             ]),
@@ -221,7 +250,7 @@ impl PluginService {
                 overview: Some("In theaters Summer 2027.".into()),
                 thumbnail_url: None,
                 duration_ms: Some(154 * 1000),
-                stream_url: Some("https://example.com/yt/trailer1.mp4".into()),
+                stream_url: None,
                 subtitles: Vec::new(),
             }]),
             ("spotify", "top-tracks") => Ok(vec![
@@ -233,7 +262,7 @@ impl PluginService {
                     overview: Some("Retro electro wave instrumental by Neon Dreamer.".into()),
                     thumbnail_url: None,
                     duration_ms: Some(245 * 1000),
-                    stream_url: Some("https://example.com/sp/track1.mp3".into()),
+                    stream_url: None,
                     subtitles: Vec::new(),
                 },
                 PluginItem {
@@ -244,7 +273,7 @@ impl PluginService {
                     overview: Some("Peaceful acoustic guitar by Oslo Strings.".into()),
                     thumbnail_url: None,
                     duration_ms: Some(198 * 1000),
-                    stream_url: Some("https://example.com/sp/track2.mp3".into()),
+                    stream_url: None,
                     subtitles: Vec::new(),
                 },
             ]),
@@ -256,7 +285,7 @@ impl PluginService {
                 overview: Some("Two strangers meet unexpectedly across borders.".into()),
                 thumbnail_url: None,
                 duration_ms: Some(4200 * 1000),
-                stream_url: Some("https://example.com/drama/kd1_ep1.m3u8".into()),
+                stream_url: None,
                 subtitles: vec![
                     PluginSubtitle {
                         language: "kor".into(),
@@ -290,7 +319,8 @@ impl PluginService {
     /// Resolves streaming URL for playback.
     pub async fn resolve_stream_url(&self, plugin_id: &str, item_id: &str) -> Result<String> {
         let item = self.get_item(plugin_id, item_id).await?;
-        item.stream_url.ok_or(Error::NotFound)
+        item.stream_url
+            .ok_or_else(|| Error::Unavailable("This demo provider has no playable streams".into()))
     }
 
     /// Converts a plugin item to a generic `ItemSummary` so it can be handled uniformly.

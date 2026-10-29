@@ -448,6 +448,8 @@ exit 0
         .await
         .unwrap();
 
+    // Preparation must include transparent Qsv -> Vaapi -> Software fallback.
+    session.prepare().await.unwrap();
     // Requesting init and segment 0 must transparently fail over from Qsv -> Vaapi -> Software
     let init = session.request_init("0").await.unwrap();
     assert!(init.exists());
@@ -458,4 +460,205 @@ exit 0
     assert!(mgr.is_backend_bad(Backend::Vaapi, "h264"));
 
     mgr.shutdown_all().await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn concurrent_admission_and_failed_start_preserve_existing_session() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let fake = tmp.path().join("ffmpeg");
+    std::fs::write(&fake, "#!/bin/sh\nexec sleep 60\n").unwrap();
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let input = tmp.path().join("source.mkv");
+    std::fs::write(&input, "fixture").unwrap();
+    let directory = Utf8PathBuf::from_path_buf(tmp.path().join("transcode")).unwrap();
+    let mut config =
+        SessionManagerConfig::new(fake.clone(), directory.clone(), PlatformProfile::Pi5);
+    config.max_video_sessions = 1;
+    let manager = SessionManager::new(config).unwrap();
+    let request = |part| CreateSessionReq {
+        user_id: UserId(1),
+        part_id: PartId(part),
+        duration_ms: 6000,
+        pipeline: sample_pipeline(
+            &input,
+            2,
+            VideoOp::Encode {
+                codec: VideoCodec::H264,
+                width: Some(320),
+                max_bitrate: 500000,
+                deinterlace: false,
+                tonemap: false,
+            },
+        ),
+        master_playlist: "#EXTM3U\n".into(),
+        media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
+        fast_start_segments: false,
+    };
+    let (first, second) =
+        tokio::join!(manager.create_session(request(1)), manager.create_session(request(2)));
+    assert_ne!(first.is_ok(), second.is_ok());
+    let active = first.or(second).unwrap();
+    assert_eq!(manager.active_video_transcode_count(), 1);
+    let status = active.runtime_status().await;
+    assert!(status.process_running);
+    assert_eq!(status.backend, Backend::Software);
+    assert!(!status.throttled);
+    assert_eq!(active.request_master_playlist().await.unwrap(), "#EXTM3U\n");
+    assert!(manager.create_session(request(3)).await.is_err());
+    assert!(manager.get_session(&active.id).is_some());
+    manager.shutdown_all().await;
+    assert!(!active.runtime_status().await.process_running);
+
+    // A real spawn error with a free slot also preserves an already running session.
+    let mut config =
+        SessionManagerConfig::new(fake.clone(), directory.clone(), PlatformProfile::Pi5);
+    config.max_video_sessions = 2;
+    let manager = SessionManager::new(config).unwrap();
+    let active = manager.create_session(request(4)).await.unwrap();
+    std::fs::rename(&fake, tmp.path().join("ffmpeg-disabled")).unwrap();
+    assert!(manager.create_session(request(5)).await.is_err());
+    assert_eq!(manager.active_video_transcode_count(), 1);
+    assert_eq!(active.request_master_playlist().await.unwrap(), "#EXTM3U\n");
+    assert_eq!(std::fs::read_dir(directory.as_std_path()).unwrap().count(), 1);
+    manager.shutdown_all().await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn preparation_rejects_partial_media_and_clears_stale_future_segments() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempfile::tempdir().unwrap();
+    let source = tmp.path().join("source.mkv");
+    std::fs::write(&source, b"source").unwrap();
+    let binary = tmp.path().join("partial.sh");
+    let script = r##"#!/bin/sh
+for last; do true; done
+out_dir=$(dirname "$last")
+printf 'partial init' > "$out_dir/init.mp4"
+printf 'partial media' > "$out_dir/0.m4s"
+if [ ! -f "$0.count" ]; then
+    touch "$0.count"
+    exit 1
+fi
+exec sleep 30
+"##;
+    std::fs::write(&binary, script).unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut config = SessionManagerConfig::new(
+        binary,
+        Utf8PathBuf::from_path_buf(tmp.path().join("hls")).unwrap(),
+        PlatformProfile::Generic,
+    );
+    config.segment_wait_timeout = Duration::from_millis(200);
+    let manager = SessionManager::new(config).unwrap();
+    let session = manager
+        .create_session(CreateSessionReq {
+            user_id: UserId(1),
+            part_id: PartId(1),
+            duration_ms: 6000,
+            pipeline: sample_pipeline(&source, 2, VideoOp::Copy),
+            master_playlist: "#EXTM3U\n".into(),
+            media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
+            fast_start_segments: false,
+        })
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while session.ffmpeg_pid().await.is_some() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    // Simulate old later media left by a previous writer; it cannot certify the new partial file.
+    let stale = session.dir.join("0/1.m4s");
+    std::fs::write(stale.as_std_path(), b"old").unwrap();
+    assert!(session.prepare().await.is_err());
+    assert!(!stale.exists());
+    manager.stop_session(&session.id).await;
+    assert!(session.request_init("0").await.is_err());
+    assert!(session.request_segment("0", 0).await.is_err());
+    assert!(session.ffmpeg_pid().await.is_none());
+    assert!(!session.dir.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn shutdown_closes_admission_even_when_new_starts_race() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::Arc;
+    let tmp = tempfile::tempdir().unwrap();
+    let binary = tmp.path().join("stall.sh");
+    std::fs::write(&binary, "#!/bin/sh\nexec sleep 30\n").unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let cfg = SessionManagerConfig::new(
+        binary,
+        Utf8PathBuf::from_path_buf(tmp.path().join("hls")).unwrap(),
+        PlatformProfile::Generic,
+    );
+    let manager = SessionManager::new(cfg).unwrap();
+    let req = CreateSessionReq {
+        user_id: UserId(1),
+        part_id: PartId(1),
+        duration_ms: 600000,
+        pipeline: sample_pipeline(&tmp.path().join("input.mp4"), 6, VideoOp::Copy),
+        master_playlist: "#EXTM3U\n".into(),
+        media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
+        fast_start_segments: false,
+    };
+    let first = manager.create_session(req.clone()).await.unwrap();
+    let barrier = Arc::new(tokio::sync::Barrier::new(6));
+    let mut starts = Vec::new();
+    for _ in 0..4 {
+        let manager = manager.clone();
+        let req = req.clone();
+        let barrier = barrier.clone();
+        starts.push(tokio::spawn(async move {
+            barrier.wait().await;
+            manager.create_session(req).await
+        }));
+    }
+    let closing = manager.clone();
+    let closing_barrier = barrier.clone();
+    let shutdown = tokio::spawn(async move {
+        closing_barrier.wait().await;
+        closing.close().await;
+    });
+    barrier.wait().await;
+    shutdown.await.unwrap();
+    for start in starts {
+        if let Ok(session) = start.await.unwrap() {
+            assert!(session.ffmpeg_pid().await.is_none());
+            assert!(!session.dir.exists());
+            assert!(session.renew_activity().await.is_err());
+        }
+    }
+    assert_eq!(manager.active_count(), 0);
+    assert!(manager.create_session(req).await.is_err());
+    assert!(first.ffmpeg_pid().await.is_none());
+    assert!(!first.dir.exists());
+    assert_eq!(std::fs::read_dir(manager.config().transcode_dir.as_std_path()).unwrap().count(), 0);
+}
+
+#[tokio::test]
+async fn live_encoder_permits_use_the_video_admission_budget_and_release_on_drop() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = SessionManagerConfig::new(
+        "ffmpeg".into(),
+        Utf8PathBuf::from_path_buf(temp.path().join("hls")).unwrap(),
+        PlatformProfile::Generic,
+    );
+    config.max_video_sessions = 1;
+    let manager = SessionManager::new(config).unwrap();
+    let permit = manager.reserve_video_capacity().await.unwrap();
+    assert!(!manager.has_video_transcode_capacity());
+    assert!(manager.reserve_video_capacity().await.is_err());
+    assert_eq!(manager.active_video_transcode_count(), 1);
+    drop(permit);
+    assert!(manager.has_video_transcode_capacity());
+    assert_eq!(manager.active_video_transcode_count(), 0);
+    manager.close().await;
+    assert!(manager.reserve_video_capacity().await.is_err());
 }
