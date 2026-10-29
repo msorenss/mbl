@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Added
+- Explicit recovery of saved failed/interrupted DVR media as a playable partial snapshot, with REST/MCP previews, profile checks and web controls.
 - Radio DVR recordings use the normal player with an audio view, track metadata, history and profile restrictions. DVB subtitles and multiple audio languages are preserved in broadcast recordings.
 - Read-only canonical DVR previews shared by REST and MCP, plus a configurable free-space reserve and per-recording size cap.
 - Playable partial DVR recordings with clear library labels, error details, retry/filter controls, and retention of all saved recordings.
@@ -35,6 +36,7 @@ All notable changes to this project are documented here. The format is based on 
   - Comprehensive integration test suite in `crates/mbl-server/tests/m12.rs`.
 
 ### Fixed
+- DVR deletions retain their cleanup intent across crashes and file locks; tombstones are pruned only after known recording files have been removed.
 - Copied AAC from transport streams is converted from ADTS to MP4 headers, fixing intermittent HLS startup/muxing failures without re-encoding audio.
 - HLS master playlists advertise the actual video codec for copied streams and audio-only codecs/bitrate for radio. Copied HEVC fragments use the matching hvc1 sample entry.
 - Retrying failed/partial DVR preserves its owner and surviving series retention policy, rechecks current profile permissions, and reviews inherited deletion settings before scheduling.

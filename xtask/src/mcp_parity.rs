@@ -165,6 +165,9 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             | "/api/v1/nodes/{id}/stream/handover/{itemId}" => {
                 mcp_tool_names.contains("list_remote_nodes")
             }
+            "/api/v1/livetv/recordings/{id}/recovery" => {
+                mcp_tool_names.contains("recover_recording")
+            }
             "/api/v1/livetv/tuners"
             | "/api/v1/livetv/tuners/discover"
             | "/api/v1/livetv/tuners/{id}"

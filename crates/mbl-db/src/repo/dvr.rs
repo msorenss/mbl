@@ -6,6 +6,7 @@ use crate::{
 use mbl_core::{Error, ItemId, LibraryId, MediaKind, RecordingId, Result};
 
 pub struct RecordedMedia<'a> {
+    pub recovered: bool,
     pub incomplete_reason: Option<&'a str>,
     pub root: &'a str,
     pub path: &'a str,
@@ -80,9 +81,10 @@ pub async fn publish(
     let mut tx = db.write.begin().await?;
     // This transaction also serializes cancellation and competing publication attempts.
     let row: Option<(String, Option<i64>, Option<String>)> = sqlx::query_as(
-        "SELECT title, item_id, summary FROM recordings WHERE id=? AND deleted_at IS NULL AND status IN ('recording','completed','partial')",
+        "SELECT title, item_id, summary FROM recordings WHERE id=? AND deleted_at IS NULL AND (status IN ('recording','completed','partial') OR (? AND status='failed'))",
     )
     .bind(id.0)
+    .bind(media.recovered && media.incomplete_reason.is_some())
     .fetch_optional(&mut *tx)
     .await?;
     let (title, existing, summary) = row.ok_or(Error::NotFound)?;

@@ -169,6 +169,36 @@ Serverstopp och indragna rättigheter publicerar inte automatiskt delmedia.
 Filer som ännu inte publicerats efter ett serveravbrott visas fortsatt som
 Failed. Äldre Completed-arkiv omklassas inte retroaktivt.
 
+## Återställ sparat material efter ett fel
+
+En **Failed**-inspelning kan ha en fil kvar efter ett serveravbrott eller
+annat fel. Ägaren eller administratören kan välja **Recover saved media**.
+Servern kontrollerar sparade bytes och tillgängligt utrymme innan du bekräftar.
+Den hämtar ingen ny sändning; återställningen kan därför göras även efter
+programslut eller efter att en kanal tagits bort. **Retry** schemalägger däremot
+ett nytt försök från källan och kräver ett kvarvarande inspelningsfönster.
+
+Återställningen gör en separat ögonblicksbild av det sparade materialet och
+kontrollerar den med ffprobe. En gammal capture-process kan inte ändra den
+publicerade kopian. Giltigt material blir alltid **Partial**, med samma
+ägare, bibliotek, regel och lagringspolicy. Nuvarande profilregler gäller;
+återkallad åtkomst under analysen stoppar publicering. Tomma eller oläsbara
+filer får ingen spelknapp.
+
+Kopian behöver extra utrymme, upp till den sparade filens storlek. Originalet
+behålls tills **Delete** eller vald retention raderar inspelningen. Att
+återställa introducerar ingen ny automatisk raderingspolicy. Om ett tidigare
+återställningsförsök avbröts kan den redan frysta kopian användas igen.
+
+Radering sparas först i databasen. Om filen är låst eller städningen avbryts
+försöker servern igen vid start och underhåll. Okända filer och felplacerade
+eller icke-reguljära rå-/arkivvägar raderas inte automatiskt. Misslyckade
+inspelningar massraderas inte för att frigöra plats.
+
+MCP använder `recover_recording(recording_id, dry_run=true)` för förhandskontroll
+och `confirm=true` för faktisk återställning. REST använder GET/POST på
+`/api/v1/livetv/recordings/{id}/recovery`.
+
 ## Förhandsvisning och diskgränser
 
 Retry hämtar en kanonisk plan innan något skapas. Samma plan finns i

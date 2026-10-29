@@ -1135,10 +1135,18 @@ pub async fn recover_interrupted_recordings(db: &Db, now: i64) -> Result<()> {
 }
 
 /// Past deleted occurrences no longer suppress any future guide match.
-pub async fn prune_deleted_recordings(db: &Db, now: i64) -> Result<()> {
-    sqlx::query("DELETE FROM recordings WHERE deleted_at IS NOT NULL AND program_end_time<?")
-        .bind(now.saturating_sub(86_400_000))
-        .execute(&db.write)
-        .await?;
+pub async fn prune_deleted_recording(db: &Db, id: RecordingId, now: i64) -> Result<()> {
+    sqlx::query(
+        "DELETE FROM recordings WHERE id=? AND deleted_at IS NOT NULL AND MAX(program_end_time,end_time)<?",
+    )
+    .bind(id.0)
+    .bind(now.saturating_sub(86_400_000))
+    .execute(&db.write)
+    .await?;
     Ok(())
+}
+
+pub async fn deleted_recording_files(db: &Db, after: i64) -> Result<Vec<(i64, Option<String>)>> {
+    Ok(sqlx::query_as("SELECT id,output_path FROM recordings WHERE deleted_at IS NOT NULL AND id>? ORDER BY id LIMIT 200")
+        .bind(after).fetch_all(&db.read).await?)
 }

@@ -16,6 +16,19 @@ use crate::server::{
 pub fn definitions() -> Vec<RegisteredTool> {
     vec![
         RegisteredTool {
+            scope: Scope::Admin,
+            definition: ToolDefinition {
+                name: "recover_recording".into(),
+                description: "Recover saved media from a failed or interrupted recording as an incomplete recording. Copies a stable snapshot without fetching a new broadcast; the original owner's current permissions apply. Existing series retention may delete the recovered file.".into(),
+                input_schema: json!({"type":"object","properties":{
+                    "recording_id":{"type":"integer","minimum":1},
+                    "dry_run":{"type":"boolean","description":"Preview saved bytes and storage without creating a snapshot or catalogue entry"},
+                    "confirm":{"type":"boolean","description":"Explicitly confirm recovery as an incomplete recording with its existing series policy"}
+                },"required":["recording_id"],"additionalProperties":false}),
+                annotations: Some(ToolAnnotations {title:Some("Recover Saved Recording".into()),read_only_hint:Some(false),destructive_hint:Some(false),idempotent_hint:Some(true),open_world_hint:Some(false)}),
+            },
+        },
+        RegisteredTool {
             scope: Scope::Read,
             definition: ToolDefinition {
                 name: "search_guide".into(),
@@ -160,6 +173,39 @@ pub async fn execute(
     services: &Services,
 ) -> Result<CallToolResult, JsonRpcError> {
     match tool_name {
+        "recover_recording" => {
+            caller.require(Scope::Admin).map_err(map_service_error)?;
+            let id = RecordingId(
+                args.get("recording_id")
+                    .and_then(Value::as_i64)
+                    .filter(|id| *id > 0)
+                    .ok_or_else(|| JsonRpcError::invalid_params("recording_id must be positive"))?,
+            );
+            if args.get("dry_run").and_then(Value::as_bool).unwrap_or(false)
+                || !args.get("confirm").and_then(Value::as_bool).unwrap_or(false)
+            {
+                let plan = match services.livetv.preview_recording_recovery(&caller.actor, id).await
+                {
+                    Ok(plan) => plan,
+                    Err(e) => return Ok(service_error_to_tool_result(e)),
+                };
+                if args.get("dry_run").and_then(Value::as_bool).unwrap_or(false) {
+                    return Ok(CallToolResult::structured(
+                        &json!({"dryRun":true,"plan":plan}),
+                        "Recovery preview: no media or catalogue changes",
+                    ));
+                }
+                return Ok(CallToolResult::error(
+                    "confirmation required: set confirm: true to recover saved media as an incomplete recording; existing series retention applies",
+                ));
+            }
+            match services.livetv.recover_recording(&caller.actor, id).await {
+                Ok(recording) => {
+                    Ok(CallToolResult::structured(&recording, "Recovered saved recording"))
+                }
+                Err(e) => Ok(service_error_to_tool_result(e)),
+            }
+        }
         "search_guide" => {
             let query = args
                 .get("query")

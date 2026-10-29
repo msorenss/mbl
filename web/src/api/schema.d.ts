@@ -995,6 +995,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/livetv/recordings/{id}/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["preview_recording_recovery"];
+        put?: never;
+        post: operations["recover_recording"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/livetv/rules": {
         parameters: {
             query?: never;
@@ -3811,6 +3827,16 @@ export interface components {
             /** Format: int64 */
             startTime: number;
             storage: components["schemas"]["DvrStorageStatus"];
+            title: string;
+        };
+        /** @description Read-only file and storage check; recoverable bytes are not yet proof of playable media. */
+        RecordingRecoveryPlan: {
+            canRecover: boolean;
+            existingItemId?: components["schemas"]["ItemId"] | null;
+            reason?: string | null;
+            recordingId: components["schemas"]["RecordingId"];
+            /** Format: int64 */
+            sizeBytes: number;
             title: string;
         };
         RecordingRule: {
@@ -6795,6 +6821,100 @@ export interface operations {
             };
             /** @description Recording not found or inaccessible */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_recording_recovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingRecoveryPlan"];
+                };
+            };
+            /** @description Owner or administrator required; current owner profile must allow the archive */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    recover_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recording"];
+                };
+            };
+            /** @description Owner or administrator required; current owner profile must allow the archive */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Saved media cannot be recovered */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recovery storage unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

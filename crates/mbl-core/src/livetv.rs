@@ -309,6 +309,18 @@ pub struct ScheduleRecordingRequest {
     pub end_padding_secs: Option<u32>,
 }
 
+/// Read-only file and storage check; recoverable bytes are not yet proof of playable media.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingRecoveryPlan {
+    pub recording_id: RecordingId,
+    pub title: String,
+    pub size_bytes: u64,
+    pub existing_item_id: Option<crate::ItemId>,
+    pub can_recover: bool,
+    pub reason: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DvrStoragePolicy {

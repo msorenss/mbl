@@ -80,6 +80,152 @@ async function mount() {
   dispose = render(() => createComponent(LiveTv, {}), document.body);
   await vi.advanceTimersByTimeAsync(0);
 }
+
+async function recoveryRecording() {
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings"
+      ? (Promise.resolve({
+          data: [
+            {
+              id: 31,
+              title: "Interrupted archive",
+              status: "failed",
+              canDelete: true,
+              channelId: null,
+              startTime: 1,
+              endTime: 2,
+            },
+          ],
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+}
+
+it("recovers saved media after the broadcast has ended, with an explicit confirmation", async () => {
+  await recoveryRecording();
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings/{id}/recovery"
+      ? (Promise.resolve({
+          data: { canRecover: true, title: "Interrupted archive", sizeBytes: 4096 },
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Recover saved media")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("incomplete recording"));
+  expect(
+    vi
+      .mocked(client.POST)
+      .mock.calls.filter(
+        (args: unknown[]) => args[0] === "/api/v1/livetv/recordings/{id}/recovery",
+      ),
+  ).toHaveLength(0);
+  confirm.mockReturnValue(true);
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Recover saved media")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/livetv/recordings/{id}/recovery",
+    expect.objectContaining({ params: { path: { id: 31 } }, signal: expect.any(AbortSignal) }),
+  );
+});
+
+it("explains missing saved media without sending a recovery mutation", async () => {
+  await recoveryRecording();
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings/{id}/recovery"
+      ? (Promise.resolve({
+          data: {
+            canRecover: false,
+            title: "Interrupted archive",
+            reason: "No saved capture file is available",
+          },
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Recover saved media")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(ui.toast).toHaveBeenCalledWith(
+    expect.objectContaining({ message: "No saved capture file is available" }),
+  );
+  expect(
+    vi
+      .mocked(client.POST)
+      .mock.calls.filter(
+        (args: unknown[]) => args[0] === "/api/v1/livetv/recordings/{id}/recovery",
+      ),
+  ).toHaveLength(0);
+});
+
+it("aborts a pending recovery preview and ignores its late response after leaving", async () => {
+  await recoveryRecording();
+  let resolve!: (value: unknown) => void;
+  let signal: AbortSignal | undefined;
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) => {
+    if (path !== "/api/v1/livetv/recordings/{id}/recovery") return original(path, options) as never;
+    signal = (options as { signal: AbortSignal }).signal;
+    return new Promise((done) => {
+      resolve = done;
+    }) as never;
+  });
+  const confirm = vi.spyOn(window, "confirm");
+  const button = Array.from(document.querySelectorAll("button")).find(
+    (b) => b.textContent === "Recover saved media",
+  );
+  button?.click();
+  button?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(
+    vi
+      .mocked(client.GET)
+      .mock.calls.filter(
+        (args: unknown[]) => args[0] === "/api/v1/livetv/recordings/{id}/recovery",
+      ),
+  ).toHaveLength(1);
+  dispose?.();
+  dispose = undefined;
+  expect(signal?.aborted).toBe(true);
+  resolve({ data: { canRecover: true, title: "Late archive" }, response: new Response() });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(confirm).not.toHaveBeenCalled();
+  expect(
+    vi
+      .mocked(client.POST)
+      .mock.calls.filter(
+        (args: unknown[]) => args[0] === "/api/v1/livetv/recordings/{id}/recovery",
+      ),
+  ).toHaveLength(0);
+});
 function watch(name: string) {
   document.querySelector<HTMLButtonElement>(`[aria-label="Watch ${name}"]`)?.click();
 }

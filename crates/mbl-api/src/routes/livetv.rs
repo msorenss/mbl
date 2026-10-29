@@ -92,6 +92,10 @@ pub fn router() -> Router<AppState> {
         // Recordings
         .route("/api/v1/livetv/recordings", get(list_recordings).post(schedule_recording))
         .route("/api/v1/livetv/recordings/preview", post(preview_recording))
+        .route(
+            "/api/v1/livetv/recordings/{id}/recovery",
+            get(preview_recording_recovery).post(recover_recording),
+        )
         .route("/api/v1/livetv/recordings/{id}", get(get_recording).delete(cancel_recording))
         // Series Rules
         .route("/api/v1/livetv/rules", get(list_recording_rules).post(create_series_rule))
@@ -526,6 +530,26 @@ pub async fn preview_recording(
     Json(req): Json<ScheduleRecordingRequest>,
 ) -> Result<Json<RecordingPlan>, ApiError> {
     Ok(Json(state.services.livetv.preview_recording(&auth.actor, req).await?))
+}
+
+#[utoipa::path(get,path="/api/v1/livetv/recordings/{id}/recovery",params(("id"=i64,Path)),
+    responses((status=200,body=mbl_core::livetv::RecordingRecoveryPlan),(status=403,description="Owner or administrator required; current owner profile must allow the archive"),(status=404),(status=409)),security(("bearer_auth"=[])))]
+pub async fn preview_recording_recovery(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<mbl_core::livetv::RecordingRecoveryPlan>, ApiError> {
+    Ok(Json(state.services.livetv.preview_recording_recovery(&auth.actor, RecordingId(id)).await?))
+}
+
+#[utoipa::path(post,path="/api/v1/livetv/recordings/{id}/recovery",params(("id"=i64,Path)),
+    responses((status=200,body=Recording),(status=403,description="Owner or administrator required; current owner profile must allow the archive"),(status=404),(status=409),(status=422,description="Saved media cannot be recovered"),(status=503,description="Recovery storage unavailable")),security(("bearer_auth"=[])))]
+pub async fn recover_recording(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<Recording>, ApiError> {
+    Ok(Json(state.services.livetv.recover_recording(&auth.actor, RecordingId(id)).await?))
 }
 
 #[utoipa::path(

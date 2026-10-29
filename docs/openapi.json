@@ -2663,6 +2663,90 @@
         ]
       }
     },
+    "/api/v1/livetv/recordings/{id}/recovery": {
+      "get": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "preview_recording_recovery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingRecoveryPlan"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner or administrator required; current owner profile must allow the archive"
+          },
+          "404": {},
+          "409": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "recover_recording",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recording"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner or administrator required; current owner profile must allow the archive"
+          },
+          "404": {},
+          "409": {},
+          "422": {
+            "description": "Saved media cannot be recovered"
+          },
+          "503": {
+            "description": "Recovery storage unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/livetv/rules": {
       "get": {
         "tags": [
@@ -11907,6 +11991,48 @@
           },
           "storage": {
             "$ref": "#/components/schemas/DvrStorageStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordingRecoveryPlan": {
+        "type": "object",
+        "description": "Read-only file and storage check; recoverable bytes are not yet proof of playable media.",
+        "required": [
+          "recordingId",
+          "title",
+          "sizeBytes",
+          "canRecover"
+        ],
+        "properties": {
+          "canRecover": {
+            "type": "boolean"
+          },
+          "existingItemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ItemId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recordingId": {
+            "$ref": "#/components/schemas/RecordingId"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           },
           "title": {
             "type": "string"

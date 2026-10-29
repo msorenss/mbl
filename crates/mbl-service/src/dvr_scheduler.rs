@@ -38,7 +38,7 @@ fn recording_window(start: i64, end: i64, before: u32, after: u32) -> Result<(i6
     Ok((start, end))
 }
 
-fn rating_access_level(rating: Option<&str>) -> u8 {
+pub(super) fn rating_access_level(rating: Option<&str>) -> u8 {
     // Missing ratings use the existing PG-or-higher policy, not the level-2
     // fallback used for an unrecognised non-empty rating label.
     match rating.filter(|rating| !rating.trim().is_empty()) {
@@ -381,7 +381,6 @@ impl LiveTvService {
         if let Some(dvr) = &self.dvr {
             dvr.maintain_retention(playing).await?;
         }
-        m9::prune_deleted_recordings(&self.db, now_ms()).await?;
         Ok(())
     }
 

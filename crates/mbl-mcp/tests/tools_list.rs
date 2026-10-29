@@ -57,7 +57,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // All tools = 74 (67 M8 + 5 M9 Live TV & DVR tools + 2 M10 import tools)
-    assert_eq!(tools.len(), 74);
+    // 74 baseline tools plus explicit DVR recovery.
+    assert_eq!(tools.len(), 75);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

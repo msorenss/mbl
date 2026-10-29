@@ -1868,6 +1868,38 @@ expression: tools
     }
   },
   {
+    "name": "recover_recording",
+    "description": "Recover saved media from a failed or interrupted recording as an incomplete recording. Copies a stable snapshot without fetching a new broadcast; the original owner's current permissions apply. Existing series retention may delete the recovered file.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "description": "Explicitly confirm recovery as an incomplete recording with its existing series policy",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Preview saved bytes and storage without creating a snapshot or catalogue entry",
+          "type": "boolean"
+        },
+        "recording_id": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "recording_id"
+      ],
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Recover Saved Recording",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "search_guide",
     "description": "Search EPG program schedules across all TV channels by title, category, or description.",
     "inputSchema": {

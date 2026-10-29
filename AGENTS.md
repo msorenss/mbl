@@ -65,7 +65,7 @@ Detta dokument ligger i roten av repot så att alla AI-agenter (Antigravity, Cla
      4. Verifiera med `cargo xtask openapi-check`.
 6. **MCP-paritet & Snapshots (`crates/mbl-mcp`):**
    - Varje ny kapabilitet ska antingen exponeras som ett MCP-verktyg i `crates/mbl-mcp/src/tools/` eller dokumenteras i `crates/mbl-mcp/EXCLUSIONS.toml`.
-   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `30` för `read`, `35` för `read+library`, `74` för `admin`).
+   - När nya MCP-verktyg läggs till måste verktygsräkningen i `crates/mbl-mcp/tests/tools_list.rs` och `crates/mbl-server/tests/mcp.rs` samt snapshots i `crates/mbl-mcp/tests/snapshots/` uppdateras (just nu: `30` för `read`, `35` för `read+library`, `75` för `admin`).
 
 ---
 
@@ -90,6 +90,19 @@ När en milstolpe är färdig och alla tester är gröna:
 ## 5. Sessions- och Handoff-logg
 
 > **Instruktion till agenter:** Lägg till en ny sektion överst i denna logg när du avslutar en uppgift eller milstolpe. Beskriv vad som gjordes, vilka filer/crates som ändrades, eventuella fallgropar som löstes och vad nästa agent ska ta vid med.
+
+### 2026-10-29 — Git-kontrollpunkt efter batch 25
+- Användaren har godkänt checkpoint och publicering på GitHub. Batch 25 sparas ovanpå `a4efebb` med Signed-off-by; tidigare lokala checkpoints för Chromecast och batch 1–24 ingår i den samlade ändringen mot GitHub.
+- Full verifiering från batch 25 återanvänds: 411/411 Rust-tester, 155 webbtester, workspace-Clippy, SQLx, cargo deny offline, binärbyggen, TypeScript/Vite, bundle-budget, fmt/diff, OpenAPI, tokens och MCP-paritet 149/149 passerar. Endast handoff- och checkpointstatus ändras inför committen.
+- GitHub har en separat dokumentationsuppdatering (`ca035b7`); den ska bevaras vid publiceringen. Release/version/tagg/M11 ändras inte. Fysisk tuner/browser/Cast/WAN/Windows-acceptans och restlistans återstående funktioner kvarstår.
+
+### 2026-10-29 — Batch 25: explicit DVR-återställning och beständig filstädning
+- Ny GET/POST `/api/v1/livetv/recordings/{id}/recovery`, `RecordingRecoveryPlan` och MCP `recover_recording` med dry_run/confirm. Ägare/admin kan förhandskontrollera och återställa sparade Failed-filer efter omstart även när kanalen/sändningen är borta. Nuvarande ägare/bibliotek/rating och eventuell kvarvarande guide kontrolleras före och efter probing; delade tittare nekas.
+- Återställning kopierar en storleksbegränsad prefixbild till en ägd tempfile och publicerar den utan överskrivning som `<id>.recovered.ts`. Spelaren kan inte påverkas av en gammal capture-skribent som fortsätter skriva `<id>.ts`. Bytebudget/reserv kontrolleras före kopiering; 60 s kopieringstimeout, 15 s ffprobe, RAII-städning vid avbrott. Återställt material blir alltid Partial med befintlig ägare/regel/retention. Originalet behålls till uttrycklig radering eller vald retention; kopian behöver extra utrymme. Ingen automatisk återställning av Failed-filer.
+- Delete validerar hanterade filer och sparar raderingstombstone/katalogradering innan unlink. Misslyckad unlink försöks igen vid start och underhåll. Raderade ID:n städas i nyckelsidor om 200 med roterande cursor. Tombstone får prunas först efter lyckad filstädning och minst ett dygn efter både program- och capture-slut. Endast ID:ts raw/snapshot och egna scratchfiler omfattas; andra filer, symlänkar och kataloger raderas inte rekursivt. Ingen ny migration behövs.
+- Webben skiljer Recover saved media från Retry av en sändning, även efter kanal-/programslut. Förhandskontroll, bekräftelse, dubblettskydd, avbrott vid avmontering och timeout finns. Saknad/tom/oläsbar fil ger ingen ny spelbar post. MCP är nu 75 adminverktyg (30 read, 35 read+library); snapshot och tester uppdaterade.
+- Full verifiering på ARM64/Linux: cargo nextest --workspace passerar 411/411 tester, 0 skipped (två testtrådar och resurssnåla profilflaggor). Hela webbsviten passerar 155 tester; TypeScript/Vite och initial JS-budget 42,24 KB gzip passerar. De fem nya Rust-regressionerna täcker fryst/spelbar kopia, samtidiga REST/MCP-försök, saknad/tom/trasig fil/låg disk, beständig raderingsstädning och profiländring under probe. Tre nya webbfall täcker bekräftelse, saknad fil och sena svar/avbrott. Hela arbetsytans Clippy med alla targets och -D warnings, SQLx prepare --check mot en separat temporär databas med alla migrationer, cargo deny offline (advisories/bans/licenses/sources), debugbyggen av alla workspace-binärer, fmt/diff-check, OpenAPI-check, tokens-check och MCP-paritet 149/149 passerar (75 verktyg, 52 undantagna paths). Doctestkommandot passerar; projektet definierar 0 doctester. Biome har 0 fel och tidigare 5 varningar/4 infos. OpenAPI/TypeScript är regenererade. Fysisk och plattformsöverskridande releaseacceptans ingick inte.
+- Bas är checkpoint `a4efebb`. `cargo clean` kördes enligt användaren före batchen (3,4 GiB borttaget). M11/release avvaktar; Git-checkpoint har nu godkänts av användaren. Helarkivskvot/prognoser, bredare transport-/undertextprofiler och fysisk tuner/browser/Cast/WAN/Windows-acceptans återstår.
 
 ### 2026-10-29 — Lokal Git-kontrollpunkt efter batch 24
 - Användaren har godkänt en lokal checkpoint-commit för batch 20–24 ovanpå `fcdd83b` (batch 1–19). Den samlar DVR-profiler/ägarskap/retention, Live TV:s programgränser, Partial-publicering, Retry-preview/diskvakt samt radio/DVB/AAC/HEVC-rättningarna med migration 0011, tester, genererade API-typer och dokumentation.

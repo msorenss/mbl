@@ -150,6 +150,78 @@ impl LiveTvService {
         }
     }
 
+    pub async fn preview_recording_recovery(
+        &self,
+        actor: &mbl_core::Actor,
+        id: RecordingId,
+    ) -> Result<mbl_core::livetv::RecordingRecoveryPlan> {
+        let row = self.authorize_recording_recovery(actor, id).await?;
+        self.dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .preview_recovery(&row)
+            .await
+    }
+
+    pub async fn recover_recording(
+        &self,
+        actor: &mbl_core::Actor,
+        id: RecordingId,
+    ) -> Result<Recording> {
+        self.authorize_recording_recovery(actor, id).await?;
+        self.dvr
+            .as_ref()
+            .ok_or_else(|| Error::Unavailable("DVR storage is not configured".into()))?
+            .recover(actor, id, self)
+            .await?;
+        self.get_recording_for(actor, id).await
+    }
+
+    pub(crate) async fn authorize_recording_recovery(
+        &self,
+        caller: &mbl_core::Actor,
+        id: RecordingId,
+    ) -> Result<m9::RecordingRow> {
+        let caller = mbl_db::repo::m6::actor_for_user(&self.db, caller.user_id)
+            .await?
+            .ok_or(Error::Forbidden)?;
+        let row = m9::get_recording(&self.db, id).await?.ok_or(Error::NotFound)?;
+        if !caller.is_admin && row.owner_id != Some(caller.user_id.0) {
+            return Err(Error::NotFound);
+        }
+        self.authorize_recording_archive(&row).await?;
+        Ok(row)
+    }
+
+    pub(crate) async fn authorize_recording_archive(&self, row: &m9::RecordingRow) -> Result<()> {
+        let owner = row.owner_id.map(UserId).ok_or(Error::Forbidden)?;
+        let owner =
+            mbl_db::repo::m6::actor_for_user(&self.db, owner).await?.ok_or(Error::Forbidden)?;
+        let library = row.library_id.map(mbl_core::LibraryId).ok_or(Error::Forbidden)?;
+        if !owner.can_access_library(library)
+            || !owner.can_view_rating(row.content_rating.as_deref())
+        {
+            return Err(Error::Forbidden);
+        }
+        if owner.content_rating_ceiling.is_some()
+            && (row.start_time != row.program_start_time || row.end_time != row.program_end_time)
+        {
+            return Err(Error::Forbidden);
+        }
+        if let Some(id) = row.program_id
+            && let Some(program) = m9::get_epg_program(&self.db, ProgramId(id)).await?
+            && (program.channel_id != row.channel_id
+                || program.start_time != row.program_start_time
+                || program.end_time != row.program_end_time
+                || !program.title.eq_ignore_ascii_case(&row.title)
+                || scheduler::rating_access_level(program.rating.as_deref())
+                    > scheduler::rating_access_level(row.content_rating.as_deref())
+                || !owner.can_view_rating(program.rating.as_deref()))
+        {
+            return Err(Error::Forbidden);
+        }
+        Ok(())
+    }
     pub fn db(&self) -> &Db {
         &self.db
     }

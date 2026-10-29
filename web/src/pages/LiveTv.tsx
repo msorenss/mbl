@@ -42,6 +42,8 @@ export function LiveTv() {
   let liveFailed = false;
   let retryAbort: AbortController | null = null;
   const [retryingId, setRetryingId] = createSignal<number | null>(null);
+  const [recoveringId, setRecoveringId] = createSignal<number | null>(null);
+  let recoveryAbort: AbortController | null = null;
   const [startingLive, setStartingLive] = createSignal(false);
   const liveMessage = (error: unknown, fallback: string) => {
     const value = error as { error?: { message?: string } } | undefined;
@@ -144,6 +146,7 @@ export function LiveTv() {
   onCleanup(() => {
     liveDisposed = true;
     retryAbort?.abort();
+    recoveryAbort?.abort();
     clearInterval(leaseTimer);
     closeLiveStream();
   });
@@ -576,7 +579,8 @@ export function LiveTv() {
     });
   };
   const handleRetryRecording = async (rec: Recording) => {
-    if (!rec.channelId || !rec.canDelete || retryingId() !== null) return;
+    if (!rec.channelId || !rec.canDelete || retryingId() !== null || recoveringId() !== null)
+      return;
     const abort = new AbortController();
     retryAbort = abort;
     setRetryingId(rec.id);
@@ -638,6 +642,53 @@ export function LiveTv() {
       window.clearTimeout(timeout);
       if (retryAbort === abort) retryAbort = null;
       if (!liveDisposed) setRetryingId(null);
+    }
+  };
+  const handleRecoverRecording = async (rec: Recording) => {
+    if (!rec.canDelete || recoveringId() !== null || retryingId() !== null) return;
+    const abort = new AbortController();
+    recoveryAbort = abort;
+    setRecoveringId(rec.id);
+    let timer = window.setTimeout(() => abort.abort(), 10000);
+    try {
+      const preview = await client.GET("/api/v1/livetv/recordings/{id}/recovery", {
+        params: { path: { id: rec.id } },
+        signal: abort.signal,
+      });
+      window.clearTimeout(timer);
+      if (liveDisposed || abort.signal.aborted) return;
+      if (preview.error || !preview.data)
+        throw new Error(liveMessage(preview.error, "Could not inspect saved media"));
+      if (!preview.data.canRecover && !preview.data.existingItemId)
+        throw new Error(preview.data.reason || "Recovery is unavailable");
+      if (
+        !confirm(
+          `Recover saved media for "${preview.data.title}" as an incomplete recording? The snapshot may need ${(preview.data.sizeBytes / 1048576).toFixed(1)} MiB of extra space; the original is kept until deletion. No new broadcast is fetched. Existing series retention still applies and may delete the recovered file.`,
+        )
+      )
+        return;
+      timer = window.setTimeout(() => abort.abort(), 120000);
+      const result = await client.POST("/api/v1/livetv/recordings/{id}/recovery", {
+        params: { path: { id: rec.id } },
+        signal: abort.signal,
+      });
+      if (result.error) throw new Error(liveMessage(result.error, "Could not recover saved media"));
+      if (!liveDisposed) void loadRecordings();
+    } catch (error) {
+      if (!liveDisposed)
+        showToast({
+          title: "Recovery",
+          message: abort.signal.aborted
+            ? "Recovery request timed out. Check recordings before trying again."
+            : error instanceof Error
+              ? error.message
+              : "Could not recover saved media",
+          type: "error",
+        });
+    } finally {
+      window.clearTimeout(timer);
+      if (recoveryAbort === abort) recoveryAbort = null;
+      if (!liveDisposed) setRecoveringId(null);
     }
   };
   const handleCancelRecording = async (rec: Recording) => {
@@ -1651,6 +1702,17 @@ export function LiveTv() {
                                 </span>
                               </Show>
                               <Show when={rec.canDelete}>
+                                <Show when={rec.status === "failed"}>
+                                  <Button
+                                    variant="secondary"
+                                    disabled={recoveringId() !== null || retryingId() !== null}
+                                    onClick={() => handleRecoverRecording(rec)}
+                                  >
+                                    {recoveringId() === rec.id
+                                      ? "Recovering…"
+                                      : "Recover saved media"}
+                                  </Button>
+                                </Show>
                                 <Show
                                   when={
                                     (rec.status === "failed" || rec.status === "partial") &&
@@ -1661,7 +1723,7 @@ export function LiveTv() {
                                   <Button
                                     variant="secondary"
                                     title="Retry preserving the owner, padding and series policy"
-                                    disabled={retryingId() !== null}
+                                    disabled={retryingId() !== null || recoveringId() !== null}
                                     onClick={() => handleRetryRecording(rec)}
                                   >
                                     {retryingId() === rec.id ? "Preparing retry…" : "Retry"}

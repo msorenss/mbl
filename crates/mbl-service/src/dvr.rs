@@ -9,11 +9,14 @@ use mbl_db::{
 };
 use mbl_probe::FfTools;
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
     time::{Duration, UNIX_EPOCH},
 };
 use tokio::sync::Mutex;
+
+#[path = "dvr_recovery.rs"]
+mod recovery;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Dvr {
@@ -22,12 +25,20 @@ pub(crate) struct Dvr {
     tools: Option<FfTools>,
     // Serializes deletion/publication and limits ffprobe concurrency to one.
     gate: Arc<Mutex<()>>,
+    cleanup_cursor: Arc<std::sync::atomic::AtomicI64>,
     pub policy: mbl_core::livetv::DvrStoragePolicy,
 }
 
 impl Dvr {
     pub fn new(db: Db, root: PathBuf, tools: Option<FfTools>) -> Self {
-        Self { db, root, tools, gate: Arc::default(), policy: Default::default() }
+        Self {
+            db,
+            root,
+            tools,
+            gate: Arc::default(),
+            cleanup_cursor: Arc::default(),
+            policy: Default::default(),
+        }
     }
 
     pub async fn library_preview(
@@ -98,6 +109,7 @@ impl Dvr {
         let Ok(_guard) = self.gate.try_lock() else {
             return Ok(());
         };
+        self.cleanup_deleted_locked().await?;
         let mut attempted = 0;
         // The rule owner's watch state decides auto-delete, even in shared libraries.
         let rules = m9::list_recording_rules(&self.db, None).await?;
@@ -129,8 +141,10 @@ impl Dvr {
     }
 
     async fn checked_path(&self, id: RecordingId, stored: Option<&str>) -> Result<PathBuf> {
-        let expected = self.root.join(format!("{}.ts", id.0));
-        if stored.is_some_and(|p| Path::new(p) != expected) {
+        let raw = self.root.join(format!("{}.ts", id.0));
+        let archive = self.root.join(format!("{}.recovered.ts", id.0));
+        let expected = stored.map_or(raw.clone(), PathBuf::from);
+        if expected != raw && expected != archive {
             return Err(Error::Validation("Recording path is outside its managed location".into()));
         }
         let meta = tokio::fs::symlink_metadata(&expected).await?;
@@ -156,18 +170,33 @@ impl Dvr {
         policy: Option<&crate::LiveTvService>,
     ) -> Result<ItemId> {
         let _guard = self.gate.lock().await;
+        self.publish_file_locked(id, capture_error, policy, None).await
+    }
+
+    async fn publish_file_locked(
+        &self,
+        id: RecordingId,
+        capture_error: Option<&str>,
+        policy: Option<&crate::LiveTvService>,
+        recovery_caller: Option<&mbl_core::Actor>,
+    ) -> Result<ItemId> {
+        let recovered = recovery_caller.is_some();
         let row = m9::get_recording(&self.db, id).await?.ok_or(Error::NotFound)?;
         if let Some(item) = row.item_id {
             return Ok(ItemId(item));
         }
-        if !matches!(row.status.as_str(), "recording" | "completed" | "partial") {
+        if !matches!(row.status.as_str(), "recording" | "completed" | "partial")
+            && !(recovered && row.status == "failed")
+        {
             return Err(Error::NotFound);
         }
         let tools = self
             .tools
             .as_ref()
             .ok_or_else(|| Error::Unavailable("ffprobe is unavailable".into()))?;
-        let path = self.checked_path(id, row.output_path.as_deref()).await?;
+        let archive = self.root.join(format!("{}.recovered.ts", id.0));
+        let stored = if recovered { archive.to_str() } else { row.output_path.as_deref() };
+        let path = self.checked_path(id, stored).await?;
         let before = tokio::fs::metadata(&path).await?;
         let info = tools.probe(&path, Duration::from_secs(15)).await?;
         if info.duration_ms == 0
@@ -179,7 +208,7 @@ impl Dvr {
                 "Recording has no playable audio/video or duration".into(),
             ));
         }
-        let checked = self.checked_path(id, row.output_path.as_deref()).await?;
+        let checked = self.checked_path(id, stored).await?;
         let after = tokio::fs::metadata(&checked).await?;
         if checked != path
             || before.len() != after.len()
@@ -187,7 +216,12 @@ impl Dvr {
         {
             return Err(Error::Conflict("Recording changed during probing".into()));
         }
-        let incomplete = if row.status == "partial" {
+        let incomplete = if recovered {
+            Some(
+                "Incomplete recording: recovered saved media after a failed or interrupted capture"
+                    .to_owned(),
+            )
+        } else if row.status == "partial" {
             Some(row.error_message.clone().unwrap_or_else(|| "Incomplete recording".into()))
         } else if row.status == "recording" {
             incomplete_reason(row.start_time, row.end_time, info.duration_ms, capture_error)
@@ -208,12 +242,13 @@ impl Dvr {
         let probe = serde_json::to_string(&info).map_err(Error::internal)?;
         let chapters = serde_json::to_string(&info.chapters).map_err(Error::internal)?;
         // Store the configured spelling of the root/path, as used by the file writer.
-        let path_string = self.root.join(format!("{}.ts", id.0));
+        let path_string = self.root.join(path.file_name().ok_or(Error::NotFound)?);
         let root =
             self.root.to_str().ok_or_else(|| Error::Validation("Non-UTF-8 DVR root".into()))?;
         let path_string =
             path_string.to_str().ok_or_else(|| Error::Validation("Non-UTF-8 DVR path".into()))?;
         let media = dvr::RecordedMedia {
+            recovered,
             incomplete_reason: incomplete.as_deref(),
             root,
             path: path_string,
@@ -270,12 +305,22 @@ impl Dvr {
         // A profile/guide change during a slow probe must not publish stale ratings.
         if let Some(policy) = policy {
             let latest = m9::get_recording(&self.db, id).await?.ok_or(Error::NotFound)?;
-            policy.authorize_recording_job(&latest).await?;
+            if let Some(caller) = recovery_caller {
+                policy.authorize_recording_recovery(caller, id).await?;
+            } else {
+                policy.authorize_recording_job(&latest).await?;
+            }
         }
         dvr::publish(&self.db, id, &media, now_ms()).await
     }
 
     pub async fn reconcile(&self) {
+        {
+            let _guard = self.gate.lock().await;
+            if let Err(error) = self.cleanup_deleted_locked().await {
+                tracing::warn!(%error,"DVR deleted-file recovery failed");
+            }
+        }
         match m9::list_recordings(&self.db, None).await {
             Ok(rows) => {
                 for row in rows.into_iter().filter(|row| {
@@ -299,17 +344,13 @@ impl Dvr {
         let Some(row) = m9::get_recording(&self.db, id).await? else {
             return Ok(false);
         };
-        if row.status != "scheduled" && row.status != "recording" {
-            // Missing files may still have their obsolete catalogue entries removed.
-            match self.checked_path(id, row.output_path.as_deref()).await {
-                Ok(path) => tokio::fs::remove_file(path).await?,
-                Err(Error::Internal(e))
-                    if e.downcast_ref::<std::io::Error>()
-                        .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound) => {}
-                Err(error) => return Err(error),
-            }
+        self.validate_artifacts(id, row.output_path.as_deref()).await?;
+        // Commit deletion before unlinking. Its tombstone is the durable cleanup queue.
+        let deleted = m9::delete_recording(&self.db, id).await?;
+        if let Err(error) = self.remove_artifacts(id, row.output_path.as_deref()).await {
+            tracing::warn!(recording_id=id.0,%error,"DVR deletion committed; file cleanup will retry");
         }
-        m9::delete_recording(&self.db, id).await
+        Ok(deleted)
     }
 }
 

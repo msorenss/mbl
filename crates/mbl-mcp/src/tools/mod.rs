@@ -115,7 +115,9 @@ pub async fn execute_tool(
             workers::execute(tool_name, args, caller, services).await
         }
         "search_guide" | "list_recordings" | "schedule_recording" | "create_series_rule"
-        | "cancel_recording" => livetv::execute(tool_name, args, caller, services).await,
+        | "cancel_recording" | "recover_recording" => {
+            livetv::execute(tool_name, args, caller, services).await
+        }
         "import_plex_history" | "import_jellyfin_history" => {
             import::execute(tool_name, args, caller, services).await
         }
