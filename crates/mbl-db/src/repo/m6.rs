@@ -14,6 +14,30 @@ use utoipa::ToSchema;
 
 use crate::Db;
 
+/// Current profile policy, shared by authenticated requests and background DVR jobs.
+pub async fn actor_for_user(db: &Db, id: UserId) -> Result<Option<mbl_core::Actor>> {
+    let Some(user) = super::users::UsersRepo::new(db.clone()).get(id).await? else {
+        return Ok(None);
+    };
+    if user.is_admin {
+        return Ok(Some(mbl_core::Actor::admin(id)));
+    }
+    let Some(profile) = get_user_security_info(db, id).await? else {
+        return Ok(None);
+    };
+    Ok(Some(mbl_core::Actor {
+        user_id: id,
+        is_admin: false,
+        library_access: if profile.library_ids.is_empty() && !profile.is_managed {
+            mbl_core::LibraryAccess::All
+        } else {
+            mbl_core::LibraryAccess::Only(profile.library_ids)
+        },
+        is_managed: profile.is_managed,
+        content_rating_ceiling: profile.content_rating_ceiling,
+    }))
+}
+
 /// Security and access profile for a user.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

@@ -82,6 +82,7 @@ https://live.example.com/svt2/index.m3u8
     assert_eq!(patch_res.status, StatusCode::OK);
     assert_eq!(patch_res.body["channelNumber"].as_str().unwrap(), "101");
     assert!(patch_res.body["isFavorite"].as_bool().unwrap());
+    assert_eq!(patch_res.body["canPlay"], true, "channel updates must retain caller availability");
 
     // 6. Delete tuner
     let del_res = app
@@ -252,7 +253,7 @@ async fn m9_recordings_and_series_rules() {
     let ch_id = chan_res.body[0]["id"].as_i64().unwrap();
 
     // 1. Schedule a DVR recording
-    let now = 1793041200i64;
+    let now = mbl_core::time::now_ms() / 1000;
     let rec_res = app
         .call(
             Method::POST,
@@ -541,6 +542,7 @@ async fn m9_mcp_livetv_tools() {
     assert_eq!(progs.len(), 1);
     assert_eq!(progs[0]["title"].as_str().unwrap(), "Bäst i test");
 
+    let recording_start = mbl_core::time::now_ms() + 3_600_000;
     // 3. Tool: schedule_recording with dry_run
     let dry_rec = client
         .call_tool(
@@ -548,8 +550,8 @@ async fn m9_mcp_livetv_tools() {
             json!({
                 "channel_id": 1,
                 "title": "Bäst i test",
-                "start_time": 1793041200,
-                "end_time": 1793044800,
+                "start_time": recording_start,
+                "end_time": recording_start + 3_600_000,
                 "dry_run": true
             }),
         )
@@ -565,8 +567,8 @@ async fn m9_mcp_livetv_tools() {
             json!({
                 "channel_id": 1,
                 "title": "Bäst i test",
-                "start_time": 1793041200,
-                "end_time": 1793044800,
+                "start_time": recording_start,
+                "end_time": recording_start + 3_600_000,
                 "dry_run": false,
                 "confirm": true
             }),
@@ -600,6 +602,15 @@ async fn m9_mcp_livetv_tools() {
     assert!(!rule_tool.is_error);
     let rule_id = rule_tool.structured_content.as_ref().unwrap()["id"].as_i64().unwrap();
     assert!(rule_id > 0);
+
+    for bad_args in [
+        json!({"title":"Invalid retention","keep_max":0,"dry_run":true}),
+        json!({"title":"Invalid retention","keep_max":4294967296u64,"dry_run":true}),
+        json!({"title":"Invalid padding","start_padding_secs":4294967296u64,"dry_run":true}),
+    ] {
+        let rejected = client.call_tool("create_series_rule", bad_args).await;
+        assert!(rejected.is_err() || rejected.as_ref().is_ok_and(|r| r.is_error));
+    }
 
     // 6. Tool: cancel_recording
     let cancel_tool = client

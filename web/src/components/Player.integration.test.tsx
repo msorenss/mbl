@@ -476,6 +476,41 @@ it("loads seek previews only on timeline focus and cancels them on blur", async 
   expect(container.querySelector(".trickplay-preview")).toBeNull();
 });
 
+it("plays audio with a clear stage and seek control without video quality or seek images", async () => {
+  vi.mocked(client.POST).mockResolvedValue({
+    data: { ...playback, hasVideo: false, partId: 22 },
+    response: new Response(),
+  } as never);
+  const get = vi
+    .spyOn(client, "GET")
+    .mockResolvedValue({ data: [], response: new Response() } as never);
+  dispose = render(
+    () => createComponent(Player, { itemId: 7, title: "Radio recording", onClose: vi.fn() }),
+    container,
+  );
+  await tick();
+  expect(container.querySelector('[aria-label="Audio playback"]')?.textContent).toContain(
+    "Radio recording",
+  );
+  expect(container.textContent).toContain("Audio only");
+  expect(container.querySelector("#player-quality")).toBeNull();
+  const timeline = container.querySelector<HTMLInputElement>('input[aria-label="Seek audio"]');
+  expect(timeline).not.toBeNull();
+  timeline?.focus();
+  await tick();
+  expect(
+    get.mock.calls.filter(
+      (args: unknown[]) => args[0] === "/api/v1/stream/trickplay/{partId}/index.json",
+    ),
+  ).toHaveLength(0);
+  expect(container.querySelector(".trickplay-preview")).toBeNull();
+  if (timeline) {
+    timeline.value = "42";
+    timeline.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  expect(container.querySelector("video")?.currentTime).toBe(42);
+});
+
 function playbackWithTrackChoices(
   body: { audioStreamIndex?: number; subtitleStreamIndex?: number } = {},
   sessionId = "tracks",

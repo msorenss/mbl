@@ -82,13 +82,14 @@ impl ItemFilter {
             let max_lvl = mbl_core::actor::content_rating_level(ceiling);
             if max_lvl == 0 {
                 qb.push(" AND i.content_rating IS NOT NULL AND i.content_rating != '' AND UPPER(REPLACE(REPLACE(REPLACE(i.content_rating, '-', ''), '_', ''), ' ', '')) IN ('G', 'TVY', 'TVG', 'U', 'ALL', 'EC')");
+            } else if max_lvl == 1 {
+                // Unknown non-empty labels have level 2 in Actor::can_view_rating.
+                // A deny-list accidentally exposed them to PG profiles in browse.
+                qb.push(" AND (i.content_rating IS NULL OR TRIM(i.content_rating) = '' OR UPPER(REPLACE(REPLACE(REPLACE(i.content_rating, '-', ''), '_', ''), ' ', '')) IN ('G','TVY','TVG','U','ALL','EC','PG','TVY7','TVPG','6','7','E'))");
             } else if max_lvl < 4 {
                 let mut disallowed = vec!["NC17", "X", "NR", "UNRATED", "AO"];
                 if max_lvl < 3 {
                     disallowed.extend_from_slice(&["R", "TVMA", "15", "16", "18", "M"]);
-                }
-                if max_lvl < 2 {
-                    disallowed.extend_from_slice(&["PG13", "TV14", "12", "14", "T"]);
                 }
                 qb.push(" AND (i.content_rating IS NULL OR i.content_rating = '' OR UPPER(REPLACE(REPLACE(REPLACE(i.content_rating, '-', ''), '_', ''), ' ', '')) NOT IN (");
                 let mut sep = qb.separated(", ");

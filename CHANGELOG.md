@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Added
+- Radio DVR recordings use the normal player with an audio view, track metadata, history and profile restrictions. DVB subtitles and multiple audio languages are preserved in broadcast recordings.
+- Read-only canonical DVR previews shared by REST and MCP, plus a configurable free-space reserve and per-recording size cap.
+- Playable partial DVR recordings with clear library labels, error details, retry/filter controls, and retention of all saved recordings.
+- Profile-aware Live TV and guide filtering, programme-bounded playback for age-limited profiles, and clear channel availability and programme-end controls.
+- Profile-aware DVR scheduling, recurring series matching after guide imports, season/episode controls, and owner-scoped keep-latest/delete-after-watched retention with active-playback protection.
 - Completed DVR recordings open in the normal player with resume/history and real probed media metadata. A managed TV recordings library applies existing library and rating restrictions; older valid files are indexed at startup.
 - Audio track selection during playback, with source track metadata and selected audio/burned-subtitle indices in playback diagnostics.
 - Subtitle choices that renegotiate image/burned tracks and preserve Off, audio, quality and pause state across stream changes and Google Cast.
@@ -30,6 +35,13 @@ All notable changes to this project are documented here. The format is based on 
   - Comprehensive integration test suite in `crates/mbl-server/tests/m12.rs`.
 
 ### Fixed
+- Copied AAC from transport streams is converted from ADTS to MP4 headers, fixing intermittent HLS startup/muxing failures without re-encoding audio.
+- HLS master playlists advertise the actual video codec for copied streams and audio-only codecs/bitrate for radio. Copied HEVC fragments use the matching hvc1 sample entry.
+- Retrying failed/partial DVR preserves its owner and surviving series retention policy, rechecks current profile permissions, and reviews inherited deletion settings before scheduling.
+- Early DVR EOF no longer reports a full recording solely from FFmpeg success. Capture stops at its scheduled end, valid source-error output is preserved, and permissions are rechecked after probing.
+- Live media links stop working after logout, login expiry or profile changes, including reused session IDs. Non-admin channel/tuner responses hide raw source URLs, and terminal live errors flush buffered playback.
+- DVR jobs recheck current profile and guide permissions; catalogue PG filters no longer expose unknown rating labels that the playback policy rejects.
+- Cancelled DVR airings no longer reappear automatically; explicit retry uses a new file ID. Conflicts are visible, duplicate requests respect tuner capacity, and completed recordings survive source removal. Shared viewers cannot delete another profile's recordings or rules.
 - DVR duration now reflects media timestamps rather than recording job wall time. Scheduling preserves guide ratings/descriptions, completed-recording deletion removes its saved file and catalogue entry, and partial/invalid/outside-root recordings are excluded from publication.
 - Live TV now uses a server-owned HLS relay with deinterlacing and browser-compatible H.264/AAC, sharing encoder capacity with VOD and tuner capacity with DVR.
 - Live channel changes wait for cleanup; cancellation, source errors, expired leases, disk pressure and shutdown release owned media processes and temporary files.

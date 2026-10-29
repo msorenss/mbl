@@ -24,7 +24,11 @@ export default function LiveStreamPlayer(props: {
     setError(message);
     recovery?.dispose();
     hls?.stopLoad();
+    hls?.destroy();
+    hls = null;
     video?.pause();
+    video?.removeAttribute("src");
+    video?.load();
     props.onFailure?.(message);
   };
   onMount(() => {

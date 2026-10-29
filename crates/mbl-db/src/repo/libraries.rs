@@ -22,6 +22,10 @@ impl LibrariesRepo {
         Self { db }
     }
 
+    pub async fn is_dvr(&self, id: LibraryId) -> Result<bool> {
+        super::dvr::is_library(&self.db, id).await
+    }
+
     pub async fn insert(
         &self,
         name: &str,

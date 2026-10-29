@@ -42,6 +42,7 @@ beforeEach(() => {
   ended.mockClear();
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
 });
 afterEach(() => {
   dispose?.();
@@ -135,4 +136,21 @@ it("respects pause while recovering a live manifest", async () => {
   await vi.advanceTimersByTimeAsync(30000);
   expect(failure).not.toHaveBeenCalled();
   expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+});
+
+it("flushes buffered media after a profile access denial without retrying", async () => {
+  const hls = await mount();
+  const video = document.querySelector("video")!;
+  video.src = "blob:buffered-live";
+  hls.handlers.get("error")?.("error", {
+    type: "networkError",
+    fatal: true,
+    response: { code: 403 },
+  });
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(hls.destroy).toHaveBeenCalledTimes(1);
+  expect(hls.startLoad).not.toHaveBeenCalled();
+  expect(video.getAttribute("src")).toBeNull();
+  expect(HTMLMediaElement.prototype.load).toHaveBeenCalledTimes(1);
+  expect(failure).toHaveBeenCalledTimes(1);
 });

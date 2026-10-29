@@ -93,7 +93,12 @@ pub struct RecordingRow {
     pub id: i64,
     pub item_id: Option<i64>,
     pub rule_id: Option<i64>,
-    pub channel_id: i64,
+    pub channel_id: Option<i64>,
+    pub owner_id: Option<i64>,
+    pub library_id: Option<i64>,
+    pub content_rating: Option<String>,
+    pub program_start_time: i64,
+    pub program_end_time: i64,
     pub channel_name: Option<String>,
     pub program_id: Option<i64>,
     pub title: String,
@@ -394,6 +399,7 @@ pub async fn batch_upsert_epg_programs(db: &Db, programs: &[EpgProgramInsert]) -
                 .push_bind(if p.is_new { 1i64 } else { 0i64 });
         });
 
+        qb.push(" ON CONFLICT(epg_channel_id,start_time) DO UPDATE SET channel_id=COALESCE(excluded.channel_id,epg_programs.channel_id), title=excluded.title, description=excluded.description, season_number=excluded.season_number, episode_number=excluded.episode_number, end_time=excluded.end_time, icon_url=excluded.icon_url, rating=excluded.rating, genres=excluded.genres, is_new=excluded.is_new");
         let res = qb.build().execute(&db.write).await.map_err(Error::from)?;
         count += res.rows_affected();
     }
@@ -437,6 +443,41 @@ pub async fn get_programs_for_channel(
     .fetch_all(&db.read)
     .await
     .map_err(Error::from)
+}
+
+pub async fn get_epg_program(db: &Db, id: ProgramId) -> Result<Option<EpgProgramRow>> {
+    Ok(sqlx::query_as("SELECT * FROM epg_programs WHERE id=?")
+        .bind(id.0)
+        .fetch_optional(&db.read)
+        .await?)
+}
+
+pub async fn get_epg_program_at(
+    db: &Db,
+    channel: i64,
+    starts: i64,
+) -> Result<Option<EpgProgramRow>> {
+    Ok(sqlx::query_as(
+        "SELECT * FROM epg_programs WHERE channel_id=? AND start_time=? ORDER BY id DESC LIMIT 1",
+    )
+    .bind(channel)
+    .bind(starts)
+    .fetch_optional(&db.read)
+    .await?)
+}
+
+/// Keyset paging avoids losing matches beyond the old 100-programme search cap.
+pub async fn matching_rule_programs(
+    db: &Db,
+    rule: &RecordingRuleRow,
+    now: i64,
+    after: (i64, i64),
+) -> Result<Vec<EpgProgramRow>> {
+    Ok(sqlx::query_as("SELECT * FROM epg_programs WHERE title=? COLLATE NOCASE AND (? IS NULL OR channel_id=?) AND (?=0 OR episode_number IS NOT NULL) AND (? IS NULL OR season_number=?) AND (?=0 OR is_new=1) AND start_time>=? AND start_time<? AND (start_time>? OR (start_time=? AND id>?)) AND NOT EXISTS (SELECT 1 FROM recordings r WHERE r.owner_id=? AND r.channel_id=epg_programs.channel_id AND r.program_start_time=epg_programs.start_time AND (r.deleted_at IS NULL OR r.suppress_auto=1)) ORDER BY start_time,id LIMIT 200")
+        .bind(&rule.title).bind(rule.channel_id).bind(rule.channel_id).bind(rule.series_only)
+        .bind(rule.season_number).bind(rule.season_number).bind(rule.new_only)
+        .bind(now).bind(now.saturating_add(14*86_400_000)).bind(after.0).bind(after.0).bind(after.1).bind(rule.user_id)
+        .fetch_all(&db.read).await?)
 }
 
 pub async fn get_current_and_next_program(
@@ -523,6 +564,20 @@ pub async fn prune_expired_epg(db: &Db, before_ms: i64) -> Result<u64> {
     Ok(res.rows_affected())
 }
 
+/// Page before profile filtering so hidden hits cannot consume the caller's limit.
+pub async fn search_epg_page(
+    db: &Db,
+    query: &str,
+    start: Option<i64>,
+    end: Option<i64>,
+    after: (i64, i64),
+) -> Result<Vec<EpgProgramRow>> {
+    let pattern = format!("%{query}%");
+    Ok(sqlx::query_as("SELECT * FROM epg_programs WHERE (title LIKE ? OR description LIKE ?) AND end_time>? AND start_time<? AND (start_time>? OR (start_time=? AND id>?)) ORDER BY start_time,id LIMIT 200")
+        .bind(&pattern).bind(&pattern).bind(start.unwrap_or(0)).bind(end.unwrap_or(i64::MAX)).bind(after.0).bind(after.0).bind(after.1)
+        .fetch_all(&db.read).await?)
+}
+
 // ---------------------------------------------------------------------------
 // Recording Rules
 // ---------------------------------------------------------------------------
@@ -590,19 +645,61 @@ pub async fn list_recording_rules(
 }
 
 pub async fn delete_recording_rule(db: &Db, id: RecordingRuleId) -> Result<bool> {
+    let mut tx = db.write.begin().await?;
+    sqlx::query("UPDATE recordings SET status='cancelled',deleted_at=?,suppress_auto=0 WHERE rule_id=? AND status='scheduled' AND deleted_at IS NULL")
+        .bind(now_ms()).bind(id.0).execute(&mut *tx).await?;
     let res = sqlx::query("DELETE FROM recording_rules WHERE id = ?")
         .bind(id.0)
-        .execute(&db.write)
+        .execute(&mut *tx)
         .await
         .map_err(Error::from)?;
 
+    tx.commit().await?;
     Ok(res.rows_affected() > 0)
+}
+
+pub async fn retention_rows(db: &Db, rule: i64, owner: i64) -> Result<Vec<(i64, i64, i64)>> {
+    Ok(sqlx::query_as("SELECT r.id,r.item_id,CASE WHEN COALESCE(w.view_count,0)>0 AND w.last_viewed_at>=r.created_at THEN 1 ELSE 0 END FROM recordings r LEFT JOIN watch_state w ON w.item_id=r.item_id AND w.user_id=? WHERE r.rule_id=? AND r.owner_id=? AND r.status IN ('completed','partial') AND r.deleted_at IS NULL AND r.item_id IS NOT NULL ORDER BY r.program_start_time DESC,r.id DESC")
+        .bind(owner).bind(rule).bind(owner).fetch_all(&db.read).await?)
 }
 
 // ---------------------------------------------------------------------------
 // Recordings
 // ---------------------------------------------------------------------------
 
+pub struct NewRecording<'a> {
+    pub retry_of: Option<RecordingId>,
+    pub owner_id: Option<UserId>,
+    pub library_id: Option<mbl_core::LibraryId>,
+    pub rule_id: Option<RecordingRuleId>,
+    pub channel_id: ChannelId,
+    pub program_id: Option<ProgramId>,
+    pub title: &'a str,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub program_start_time: i64,
+    pub program_end_time: i64,
+}
+
+#[derive(FromRow)]
+struct RetrySource {
+    owner_id: Option<i64>,
+    rule_id: Option<i64>,
+    channel_id: Option<i64>,
+    status: String,
+}
+
+pub async fn existing_owned_recording(
+    db: &Db,
+    owner: UserId,
+    channel: ChannelId,
+    start: i64,
+) -> Result<Option<RecordingId>> {
+    Ok(sqlx::query_scalar::<_,i64>("SELECT id FROM recordings WHERE owner_id=? AND channel_id=? AND program_start_time=? AND deleted_at IS NULL AND status IN ('scheduled','recording','completed') ORDER BY id DESC LIMIT 1")
+        .bind(owner.0).bind(channel.0).bind(start).fetch_optional(&db.read).await?.map(RecordingId))
+}
+
+/// System/legacy helper; application adapters use the actor-authorized service.
 pub async fn schedule_recording(
     db: &Db,
     rule_id: Option<RecordingRuleId>,
@@ -612,67 +709,110 @@ pub async fn schedule_recording(
     start_time: i64,
     end_time: i64,
 ) -> Result<RecordingId> {
-    let now = now_ms();
-    let mut tx = db.write.begin().await?;
-    let capacity: Option<i64> = sqlx::query_scalar(
-        "SELECT t.tuner_count FROM channels c JOIN tuners t ON t.id = c.tuner_id WHERE c.id = ?",
+    let program = match program_id {
+        Some(id) => get_epg_program(db, id).await?,
+        None => None,
+    };
+    schedule_owned_recording(
+        db,
+        &NewRecording {
+            retry_of: None,
+            owner_id: None,
+            library_id: None,
+            rule_id,
+            channel_id,
+            program_id,
+            title,
+            start_time,
+            end_time,
+            program_start_time: program.as_ref().map_or(start_time, |p| p.start_time),
+            program_end_time: program.as_ref().map_or(end_time, |p| p.end_time),
+        },
+        false,
     )
-    .bind(channel_id.0)
+    .await
+}
+
+/// Deduplicate before admission. Tombstones suppress only automatic matching;
+/// an explicit user request may retry the same occurrence with a new file id.
+pub async fn schedule_owned_recording(
+    db: &Db,
+    r: &NewRecording<'_>,
+    automatic: bool,
+) -> Result<RecordingId> {
+    let mut tx = db.write.begin().await?;
+    if let Some(id) = r.retry_of {
+        let source:Option<RetrySource>=sqlx::query_as("SELECT owner_id,rule_id,channel_id,status FROM recordings WHERE id=? AND deleted_at IS NULL")
+            .bind(id.0).fetch_optional(&mut *tx).await?;
+        let RetrySource { owner_id: owner, rule_id: rule, channel_id: channel, status } =
+            source.ok_or(Error::NotFound)?;
+        if owner != r.owner_id.map(|u| u.0)
+            || rule != r.rule_id.map(|i| i.0)
+            || channel != Some(r.channel_id.0)
+            || !matches!(status.as_str(), "failed" | "partial")
+        {
+            return Err(Error::Conflict("Recording changed; preview the retry again".into()));
+        }
+    }
+    if let (Some(rule), Some(expected_owner)) = (r.rule_id, r.owner_id) {
+        let owner: Option<i64> =
+            sqlx::query_scalar("SELECT user_id FROM recording_rules WHERE id=?")
+                .bind(rule.0)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if owner != Some(expected_owner.0) {
+            return Err(Error::Conflict("Recording rule changed; preview again".into()));
+        }
+    }
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM recordings WHERE owner_id IS ? AND channel_id=? AND program_start_time=? AND ((? AND (deleted_at IS NULL OR suppress_auto=1)) OR (deleted_at IS NULL AND status IN ('scheduled','recording','completed'))) ORDER BY id DESC LIMIT 1")
+        .bind(r.owner_id.map(|u|u.0)).bind(r.channel_id.0).bind(r.program_start_time).bind(automatic)
+        .fetch_optional(&mut *tx).await?;
+    if let Some(id) = existing {
+        return Ok(RecordingId(id));
+    }
+    let capacity: Option<i64> = sqlx::query_scalar(
+        "SELECT t.tuner_count FROM channels c JOIN tuners t ON t.id=c.tuner_id WHERE c.id=?",
+    )
+    .bind(r.channel_id.0)
     .fetch_optional(&mut *tx)
     .await?;
-    if let Some(capacity) = capacity
-        && overlapping_on(&mut tx, channel_id, start_time, end_time).await? >= capacity
-    {
+    let conflict = match capacity {
+        Some(capacity) => {
+            overlapping_on(&mut tx, r.channel_id, r.start_time, r.end_time).await? >= capacity
+        }
+        None => false,
+    };
+    if conflict && !automatic {
         return Err(Error::Conflict(
             "all tuners are already reserved during this recording".into(),
         ));
     }
-    if let Some(program_id) = program_id {
-        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM recordings WHERE program_id = ? AND status IN ('scheduled', 'recording', 'completed') LIMIT 1")
-            .bind(program_id.0).fetch_optional(&mut *tx).await?;
-        if let Some(id) = existing {
-            return Ok(RecordingId(id));
-        }
-    }
-    let res = sqlx::query(
-        r#"INSERT INTO recordings (
-               rule_id, channel_id, program_id, title, start_time,
-               end_time, status, created_at
-           )
-           VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?)
-           RETURNING id"#,
-    )
-    .bind(rule_id.map(|r| r.0))
-    .bind(channel_id.0)
-    .bind(program_id.map(|p| p.0))
-    .bind(title)
-    .bind(start_time)
-    .bind(end_time)
-    .bind(now)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(Error::from)?;
-
-    use sqlx::Row;
-    let id: i64 = res.get(0);
-    sqlx::query("UPDATE recordings SET content_rating=(SELECT rating FROM epg_programs WHERE id=?), summary=(SELECT description FROM epg_programs WHERE id=?) WHERE id=?")
-        .bind(program_id.map(|p| p.0)).bind(program_id.map(|p| p.0)).bind(id)
-        .execute(&mut *tx).await?;
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO recordings (owner_id,library_id,rule_id,channel_id,program_id,title,start_time,end_time,program_start_time,program_end_time,status,error_message,created_at,recorded_channel_name,content_rating,summary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,(SELECT name FROM channels WHERE id=?),(SELECT rating FROM epg_programs WHERE id=?),(SELECT description FROM epg_programs WHERE id=?)) RETURNING id")
+        .bind(r.owner_id.map(|u|u.0)).bind(r.library_id.map(|l|l.0)).bind(r.rule_id.map(|i|i.0))
+        .bind(r.channel_id.0).bind(r.program_id.map(|p|p.0)).bind(r.title).bind(r.start_time).bind(r.end_time)
+        .bind(r.program_start_time).bind(r.program_end_time)
+        .bind(if conflict {"failed"} else {"scheduled"})
+        .bind(conflict.then_some("Tuner conflict: all tuners are already reserved"))
+        .bind(now_ms()).bind(r.channel_id.0).bind(r.program_id.map(|p|p.0)).bind(r.program_id.map(|p|p.0))
+        .fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(RecordingId(id))
 }
 
 pub async fn list_recordings(db: &Db, status: Option<&str>) -> Result<Vec<RecordingRow>> {
     let mut qb = sqlx::QueryBuilder::<Sqlite>::new(
-        r#"SELECT r.id, r.item_id, r.rule_id, r.channel_id, c.name as channel_name,
+        r#"SELECT r.id, r.item_id, r.rule_id, r.channel_id, COALESCE(c.name,r.recorded_channel_name) as channel_name,
+                  r.owner_id, r.library_id, r.content_rating, r.program_start_time, r.program_end_time,
                   r.program_id, r.title, r.start_time, r.end_time,
                   r.status, r.output_path, r.size_bytes, r.duration_ms,
                   r.error_message, r.created_at
            FROM recordings r
-           LEFT JOIN channels c ON c.id = r.channel_id "#,
+           LEFT JOIN channels c ON c.id = r.channel_id WHERE r.deleted_at IS NULL "#,
     );
     if let Some(st) = status {
-        qb.push("WHERE r.status = ");
+        qb.push(" AND r.status = ");
         qb.push_bind(st);
     }
     qb.push(" ORDER BY r.start_time DESC");
@@ -681,13 +821,14 @@ pub async fn list_recordings(db: &Db, status: Option<&str>) -> Result<Vec<Record
 
 pub async fn get_recording(db: &Db, id: RecordingId) -> Result<Option<RecordingRow>> {
     sqlx::query_as::<Sqlite, RecordingRow>(
-        r#"SELECT r.id, r.item_id, r.rule_id, r.channel_id, c.name as channel_name,
+        r#"SELECT r.id, r.item_id, r.rule_id, r.channel_id, COALESCE(c.name,r.recorded_channel_name) as channel_name,
+                  r.owner_id, r.library_id, r.content_rating, r.program_start_time, r.program_end_time,
                   r.program_id, r.title, r.start_time, r.end_time,
                   r.status, r.output_path, r.size_bytes, r.duration_ms,
                   r.error_message, r.created_at
            FROM recordings r
            LEFT JOIN channels c ON c.id = r.channel_id
-           WHERE r.id = ?"#,
+           WHERE r.id = ? AND r.deleted_at IS NULL"#,
     )
     .bind(id.0)
     .fetch_optional(&db.read)
@@ -709,7 +850,7 @@ pub async fn update_recording_status(
            SET status = ?, output_path = COALESCE(?, output_path),
                size_bytes = COALESCE(?, size_bytes), duration_ms = COALESCE(?, duration_ms),
                error_message = ?
-           WHERE id = ?"#,
+           WHERE id = ? AND deleted_at IS NULL"#,
     )
     .bind(status)
     .bind(output_path)
@@ -730,8 +871,8 @@ pub async fn delete_recording(db: &Db, id: RecordingId) -> Result<bool> {
         .bind(id.0)
         .execute(&mut *tx)
         .await?;
-    let res = sqlx::query("DELETE FROM recordings WHERE id = ?")
-        .bind(id.0)
+    let res = sqlx::query("UPDATE recordings SET status='cancelled', deleted_at=?,suppress_auto=1 WHERE id=? AND deleted_at IS NULL")
+        .bind(now_ms()).bind(id.0)
         .execute(&mut *tx)
         .await
         .map_err(Error::from)?;
@@ -763,7 +904,7 @@ async fn overlapping_on(
              SELECT MAX(r.start_time, ?) AS starts, MIN(r.end_time, ?) AS ends
              FROM recordings r JOIN channels c ON c.id = r.channel_id
              WHERE c.tuner_id = (SELECT tuner_id FROM channels WHERE id = ?)
-               AND r.status IN ('scheduled', 'recording')
+               AND r.deleted_at IS NULL AND r.status IN ('scheduled', 'recording')
                AND r.end_time > ? AND r.start_time < ?
            ), events AS (
              SELECT starts AS ts, 1 AS delta FROM overlaps
@@ -964,7 +1105,7 @@ pub async fn get_plugin_config(db: &Db, plugin_id: &str) -> Result<Option<Plugin
 
 /// Atomically claim a due reservation; only one recorder can own it.
 pub async fn claim_recording(db: &Db, id: RecordingId, now: i64) -> Result<bool> {
-    let result = sqlx::query("UPDATE recordings SET status = 'recording', error_message = NULL WHERE id = ? AND status = 'scheduled' AND start_time <= ? AND end_time > ?")
+    let result = sqlx::query("UPDATE recordings SET status = 'recording', error_message = NULL WHERE id = ? AND deleted_at IS NULL AND status = 'scheduled' AND start_time <= ? AND end_time > ?")
         .bind(id.0).bind(now).bind(now).execute(&db.write).await?;
     Ok(result.rows_affected() == 1)
 }
@@ -990,5 +1131,14 @@ pub async fn recover_interrupted_recordings(db: &Db, now: i64) -> Result<()> {
         .execute(&db.write).await?;
     sqlx::query("UPDATE recordings SET status = 'failed', error_message = 'Recording window missed while server was offline' WHERE status = 'scheduled' AND end_time <= ?")
         .bind(now).execute(&db.write).await?;
+    Ok(())
+}
+
+/// Past deleted occurrences no longer suppress any future guide match.
+pub async fn prune_deleted_recordings(db: &Db, now: i64) -> Result<()> {
+    sqlx::query("DELETE FROM recordings WHERE deleted_at IS NOT NULL AND program_end_time<?")
+        .bind(now.saturating_sub(86_400_000))
+        .execute(&db.write)
+        .await?;
     Ok(())
 }

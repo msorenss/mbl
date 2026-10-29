@@ -963,6 +963,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/livetv/recordings/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preview_recording"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/livetv/recordings/{id}": {
         parameters: {
             query?: never;
@@ -2545,6 +2561,8 @@ export interface components {
         };
         Channel: {
             callsign?: string | null;
+            /** @description Whether the current programme can be played by this caller. */
+            canPlay?: boolean;
             channelNumber: string;
             /** Format: int64 */
             createdAt: number;
@@ -2725,6 +2743,16 @@ export interface components {
             driver?: string | null;
             renderNode?: string | null;
             vendorId?: string | null;
+        };
+        DvrStorageStatus: {
+            /** Format: int64 */
+            availableBytes?: number | null;
+            canStart: boolean;
+            error?: string | null;
+            /** Format: int64 */
+            maxRecordingBytes?: number | null;
+            /** Format: int64 */
+            minFreeBytes: number;
         };
         /** @description Windows DXGI display/compute adapter. */
         DxgiAdapter: {
@@ -3046,6 +3074,11 @@ export interface components {
             title: string;
         };
         LiveStreamInfo: {
+            /**
+             * Format: int64
+             * @description Hard programme boundary for an age-limited profile; select a channel again afterwards.
+             */
+            accessEndsAt?: number | null;
             channelId: components["schemas"]["ChannelId"];
             channelName: string;
             /** Format: int64 */
@@ -3492,6 +3525,8 @@ export interface components {
             contentType: string;
             /** Format: int64 */
             durationMs: number;
+            /** @description Whether the negotiated source has a real video stream (cover art does not count). */
+            hasVideo: boolean;
             itemId: components["schemas"]["ItemId"];
             markers: components["schemas"]["PlaybackMarker"][];
             method: components["schemas"]["PlayMethod"];
@@ -3725,7 +3760,9 @@ export interface components {
             publicIpOverride?: string | null;
         };
         Recording: {
-            channelId: components["schemas"]["ChannelId"];
+            /** @description Whether this caller may cancel/delete the recording. */
+            canDelete?: boolean;
+            channelId?: components["schemas"]["ChannelId"] | null;
             channelName?: string | null;
             /** Format: int64 */
             createdAt: number;
@@ -3748,6 +3785,34 @@ export interface components {
         };
         /** Format: int64 */
         RecordingId: number;
+        /** @description Read-only normalization and admission snapshot; it does not reserve a tuner or create a library. */
+        RecordingPlan: {
+            autoDeleteWatched: boolean;
+            channelId: components["schemas"]["ChannelId"];
+            conflict?: string | null;
+            /** Format: int32 */
+            endPaddingSecs: number;
+            /** Format: int64 */
+            endTime: number;
+            existingRecordingId?: components["schemas"]["RecordingId"] | null;
+            /** Format: int32 */
+            keepMax?: number | null;
+            libraryId?: components["schemas"]["LibraryId"] | null;
+            ownerId: components["schemas"]["UserId"];
+            /** Format: int64 */
+            programEndTime: number;
+            programId?: components["schemas"]["ProgramId"] | null;
+            /** Format: int64 */
+            programStartTime: number;
+            retryOf?: components["schemas"]["RecordingId"] | null;
+            ruleId?: components["schemas"]["RecordingRuleId"] | null;
+            /** Format: int32 */
+            startPaddingSecs: number;
+            /** Format: int64 */
+            startTime: number;
+            storage: components["schemas"]["DvrStorageStatus"];
+            title: string;
+        };
         RecordingRule: {
             autoDeleteWatched: boolean;
             channelId?: components["schemas"]["ChannelId"] | null;
@@ -3770,7 +3835,7 @@ export interface components {
         /** Format: int64 */
         RecordingRuleId: number;
         /** @enum {string} */
-        RecordingStatus: "scheduled" | "recording" | "completed" | "failed" | "cancelled";
+        RecordingStatus: "scheduled" | "recording" | "completed" | "partial" | "failed" | "cancelled";
         RegisterClientRequest: {
             client_name: string;
             grant_types?: string[] | null;
@@ -3871,6 +3936,7 @@ export interface components {
             /** Format: int64 */
             endTime: number;
             programId?: components["schemas"]["ProgramId"] | null;
+            retryOf?: components["schemas"]["RecordingId"] | null;
             /** Format: int32 */
             startPaddingSecs?: number | null;
             /** Format: int64 */
@@ -6142,6 +6208,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description DVR library is managed automatically */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     update_library: {
@@ -6168,6 +6241,13 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DVR library paths are managed automatically */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6573,8 +6653,81 @@ export interface operations {
                     "application/json": components["schemas"]["Recording"];
                 };
             };
+            /** @description Age-limited profiles require an EPG programme */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Programme or DVR library unavailable to this profile */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Tuner conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired recording window */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_recording: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRecordingRequest"];
+            };
+        };
+        responses: {
+            /** @description Read-only canonical recording plan and current resource snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingPlan"];
+                };
+            };
+            /** @description Retry is not owned or programme is not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Source or recording is unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recording cannot be retried */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid recording window */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6633,6 +6786,20 @@ export interface operations {
                     "application/json": components["schemas"]["SuccessResponse"];
                 };
             };
+            /** @description Only the owner or an administrator may delete a shared recording */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recording not found or inaccessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     list_recording_rules: {
@@ -6683,6 +6850,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RecordingRule"];
                 };
+            };
+            /** @description Channel or recording library inaccessible */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid recording or retention policy */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -6763,7 +6944,14 @@ export interface operations {
                     "application/json": components["schemas"]["LiveStreamInfo"];
                 };
             };
-            /** @description Channel not found */
+            /** @description Current programme is unavailable to this profile */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Channel or lease not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6897,6 +7085,13 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8798,6 +8993,20 @@ export interface operations {
         responses: {
             /** @description Live HLS playlist or fMP4 media */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Owner login expired or revoked */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Programme no longer allowed for this profile */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

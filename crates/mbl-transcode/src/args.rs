@@ -49,9 +49,12 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
         VideoOp::None => {
             push_str(&mut args, "-vn");
         }
-        VideoOp::Copy => {
+        VideoOp::Copy | VideoOp::CopyHevc => {
             push_pair(&mut args, "-map", "0:v:0");
             push_pair(&mut args, "-c:v", "copy");
+            if matches!(p.video, VideoOp::CopyHevc) {
+                push_pair(&mut args, "-tag:v", "hvc1");
+            }
         }
         VideoOp::Encode { codec, width, max_bitrate, deinterlace, tonemap } => {
             match &p.subtitle {
@@ -147,9 +150,12 @@ fn push_input_hwaccel(args: &mut Vec<OsString>, backend: Backend) {
 fn push_audio_args(args: &mut Vec<OsString>, audio: &AudioOp, start_ms: u64) {
     match audio {
         AudioOp::None => push_str(args, "-an"),
-        AudioOp::Copy { index } => {
+        AudioOp::Copy { index } | AudioOp::CopyAac { index } => {
             push_pair(args, "-map", &format!("0:{index}"));
             push_pair(args, "-c:a", "copy");
+            if matches!(audio, AudioOp::CopyAac { .. }) {
+                push_pair(args, "-bsf:a", "aac_adtstoasc");
+            }
         }
         AudioOp::Encode { index, codec, channels, bitrate }
         | AudioOp::EncodeShifted { index, codec, channels, bitrate, .. } => {

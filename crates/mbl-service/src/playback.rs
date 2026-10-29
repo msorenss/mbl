@@ -136,6 +136,8 @@ pub struct PlaybackMarker {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackResponse {
+    /// Whether the negotiated source has a real video stream (cover art does not count).
+    pub has_video: bool,
     pub audio_tracks: Vec<PlaybackAudioTrack>,
     pub audio_stream_index: Option<u32>,
     pub subtitle_options: Vec<PlaybackSubtitleOption>,
@@ -251,6 +253,7 @@ pub struct PlaybackService {
     hw: Option<crate::hw::HwService>,
     thermal_root: Option<std::path::PathBuf>,
     sessions: Arc<RwLock<HashMap<String, ActivePlaybackSession>>>,
+    media_lifecycle: Arc<tokio::sync::RwLock<()>>,
     starting: Arc<AtomicUsize>,
     closing: Arc<AtomicBool>,
     bandwidth: Arc<mbl_remote::BandwidthManager>,
@@ -294,6 +297,7 @@ impl PlaybackService {
             hw: None,
             thermal_root: None,
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            media_lifecycle: Arc::default(),
             starting: Arc::default(),
             closing: Arc::default(),
             bandwidth: Arc::new(mbl_remote::BandwidthManager::default()),
@@ -454,6 +458,8 @@ impl PlaybackService {
     /// Start a playback session: run the pure decision engine, create an HLS session when remuxing
     /// or transcoding, and return the stream URL, subtitle tracks, start offset, and markers.
     pub async fn start(&self, actor: &Actor, req: PlaybackRequest) -> Result<PlaybackResponse> {
+        // A retention pass cannot unlink a source halfway through registering a start.
+        let _media_guard = self.media_lifecycle.read().await;
         if self.closing.load(Ordering::Acquire) {
             return Err(Error::Unavailable("playback server is shutting down".into()));
         }
@@ -650,6 +656,7 @@ impl PlaybackService {
             })
             .collect();
         Ok(PlaybackResponse {
+            has_video: media_info.primary_video().is_some(),
             audio_tracks,
             audio_stream_index,
             subtitle_options,
@@ -676,6 +683,7 @@ impl PlaybackService {
         session_id: &str,
         req: PlaybackProgressRequest,
     ) -> Result<()> {
+        let _media_guard = self.media_lifecycle.read().await;
         // Check ownership before renewing the HLS lease. Diagnostics and foreign heartbeats
         // must never keep another user's stream alive or revive an evicted session.
         let existing = self.get_session(actor, session_id).ok_or(Error::NotFound)?;
@@ -728,6 +736,7 @@ impl PlaybackService {
         session_id: &str,
         req: PlaybackStopRequest,
     ) -> Result<()> {
+        let _media_guard = self.media_lifecycle.read().await;
         let session = {
             let mut map = self
                 .sessions
@@ -810,6 +819,7 @@ impl PlaybackService {
         if let Some(manager) = manager {
             manager.run_maintenance_once().await;
         }
+        let _media_guard = self.media_lifecycle.read().await;
         let timeout = manager
             .map_or(mbl_transcode::DEFAULT_INACTIVITY_TIMEOUT, |m| m.config().inactivity_timeout);
         let timeout_ms = i64::try_from(timeout.as_millis()).unwrap_or(i64::MAX);
@@ -840,12 +850,31 @@ impl PlaybackService {
         }
     }
 
+    /// Retention must preserve files used by any active or paused playback session.
+    pub fn active_item_ids(&self) -> Result<Vec<ItemId>> {
+        let sessions = self
+            .sessions
+            .read()
+            .map_err(|_| Error::Unavailable("playback state lock poisoned".into()))?;
+        Ok(sessions.values().map(|session| session.item_id).collect())
+    }
+
+    pub async fn maintain_dvr(&self, livetv: &crate::LiveTvService) -> Result<()> {
+        // Guide matching can be slow; only file retention blocks new playback admission.
+        livetv.refresh_recording_rules().await?;
+        let _media_guard = self.media_lifecycle.write().await;
+        livetv.apply_recording_retention(&self.active_item_ids()?).await
+    }
+
     /// Reject new starts and tear down children before the server closes its database.
     pub async fn shutdown(&self) {
         self.closing.store(true, Ordering::Release);
         if let Some(manager) = self.stream.hls_manager() {
             manager.close().await;
         }
+        // Close HLS first: a queued retention writer may be waiting for a stalled
+        // start's read guard, and closing its child is what releases that start.
+        let _media_guard = self.media_lifecycle.read().await;
         let sessions = self
             .sessions
             .write()
@@ -1101,6 +1130,11 @@ impl PlaybackService {
         let needs_tonemap = decision.reasons.contains(&Reason::HdrUnsupported) && can_tonemap;
 
         let video_op = match &decision.video {
+            StreamAction::Copy
+                if video_stream.is_some_and(|v| v.codec.eq_ignore_ascii_case("hevc")) =>
+            {
+                VideoOp::CopyHevc
+            }
             StreamAction::Copy => VideoOp::Copy,
             StreamAction::Transcode { codec, bitrate, width } => VideoOp::Encode {
                 codec: codec.parse::<VideoCodec>().unwrap_or(VideoCodec::H264),
@@ -1114,6 +1148,11 @@ impl PlaybackService {
 
         let audio_index = audio_stream.map_or(1, |a| a.index);
         let mut audio_op = match &decision.audio {
+            StreamAction::Copy
+                if audio_stream.is_some_and(|a| a.codec.eq_ignore_ascii_case("aac")) =>
+            {
+                AudioOp::CopyAac { index: audio_index }
+            }
             StreamAction::Copy => AudioOp::Copy { index: audio_index },
             StreamAction::Transcode { codec, bitrate, .. } => AudioOp::Encode {
                 index: audio_index,
@@ -1175,6 +1214,10 @@ impl PlaybackService {
 
         let max_bitrate = match &decision.video {
             StreamAction::Transcode { bitrate, .. } => *bitrate,
+            StreamAction::Drop => match &decision.audio {
+                StreamAction::Transcode { bitrate, .. } => *bitrate,
+                _ => media_info.bitrate.unwrap_or(192_000),
+            },
             _ => media_info.bitrate.unwrap_or(6_000_000),
         };
         let width = match &decision.video {
@@ -1205,7 +1248,8 @@ impl PlaybackService {
         let eff_duration = if duration_ms == 0 { 6_000 } else { duration_ms };
         let video_codec_str = match &decision.video {
             StreamAction::Transcode { codec, .. } => Some(codec.clone()),
-            _ => Some("h264".to_owned()),
+            StreamAction::Copy => video_stream.map(|s| s.codec.clone()),
+            StreamAction::Drop => None,
         };
         let master = render_master_playlist(&[HlsRendition {
             name: "0".to_owned(),

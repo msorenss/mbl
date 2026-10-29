@@ -442,17 +442,10 @@ impl AuthService {
         if is_admin {
             return Ok((LibraryAccess::All, false, None));
         }
-        let info = mbl_db::repo::m6::get_user_security_info(&self.db, user_id).await?;
-        if let Some(sec) = info {
-            let libs = if sec.library_ids.is_empty() && !sec.is_managed {
-                LibraryAccess::All
-            } else {
-                LibraryAccess::Only(sec.library_ids)
-            };
-            Ok((libs, sec.is_managed, sec.content_rating_ceiling))
-        } else {
-            Ok((LibraryAccess::All, false, None))
-        }
+        let actor = mbl_db::repo::m6::actor_for_user(&self.db, user_id)
+            .await?
+            .ok_or(Error::Unauthorized)?;
+        Ok((actor.library_access, actor.is_managed, actor.content_rating_ceiling))
     }
 
     // -------------------------------------------------------------------------

@@ -117,6 +117,7 @@ export function Player(props: PlayerProps) {
     }
   });
   const [playbackData, setPlaybackData] = createSignal<PlaybackResponse | null>(null);
+  const isAudioOnly = () => playbackData()?.hasVideo === false;
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [isPlaying, setIsPlaying] = createSignal(false);
@@ -1534,6 +1535,29 @@ export function Player(props: PlayerProps) {
         </Show>
       </video>
 
+      <Show when={isAudioOnly() && !loading() && !error() && !isCasting()}>
+        <section
+          aria-label="Audio playback"
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            "justify-content": "center",
+            gap: "16px",
+            "pointer-events": "none",
+            color: "#fff",
+          }}
+        >
+          <span aria-hidden="true" style={{ "font-size": "64px" }}>
+            ♫
+          </span>
+          <strong>{mediaTitle() || "Audio playback"}</strong>
+          <span>Audio only</span>
+        </section>
+      </Show>
+
       {/* Chromecast Active Overlay (M12) */}
       <Show when={isCasting()}>
         <div
@@ -1653,7 +1677,7 @@ export function Player(props: PlayerProps) {
                 </p>
               }
             >
-              <div>Local resolution: {videoSize()}</div>
+              <div>Local resolution: {isAudioOnly() ? "Audio only" : videoSize()}</div>
               <div>
                 Local buffer:{" "}
                 {bufferAheadSecs() === null ? "Not measured" : `${bufferAheadSecs()}s`}
@@ -1900,7 +1924,7 @@ export function Player(props: PlayerProps) {
               max={duration() || 100}
               step={0.5}
               value={currentTime()}
-              aria-label="Seek video"
+              aria-label={isAudioOnly() ? "Seek audio" : "Seek video"}
               onPointerMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 if (rect.width > 0 && duration() > 0)
@@ -1924,7 +1948,7 @@ export function Player(props: PlayerProps) {
                 "accent-color": "var(--accent)",
               }}
             />
-            <Show when={previewTime() !== null && playbackData()?.partId}>
+            <Show when={!isAudioOnly() && previewTime() !== null && playbackData()?.partId}>
               <div
                 style={{
                   position: "absolute",
@@ -2089,24 +2113,26 @@ export function Player(props: PlayerProps) {
                   </For>
                 </select>
               </Show>
-              <label for="player-quality">Quality limit</label>
-              <select
-                id="player-quality"
-                value={quality()}
-                disabled={isCasting() || loading() || changingQuality() || castConnecting()}
-                onChange={(event) => {
-                  const select = event.currentTarget;
-                  void changeQuality(Number(select.value)).finally(() => {
-                    select.value = String(quality());
-                  });
-                }}
-              >
-                <option value={0}>Automatic</option>
-                <option value={2000000}>2 Mbps</option>
-                <option value={4000000}>4 Mbps</option>
-                <option value={8000000}>8 Mbps</option>
-                <option value={20000000}>20 Mbps</option>
-              </select>
+              <Show when={!isAudioOnly()}>
+                <label for="player-quality">Quality limit</label>
+                <select
+                  id="player-quality"
+                  value={quality()}
+                  disabled={isCasting() || loading() || changingQuality() || castConnecting()}
+                  onChange={(event) => {
+                    const select = event.currentTarget;
+                    void changeQuality(Number(select.value)).finally(() => {
+                      select.value = String(quality());
+                    });
+                  }}
+                >
+                  <option value={0}>Automatic</option>
+                  <option value={2000000}>2 Mbps</option>
+                  <option value={4000000}>4 Mbps</option>
+                  <option value={8000000}>8 Mbps</option>
+                  <option value={20000000}>20 Mbps</option>
+                </select>
+              </Show>
               <label for="player-audio-delay">Audio sync (− earlier, + later)</label>
               <select
                 id="player-audio-delay"

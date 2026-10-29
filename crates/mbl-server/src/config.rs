@@ -13,8 +13,38 @@ pub struct Config {
     pub scanner: ScannerConfig,
     pub metadata: MetadataConfig,
     pub transcode: TranscodeConfig,
+    pub dvr: DvrConfig,
     pub log: LogConfig,
     pub mcp: McpConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct DvrConfig {
+    pub min_free_mb: u64,
+    pub max_recording_mb: Option<u64>,
+}
+impl Default for DvrConfig {
+    fn default() -> Self {
+        Self { min_free_mb: 512, max_recording_mb: None }
+    }
+}
+impl DvrConfig {
+    pub fn policy(&self) -> anyhow::Result<mbl_core::livetv::DvrStoragePolicy> {
+        let min_free_bytes = self
+            .min_free_mb
+            .checked_mul(1024 * 1024)
+            .ok_or_else(|| anyhow::anyhow!("DVR min_free_mb is too large"))?;
+        let max_recording_bytes = self
+            .max_recording_mb
+            .map(|n| {
+                n.checked_mul(1024 * 1024).filter(|n| *n > 0).ok_or_else(|| {
+                    anyhow::anyhow!("DVR max_recording_mb must be positive and fit in bytes")
+                })
+            })
+            .transpose()?;
+        Ok(mbl_core::livetv::DvrStoragePolicy { min_free_bytes, max_recording_bytes })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -223,6 +253,16 @@ fn non_empty(s: &str) -> Option<Utf8PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dvr_policy_defaults_and_invalid_limits() {
+        let defaults = super::DvrConfig::default().policy().expect("defaults");
+        assert_eq!(defaults.min_free_bytes, 512 * 1024 * 1024);
+        assert!(defaults.max_recording_bytes.is_none());
+        assert!(
+            super::DvrConfig { min_free_mb: u64::MAX, max_recording_mb: None }.policy().is_err()
+        );
+        assert!(super::DvrConfig { min_free_mb: 0, max_recording_mb: Some(0) }.policy().is_err());
+    }
     use super::*;
     use mbl_platform::PlatformProfile;
 

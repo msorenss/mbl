@@ -110,7 +110,8 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         .services
         .livetv
         .with_stream(state.services.stream.clone())
-        .with_recordings(paths.data.join("recordings").into_std_path_buf(), tools);
+        .with_recordings(paths.data.join("recordings").into_std_path_buf(), tools)
+        .with_recording_storage(config.dvr.policy()?);
     state.services.hw = mbl_service::HwService::new(db.clone(), state.services.stream.clone());
     state.services.intelligence =
         state.services.intelligence.with_stream(state.services.stream.clone());
@@ -181,6 +182,7 @@ impl Server {
         let recordings = tokio::spawn(crate::recorder::run(
             self.db.clone(),
             self.services.livetv.clone(),
+            self.services.playback.clone(),
             self.services.stream.ffmpeg_bin().to_path_buf(),
             self.paths.data.join("recordings").into_std_path_buf(),
             stop.clone(),

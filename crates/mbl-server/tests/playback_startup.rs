@@ -295,3 +295,52 @@ async fn shutdown_rejects_pending_start_and_releases_its_capacity() {
     assert!(playback.list_active(&Actor::admin(UserId(1))).is_empty());
     assert_eq!(history(&db).await, 0);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn queued_retention_does_not_block_shutdown_of_a_stalled_start() {
+    let (_app, db, playback, manager, seeded) = stalled_service(Duration::from_secs(60)).await;
+    let req = serde_json::from_value(
+        json!({"itemId":seeded.movie_id,"waitForReady":true,"audioOffsetMs":250}),
+    )
+    .unwrap();
+    let start_service = playback.clone();
+    let start =
+        tokio::spawn(async move { start_service.start(&Actor::admin(UserId(1)), req).await });
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while manager.active_count() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let maintenance_service = playback.clone();
+    let livetv = mbl_service::LiveTvService::new(std::sync::Arc::new(db.clone()));
+    let maintenance = tokio::spawn(async move { maintenance_service.maintain_dvr(&livetv).await });
+    let actor = Actor::admin(UserId(1));
+    // A public heartbeat normally returns 404 immediately for this id. Blocking
+    // proves retention has queued its writer behind the still-running start.
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let progress =
+                serde_json::from_value(json!({"positionMs":0,"state":"buffering"})).unwrap();
+            if tokio::time::timeout(
+                Duration::from_millis(25),
+                playback.progress(&actor, "absent-session", progress),
+            )
+            .await
+            .is_err()
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    tokio::time::timeout(Duration::from_secs(3), playback.shutdown()).await.unwrap();
+    assert!(start.await.unwrap().is_err());
+    maintenance.await.unwrap().unwrap();
+    assert_eq!(manager.active_count(), 0);
+    assert_eq!(history(&db).await, 0);
+}

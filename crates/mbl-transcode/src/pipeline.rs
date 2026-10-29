@@ -24,6 +24,8 @@ pub struct Pipeline {
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum VideoOp {
     Copy,
+    /// Copy HEVC using the hvc1 MP4 sample entry expected by the HLS declaration.
+    CopyHevc,
     Encode {
         codec: VideoCodec,
         width: Option<u32>,
@@ -72,6 +74,10 @@ impl FromStr for VideoCodec {
 pub enum AudioOp {
     None,
     Copy {
+        index: u32,
+    },
+    /// Copy AAC to MP4/HLS, converting transport ADTS headers to AudioSpecificConfig.
+    CopyAac {
         index: u32,
     },
     Encode {

@@ -177,6 +177,7 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             | "/api/v1/livetv/stream/{channelId}"
             | "/api/v1/livetv/stream/{channelId}/release"
             | "/api/v1/livetv/recordings"
+            | "/api/v1/livetv/recordings/preview"
             | "/api/v1/livetv/recordings/{id}"
             | "/api/v1/livetv/rules"
             | "/api/v1/livetv/rules/{id}"

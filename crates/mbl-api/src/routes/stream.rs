@@ -108,7 +108,7 @@ pub async fn direct(
 /// Read a live HLS capability URL while its authenticated owner's lease remains active.
 #[utoipa::path(get, path = "/api/v1/stream/live/{session}/{file}", tag = "stream",
     params(("session" = String, Path), ("file" = String, Path)),
-    responses((status = 200, description = "Live HLS playlist or fMP4 media"), (status = 404, description = "Expired lease or unavailable media")))]
+    responses((status = 200, description = "Live HLS playlist or fMP4 media"), (status = 404, description = "Expired lease or unavailable media"), (status = 401, description = "Owner login expired or revoked"), (status = 403, description = "Programme no longer allowed for this profile")))]
 pub async fn live_file(
     State(state): State<AppState>,
     method: Method,

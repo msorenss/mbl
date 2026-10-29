@@ -10,7 +10,10 @@ type View = {
   onFailure: (message: string) => void;
   onEnded: () => void;
 };
-const ui = vi.hoisted(() => ({ views: [] as View[], toast: vi.fn(), play: vi.fn() }));
+const ui = vi.hoisted(() => ({ views: [] as View[], toast: vi.fn(), play: vi.fn(), admin: true }));
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => ({ user: () => ({ isAdmin: ui.admin }) }),
+}));
 vi.mock("../context/PlayerContext", () => ({ usePlayer: () => ({ playItem: ui.play }) }));
 vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: ui.toast }) }));
 vi.mock("../components/LiveStreamPlayer", () => ({
@@ -43,6 +46,7 @@ let dispose: (() => void) | undefined;
 beforeEach(() => {
   vi.useFakeTimers();
   ui.views = [];
+  ui.admin = true;
   ui.toast.mockClear();
   ui.play.mockClear();
   vi.spyOn(client, "POST").mockResolvedValue({ response: new Response() } as never);
@@ -298,6 +302,7 @@ it("refreshes DVR readiness and asks to delete the saved file for completed reco
             {
               id: 10,
               title: "New DVR",
+              canDelete: true,
               status: ready ? "completed" : "recording",
               itemId: ready ? 456 : undefined,
               startTime: 1,
@@ -330,4 +335,443 @@ it("refreshes DVR readiness and asks to delete the saved file for completed reco
   expect(client.DELETE).toHaveBeenCalledWith("/api/v1/livetv/recordings/{id}", {
     params: { path: { id: 10 } },
   });
+});
+
+it("shares playback without exposing another profile's delete controls", async () => {
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings"
+      ? (Promise.resolve({
+          data: [
+            {
+              id: 9,
+              title: "Shared DVR",
+              status: "completed",
+              itemId: 123,
+              canDelete: false,
+              startTime: 1,
+              endTime: 2,
+            },
+          ],
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((button) => button.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(document.querySelector('[aria-label="Play recording Shared DVR"]')).not.toBeNull();
+  expect(document.querySelector('[aria-label="Delete recording Shared DVR"]')).toBeNull();
+});
+
+it("submits season and retention choices with an explicit file-deletion warning", async () => {
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((button) => button.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  Array.from(document.querySelectorAll("button"))
+    .find((button) => button.textContent?.includes("New Series Rule"))
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  const input = (selector: string, value: string) => {
+    const element = document.querySelector<HTMLInputElement>(selector);
+    expect(element).not.toBeNull();
+    if (element) {
+      element.value = value;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  };
+  input("#newRuleTitleInput", "Series");
+  input("#newRuleSeason", "2");
+  input("#newRuleKeepMax", "3");
+  const watched = Array.from(document.querySelectorAll("label"))
+    .find((label) => label.textContent?.includes("Delete after my profile watches"))
+    ?.querySelector<HTMLInputElement>("input");
+  if (watched) {
+    watched.checked = true;
+    watched.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  expect(document.body.textContent).toContain("automatically deletes saved files");
+  Array.from(document.querySelectorAll("button"))
+    .find((button) => button.textContent === "Create Series Rule")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/livetv/rules",
+    expect.objectContaining({
+      body: expect.objectContaining({
+        title: "Series",
+        seasonNumber: 2,
+        keepMax: 3,
+        autoDeleteWatched: true,
+      }),
+    }),
+  );
+});
+
+it("disables watching when the current programme is denied by the server", async () => {
+  vi.mocked(client.GET).mockResolvedValueOnce({
+    data: { channels: [{ channel: { ...channels[0], canPlay: false }, programs: [] }] },
+    response: new Response(),
+  } as never);
+  await mount();
+  const button = document.querySelector<HTMLButtonElement>('[aria-label="Watch One"]');
+  expect(button?.disabled).toBe(true);
+  expect(button?.title).toContain("profile");
+  button?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(liveGets()).toHaveLength(0);
+});
+
+it("closes buffered playback at the programme deadline and releases the lease once", async () => {
+  await mount();
+  vi.mocked(client.GET).mockResolvedValueOnce({
+    data: { ...lease(1), accessEndsAt: Date.now() + 5000 },
+    response: new Response(),
+  } as never);
+  watch("One");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(ui.views).toHaveLength(1);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(document.querySelector('[aria-label="Test live player"]')).toBeNull();
+  expect(client.POST).toHaveBeenCalledTimes(1);
+  expect(ui.toast).toHaveBeenCalledWith(
+    expect.objectContaining({ message: expect.stringContaining("programme has ended") }),
+  );
+  await vi.advanceTimersByTimeAsync(15000);
+  expect(liveGets()).toHaveLength(1);
+});
+
+it("clears the old programme timer when switching channels", async () => {
+  await mount();
+  vi.mocked(client.GET).mockResolvedValueOnce({
+    data: { ...lease(1), accessEndsAt: Date.now() + 5000 },
+    response: new Response(),
+  } as never);
+  watch("One");
+  await vi.advanceTimersByTimeAsync(0);
+  watch("Two");
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(document.querySelector('[aria-label="Test live player"]')?.textContent).toContain("Two");
+  expect(ui.toast).not.toHaveBeenCalled();
+});
+
+it("explains a profile denial without starting a player or retrying", async () => {
+  await mount();
+  vi.mocked(client.GET).mockResolvedValueOnce({
+    error: { error: { message: "forbidden" } },
+    response: new Response(null, { status: 403 }),
+  } as never);
+  watch("One");
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(ui.views).toHaveLength(0);
+  expect(liveGets()).toHaveLength(1);
+  expect(ui.toast).toHaveBeenCalledWith(
+    expect.objectContaining({ message: expect.stringContaining("permitted TV guide programme") }),
+  );
+});
+
+it("refreshes programme availability as the live guide changes", async () => {
+  vi.mocked(client.GET).mockResolvedValueOnce({
+    data: { channels: [{ channel: { ...channels[0], canPlay: false }, programs: [] }] },
+    response: new Response(),
+  } as never);
+  await mount();
+  expect(document.querySelector<HTMLButtonElement>('[aria-label="Watch One"]')?.disabled).toBe(
+    true,
+  );
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(document.querySelector<HTMLButtonElement>('[aria-label="Watch One"]')?.disabled).toBe(
+    false,
+  );
+});
+
+it("hides source administration controls from non-admin profiles", async () => {
+  ui.admin = false;
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Tuners & Sources")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(document.body.textContent).toContain("Connected Tuners");
+  expect(
+    Array.from(document.querySelectorAll("button")).some((b) =>
+      b.textContent?.includes("Discover HDHomeRun"),
+    ),
+  ).toBe(false);
+  expect(
+    Array.from(document.querySelectorAll("button")).some((b) =>
+      b.textContent?.includes("Import XMLTV"),
+    ),
+  ).toBe(false);
+});
+
+it("labels and plays a partial recording while preserving retry and deletion controls", async () => {
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings"
+      ? (Promise.resolve({
+          data: [
+            {
+              id: 22,
+              title: "Interrupted programme",
+              status: "partial",
+              itemId: 222,
+              canDelete: true,
+              channelId: 1,
+              programId: 8,
+              startTime: Date.now() - 10000,
+              endTime: Date.now() + 60000,
+              durationMs: 6000,
+              errorMessage: "Incomplete recording: captured 6.0 s of 120.0 s scheduled",
+            },
+          ],
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(document.body.textContent).toContain("PARTIAL");
+  expect(document.body.textContent).toContain("captured 6.0 s");
+  expect(
+    document.querySelector('[aria-label="Play partial recording Interrupted programme"]'),
+  ).not.toBeNull();
+  document
+    .querySelector<HTMLButtonElement>('[aria-label="Play partial recording Interrupted programme"]')
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(ui.play).toHaveBeenCalledWith({
+    itemId: 222,
+    title: "Interrupted programme (Incomplete recording)",
+  });
+  vi.mocked(client.POST).mockResolvedValueOnce({
+    data: {
+      title: "Interrupted programme",
+      ownerId: 1,
+      ruleId: null,
+      keepMax: null,
+      autoDeleteWatched: false,
+      conflict: null,
+      storage: { canStart: true },
+    },
+    response: new Response(),
+  } as never);
+  const retry = Array.from(document.querySelectorAll("button")).find(
+    (b) => b.textContent === "Retry",
+  );
+  expect(retry).not.toBeUndefined();
+  retry?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/livetv/recordings",
+    expect.objectContaining({
+      body: expect.objectContaining({ retryOf: 22, programId: 8, channelId: 1 }),
+    }),
+  );
+  expect(
+    document.querySelector('[aria-label="Delete recording Interrupted programme"]'),
+  ).not.toBeNull();
+  const partial = Array.from(document.querySelectorAll("button")).find(
+    (b) => b.textContent === "Partial",
+  );
+  partial?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.GET).toHaveBeenCalledWith(
+    "/api/v1/livetv/recordings",
+    expect.objectContaining({ params: { query: { status: "partial" } } }),
+  );
+});
+
+it("reviews inherited retention before retrying and respects cancellation", async () => {
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings"
+      ? (Promise.resolve({
+          data: [
+            {
+              id: 23,
+              title: "Retried episode",
+              status: "failed",
+              canDelete: true,
+              channelId: 1,
+              programId: 8,
+              startTime: Date.now() - 1000,
+              endTime: Date.now() + 60000,
+            },
+          ],
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  const plan = {
+    title: "Canonical episode",
+    ownerId: 7,
+    ruleId: 3,
+    keepMax: 2,
+    autoDeleteWatched: true,
+    conflict: null,
+    storage: { canStart: true },
+  };
+  vi.mocked(client.POST).mockResolvedValueOnce({ data: plan, response: new Response() } as never);
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Retry")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("profile #7"));
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Keep latest 2"));
+  expect(
+    vi
+      .mocked(client.POST)
+      .mock.calls.filter((args: unknown[]) => args[0] === "/api/v1/livetv/recordings"),
+  ).toHaveLength(0);
+  confirm.mockReturnValue(true);
+  vi.mocked(client.POST).mockResolvedValueOnce({ data: plan, response: new Response() } as never);
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Retry")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/livetv/recordings",
+    expect.objectContaining({ body: expect.objectContaining({ retryOf: 23 }) }),
+  );
+});
+
+it("shows low disk space from the retry preview before creating another recording", async () => {
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings"
+      ? (Promise.resolve({
+          data: [
+            {
+              id: 24,
+              title: "Disk full",
+              status: "failed",
+              canDelete: true,
+              channelId: 1,
+              programId: 8,
+              startTime: Date.now() - 1000,
+              endTime: Date.now() + 60000,
+            },
+          ],
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  vi.mocked(client.POST).mockResolvedValueOnce({
+    data: {
+      title: "Disk full",
+      conflict: null,
+      storage: { canStart: false, error: "Insufficient free space for DVR recording" },
+    },
+    response: new Response(),
+  } as never);
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "Retry")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(ui.toast).toHaveBeenCalledWith(
+    expect.objectContaining({ message: expect.stringContaining("free space") }),
+  );
+  expect(
+    vi
+      .mocked(client.POST)
+      .mock.calls.filter((args: unknown[]) => args[0] === "/api/v1/livetv/recordings"),
+  ).toHaveLength(0);
+});
+
+it("does not duplicate pending retry previews or confirm a late response after leaving", async () => {
+  const original = vi.mocked(client.GET).getMockImplementation() as unknown as (
+    path: string,
+    options?: unknown,
+  ) => unknown;
+  vi.mocked(client.GET).mockImplementation((path, options) =>
+    path === "/api/v1/livetv/recordings"
+      ? (Promise.resolve({
+          data: [
+            {
+              id: 25,
+              title: "Late retry",
+              status: "failed",
+              canDelete: true,
+              channelId: 1,
+              programId: 8,
+              startTime: Date.now() - 1000,
+              endTime: Date.now() + 60000,
+            },
+          ],
+          response: new Response(),
+        }) as never)
+      : (original(path, options) as never),
+  );
+  await mount();
+  Array.from(document.querySelectorAll("button"))
+    .find((b) => b.textContent === "DVR Recordings")
+    ?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  let finish!: (value: unknown) => void;
+  let signal: AbortSignal | undefined;
+  vi.mocked(client.POST).mockImplementationOnce((_path, options) => {
+    signal = (options as unknown as { signal: AbortSignal }).signal;
+    return new Promise((resolve) => {
+      finish = resolve;
+    }) as never;
+  });
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  const button = Array.from(document.querySelectorAll("button")).find(
+    (b) => b.textContent === "Retry",
+  );
+  button?.click();
+  button?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(button?.disabled).toBe(true);
+  expect(client.POST).toHaveBeenCalledTimes(1);
+  dispose?.();
+  dispose = undefined;
+  expect(signal?.aborted).toBe(true);
+  finish({
+    data: {
+      title: "Late retry",
+      ownerId: 1,
+      ruleId: 2,
+      keepMax: 1,
+      autoDeleteWatched: true,
+      storage: { canStart: true },
+    },
+    response: new Response(),
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(confirm).not.toHaveBeenCalled();
+  expect(client.POST).toHaveBeenCalledTimes(1);
+  expect(ui.toast).not.toHaveBeenCalled();
 });

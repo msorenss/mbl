@@ -727,7 +727,7 @@ expression: tools
   },
   {
     "name": "list_recordings",
-    "description": "List scheduled, in-progress, completed, or failed TV recordings.",
+    "description": "List scheduled, in-progress, completed, partial, or failed TV recordings.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -737,6 +737,7 @@ expression: tools
             "scheduled",
             "recording",
             "completed",
+            "partial",
             "failed",
             "cancelled"
           ],

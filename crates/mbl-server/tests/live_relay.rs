@@ -201,6 +201,7 @@ async fn dvr_executes_real_media_and_reports_live_tuner_conflicts() {
     let task = tokio::spawn(mbl_server::recorder::run(
         db.clone(),
         services.livetv.clone(),
+        services.playback.clone(),
         services.stream.ffmpeg_bin().to_path_buf(),
         output.clone(),
         stop.clone(),
@@ -487,7 +488,13 @@ async fn dvr_rejects_external_paths_corrupt_files_and_symlinks_without_publishin
         .await
         .unwrap();
     assert!(services.livetv.publish_recording(id).await.is_err());
-    assert!(services.livetv.cancel_recording(id).await.is_err());
+    assert!(
+        services
+            .livetv
+            .cancel_recording(&mbl_core::Actor::admin(mbl_core::UserId(1)), id)
+            .await
+            .is_err()
+    );
     assert!(external.exists());
     sqlx::query("UPDATE recordings SET output_path=? WHERE id=?")
         .bind(path.to_str().unwrap())
@@ -502,7 +509,13 @@ async fn dvr_rejects_external_paths_corrupt_files_and_symlinks_without_publishin
         tokio::fs::remove_file(&path).await.unwrap();
         std::os::unix::fs::symlink(&external, &path).unwrap();
         assert!(services.livetv.publish_recording(id).await.is_err());
-        assert!(services.livetv.cancel_recording(id).await.is_err());
+        assert!(
+            services
+                .livetv
+                .cancel_recording(&mbl_core::Actor::admin(mbl_core::UserId(1)), id)
+                .await
+                .is_err()
+        );
         assert!(external.exists());
     }
     let count: i64 =
@@ -519,12 +532,21 @@ async fn dvr_publication_is_idempotent_and_cancellation_during_probing_leaves_no
     let (first, second) =
         tokio::join!(services.livetv.publish_recording(id), services.livetv.publish_recording(id));
     assert_eq!(first.unwrap(), second.unwrap());
-    assert!(services.livetv.cancel_recording(id).await.unwrap());
+    assert!(
+        services
+            .livetv
+            .cancel_recording(&mbl_core::Actor::admin(mbl_core::UserId(1)), id)
+            .await
+            .unwrap()
+    );
     assert!(!path.exists());
     let (id, path) =
         legacy_recording(&app, &db, channel, &source.bytes, "Cancelled publication", None).await;
-    let (_publication, deletion) =
-        tokio::join!(services.livetv.publish_recording(id), services.livetv.cancel_recording(id));
+    let actor = mbl_core::Actor::admin(mbl_core::UserId(1));
+    let (_publication, deletion) = tokio::join!(
+        services.livetv.publish_recording(id),
+        services.livetv.cancel_recording(&actor, id)
+    );
     assert!(deletion.unwrap());
     assert!(!path.exists());
     assert!(mbl_db::repo::m9::get_recording(&db, id).await.unwrap().is_none());

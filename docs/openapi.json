@@ -1833,7 +1833,10 @@
         ],
         "responses": {
           "204": {},
-          "404": {}
+          "404": {},
+          "409": {
+            "description": "DVR library is managed automatically"
+          }
         }
       },
       "patch": {
@@ -1873,7 +1876,10 @@
               }
             }
           },
-          "404": {}
+          "404": {},
+          "409": {
+            "description": "DVR library paths are managed automatically"
+          }
         }
       }
     },
@@ -2509,8 +2515,64 @@
               }
             }
           },
+          "403": {
+            "description": "Age-limited profiles require an EPG programme"
+          },
+          "404": {
+            "description": "Programme or DVR library unavailable to this profile"
+          },
           "409": {
             "description": "Tuner conflict"
+          },
+          "422": {
+            "description": "Invalid or expired recording window"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/livetv/recordings/preview": {
+      "post": {
+        "tags": [
+          "livetv"
+        ],
+        "operationId": "preview_recording",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRecordingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Read-only canonical recording plan and current resource snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingPlan"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Retry is not owned or programme is not allowed"
+          },
+          "404": {
+            "description": "Source or recording is unavailable"
+          },
+          "409": {
+            "description": "Recording cannot be retried"
+          },
+          "422": {
+            "description": "Invalid recording window"
           }
         },
         "security": [
@@ -2586,6 +2648,12 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Only the owner or an administrator may delete a shared recording"
+          },
+          "404": {
+            "description": "Recording not found or inaccessible"
           }
         },
         "security": [
@@ -2650,6 +2718,12 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Channel or recording library inaccessible"
+          },
+          "422": {
+            "description": "Invalid recording or retention policy"
           }
         },
         "security": [
@@ -2772,8 +2846,11 @@
               }
             }
           },
+          "403": {
+            "description": "Current programme is unavailable to this profile"
+          },
           "404": {
-            "description": "Channel not found"
+            "description": "Channel or lease not found"
           },
           "409": {
             "description": "Tuner concurrency limit reached"
@@ -2927,6 +3004,9 @@
           },
           "401": {
             "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
           }
         },
         "security": [
@@ -5309,6 +5389,12 @@
           "200": {
             "description": "Live HLS playlist or fMP4 media"
           },
+          "401": {
+            "description": "Owner login expired or revoked"
+          },
+          "403": {
+            "description": "Programme no longer allowed for this profile"
+          },
           "404": {
             "description": "Expired lease or unavailable media"
           }
@@ -7035,6 +7121,10 @@
               "null"
             ]
           },
+          "canPlay": {
+            "type": "boolean",
+            "description": "Whether the current programme can be played by this caller."
+          },
           "channelNumber": {
             "type": "string"
           },
@@ -7786,6 +7876,45 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "DvrStorageStatus": {
+        "type": "object",
+        "required": [
+          "minFreeBytes",
+          "canStart"
+        ],
+        "properties": {
+          "availableBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "canStart": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxRecordingBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "minFreeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -9045,6 +9174,14 @@
           "targetFormat"
         ],
         "properties": {
+          "accessEndsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Hard programme boundary for an age-limited profile; select a channel again afterwards."
+          },
           "channelId": {
             "$ref": "#/components/schemas/ChannelId"
           },
@@ -10617,6 +10754,7 @@
         "type": "object",
         "description": "Response body for `POST /api/v1/playback`.",
         "required": [
+          "hasVideo",
           "audioTracks",
           "subtitleOptions",
           "audioOffsetMs",
@@ -10666,6 +10804,10 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "hasVideo": {
+            "type": "boolean",
+            "description": "Whether the negotiated source has a real video stream (cover art does not count)."
           },
           "itemId": {
             "$ref": "#/components/schemas/ItemId"
@@ -11534,7 +11676,6 @@
         "type": "object",
         "required": [
           "id",
-          "channelId",
           "title",
           "startTime",
           "endTime",
@@ -11542,8 +11683,19 @@
           "createdAt"
         ],
         "properties": {
+          "canDelete": {
+            "type": "boolean",
+            "description": "Whether this caller may cancel/delete the recording."
+          },
           "channelId": {
-            "$ref": "#/components/schemas/ChannelId"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChannelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "channelName": {
             "type": [
@@ -11637,6 +11789,130 @@
         "type": "integer",
         "format": "int64"
       },
+      "RecordingPlan": {
+        "type": "object",
+        "description": "Read-only normalization and admission snapshot; it does not reserve a tuner or create a library.",
+        "required": [
+          "ownerId",
+          "channelId",
+          "title",
+          "startTime",
+          "endTime",
+          "programStartTime",
+          "programEndTime",
+          "startPaddingSecs",
+          "endPaddingSecs",
+          "autoDeleteWatched",
+          "storage"
+        ],
+        "properties": {
+          "autoDeleteWatched": {
+            "type": "boolean"
+          },
+          "channelId": {
+            "$ref": "#/components/schemas/ChannelId"
+          },
+          "conflict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endPaddingSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "endTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "existingRecordingId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecordingId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keepMax": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "libraryId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LibraryId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownerId": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "programEndTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "programId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProgramId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "programStartTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retryOf": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecordingId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ruleId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecordingRuleId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startPaddingSecs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "startTime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/DvrStorageStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "RecordingRule": {
         "type": "object",
         "required": [
@@ -11721,6 +11997,7 @@
           "scheduled",
           "recording",
           "completed",
+          "partial",
           "failed",
           "cancelled"
         ]
@@ -12113,6 +12390,17 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/ProgramId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retryOf": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RecordingId",
+                "description": "Retry this owned failed/partial recording, preserving its owner and surviving series rule."
               },
               {
                 "type": "null"

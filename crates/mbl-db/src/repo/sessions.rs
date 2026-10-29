@@ -43,6 +43,20 @@ impl SessionsRepo {
         Self { db }
     }
 
+    /// Capability owners must still have the same, unexpired login. Session ids
+    /// alone are insufficient because SQLite may reuse a deleted integer id.
+    pub async fn active_identity(
+        &self,
+        id: SessionId,
+        now: i64,
+    ) -> Result<Option<(UserId, Vec<u8>)>> {
+        Ok(sqlx::query_as("SELECT user_id,token_hash FROM sessions WHERE id=? AND expires_at>?")
+            .bind(id.0)
+            .bind(now)
+            .fetch_optional(&self.db.read)
+            .await?)
+    }
+
     pub async fn insert(&self, s: &NewSession<'_>) -> Result<SessionId> {
         Ok(sqlx::query_scalar!(
             r#"INSERT INTO sessions

@@ -1897,7 +1897,7 @@ expression: tools
   },
   {
     "name": "list_recordings",
-    "description": "List scheduled, in-progress, completed, or failed TV recordings.",
+    "description": "List scheduled, in-progress, completed, partial, or failed TV recordings.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1907,6 +1907,7 @@ expression: tools
             "scheduled",
             "recording",
             "completed",
+            "partial",
             "failed",
             "cancelled"
           ],
@@ -1953,6 +1954,10 @@ expression: tools
           "description": "Optional EPG program ID",
           "type": "integer"
         },
+        "retry_of": {
+          "description": "Retry an owned failed/partial recording, preserving its owner and current series retention policy; other schedule fields are ignored",
+          "type": "integer"
+        },
         "start_padding_secs": {
           "description": "Extra seconds before scheduled start",
           "type": "integer"
@@ -1989,7 +1994,7 @@ expression: tools
       "additionalProperties": false,
       "properties": {
         "auto_delete_watched": {
-          "description": "Automatically delete watched recordings",
+          "description": "Delete saved recordings after the rule owner watches them",
           "type": "boolean"
         },
         "channel_id": {
@@ -2009,7 +2014,9 @@ expression: tools
           "type": "integer"
         },
         "keep_max": {
-          "description": "Maximum number of recorded episodes to keep",
+          "description": "Keep only this many saved recordings; older saved files are deleted",
+          "maximum": 10000,
+          "minimum": 1,
           "type": "integer"
         },
         "new_only": {
@@ -2041,14 +2048,14 @@ expression: tools
     "annotations": {
       "title": "Create Series Recording Rule",
       "readOnlyHint": false,
-      "destructiveHint": false,
+      "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false
     }
   },
   {
     "name": "cancel_recording",
-    "description": "Cancel a scheduled or active TV recording, or delete a completed recording with its saved file and catalogue item.",
+    "description": "Cancel a scheduled or active TV recording, or delete a completed/partial recording with its saved file and catalogue item.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
