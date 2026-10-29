@@ -80,6 +80,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-29 — Release container Node bootstrap correction
+- CI for release preparation commit 057416c passed. Release run 40928515312 then failed both Linux jobs before compilation: pnpm 12's installer invoked `node install.js`, but the clean Bookworm containers had no Node executable yet. The hosted runner's action runtime does not put Node on the container PATH.
+- Both Linux package jobs now install Node 22 before pnpm, then configure the pnpm cache after pnpm exists. Windows packaging is unaffected. YAML/order/shell/diff checks pass; the next release run must verify the complete packages before tag/release publication.
+
 ### 2026-10-29 — v1.1.0 package publication preparation
 - User requested actual v1.1.0 binaries/releases after the green CI. The old Release run 40898181936 was cancelled, no v1.1.0 GitHub Release exists, and the unpublished annotated tag still points to edafb80 before the Windows fixes.
 - Release workflow now supports codex/release-vX.Y.Z pushes and manual version resolution, waits for green CI on its exact source commit, builds all platforms, and only then updates an unpublished tag with an explicit force-with-lease. A published release with different source is refused; concurrent tag changes abort publication.

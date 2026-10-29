@@ -1414,3 +1414,7 @@ The full Windows run after a398dd1 passed the original Live TV/DVR regressions a
 
 ### 2026-10-29 — v1.1.0 binaries and release publication
 Preparing a real package release from the green Windows/Linux fixes: native Bookworm-compatible Linux x86_64/ARM64 Debian and tar archives, x64 Windows MSI/ZIPs, complete notes and SHA256SUMS. Exact-source CI and artifact checks precede leased retagging of the unpublished v1.1.0 tag and draft-to-published release promotion. Seven release-helper tests and syntax checks pass; binary builds/publication are pending. Application code is unchanged from 5b53027.
+
+
+### 2026-10-29 — Release Linux container bootstrap
+The first package run failed at pnpm installation (`node: not found`) in both clean Bookworm containers. Node 22 is now installed before pnpm, with pnpm caching configured afterwards. Application code is unchanged; YAML/tool-order/shell checks pass. Package publication remains pending.

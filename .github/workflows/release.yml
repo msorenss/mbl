@@ -69,6 +69,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
+      - name: Install Node before the pnpm installer
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: pnpm/action-setup@v4
         with:
           version: 12.15.0
@@ -129,6 +133,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
+      - name: Install Node before the pnpm installer
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: pnpm/action-setup@v4
         with:
           version: 12.15.0
