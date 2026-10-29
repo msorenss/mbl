@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.0.0
+Current release: v1.1.0
 
-This is the M10 hardening milestone, which closes the v1.0.0 release cycle and marks the project as production-ready. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
+This release builds on the v1.0.0 foundation with expanded playback, Live TV, DVR, and administration workflows. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
 
 ## Quick start
 

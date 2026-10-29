@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-29
+
 ### Added
 - Explicit recovery of saved failed/interrupted DVR media as a playable partial snapshot, with REST/MCP previews, profile checks and web controls.
 - Radio DVR recordings use the normal player with an audio view, track metadata, history and profile restrictions. DVB subtitles and multiple audio languages are preserved in broadcast recordings.
