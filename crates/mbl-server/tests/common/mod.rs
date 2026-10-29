@@ -113,6 +113,12 @@ impl TestApp {
         std::fs::create_dir_all(&path).unwrap();
         path.to_str().unwrap().to_owned()
     }
+
+    /// Match the server's configured spelling, including Windows separators.
+    /// DVR library roots are persisted and compared as strings in SQLite.
+    pub fn recordings_dir(&self) -> std::path::PathBuf {
+        self.dir.path().join("data").join("recordings")
+    }
 }
 
 pub struct SeededShow {

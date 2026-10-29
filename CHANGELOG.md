@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Fixed
+- Windows Live TV HLS keeps its initialization fragment beside the playlist instead of writing it outside the session directory.
+
 ## [1.1.0] - 2026-10-29
 
 ### Added

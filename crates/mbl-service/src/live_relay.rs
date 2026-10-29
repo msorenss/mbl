@@ -30,6 +30,11 @@ impl LiveRelay {
         std::fs::create_dir_all(root).map_err(Error::internal)?;
         let directory =
             tempfile::Builder::new().prefix("live-").tempdir_in(root).map_err(Error::internal)?;
+        let output_dir = directory
+            .path()
+            .to_str()
+            .ok_or_else(|| Error::Validation("Non-UTF-8 live HLS directory".into()))?;
+        let output_dir = mbl_transcode::args::ffmpeg_path(output_dir);
         let mut command = Command::new(ffmpeg);
         command.args(["-nostdin", "-hide_banner", "-loglevel", "error", "-y",
             "-protocol_whitelist", "http,https,tcp,tls,crypto", "-rw_timeout", "10000000", "-i", source,
@@ -41,13 +46,13 @@ impl LiveRelay {
             "-f", "hls", "-hls_time", "2", "-hls_list_size", "6", "-hls_delete_threshold", "2",
             "-hls_flags", "delete_segments+independent_segments+temp_file", "-hls_segment_type", "fmp4",
             "-hls_fmp4_init_filename", "init.mp4", "-hls_segment_filename"])
-            .arg(directory.path().join("seg_%09d.m4s"))
+            .arg(format!("{output_dir}/seg_%09d.m4s"))
             .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
         // Bound fast/catch-up sources as well as real-time tuner feeds.
         if let Some(duration) = duration_ms {
             command.args(["-t", &format!("{:.3}", duration as f64 / 1000.0)]);
         }
-        command.arg(directory.path().join("index.m3u8"));
+        command.arg(format!("{output_dir}/index.m3u8"));
         let child = command.spawn().map_err(|error| {
             Error::Unavailable(format!("could not start live encoder: {error}"))
         })?;

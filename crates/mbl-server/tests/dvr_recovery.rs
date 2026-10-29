@@ -22,7 +22,7 @@ async fn failed() -> (TestApp, Db, mbl_service::Services, String, RecordingId, P
     let rec=app.call(Method::POST,"/api/v1/livetv/recordings",Some(&admin),Some(json!({"channelId":channel,"title":"Interrupted broadcast","startTime":now+1000,"endTime":now+120000}))).await;
     assert_eq!(rec.status, StatusCode::OK, "{}", rec.body);
     let id = RecordingId(rec.body["id"].as_i64().unwrap());
-    let path = app.dir.path().join(format!("data/recordings/{}.ts", id.0));
+    let path = app.recordings_dir().join(format!("{}.ts", id.0));
     tokio::fs::write(&path, &bytes).await.unwrap();
     m9::update_recording_status(
         &db,
@@ -234,7 +234,7 @@ async fn deleted_capture_files_are_retried_before_the_tombstone_is_pruned() {
     tokio::fs::write(&path, &bytes).await.unwrap();
     let archive = path.with_file_name(format!("{}.recovered.ts", id.0));
     tokio::fs::write(&archive, &bytes).await.unwrap();
-    let unrelated = app.dir.path().join("data/recordings/unrelated.ts");
+    let unrelated = app.recordings_dir().join("unrelated.ts");
     tokio::fs::write(&unrelated, b"keep").await.unwrap();
     services.livetv.reconcile_recordings().await;
     assert!(!path.exists());

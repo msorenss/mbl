@@ -56,7 +56,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      - run: cargo nextest run --workspace --no-tests=pass
+      - run: cargo nextest run --workspace --no-tests=pass --no-fail-fast
 
   # Native arm64 runner: closest to the Raspberry Pi 5 target and runs the tests too.
   build-aarch64:

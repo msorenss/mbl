@@ -173,7 +173,7 @@ async fn capture(
         services.livetv.clone(),
         services.playback.clone(),
         services.stream.ffmpeg_bin().to_path_buf(),
-        app.dir.path().join("data/recordings"),
+        app.recordings_dir(),
         stop.clone(),
     ));
     let row = tokio::time::timeout(Duration::from_secs(20), async {
@@ -502,7 +502,7 @@ async fn subtitle_only_files_with_a_real_duration_are_not_published_as_radio() {
         .await;
     assert_eq!(rec.status, StatusCode::OK, "{}", rec.body);
     let id = RecordingId(rec.body["id"].as_i64().unwrap());
-    let path = app.dir.path().join(format!("data/recordings/{}.ts", id.0));
+    let path = app.recordings_dir().join(format!("{}.ts", id.0));
     let caption = app.dir.path().join("caption.srt");
     tokio::fs::write(&caption, b"1\n00:00:00,000 --> 00:00:03,000\nOnly a caption\n")
         .await

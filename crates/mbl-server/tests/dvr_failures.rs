@@ -21,7 +21,7 @@ async fn fixture(source: &str) -> (TestApp, Db, mbl_service::Services, String, i
     sqlx::query("UPDATE tuners SET tuner_count=1").execute(&db.write).await.unwrap();
     let channel =
         sqlx::query_scalar("SELECT id FROM channels LIMIT 1").fetch_one(&db.read).await.unwrap();
-    let root = app.dir.path().join("data/recordings");
+    let root = app.recordings_dir();
     let library = dvr::ensure_library(&db, root.to_str().unwrap(), now_ms()).await.unwrap();
     (app, db, services, admin, channel, library)
 }
@@ -74,7 +74,7 @@ fn launch(
         live,
         services.playback.clone(),
         ffmpeg,
-        app.dir.path().join("data/recordings"),
+        app.recordings_dir(),
         stop.clone(),
     ));
     (stop, task)
@@ -108,6 +108,7 @@ async fn clean_early_eof_is_playable_partial_with_acl_retry_and_owned_deletion()
     stop.cancel();
     task.await.unwrap();
     assert_eq!(row.status, "partial", "{:?}", row.error_message);
+    assert_eq!(row.library_id, Some(library.0), "capture must use the granted DVR library");
     assert!((5000..7000).contains(&row.duration_ms.unwrap()));
     assert!(row.error_message.as_deref().unwrap().contains("captured"));
     let item = row.item_id.unwrap();
@@ -317,10 +318,7 @@ async fn profile_changes_during_probe_do_not_publish_stale_ratings() {
         ),
     );
     tools.ffprobe = wrapper;
-    let live = services
-        .livetv
-        .clone()
-        .with_recordings(app.dir.path().join("data/recordings"), Some(tools));
+    let live = services.livetv.clone().with_recordings(app.recordings_dir(), Some(tools));
     let (stop, task) =
         launch(&app, &db, &services, live, services.stream.ffmpeg_bin().to_path_buf());
     wait_for(&barrier).await;

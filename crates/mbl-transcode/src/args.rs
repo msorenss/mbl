@@ -288,7 +288,9 @@ fn build_abr_ladder_args(
     Ok(())
 }
 
-fn ffmpeg_path(path: &str) -> String {
+/// Use POSIX separators for FFmpeg output paths. The HLS muxer resolves its
+/// fMP4 init file relative to the last `/`, even in Windows builds.
+pub fn ffmpeg_path(path: &str) -> String {
     #[cfg(windows)]
     {
         path.replace('\\', "/")

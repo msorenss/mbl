@@ -87,7 +87,7 @@ async fn preview_and_mcp_use_canonical_guide_data_without_creating_library_or_jo
     let ends = starts + 60000;
     let program = programme(&db, ch, "Canonical programme", starts, ends).await;
     let body = request(ch, program);
-    let root = app.dir.path().join("data/recordings");
+    let root = app.recordings_dir();
     assert!(!root.exists());
     assert_eq!(count(&db, "libraries").await, 0);
     let plan = app
@@ -180,7 +180,7 @@ async fn retry_preserves_managed_owner_rule_and_retention_and_rechecks_policy() 
         .into_iter()
         .find(|r| r.rule_id == Some(rule_id))
         .unwrap();
-    let path = app.dir.path().join(format!("data/recordings/{}.ts", old.id));
+    let path = app.recordings_dir().join(format!("{}.ts", old.id));
     tokio::fs::write(&path, &source.bytes).await.unwrap();
     m9::update_recording_status(
         &db,
@@ -353,7 +353,7 @@ fn launch(
         services.livetv.clone(),
         services.playback.clone(),
         ffmpeg,
-        app.dir.path().join("data/recordings"),
+        app.recordings_dir(),
         stop.clone(),
     ));
     (stop, task)
@@ -384,7 +384,7 @@ async fn insufficient_space_prevents_start_without_deleting_any_saved_files() {
     let script = app.dir.path().join("unused.sh");
     std::fs::write(&script, format!("#!/bin/sh\ntouch '{}'\nexit 1\n", flag.display())).unwrap();
     std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let kept = app.dir.path().join("data/recordings/existing.ts");
+    let kept = app.recordings_dir().join("existing.ts");
     tokio::fs::write(&kept, b"saved archive").await.unwrap();
     let (stop, task) = launch(&app, &db, &services, script);
     let row = finished(&db, id).await;

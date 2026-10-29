@@ -80,6 +80,13 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-29 — Windows Live TV HLS and DVR fixture paths
+- Investigated CI run 40905467648 (Windows job 123558903665). The other five jobs passed. The DVR detail 404 came from a fixture root built with mixed Windows separators: SQLite treated it as a different DVR library from the server's root, so the viewer was granted the wrong library ID.
+- Added `TestApp::recordings_dir()` using separate native path components and applied it throughout the DVR/capture/recovery fixtures. The partial-capture regression now also asserts that the published recording uses the granted DVR library.
+- Live relay HLS output now uses the same Windows path normalization as VOD. FFmpeg's HLS fMP4 code locates the init directory using the last forward slash (`libavformat/hlsenc.c`, `base_output_dirname`); native backslashes could leave `init.mp4` outside the live session directory and make readiness time out. Shared helper: `mbl_transcode::args::ffmpeg_path`.
+- Windows nextest now uses `--no-fail-fast` so one failure does not hide later regressions. Existing proxy settings, authorization checks, media checks and readiness deadlines remain in force.
+- Verification: all 53 focused DVR/Live TV regressions pass on Linux/ARM64 (0 skipped), including real FFmpeg capture, radio, subtitles, recovery, profiles and retention. Clippy for mbl-server/mbl-service/mbl-transcode with all targets and -D warnings, formatting and diff checks pass. A new Windows CI run is required. The sandbox initially denied localhost binding; the same tests passed with local-server permission. Existing release tag `v1.1.0` is unchanged; this fix is for `main` and a subsequent release.
+
 ### 2026-10-29 — Release v1.1.0 tag pushed
 - Bumped workspace/package versions, release notes, README, Windows package README and OpenAPI schema to 1.1.0. The release workflow now publishes the GitHub Release after Linux/Windows artifacts build; fallback tag references are v1.1.0.
 - `cargo run -p mbl-server -- openapi` and `cargo xtask openapi-check` pass. Full batch 25 verification is recorded below. Release commit `edafb80` and tag `v1.1.0` are pushed; remote `main` and tag were verified.

@@ -196,7 +196,7 @@ async fn dvr_executes_real_media_and_reports_live_tuner_conflicts() {
     )
     .await
     .unwrap();
-    let output = app.dir.path().join("data/recordings");
+    let output = app.recordings_dir();
     let stop = CancellationToken::new();
     let task = tokio::spawn(mbl_server::recorder::run(
         db.clone(),
@@ -343,7 +343,7 @@ async fn legacy_recording(
     )
     .await
     .unwrap();
-    let root = app.dir.path().join("data/recordings");
+    let root = app.recordings_dir();
     tokio::fs::create_dir_all(&root).await.unwrap();
     let path = root.join(format!("{}.ts", id.0));
     tokio::fs::write(&path, source).await.unwrap();

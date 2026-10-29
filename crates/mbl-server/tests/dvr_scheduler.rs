@@ -99,7 +99,7 @@ async fn publish(
     id: i64,
     bytes: &[u8],
 ) -> (i64, std::path::PathBuf) {
-    let path = app.dir.path().join(format!("data/recordings/{id}.ts"));
+    let path = app.recordings_dir().join(format!("{id}.ts"));
     tokio::fs::create_dir_all(path.parent().unwrap()).await.unwrap();
     tokio::fs::write(&path, bytes).await.unwrap();
     m9::update_recording_status(
@@ -445,7 +445,7 @@ async fn runtime_matches_later_guide_imports_and_rechecks_revoked_profiles() {
         services.livetv.clone(),
         services.playback.clone(),
         services.stream.ffmpeg_bin().to_path_buf(),
-        app.dir.path().join("data/recordings"),
+        app.recordings_dir(),
         stop.clone(),
     ));
     tokio::time::timeout(Duration::from_secs(8), async {
@@ -461,7 +461,7 @@ async fn runtime_matches_later_guide_imports_and_rechecks_revoked_profiles() {
     })
     .await
     .unwrap();
-    assert!(!app.dir.path().join(format!("data/recordings/{id}.ts")).exists());
+    assert!(!app.recordings_dir().join(format!("{id}.ts")).exists());
     stop.cancel();
     task.await.unwrap();
 }
