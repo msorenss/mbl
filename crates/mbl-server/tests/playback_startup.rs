@@ -5,6 +5,7 @@ use common::{TestApp, seed_playback_fixtures};
 use mbl_core::{Actor, UserId};
 use mbl_jobs::ActivityProbe;
 use serde_json::json;
+#[cfg(unix)]
 use std::time::Duration;
 
 async fn real_source(app: &TestApp, db: &mbl_db::Db, admin: &str) -> common::SeededShow {
