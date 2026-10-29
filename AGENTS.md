@@ -3,8 +3,8 @@ This document lives at the repository root so every AI agent, contributor, and a
 
 ---
 ## 1. Current status (quick overview)
-- Current work: Windows playback/CI fixes verified on main after v1.1.0. All six jobs in CI run 40919393004 pass: 388/388 Windows tests and 412/412 Linux tests. Native M11 clients remain on hold. MCP currently exposes 75 admin tools (30 read, 35 read+library).
-- Latest release tag: `v1.1.0` (pushed 2026-10-29; GitHub Actions publishes after packaging)
+- Current work: v1.1.0 is published with all 16 Linux/Windows packages and SHA256SUMS. Exact-source CI 40930802734 and Release 40930812375 are green; Windows playback/CI fixes are included. Native M11 clients remain on hold. MCP currently exposes 75 admin tools (30 read, 35 read+library).
+- Latest release tag: `v1.1.0` (published 2026-10-29; source `5ee9753`, annotated tag `b6ccb1f618644d780c2981b4989eaf4e29209ca3`)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -79,6 +79,12 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-10-29 — v1.1.0 published with verified binaries
+- Published https://github.com/msorenss/mbl/releases/tag/v1.1.0 from source `5ee9753aca11780ca99288c5386edf39c98cc50f`. All six exact-source CI jobs in run 40930802734 and all five Release jobs in run 40930812375 pass. The application includes the Windows Live TV/DVR paths, subtitle burn-in and FFmpeg process fixes verified by 388 Windows and 412 Linux tests.
+- Release includes 16 packages plus SHA256SUMS: Linux x86_64/ARM64 server/worker/node DEBs and tar archives; Windows x64 MSI, full ZIP and standalone worker/node ZIPs. Native Bookworm version/architecture/glibc checks and Windows packaging pass. GitHub reports every asset uploaded with positive size; all 16 package SHA256 digests match the generated checksum manifest in the publication log. Complete CHANGELOG notes are attached to the published, non-prerelease release.
+- The original unpublished tag was updated only after all builds succeeded, with force-with-lease, to annotated tag `b6ccb1f618644d780c2981b4989eaf4e29209ca3`. Node-before-pnpm fixed the failed clean-container bootstrap. Publication verified every upload before promoting the draft. The local release tag is synchronized; the final documentation-only checkpoint on main does not move the release tag or release branch.
+- No further application changes were required. Physical tuner/browser/Cast/WAN acceptance, broader DVR transport/subtitle profiles and archive quotas remain follow-up work; M11 stays on hold.
 
 ### 2026-10-29 — Release container Node bootstrap correction
 - CI for release preparation commit 057416c passed. Release run 40928515312 then failed both Linux jobs before compilation: pnpm 12's installer invoked `node install.js`, but the clean Bookworm containers had no Node executable yet. The hosted runner's action runtime does not put Node on the container PATH.
