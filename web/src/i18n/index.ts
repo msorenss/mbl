@@ -58,6 +58,11 @@ export const translations = {
     onlineResults: "Web results",
     onlineNoResults: "No results found. Try different wording or check a known source URL.",
     onlineIndexed: "My inspected sources",
+    onlineVerifying: "Verifying sources…",
+    onlineNoVerified:
+      "No verified playable source found. Try different wording or a known source URL.",
+    onlineNotVerified: "Source could not be verified as playable in MBL, so it is not listed.",
+    onlineVerifiedResults: "Verified sources",
     catalogueLoading: "Loading catalogue…",
     catalogueFailed: "The catalogue request failed or timed out. Try again.",
     catalogueEmpty: "No catalogue entries found.",
@@ -235,6 +240,11 @@ export const translations = {
     onlineResults: "Webbträffar",
     onlineNoResults: "Inga träffar. Prova andra sökord eller kontrollera en känd källadress.",
     onlineIndexed: "Mina kontrollerade källor",
+    onlineVerifying: "Verifierar källor…",
+    onlineNoVerified:
+      "Ingen verifierad spelbar källa hittades. Prova andra sökord eller en känd källadress.",
+    onlineNotVerified: "Källan kunde inte verifieras som spelbar i MBL och listas därför inte.",
+    onlineVerifiedResults: "Verifierade källor",
     catalogueLoading: "Läser katalogen…",
     catalogueFailed: "Katalogen kunde inte hämtas eller tog för lång tid. Försök igen.",
     catalogueEmpty: "Inga katalogposter hittades.",
@@ -412,6 +422,12 @@ export const translations = {
     onlineResults: "Webtreffer",
     onlineNoResults: "Keine Treffer. Andere Suchwörter oder eine bekannte Quelladresse versuchen.",
     onlineIndexed: "Meine geprüften Quellen",
+    onlineVerifying: "Quellen werden geprüft…",
+    onlineNoVerified:
+      "Keine geprüfte abspielbare Quelle gefunden. Andere Suchwörter oder eine bekannte Quelladresse versuchen.",
+    onlineNotVerified:
+      "Die Quelle konnte nicht als in MBL abspielbar verifiziert werden und wird nicht aufgelistet.",
+    onlineVerifiedResults: "Geprüfte Quellen",
     catalogueLoading: "Katalog wird geladen…",
     catalogueFailed:
       "Der Katalog konnte nicht geladen werden oder die Zeit wurde überschritten. Erneut versuchen.",
@@ -589,6 +605,12 @@ export const translations = {
     onlineResults: "Résultats Web",
     onlineNoResults: "Aucun résultat. Essayez d’autres mots ou une adresse source connue.",
     onlineIndexed: "Mes sources vérifiées",
+    onlineVerifying: "Vérification des sources…",
+    onlineNoVerified:
+      "Aucune source lisible vérifiée trouvée. Essayez d'autres mots-clés ou une adresse de source connue.",
+    onlineNotVerified:
+      "La source n'a pas pu être vérifiée comme lisible dans MBL ; elle n'est donc pas listée.",
+    onlineVerifiedResults: "Sources vérifiées",
     catalogueLoading: "Chargement du catalogue…",
     catalogueFailed: "Le catalogue n’a pas pu être chargé ou le délai a expiré. Réessayez.",
     catalogueEmpty: "Aucun élément dans le catalogue.",
@@ -764,6 +786,12 @@ export const translations = {
     onlineResults: "Resultados web",
     onlineNoResults: "Sin resultados. Prueba otras palabras o una dirección conocida.",
     onlineIndexed: "Mis fuentes comprobadas",
+    onlineVerifying: "Verificando fuentes…",
+    onlineNoVerified:
+      "No se encontró ninguna fuente reproducible verificada. Prueba otras palabras o una dirección de fuente conocida.",
+    onlineNotVerified:
+      "La fuente no pudo verificarse como reproducible en MBL, por lo que no se lista.",
+    onlineVerifiedResults: "Fuentes verificadas",
     catalogueLoading: "Cargando catálogo…",
     catalogueFailed: "No se pudo cargar el catálogo o se agotó el tiempo. Inténtalo de nuevo.",
     catalogueEmpty: "No se encontraron entradas.",

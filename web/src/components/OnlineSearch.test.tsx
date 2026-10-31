@@ -70,7 +70,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it("searches only on submission and presents unchecked web hits without claiming playback", async () => {
+it("searches only on submission and lists only sources verified as playable", async () => {
   await mount();
   expect(client.GET).not.toHaveBeenCalled();
   await search();
@@ -78,10 +78,22 @@ it("searches only on submission and presents unchecked web hits without claiming
     "/api/v1/online/search",
     expect.objectContaining({ params: { query: { q: "Some show" } } }),
   );
-  expect(document.body.textContent).toContain("Not checked");
   expect(document.body.textContent).toContain("Fixture search");
-  expect(client.POST).not.toHaveBeenCalled();
+  expect(document.body.textContent).toContain("Verified sources");
+  expect(document.body.textContent).not.toContain("Not checked");
+  expect(client.POST).toHaveBeenCalledTimes(1);
   expect(document.querySelector("video")).toBeNull();
+});
+
+it("hides sources that cannot be verified as playable", async () => {
+  vi.mocked(client.POST).mockResolvedValue({
+    data: { ...source(), availability: "external_page", mediaUrl: null },
+    response: new Response(),
+  } as never);
+  await mount();
+  await search();
+  expect(document.querySelector("article")).toBeNull();
+  expect(document.body.textContent).toContain("No verified playable source found");
 });
 
 it("rechecks before preview and reports Playing only after a real media event", async () => {
@@ -97,7 +109,7 @@ it("rechecks before preview and reports Playing only after a real media event", 
   expect(document.querySelector("video")).toBeNull();
   button("Preview").click();
   await tick();
-  expect(client.POST).toHaveBeenCalledTimes(2);
+  expect(client.POST).toHaveBeenCalledTimes(3);
   const media = document.querySelector("video")!;
   expect(media.src).toBe("https://example.org/video.mp4");
   expect(document.querySelector('section[aria-label="Preview"]')?.textContent).not.toContain(
@@ -113,12 +125,12 @@ it("rechecks before preview and reports Playing only after a real media event", 
 });
 
 it("does not offer preview when a previously verified source becomes restricted", async () => {
+  await mount();
+  await search();
   vi.mocked(client.POST).mockResolvedValueOnce({
     data: { ...source(), availability: "restricted", detail: "Sign-in required" },
     response: new Response(),
   } as never);
-  await mount();
-  await search();
   document
     .querySelector("article button")
     ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -155,6 +167,10 @@ it("ignores an older search after a new title is submitted", async () => {
 it("rejects non-web source URLs and renders external titles as text", async () => {
   const hit = source();
   hit.title = '<img src="x" onerror="alert(1)">';
+  vi.mocked(client.POST).mockResolvedValueOnce({
+    data: { ...source("first", true), title: hit.title },
+    response: new Response(),
+  } as never);
   vi.mocked(client.GET).mockResolvedValueOnce({
     data: { query: "A title", provider: "Fixture", results: [hit], indexed: [] },
     response: new Response(),
@@ -167,7 +183,7 @@ it("rejects non-web source URLs and renders external titles as text", async () =
     new Event("submit", { bubbles: true, cancelable: true }),
   );
   await tick();
-  expect(client.POST).not.toHaveBeenCalled();
+  expect(client.POST).toHaveBeenCalledTimes(1);
   expect(document.querySelector('[role="alert"]')).not.toBeNull();
 });
 
@@ -209,6 +225,8 @@ it("stops a preview that never loads and explains the browser failure", async ()
 });
 
 it("lists season and episode metadata and checks the selected episode before any preview", async () => {
+  await mount();
+  await search();
   vi.mocked(client.POST).mockResolvedValueOnce({
     data: {
       ...source("series"),
@@ -225,8 +243,6 @@ it("lists season and episode metadata and checks the selected episode before any
     },
     response: new Response(),
   } as never);
-  await mount();
-  await search();
   document
     .querySelector("article button")
     ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

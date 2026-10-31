@@ -52,6 +52,8 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
   const [player, setPlayer] = createSignal<Source>();
   const [preview, setPreview] = createSignal<Source>();
   const [error, setError] = createSignal("");
+  const [verified, setVerified] = createSignal<Source[]>([]);
+  const [verifying, setVerifying] = createSignal(false);
   let searchRequest: AbortController | undefined;
   let checkRequest: AbortController | undefined;
   let searchDeadline: ReturnType<typeof setTimeout> | undefined;
@@ -60,6 +62,45 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
   let checkVersion = 0;
   let detailElement: HTMLElement | undefined;
 
+  const verifyCandidates = async (data: Results, version: number, signal: AbortSignal) => {
+    const seen = new Set<string>();
+    const candidates = [...data.results, ...data.indexed]
+      .filter((source) => {
+        if (seen.has(source.url) || !webUrl(source.url)) return false;
+        seen.add(source.url);
+        return true;
+      })
+      .slice(0, 8);
+    setVerifying(true);
+    const add = (source: Source) => {
+      if (version !== searchVersion) return;
+      if (source.availability !== "media_detected") return;
+      setVerified((previous) =>
+        previous.some((s) => s.url === source.url) ? previous : [...previous, source],
+      );
+    };
+    const queue = [...candidates];
+    const worker = async () => {
+      for (let source = queue.shift(); source; source = queue.shift()) {
+        if (version !== searchVersion || signal.aborted) return;
+        if (source.availability === "media_detected") {
+          add(source);
+          continue;
+        }
+        try {
+          const res = await client.POST("/api/v1/online/inspect", {
+            body: { url: source.url },
+            signal: AbortSignal.any([signal, AbortSignal.timeout(21000)]),
+          });
+          if (res.data) add(res.data);
+        } catch {
+          // Unverifiable sources are simply not listed.
+        }
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    if (version === searchVersion) setVerifying(false);
+  };
   const search = async () => {
     const title = query().trim();
     if (title.length < 2 || title.length > 160) return;
@@ -72,9 +113,11 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
     setChecking(undefined);
     const abort = new AbortController();
     searchRequest = abort;
-    searchDeadline = setTimeout(() => abort.abort(), 15000);
+    searchDeadline = setTimeout(() => abort.abort(), 120000);
     setSearching(true);
     setResults(undefined);
+    setVerified([]);
+    setVerifying(false);
     setSelected(undefined);
     setPreview(undefined);
     setPlayer(undefined);
@@ -88,6 +131,8 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
       if (res.error || !res.data)
         throw new Error(apiErrorMessage(res.error, t("onlineSearchError")));
       setResults(res.data);
+      setSearching(false);
+      await verifyCandidates(res.data, version, abort.signal);
     } catch (cause) {
       if (version === searchVersion) setError(apiErrorMessage(cause, t("onlineSearchError")));
     } finally {
@@ -202,9 +247,6 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
         >
           {checking() === source.url ? t("onlineChecking") : t("onlineCheck")}
         </Button>
-        <a href={webUrl(source.url)} target="_blank" rel="noopener noreferrer">
-          {t("onlineOpen")}
-        </a>
       </div>
     </article>
   );
@@ -325,6 +367,9 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             <h3>{t("onlineCheckedSource")}</h3>
             {sourceCard(source)}
             <p>{source.detail}</p>
+            <Show when={source.availability !== "media_detected"}>
+              <p role="status">{t("onlineNotVerified")}</p>
+            </Show>
             <Show when={source.availability === "media_detected" && !!source.mediaUrl}>
               <Button
                 type="button"
@@ -334,12 +379,7 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
                 {t("onlinePreview")}
               </Button>
             </Show>
-            <Show
-              when={
-                source.availability === "media_detected" ||
-                source.availability === "external_player"
-              }
-            >
+            <Show when={source.availability === "media_detected" && !!source.mediaUrl}>
               <Button
                 type="button"
                 disabled={!!checking()}
@@ -390,16 +430,15 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
               {t("onlineProvider")}: {response.provider}
             </p>
             <h3>
-              {t("onlineResults")} — {response.query}
+              {t("onlineVerifiedResults")} — {response.query}
             </h3>
-            <Show when={response.results.length === 0}>
-              <p>{t("onlineNoResults")}</p>
+            <Show when={verifying()}>
+              <p role="status">{t("onlineVerifying")}</p>
             </Show>
-            <For each={response.results}>{sourceCard}</For>
-            <Show when={response.indexed.length > 0}>
-              <h3>{t("onlineIndexed")}</h3>
-              <For each={response.indexed}>{sourceCard}</For>
+            <Show when={!verifying() && verified().length === 0}>
+              <p>{t("onlineNoVerified")}</p>
             </Show>
+            <For each={verified()}>{sourceCard}</For>
           </div>
         )}
       </Show>
