@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-31
+
 ### Added
 - Standardized branding to **Media Lounge Box (MBL)** across web titles, navigation layout, and DLNA device definitions.
 - Home Assistant MQTT automation settings in Server Settings (`mqttEnabled`, `mqttBrokerUrl`, `mqttUsername`, `mqttPassword`, `mqttTopicPrefix`) with media player entity auto-discovery, telemetry, and remote control commands.
