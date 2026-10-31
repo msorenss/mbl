@@ -18,7 +18,7 @@ use mbl_playback::{
     StreamAction, SubtitleDelivery, SubtitleMethod, decide,
 };
 use mbl_probe::{Chapter, MediaInfo, StreamInfo};
-use mbl_stream::hls::{HlsRendition, render_master_playlist, render_media_playlist};
+use mbl_stream::hls::{HlsRendition, render_master_playlist, render_media_playlist_with_target};
 use mbl_stream::subtitles::is_image_subtitle;
 use mbl_transcode::{
     AudioCodec, AudioOp, Backend, CreateSessionReq, HlsOutput, Pipeline, Rendition, SubtitleOp,
@@ -138,6 +138,10 @@ pub struct PlaybackMarker {
 pub struct PlaybackResponse {
     /// Whether the negotiated source has a real video stream (cover art does not count).
     pub has_video: bool,
+    /// Actual growing muxer timeline. Prepare a new playback request before seeking
+    /// beyond its indexed prefix; absent for direct play and fixed-grid sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hls_generated_timeline: Option<bool>,
     pub audio_tracks: Vec<PlaybackAudioTrack>,
     pub audio_stream_index: Option<u32>,
     pub subtitle_options: Vec<PlaybackSubtitleOption>,
@@ -491,10 +495,17 @@ impl PlaybackService {
         };
 
         let start_ms = match req.start_ms {
-            Some(ms) => ms,
+            Some(ms) => {
+                if ms < 2_000 {
+                    0
+                } else {
+                    ms
+                }
+            }
             None => {
                 let ws = watch::get(&self.db, actor.user_id, part.item_id).await?;
-                u64::try_from(ws.view_offset_ms.max(0)).unwrap_or(0)
+                let offset = u64::try_from(ws.view_offset_ms.max(0)).unwrap_or(0);
+                if offset < 2_000 { 0 } else { offset }
             }
         };
 
@@ -526,6 +537,8 @@ impl PlaybackService {
                         &media_info,
                         &decision,
                         &ctx,
+                        profile.max_audio_channels,
+                        false,
                         start_ms,
                         duration_ms,
                         audio_offset_ms,
@@ -656,6 +669,7 @@ impl PlaybackService {
             })
             .collect();
         Ok(PlaybackResponse {
+            hls_generated_timeline: None,
             has_video: media_info.primary_video().is_some(),
             audio_tracks,
             audio_stream_index,
@@ -1098,6 +1112,8 @@ impl PlaybackService {
         media_info: &MediaInfo,
         decision: &Decision,
         ctx: &DecisionContext,
+        max_audio_channels: u8,
+        generated_playlist: bool,
         start_ms: u64,
         duration_ms: u64,
         audio_offset_ms: i64,
@@ -1108,6 +1124,10 @@ impl PlaybackService {
             return Err(Error::Unavailable("HLS session manager is unavailable".into()));
         };
 
+        // Remux preserves source keyframes, so a guessed segment grid cannot be
+        // used. Video encodes retain the existing independent seek path; indexing
+        // their entire prefix would require encoding minutes before resume.
+        let generated_playlist = generated_playlist && matches!(decision.video, StreamAction::Copy);
         let video_stream = media_info.primary_video();
         let audio_stream = ctx
             .audio_index
@@ -1157,7 +1177,11 @@ impl PlaybackService {
             StreamAction::Transcode { codec, bitrate, .. } => AudioOp::Encode {
                 index: audio_index,
                 codec: codec.parse::<AudioCodec>().unwrap_or(AudioCodec::Aac),
-                channels: audio_stream.and_then(|a| a.channels).unwrap_or(2).min(6),
+                channels: audio_stream
+                    .and_then(|a| a.channels)
+                    .unwrap_or(2)
+                    .min(max_audio_channels)
+                    .clamp(1, 6),
                 bitrate: *bitrate,
             },
             StreamAction::Drop => AudioOp::None,
@@ -1226,13 +1250,37 @@ impl PlaybackService {
         };
         let height = video_stream.and_then(|v| v.height);
 
-        let initial_seg = segment_index_for_ms(start_ms, DEFAULT_SEGMENT_SECS);
+        let is_video_copy = matches!(decision.video, StreamAction::Copy);
+        let target_duration =
+            if is_video_copy { 10.max(DEFAULT_SEGMENT_SECS) } else { DEFAULT_SEGMENT_SECS };
+        let fast_start_segments = !generated_playlist && !is_video_copy;
+
+        // When copying video, the upfront VOD playlist advertises all segments starting
+        // from 0. Initializing the pipeline at segment 0 ensures init.mp4 and 0.m4s are
+        // immediately available when players (such as Google Cast CAF / Shaka Player) probe
+        // the head of the playlist to calculate presentation time offsets before seeking.
+        // Seeks to later segments (or start_ms > 0) are fulfilled seamlessly by the segment
+        // server without killing the pipeline or corrupting init.mp4.
+        let initial_seg = if generated_playlist || is_video_copy {
+            0
+        } else {
+            segment_index_for_ms(start_ms, DEFAULT_SEGMENT_SECS, fast_start_segments)
+        };
+        let initial_start_ms = if generated_playlist || is_video_copy {
+            0
+        } else {
+            mbl_stream::hls::segment_start_ms_full(
+                initial_seg,
+                DEFAULT_SEGMENT_SECS,
+                fast_start_segments,
+            )
+        };
         let input_utf8 = Utf8PathBuf::from_path_buf(verified_path.to_path_buf())
             .map_err(|_| Error::Validation("media path is not valid UTF-8".into()))?;
 
         let pipeline = Pipeline {
             input: input_utf8,
-            start_ms,
+            start_ms: initial_start_ms,
             video: video_op,
             audio: audio_op,
             subtitle: subtitle_op,
@@ -1262,7 +1310,12 @@ impl PlaybackService {
                 _ => audio_stream.map_or("aac", |s| s.codec.as_str()).to_owned(),
             }),
         }]);
-        let media_m3u8 = render_media_playlist(eff_duration, DEFAULT_SEGMENT_SECS);
+        let media_m3u8 = render_media_playlist_with_target(
+            eff_duration,
+            DEFAULT_SEGMENT_SECS,
+            target_duration,
+            fast_start_segments,
+        );
 
         // Admission failure must leave existing playback untouched. The client
         // releases its prior session only after a new session has been accepted.
@@ -1274,11 +1327,14 @@ impl PlaybackService {
                 pipeline,
                 master_playlist: master,
                 media_playlists: vec![("0".to_owned(), media_m3u8)],
-                fast_start_segments: true,
+                fast_start_segments,
+                generated_playlist_start_ms: generated_playlist.then_some(start_ms),
             })
             .await?;
         let mut candidate = HlsStartup { session: Some((hls_mgr.clone(), session.clone())) };
-        if wait_for_ready && let Err(error) = session.prepare().await {
+        if (wait_for_ready || generated_playlist)
+            && let Err(error) = session.prepare().await
+        {
             candidate.abort().await;
             return Err(error);
         }
@@ -1380,12 +1436,12 @@ fn apply_audio_offset(
     Ok(offset)
 }
 
-fn segment_index_for_ms(start_ms: u64, segment_secs: u32) -> u32 {
+fn segment_index_for_ms(start_ms: u64, segment_secs: u32, fast_start: bool) -> u32 {
     if start_ms == 0 {
         return 0;
     }
     let seg_ms = u64::from(segment_secs.max(1)) * 1_000;
-    if segment_secs >= 6 {
+    if fast_start && segment_secs >= 6 {
         if start_ms < 3_000 {
             0
         } else if start_ms < 6_000 {

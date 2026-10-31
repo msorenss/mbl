@@ -7,6 +7,7 @@ pub mod jobs;
 pub mod libraries;
 pub mod livetv;
 pub mod media;
+pub mod online;
 pub mod playback;
 pub mod players;
 pub mod remote;
@@ -31,6 +32,7 @@ pub fn all_tools() -> Vec<RegisteredTool> {
     tools.extend(system::definitions());
     tools.extend(libraries::definitions());
     tools.extend(media::definitions());
+    tools.extend(online::definitions());
     tools.extend(watch::definitions());
     tools.extend(playback::definitions());
     tools.extend(jobs::definitions());
@@ -57,6 +59,9 @@ pub async fn execute_tool(
     jobs: Option<&JobQueue>,
 ) -> Result<CallToolResult, JsonRpcError> {
     match tool_name {
+        "get_online_history" | "search_online_sources" | "inspect_online_source" => {
+            online::execute(tool_name, args, caller, services).await
+        }
         "get_server_info" | "get_health" | "get_logs" => {
             system::execute(tool_name, args, caller, services, logs_dir).await
         }

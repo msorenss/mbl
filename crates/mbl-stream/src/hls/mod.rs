@@ -10,8 +10,8 @@ use axum::response::Response;
 use mbl_core::{Error, Result};
 
 pub use playlist::{
-    HlsRendition, render_master_playlist, render_media_playlist, segment_durations_ms,
-    segment_start_ms,
+    HlsRendition, render_master_playlist, render_media_playlist, render_media_playlist_with_target,
+    segment_durations_ms, segment_start_ms, segment_start_ms_full,
 };
 
 pub const MIME_M3U8: &str = "application/vnd.apple.mpegurl";
@@ -20,9 +20,11 @@ pub const MIME_M4S: &str = "video/iso.segment";
 
 /// Build an HTTP response for an `.m3u8` playlist string.
 pub fn serve_playlist(content: String) -> Response {
+    let len = content.len();
     let mut res = Response::new(Body::from(content));
     *res.status_mut() = StatusCode::OK;
     res.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(MIME_M3U8));
+    res.headers_mut().insert(header::CONTENT_LENGTH, HeaderValue::from(len));
     res.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     res
 }
@@ -37,9 +39,12 @@ pub async fn serve_segment_file(path: &Path, content_type: &'static str) -> Resu
         }
     })?;
 
+    let len = bytes.len();
     let mut res = Response::new(Body::from(bytes));
     *res.status_mut() = StatusCode::OK;
     res.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    res.headers_mut().insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+    res.headers_mut().insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
     res.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     Ok(res)
 }

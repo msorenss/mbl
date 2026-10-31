@@ -117,7 +117,17 @@ async function google() {
             return controller;
           }
         },
-        RemotePlayerEventType: { ANY_CHANGE: "any-change" },
+        RemotePlayerEventType: {
+          ANY_CHANGE: "any-change",
+          IS_CONNECTED_CHANGED: "isConnectedChanged",
+          IS_MEDIA_LOADED_CHANGED: "isMediaLoadedChanged",
+          IS_PAUSED_CHANGED: "isPausedChanged",
+          CURRENT_TIME_CHANGED: "currentTimeChanged",
+          DURATION_CHANGED: "durationChanged",
+          VOLUME_LEVEL_CHANGED: "volumeLevelChanged",
+          IS_MUTED_CHANGED: "isMutedChanged",
+          PLAYER_STATE_CHANGED: "playerStateChanged",
+        },
       },
     },
   });
@@ -134,6 +144,10 @@ async function google() {
       cast: {
         Image: image,
         media: {
+          StreamType: { BUFFERED: "BUFFERED", LIVE: "LIVE", OTHER: "OTHER" },
+          MetadataType: { GENERIC: 0, MOVIE: 1, TV_SHOW: 2, MUSIC_TRACK: 3, PHOTO: 4 },
+          HlsSegmentFormat: { FMP4: "audio-fmp4" },
+          HlsVideoSegmentFormat: { FMP4: "video-fmp4" },
           DEFAULT_MEDIA_RECEIVER_APP_ID: "CC1AD845",
           MediaInfo: class {
             constructor(contentId: string, contentType: string) {
@@ -242,13 +256,55 @@ describe("Google Cast lifecycle", () => {
     expect(await manager?.requestCastSession({ ...media, imageUrl: "/poster.jpg" })).toBe(true);
     expect(sdk.image).toHaveBeenCalled();
     expect(sdk.session.loadMedia).toHaveBeenCalledWith(
-      expect.objectContaining({ currentTime: 45, autoplay: true }),
+      expect.objectContaining({
+        currentTime: 45,
+        autoplay: true,
+        mediaInfo: expect.objectContaining({
+          streamType: "BUFFERED",
+          duration: 600,
+          metadata: expect.objectContaining({
+            metadataType: 0,
+          }),
+        }),
+      }),
     );
     sdk.player.volumeLevel = 0;
     sdk.player.currentTime = 80;
     sdk.player.duration = 600;
     sdk.emit();
     expect(manager?.getState()).toMatchObject({ isCasting: true, volume: 0, currentTime: 80 });
+  });
+  it("bounds subtitle tracks to a maximum of 8 while preserving selected and default tracks", async () => {
+    const sdk = await google();
+    const lotsOfSubtitles = Array.from({ length: 15 }, (_, i) => ({
+      index: i,
+      url: `http://192.168.1.20/sub_${i}.vtt`,
+      language: `lang_${i}`,
+      title: `Sub ${i}`,
+      isDefault: i === 12,
+      format: "vtt",
+    }));
+    const prepare = vi.fn(async () => ({
+      ...media,
+      subtitles: lotsOfSubtitles,
+      subtitleIndex: 14,
+    }));
+    expect(await manager?.requestCastSession(media, undefined, prepare)).toBe(true);
+    expect(sdk.session.loadMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeTrackIds: [15], // 14 + 1
+        mediaInfo: expect.objectContaining({
+          tracks: expect.arrayContaining([
+            expect.objectContaining({ trackId: 13 }), // index 12 (isDefault) + 1
+            expect.objectContaining({ trackId: 15 }), // index 14 (selected) + 1
+          ]),
+        }),
+      }),
+    );
+    const loadCall = sdk.session.loadMedia.mock.calls[0][0] as {
+      mediaInfo: { tracks: unknown[] };
+    };
+    expect(loadCall.mediaInfo.tracks.length).toBeLessThanOrEqual(8);
   });
   it("negotiates only after the receiver is chosen and loads explicit MIME and caption IDs", async () => {
     const sdk = await google();
@@ -458,4 +514,73 @@ it("keeps the active receiver and completion listener when server renegotiation 
   sdk.mediaSession.idleReason = "FINISHED";
   sdk.emitMedia();
   expect(manager?.getState().playbackEnded).toBe(true);
+});
+
+it("sets application/x-mpegurl for HLS streams and avoids conflicting timescale hints", async () => {
+  const sdk = await google();
+  expect(
+    await manager?.requestCastSession({
+      ...media,
+      contentId: "http://192.168.1.20/master.m3u8",
+      hlsFmp4: true,
+    }),
+  ).toBe(true);
+  expect(sdk.session.loadMedia).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      mediaInfo: expect.objectContaining({
+        contentType: "application/x-mpegurl",
+        streamType: "BUFFERED",
+      }),
+    }),
+  );
+  const hlsRequest = sdk.session.loadMedia.mock.calls.at(-1)?.[0] as {
+    mediaInfo: Record<string, unknown>;
+  };
+  expect(hlsRequest.mediaInfo).not.toHaveProperty("hlsSegmentFormat");
+  expect(hlsRequest.mediaInfo).not.toHaveProperty("hlsVideoSegmentFormat");
+
+  expect(
+    await manager?.requestCastSession({ ...media, contentId: "http://192.168.1.20/movie.mp4" }),
+  ).toBe(true);
+  const request = sdk.session.loadMedia.mock.calls.at(-1)?.[0] as {
+    mediaInfo: Record<string, unknown>;
+  };
+  expect(request.mediaInfo).not.toHaveProperty("hlsSegmentFormat");
+  expect(request.mediaInfo).not.toHaveProperty("hlsVideoSegmentFormat");
+});
+
+describe("SDK unknown telemetry", () => {
+  it.each([-1, 0, 120, Number.NaN, Number.POSITIVE_INFINITY])(
+    "retains known duration when receiver reports %s",
+    async (unknown) => {
+      const sdk = await google();
+      await manager?.requestCastSession({ ...media, duration: 600 });
+      sdk.player.duration = unknown;
+      sdk.player.playerState = "PAUSED";
+      sdk.emit();
+      await tick();
+      expect(manager?.getState().duration).toBe(600);
+      expect(api.POST).toHaveBeenLastCalledWith(
+        "/api/v1/players",
+        expect.objectContaining({ body: expect.objectContaining({ durationMs: 600000 }) }),
+      );
+    },
+  );
+  it("does not replace valid position or volume with nonfinite SDK values", async () => {
+    const sdk = await google();
+    await manager?.requestCastSession({ ...media, duration: 600 });
+    sdk.player.currentTime = 12.5;
+    sdk.player.volumeLevel = 0.4;
+    sdk.emit();
+    sdk.player.currentTime = Number.NaN;
+    sdk.player.volumeLevel = Number.POSITIVE_INFINITY;
+    sdk.player.playerState = "PAUSED";
+    sdk.emit();
+    await tick();
+    expect(manager?.getState().currentTime).toBe(12.5);
+    expect(api.POST).toHaveBeenLastCalledWith(
+      "/api/v1/players",
+      expect.objectContaining({ body: expect.objectContaining({ positionMs: 12500, volume: 40 }) }),
+    );
+  });
 });

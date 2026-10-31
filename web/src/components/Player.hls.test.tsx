@@ -44,6 +44,7 @@ vi.mock("hls.js", () => ({
 }));
 vi.mock("../context/ThemeContext", () => ({
   useTheme: () => ({
+    locale: () => "en",
     subtitleStyle: () => ({ size: "md", background: "dim", color: "white" }),
     nightMode: () => false,
     setNightMode: vi.fn(),

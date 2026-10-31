@@ -101,6 +101,7 @@ async fn seek_far_restarts_ffmpeg_and_serves_target_segment() {
             master_playlist: "#EXTM3U\n0/index.m3u8\n".to_owned(),
             media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();
@@ -164,6 +165,7 @@ async fn ahead_throttling_pauses_and_resumes_ffmpeg() {
             master_playlist: "#EXTM3U\n".to_owned(),
             media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();
@@ -250,6 +252,7 @@ async fn inactivity_timeout_kills_ffmpeg_and_deletes_session_dir() {
             master_playlist: "#EXTM3U\n".to_owned(),
             media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();
@@ -330,6 +333,7 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
             master_playlist: "#EXTM3U\n".to_owned(),
             media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();
@@ -356,6 +360,7 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
             master_playlist: "#EXTM3U\n".to_owned(),
             media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await;
     assert!(matches!(second_video, Err(Error::Unavailable(_))));
@@ -370,6 +375,7 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
             master_playlist: "#EXTM3U\n".to_owned(),
             media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();
@@ -442,6 +448,7 @@ exit 0
                 master_playlist: "#EXTM3U\n".to_owned(),
                 media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
                 fast_start_segments: false,
+                generated_playlist_start_ms: None,
             },
             vec![Backend::Vaapi, Backend::Software],
         )
@@ -495,6 +502,7 @@ async fn concurrent_admission_and_failed_start_preserve_existing_session() {
         master_playlist: "#EXTM3U\n".into(),
         media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
         fast_start_segments: false,
+        generated_playlist_start_ms: None,
     };
     let (first, second) =
         tokio::join!(manager.create_session(request(1)), manager.create_session(request(2)));
@@ -562,6 +570,7 @@ exec sleep 30
             master_playlist: "#EXTM3U\n".into(),
             media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();
@@ -607,6 +616,7 @@ async fn shutdown_closes_admission_even_when_new_starts_race() {
         master_playlist: "#EXTM3U\n".into(),
         media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
         fast_start_segments: false,
+        generated_playlist_start_ms: None,
     };
     let first = manager.create_session(req.clone()).await.unwrap();
     let barrier = Arc::new(tokio::sync::Barrier::new(6));
@@ -661,4 +671,127 @@ async fn live_encoder_permits_use_the_video_admission_budget_and_release_on_drop
     assert_eq!(manager.active_video_transcode_count(), 0);
     manager.close().await;
     assert!(manager.reserve_video_capacity().await.is_err());
+}
+
+#[tokio::test]
+async fn generated_cast_timeline_preserves_variable_gops_and_init_across_receiver_probes() {
+    let tools = mbl_probe::FfTools::locate("", "").await.unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let source = tmp.path().join("variable-gops.mkv");
+    let output = tokio::process::Command::new(&tools.ffmpeg)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=s=320x180:r=24:d=30",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000:duration=30",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "9999",
+            "-keyint_min",
+            "1",
+            "-sc_threshold",
+            "0",
+            "-force_key_frames",
+            "0,4.2,9.7,16.1,23.8",
+            "-c:a",
+            "ac3",
+        ])
+        .arg(&source)
+        .output()
+        .await
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let dir = Utf8PathBuf::from_path_buf(tmp.path().join("hls")).unwrap();
+    let mut cfg = SessionManagerConfig::new(tools.ffmpeg.clone(), dir, PlatformProfile::Generic);
+    cfg.caps.threads = Some(1);
+    let manager = SessionManager::new(cfg).unwrap();
+    let session = manager
+        .create_session(CreateSessionReq {
+            user_id: UserId(1),
+            part_id: PartId(1),
+            duration_ms: 30_000,
+            pipeline: sample_pipeline(&source, 6, VideoOp::Copy),
+            master_playlist: "#EXTM3U\n".into(),
+            media_playlists: vec![(
+                "0".into(),
+                "this estimated playlist must not be served".into(),
+            )],
+            fast_start_segments: false,
+            generated_playlist_start_ms: Some(15_000),
+        })
+        .await
+        .unwrap();
+    session.prepare().await.unwrap();
+    let media = session.request_media_playlist("0").await.unwrap();
+    assert!(media.starts_with("#EXTM3U"));
+    let durations: Vec<f64> = media
+        .lines()
+        .filter_map(|line| line.strip_prefix("#EXTINF:"))
+        .map(|value| value.split(',').next().unwrap().parse().unwrap())
+        .collect();
+    assert!(durations.iter().sum::<f64>() >= 21.0, "resume target must be indexed: {media}");
+    assert!(
+        durations.iter().any(|value| *value > 6.5),
+        "source GOP durations must be preserved: {media}"
+    );
+    let init = session.request_init("0").await.unwrap();
+    let original_init = tokio::fs::read(&init).await.unwrap();
+    // Cast can probe the beginning after preparing a far resume position. It must
+    // not cause a seek restart that replaces init.mp4 or relabels cached fragments.
+    session.request_segment("0", 0).await.unwrap();
+    session.request_segment("0", 2).await.unwrap();
+    assert_eq!(session.runtime_status().await.restarts, 0);
+    assert_eq!(tokio::fs::read(&init).await.unwrap(), original_init);
+    tokio::time::timeout(Duration::from_secs(15), async {
+        while !session.request_media_playlist("0").await.unwrap().contains("#EXT-X-ENDLIST") {
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let info = tools
+        .probe(session.dir.join("0/ffmpeg.m3u8").as_std_path(), Duration::from_secs(15))
+        .await
+        .unwrap();
+    assert_eq!(
+        info.streams.iter().find(|s| s.kind == mbl_core::StreamKind::Audio).unwrap().channels,
+        Some(2)
+    );
+    assert!(info.duration_ms >= 21_000);
+    let decoded = tokio::process::Command::new(&tools.ffmpeg)
+        // Input-side HLS seek in FFmpeg 7 reports invalid NAL units after
+        // reopening init, reproducible with plain FFmpeg output outside MBL.
+        // Validate real frame decoding continuously through the target; physical
+        // receiver seeking is a separate acceptance check.
+        .args(["-nostdin", "-v", "error", "-i"])
+        .arg(session.dir.join("0/ffmpeg.m3u8").as_std_path())
+        .args([
+            "-ss",
+            "15",
+            "-frames:v",
+            "3",
+            "-an",
+            "-pix_fmt",
+            "gray",
+            "-f",
+            "rawvideo",
+            "pipe:1",
+        ])
+        .output()
+        .await
+        .unwrap();
+    assert!(decoded.status.success(), "{}", String::from_utf8_lossy(&decoded.stderr));
+    assert_eq!(decoded.stdout.len(), 3 * 320 * 180, "three real frames at resume must decode");
+    manager.shutdown_all().await;
 }

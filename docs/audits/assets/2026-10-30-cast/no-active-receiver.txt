@@ -1,0 +1,193 @@
+- complementary:
+  - generic: M
+  - generic: MBL
+  - generic: Media Server
+  - navigation:
+    - link "🏠 Hem":
+      - /url: /
+      - generic: 🏠
+      - generic: Hem
+    - link "📚 Bibliotek":
+      - /url: /libraries
+      - generic: 📚
+      - generic: Bibliotek
+    - link "🔍 Sök":
+      - /url: /search
+      - generic: 🔍
+      - generic: Sök
+    - link "📺 Live-TV":
+      - /url: /livetv
+      - generic: 📺
+      - generic: Live-TV
+    - generic: Admin
+    - link "👥 Användare":
+      - /url: /admin/users
+      - generic: 👥
+      - generic: Användare
+    - link "🤖 AI-agenter":
+      - /url: /admin/ai-agents
+      - generic: 🤖
+      - generic: AI-agenter
+    - link "⚡ Hårdvara":
+      - /url: /admin/hardware
+      - generic: ⚡
+      - generic: Hårdvara
+    - link "Remote access":
+      - /url: /admin/remote
+    - link "🖥️ Distributed Nodes":
+      - /url: /admin/workers
+      - generic: 🖥️
+      - generic: Distributed Nodes
+    - link "Collections & playlists":
+      - /url: /collections
+    - link "Media requests":
+      - /url: /requests
+    - link "Account & security":
+      - /url: /account
+  - link "A admin":
+    - /url: /profiles
+    - generic: A
+    - generic: admin
+  - button "⚙"
+  - button "🚪"
+- banner:
+  - button "🔍 Search or jump to... Ctrl+K":
+    - generic: 🔍
+    - generic: Search or jump to...
+    - generic: Ctrl+K
+  - button "🎨 Tema & Inställningar":
+    - generic: 🎨
+    - text: Tema & Inställningar
+  - generic: Online
+- main:
+  - generic: 🎬
+  - button "▶ Återuppta":
+    - generic: ▶
+    - generic: Återuppta
+  - button "Från början"
+  - button "○ Mark as Watched":
+    - generic: ○
+    - generic: Mark as Watched
+  - generic: Playback Engine
+  - generic: ⚙ Transcode
+  - generic: Container 'matroska,webm' is not supported for direct play on this device
+  - button "← Back to Library"
+  - heading "How to Build the Box WEBDL-1080p" [level=1]
+  - generic: •
+  - generic: 1h 0m
+  - generic: •
+  - generic: Slutar kl. 14:04
+  - generic: H264
+  - generic: EAC3 6ch
+  - heading "Overview" [level=3]
+  - paragraph: No description provided.
+  - generic: Undertexter
+  - combobox "Undertexter":
+    - option "Off" [selected]
+    - option "ENG (subrip)"
+    - option "ENG (subrip)"
+    - option "ARA (subrip)"
+    - option "BUL (subrip)"
+    - option "CHI (subrip)"
+    - option "CHI (subrip)"
+    - option "CZE (subrip)"
+    - option "DAN (subrip)"
+    - option "GER (subrip)"
+    - option "GRE (subrip)"
+    - option "SPA (subrip)"
+    - option "SPA (subrip)"
+    - option "EST (subrip)"
+    - option "FIN (subrip)"
+    - option "FRE (subrip)"
+    - option "FRE (subrip)"
+    - option "HEB (subrip)"
+    - option "HIN (subrip)"
+    - option "HUN (subrip)"
+    - option "IND (subrip)"
+    - option "ITA (subrip)"
+    - option "JPN (subrip)"
+    - option "JPN (subrip)"
+    - option "KOR (subrip)"
+    - option "LIT (subrip)"
+    - option "LAV (subrip)"
+    - option "MAY (subrip)"
+    - option "DUT (subrip)"
+    - option "NOR (subrip)"
+    - option "POL (subrip)"
+    - option "POR (subrip)"
+    - option "POR (subrip)"
+    - option "RUM (subrip)"
+    - option "RUS (subrip)"
+    - option "SLO (subrip)"
+    - option "SLV (subrip)"
+    - option "SWE (subrip)"
+    - option "TAM (subrip)"
+    - option "TEL (subrip)"
+    - option "THA (subrip)"
+    - option "TUR (subrip)"
+    - option "UKR (subrip)"
+    - option "VIE (subrip)"
+    - option "CHI (subrip)"
+- generic: STATS FOR NERDS
+- button "✕"
+- text: "Method:"
+- strong: transcode
+- generic: "Reasons: Container 'matroska,webm' is not supported for direct play on this device; Audio codec 'eac3' is not supported by this device; Audio has 6 channels, exceeding the device limit"
+- generic: "Local resolution: 1920x960"
+- generic: "Local buffer: 51s"
+- generic: "Local dropped frames: 0"
+- generic: "Night Mode EQ: Active"
+- generic: "Local speed: 1x"
+- generic: "Selected audio stream: 1"
+- generic: "Server audio sync: 0 ms"
+- generic: "Requested quality limit: Automatic"
+- generic: "Session request network: lan"
+- generic: "Server profile: chromecast"
+- generic: "Active backend: software"
+- generic: "FFmpeg: Paused ahead of playback"
+- generic: "Transcode restarts: 3"
+- button "←"
+- generic: How to Build the Box WEBDL-1080p
+- button "🌙 Night Mode"
+- button "📊" [active]
+- generic: 00:00
+- slider "Seek video": "0"
+- generic "Chapter 1"
+- generic "Chapter 2"
+- generic: 1:00:09
+- button "▶"
+- button "↺ 10s"
+- button "10s ↻"
+- button "🔊"
+- slider: "1"
+- generic: Audio track
+- combobox "Audio track":
+  - option "eng · eac3 · 6ch" [selected]
+- generic: Quality limit
+- combobox "Quality limit":
+  - option "Automatic" [selected]
+  - option "2 Mbps"
+  - option "4 Mbps"
+  - option "8 Mbps"
+  - option "20 Mbps"
+- generic: Audio sync (− earlier, + later)
+- combobox "Audio sync (− earlier, + later)":
+  - option "-10000 ms"
+  - option "-5000 ms"
+  - option "-2000 ms"
+  - option "-1000 ms"
+  - option "-500 ms"
+  - option "-250 ms"
+  - option "-100 ms"
+  - option "0 ms" [selected]
+  - option "100 ms"
+  - option "250 ms"
+  - option "500 ms"
+  - option "1000 ms"
+  - option "2000 ms"
+  - option "5000 ms"
+  - option "10000 ms"
+- button "1x"
+- button "Subtitle tracks": 💬 CC
+- button "⎚"
+- button "⛶"

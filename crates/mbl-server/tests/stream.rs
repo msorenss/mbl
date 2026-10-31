@@ -399,6 +399,7 @@ async fn hls_endpoints_serve_playlists_init_and_segments_and_seek() {
             master_playlist: master.clone(),
             media_playlists: vec![("0".to_owned(), media_m3u8.clone())],
             fast_start_segments: false,
+            generated_playlist_start_ms: None,
         })
         .await
         .unwrap();

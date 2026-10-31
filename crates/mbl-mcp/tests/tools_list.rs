@@ -29,8 +29,8 @@ async fn snapshot_tools_list_read_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Verify all tools have Read scope (28 M8 + 2 M9: search_guide, list_recordings)
-    assert_eq!(tools.len(), 30);
+    // 30 baseline read tools plus online discovery, inspection and history.
+    assert_eq!(tools.len(), 33);
     insta::assert_json_snapshot!("tools_list_read", tools);
 }
 
@@ -43,8 +43,8 @@ async fn snapshot_tools_list_read_library_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // Read (30) + Library (5: scan_library, refresh_metadata, create_collection, add_to_collection, create_smart_collection) = 35
-    assert_eq!(tools.len(), 35);
+    // Read (33) plus five library-management tools.
+    assert_eq!(tools.len(), 38);
     insta::assert_json_snapshot!("tools_list_read_library", tools);
 }
 
@@ -57,7 +57,7 @@ async fn snapshot_tools_list_admin_scope() {
         .map(|t| t.definition)
         .collect();
 
-    // 74 baseline tools plus explicit DVR recovery.
-    assert_eq!(tools.len(), 75);
+    // 75 baseline tools plus online discovery, inspection and history.
+    assert_eq!(tools.len(), 78);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

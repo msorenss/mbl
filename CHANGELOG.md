@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- Direct MP4 remux delivery for Google Cast with H.264 video copy, stereo AAC 192 kbps audio, and upfront faststart indexing, enabling stutter-free Chromecast playback on high-bitrate media.
+- Real-time subtitle selection and toggling on Google Cast during playback via `media.editTracksInfo` without requiring session disconnect.
+- Server Settings page (`/admin/settings`) in web GUI with TMDB API key management, live API connection test, key removal, and setup notification banners in Libraries and Setup.
+- Dynamic TMDB API key synchronization from SQLite settings repository across background metadata worker jobs without server restart.
+- End-to-end request logging across streaming routes and playback lifecycle, capturing client IP, user agent (identifying Chromecast CrKey vs browsers), range requests, byte counts, and response latency.
+- Local Cast diagnostic timeline in player statistics with receiver/media states, negotiation status, SDK errors, masked JSON copy and bounded per-attempt memory retention.
+- Online player with login-bound unencrypted VOD HLS relay, bounded validated playlists/segments and real first-segment decoding before playback. Unsupported encrypted/live/ranged/external-track playlists fail explicitly.
+- Per-account online viewing history and resume, recent-item controls, completion handling, profile/logout/expiry checks and media cleanup. Preview remains available separately. Added MCP `get_online_history` (78 admin, 33 read, 38 read+library tools).
+- WebDrama search settings allow an administrator to select a public HTTPS SearXNG JSON endpoint. Search ranking uses title and viewing signals; matching personal indexed sources remain available with a warning during provider failures.
+- Real WebDrama internet title search via Mwmbl, with manual public-source checks, per-user persisted series/season/episode metadata from JSON-LD and checked episode links. Search coverage depends on the external index; hits are not assumed to be streaming pages.
+- Bounded FFprobe/FFmpeg media checks and browser previews for exposed direct media, with honest unchecked/restricted/external-player/error states. Preview rechecks the source and reports Playing only after the browser starts; unified library history and site-specific extraction remain pending.
+- Authenticated online search/inspection REST endpoints and equivalent MCP tools. MCP now exposes 78 admin tools (33 read, 38 read+library); restricted profiles and private/reserved source destinations are denied.
+
+### Fixed
+- Google Cast playback stall and freeze resolved by providing explicit `Content-Length` and `Accept-Ranges: bytes` headers on segments and playlists, avoiding chunked transfer buffering failures on Fuchsia decoders.
+- RFC 8216 target duration violation fixed for copied video in HLS manifests by using `#EXT-X-TARGETDURATION: 10`, matching variable keyframe GOP durations.
+- Subtitle track bounds (max 8) on Chromecast CAF receiver to prevent memory exhaustion and player crashes when casting media with numerous embedded subtitle streams.
+- Google Cast handoff releases the local media source and blocks local restart while connecting; native Remote Playback retains its media element. Cast diagnostics now include local pause/readiness/position to distinguish sender audio from receiver playback.
+- HLS audio encoding honors the negotiated device channel limit instead of retaining up to six channels for stereo-only receivers, including when audio synchronization is enabled.
+- Series and season navigation opens their contents instead of attempting to play container objects; detail/home watch state refreshes after player stop is saved.
+- Cast playback requests send whole millisecond start positions and explicitly describe MBL HLS audio/video segments as fragmented MP4, avoiding invalid JSON start positions and the receiver's MPEG-TS default. Physical receiver acceptance remains in progress.
+- WebDrama source inspection selects the page's main episode/movie, including JSON-LD graph references, and no longer borrows media from related episodes. Native HTML video/source links are recognized conservatively and must pass real media checks; ambiguous players and HLS are not approved as direct playback.
+- Library folder selection now shows server errors and access guidance, supports manually entered paths with server validation, and prevents stale or timed-out requests from replacing newer input. Selecting an entire filesystem warns about system files and overlapping libraries; save failures show the actual REST error.
+- Library dialogs support initial focus, Escape, focus restoration and scrolling on smaller screens.
+- Built-in demo plugin catalogues explicitly show unavailable playback instead of claiming to play a sample entry. Catalogue loading has visible errors, retry, cancellation and protection against stale feed responses.
+- API documentation is linked from settings and the command palette. Mobile settings include agent, hardware and node administration; the palette includes nodes and media requests.
+
 ## [1.1.0] - 2026-10-29
 
 ### Added

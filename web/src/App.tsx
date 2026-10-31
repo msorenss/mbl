@@ -26,6 +26,7 @@ const AiAgents = lazy(() => import("./pages/admin/AiAgents"));
 const Hardware = lazy(() => import("./pages/admin/Hardware"));
 const RemoteAccess = lazy(() => import("./pages/admin/RemoteAccess"));
 const Workers = lazy(() => import("./pages/admin/Workers"));
+const Settings = lazy(() => import("./pages/admin/Settings"));
 const LiveTv = lazy(() => import("./pages/LiveTv"));
 
 export function App() {
@@ -94,6 +95,14 @@ export function App() {
                   component={() => (
                     <AuthGuard adminOnly>
                       <Workers />
+                    </AuthGuard>
+                  )}
+                />
+                <Route
+                  path="/admin/settings"
+                  component={() => (
+                    <AuthGuard adminOnly>
+                      <Settings />
                     </AuthGuard>
                   )}
                 />

@@ -7,7 +7,9 @@ import type { components } from "../api/schema";
 import type { PlayRequest } from "../context/PlayerContext";
 import { useTheme } from "../context/ThemeContext";
 import { castManager } from "../utils/cast";
+import { castDiagnostics } from "../utils/castDiagnostics";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
+import CastDiagnostics from "./CastDiagnostics";
 import TrickplayPreview from "./TrickplayPreview";
 import { Button } from "./ui";
 
@@ -33,6 +35,7 @@ export interface PlayerProps {
   title?: string;
   subtitle?: string;
   onClose: () => void;
+  onStopped?: () => void;
   autoplayNext?: boolean;
   onPlayNext?: (request: PlayRequest) => void;
 }
@@ -320,13 +323,30 @@ export function Player(props: PlayerProps) {
   };
 
   const negotiatePlayback = async (body: components["schemas"]["PlaybackRequest"]) => {
+    if (body.startMs != null && !Number.isFinite(body.startMs)) {
+      throw new Error("Invalid playback start position.");
+    }
+    const startMs = body.startMs == null ? body.startMs : Math.max(0, Math.floor(body.startMs));
     const abort = new AbortController();
     pendingStarts.add(abort);
     try {
-      return await client.POST("/api/v1/playback", {
-        body: { ...body, waitForReady: true },
+      castDiagnostics.record("server.negotiate", {
+        itemId: body.itemId,
+        profile: typeof body.profile === "string" ? body.profile : "custom",
+        startMs,
+      });
+      const result = await client.POST("/api/v1/playback", {
+        body: { ...body, startMs, waitForReady: true },
         signal: abort.signal,
       });
+      castDiagnostics.record("server.response", {
+        status: result.response?.status,
+        generatedTimeline: result.data?.hlsGeneratedTimeline,
+        method: result.data?.method,
+        startMs: result.data?.startMs,
+        url: result.data?.url,
+      });
+      return result;
     } finally {
       pendingStarts.delete(abort);
     }
@@ -493,7 +513,32 @@ export function Player(props: PlayerProps) {
     }
   };
 
+  const recordLocalCastState = (stage: string) => {
+    if (!videoRef) return;
+    castDiagnostics.record(stage, {
+      casting: isCasting(),
+      connecting: castConnecting(),
+      paused: videoRef.paused,
+      ended: videoRef.ended,
+      position: videoRef.currentTime,
+      readyState: videoRef.readyState,
+      muted: videoRef.muted,
+    });
+  };
+
+  // Native Remote Playback uses this element as its receiver transport. Only
+  // Google Cast has a separate source, which must never keep playing locally.
+  const rejectLocalCastPlayback = () => {
+    if ((isCasting() || castConnecting()) && castManager.getState().supportsAutoplayNext === true) {
+      recordLocalCastState("local.play-blocked");
+      videoRef?.pause();
+      return true;
+    }
+    return false;
+  };
+
   const heartbeat = () => {
+    if (isCasting() || castConnecting()) recordLocalCastState("local.heartbeat");
     if (disposed || ended() || error() || sessionExpired()) return;
     if (isCasting()) {
       const state = castManager.getState().playerState;
@@ -798,6 +843,8 @@ export function Player(props: PlayerProps) {
           audioSyncMs(),
           true,
         );
+      } else if (command.action === "seek" && typeof command.params?.positionMs === "number") {
+        seekTo(command.params.positionMs / 1000);
       } else if (command.action === "stop") {
         await stopPlayback();
         castManager.disposeSession();
@@ -812,7 +859,7 @@ export function Player(props: PlayerProps) {
       setIsCastAvailable(cState.isAvailable);
       setIsCasting(cState.isCasting);
       setReceiverAutoplaySupported(cState.supportsAutoplayNext === true);
-      if (!cState.isCasting) setReceiverFinish(null);
+      if (!cState.isCasting || !cState.playbackEnded) setReceiverFinish(null);
       if (wasCasting && !cState.isCasting && !disposed && videoRef) {
         const data = playbackData();
         if (data)
@@ -828,9 +875,18 @@ export function Player(props: PlayerProps) {
       }
       setCastDevice(cState.deviceName);
       if (cState.isCasting) {
-        if (!wasCasting) {
+        if (!wasCasting && cState.supportsAutoplayNext) {
+          recordLocalCastState("local.handoff");
+          videoRef?.pause();
           hlsRecovery?.dispose();
-          hlsInstance?.stopLoad();
+          hlsRecovery = null;
+          hlsInstance?.destroy();
+          hlsInstance = null;
+          // Drop buffered audio/video, including a direct-play source. A pause
+          // alone does not prevent an already queued play() from starting again.
+          videoRef?.removeAttribute("src");
+          videoRef?.load();
+          recordLocalCastState("local.released");
         }
         setIsPlaying(cState.playerState === "playing");
         setCurrentTime(cState.currentTime);
@@ -856,7 +912,7 @@ export function Player(props: PlayerProps) {
       document.removeEventListener("visibilitychange", onVisible);
       if (progressInterval) clearInterval(progressInterval);
       if (hideControlsTimer) clearTimeout(hideControlsTimer);
-      void stopPlayback();
+      void stopPlayback().then(() => props.onStopped?.());
       castManager.disposeSession();
       if (hlsInstance) {
         hlsInstance.destroy();
@@ -890,11 +946,15 @@ export function Player(props: PlayerProps) {
     }
     const previous = playbackData();
     if (!previous) return false;
+    const resumeLocalAfterCancel = !isCasting() && isPlaying();
     setShowSpeedMenu(false);
     setShowSubtitlesMenu(false);
     setCastConnecting(true);
     setCastStatus(null);
     let oldPosition = currentTime();
+    if (startMs < 5000) {
+      startMs = 0;
+    }
     let negotiatedStartMs = startMs;
     const preserveReceiverState =
       isCasting() && itemId === mediaItemId() && autoplay === isPlaying();
@@ -914,6 +974,7 @@ export function Player(props: PlayerProps) {
         },
         videoRef,
         async () => {
+          recordLocalCastState("local.prepare");
           const result = await negotiatePlayback({
             itemId,
             partId: itemId === mediaItemId() ? mediaPartId() : undefined,
@@ -946,6 +1007,7 @@ export function Player(props: PlayerProps) {
           const title = negotiatedTitle;
           return {
             contentId: result.data.url,
+            hlsFmp4: new URL(result.data.url, window.location.href).pathname.endsWith(".m3u8"),
             contentType: result.data.contentType,
             title,
             currentTime: negotiatedStartMs / 1000,
@@ -960,6 +1022,10 @@ export function Player(props: PlayerProps) {
       // Native Remote Playback uses the browser's existing source; Google Cast uses
       // the server-negotiated receiver profile, MIME and externally reachable URLs.
       const accepted = negotiated as PlaybackResponse | null;
+      if (success && !disposed) {
+        setReceiverFinish(null);
+        setEnded(false);
+      }
       if (success && accepted && !disposed) {
         if (stoppedSession === previous.sessionId) await stoppingSession;
         else await stopSession(previous.sessionId, Math.floor(oldPosition * 1000));
@@ -991,7 +1057,8 @@ export function Player(props: PlayerProps) {
       }
       if (!success) {
         setCastStatus(castManager.getLastError());
-        if (autoplay && !disposed && !isCasting()) void videoRef?.play().catch(() => {});
+        if (resumeLocalAfterCancel && !disposed && !isCasting())
+          void videoRef?.play().catch(() => {});
       }
       return success && !!accepted && !disposed;
     } finally {
@@ -1004,14 +1071,15 @@ export function Player(props: PlayerProps) {
       castManager.stopCasting();
       return;
     }
+    const replay = ended();
     await startReceiverPlayback(
       mediaItemId(),
-      currentTime() * 1000,
-      isPlaying(),
+      replay ? 0 : currentTime() * 1000,
+      true,
       selectedAudioIndex(),
       selectedSubtitleIndex() < 0 ? null : selectedSubtitleIndex(),
       audioSyncMs(),
-      true,
+      !replay,
     );
   };
 
@@ -1049,6 +1117,7 @@ export function Player(props: PlayerProps) {
   };
 
   const togglePlay = () => {
+    if (castConnecting()) return;
     if (isCasting()) {
       if (isPlaying()) {
         castManager.pause();
@@ -1090,6 +1159,16 @@ export function Player(props: PlayerProps) {
   };
 
   const seekTo = (targetTime: number) => {
+    if (castConnecting() || !Number.isFinite(targetTime)) return;
+    targetTime = Math.max(0, Math.min(duration() || targetTime, targetTime));
+    const data = playbackData();
+    if (isCasting() && receiverAutoplaySupported() && data?.hlsGeneratedTimeline === true) {
+      // A growing, actual muxer playlist cannot seek beyond its indexed range.
+      // Prepare the target before loading it; keep the old receiver session on failure.
+      castDiagnostics.record("control.seek-prepare", { position: targetTime });
+      void startReceiverPlayback(mediaItemId(), targetTime * 1000, isPlaying());
+      return;
+    }
     setCurrentTime(targetTime);
     if (isCasting()) {
       castManager.seek(targetTime);
@@ -1175,8 +1254,24 @@ export function Player(props: PlayerProps) {
         return;
     } else {
       if (isCasting() && !(await castManager.selectSubtitle(index < 0 ? null : index))) {
-        setCastStatus("The receiver could not change subtitles.");
-        return;
+        if (receiverAutoplaySupported()) {
+          const success = await startReceiverPlayback(
+            mediaItemId(),
+            currentTime() * 1000,
+            isPlaying(),
+            selectedAudioIndex(),
+            index < 0 ? null : index,
+            audioSyncMs(),
+            true,
+          );
+          if (!success) {
+            setCastStatus("The receiver could not change subtitles.");
+            return;
+          }
+        } else {
+          setCastStatus("The receiver could not change subtitles.");
+          return;
+        }
       }
       setSelectedSubtitleIndex(index);
     }
@@ -1467,6 +1562,7 @@ export function Player(props: PlayerProps) {
           }
         }}
         onPlay={() => {
+          if (rejectLocalCastPlayback()) return;
           if (!isCasting() && !error()) {
             localAutoplay = true;
             setIsPlaying(true);
@@ -1477,6 +1573,7 @@ export function Player(props: PlayerProps) {
           }
         }}
         onPlaying={() => {
+          if (rejectLocalCastPlayback()) return;
           if (!isCasting() && !error()) {
             confirmedSessionId = playbackData()?.sessionId ?? null;
             localBuffering = false;
@@ -1485,6 +1582,7 @@ export function Player(props: PlayerProps) {
           }
         }}
         onPause={() => {
+          if (isCasting() || castConnecting()) recordLocalCastState("local.pause");
           if (!isCasting()) {
             localAutoplay = false;
             setIsPlaying(false);
@@ -1636,6 +1734,8 @@ export function Player(props: PlayerProps) {
             "font-size": "12px",
             "z-index": 10005,
             "max-width": "380px",
+            "max-height": "70vh",
+            "overflow-y": "auto",
             "box-shadow": "var(--shadow-xl)",
           }}
         >
@@ -1657,6 +1757,7 @@ export function Player(props: PlayerProps) {
               ✕
             </button>
           </div>
+          <CastDiagnostics />
           <div style={{ display: "flex", "flex-direction": "column", gap: "4px" }}>
             <div>
               Method:{" "}

@@ -88,6 +88,10 @@ pub struct CreateSessionReq {
     /// When `true`, segments 0 and 1 are 3 s each when `segment_secs >= 6`; when `false`, all
     /// segments use uniform `segment_secs` duration.
     pub fast_start_segments: bool,
+    /// Serve the muxer's real EVENT playlist, generated continuously from source
+    /// time zero. Preparation waits until this absolute resume position is indexed.
+    /// Segment requests never seek/restart and invalidate already served init data.
+    pub generated_playlist_start_ms: Option<u64>,
 }
 
 struct SessionState {
@@ -125,6 +129,7 @@ pub struct HlsSession {
     ahead_segments: u32,
     segment_wait_timeout: Duration,
     fast_start_segments: bool,
+    generated_playlist_start_ms: Option<u64>,
     bad_backends: Arc<RwLock<HashMap<(Backend, String), Instant>>>,
     bad_backend_ttl: Duration,
     state: Mutex<SessionState>,
@@ -167,6 +172,9 @@ impl HlsSession {
 
     /// Validate the initial init/closed fragment for every advertised rendition under one deadline.
     pub async fn prepare(&self) -> Result<()> {
+        if let Some(start_ms) = self.generated_playlist_start_ms {
+            return self.prepare_generated(start_ms).await;
+        }
         tokio::time::timeout(self.segment_wait_timeout, async {
             loop {
                 for rendition in &self.base_pipeline.output.renditions {
@@ -197,6 +205,54 @@ impl HlsSession {
         .map_err(|_| Error::Unavailable("timed out preparing playback media".into()))?
     }
 
+    async fn prepare_generated(&self, start_ms: u64) -> Result<()> {
+        // A remux can index the prefix faster than playback without re-encoding
+        // video. Bound preparation; never claim a distant resume position is ready
+        // merely because segment zero exists.
+        tokio::time::timeout(Duration::from_secs(60), async {
+            {
+                let mut state = self.state.lock().await;
+                state.ensure_open()?;
+                state.last_requested_segment = u32::MAX;
+                if state.paused {
+                    resume_child(&state.child);
+                    state.paused = false;
+                }
+            }
+            loop {
+                {
+                    let mut state = self.state.lock().await;
+                    state.ensure_open()?;
+                    state.last_access = Instant::now();
+                    if !poll_child_state(&mut state) && state.last_exit_failed {
+                        return Err(Error::Unavailable(
+                            "FFmpeg failed preparing Cast timeline".into(),
+                        ));
+                    }
+                }
+                let mut ready = None;
+                for rendition in &self.base_pipeline.output.renditions {
+                    let path = self.dir.join(&rendition.name).join("ffmpeg.m3u8");
+                    let text = tokio::fs::read_to_string(path).await.unwrap_or_default();
+                    let goal_ms = start_ms.saturating_add(12_000).min(self.duration_ms);
+                    let Some(segment) = generated_segment_at(&text, goal_ms) else {
+                        ready = None;
+                        break;
+                    };
+                    self.request_init(&rendition.name).await?;
+                    ready = Some(ready.map_or(segment, |previous: u32| previous.min(segment)));
+                }
+                if let Some(segment) = ready {
+                    self.state.lock().await.last_requested_segment = segment;
+                    return Ok(());
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        })
+        .await
+        .map_err(|_| Error::Unavailable("timed out indexing Cast resume position".into()))?
+    }
+
     /// Touch the session's activity timestamp and return the upfront `master.m3u8` content.
     pub async fn request_master_playlist(&self) -> Result<String> {
         {
@@ -222,7 +278,9 @@ impl HlsSession {
             st.ensure_open()?;
             st.last_access = Instant::now();
         }
-        let path = self.dir.join(rendition).join("index.m3u8");
+        let filename =
+            if self.generated_playlist_start_ms.is_some() { "ffmpeg.m3u8" } else { "index.m3u8" };
+        let path = self.dir.join(rendition).join(filename);
         tokio::fs::read_to_string(path.as_std_path()).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 Error::NotFound
@@ -255,6 +313,9 @@ impl HlsSession {
                     st.paused = false;
                 }
             } else {
+                if self.generated_playlist_start_ms.is_some() {
+                    return Err(Error::Unavailable("Cast init segment is unavailable".into()));
+                }
                 let start_seg = st.last_requested_segment;
                 if st.last_exit_failed
                     && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
@@ -276,7 +337,8 @@ impl HlsSession {
                     return Ok(init_path);
                 }
                 if !running {
-                    if st.last_exit_failed
+                    if self.generated_playlist_start_ms.is_none()
+                        && st.last_exit_failed
                         && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
                         && !st.fallback_backends.is_empty()
                     {
@@ -335,7 +397,12 @@ impl HlsSession {
                 && segment_num >= st.current_start_segment
                 && segment_num <= st.ffmpeg_head_segment.saturating_add(3);
 
-            if within_head_window {
+            if within_head_window || self.generated_playlist_start_ms.is_some() {
+                if !running {
+                    return Err(Error::Unavailable(
+                        "Cast timeline has no such completed segment".into(),
+                    ));
+                }
                 if st.paused {
                     resume_child(&st.child);
                     st.paused = false;
@@ -365,7 +432,8 @@ impl HlsSession {
                     return Ok(seg_path);
                 }
                 if !running {
-                    if st.last_exit_failed
+                    if self.generated_playlist_start_ms.is_none()
+                        && st.last_exit_failed
                         && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
                         && !st.fallback_backends.is_empty()
                     {
@@ -714,6 +782,13 @@ impl SessionManager {
         // Reap any expired sessions first so their slots and disk space are reclaimed.
         self.run_maintenance_once().await;
 
+        if req.generated_playlist_start_ms.is_some()
+            && (req.pipeline.start_ms != 0 || req.pipeline.output.start_number != 0)
+        {
+            return Err(Error::Validation(
+                "generated HLS timeline must start at source zero".into(),
+            ));
+        }
         let is_video_transcode = matches!(req.pipeline.video, VideoOp::Encode { .. });
         {
             let map = self.sessions.read().map_err(|_| {
@@ -789,6 +864,7 @@ impl SessionManager {
             ahead_segments: self.config.ahead_segments,
             segment_wait_timeout: self.config.segment_wait_timeout,
             fast_start_segments: req.fast_start_segments,
+            generated_playlist_start_ms: req.generated_playlist_start_ms,
             bad_backends: self.bad_backends.clone(),
             bad_backend_ttl: self.bad_backend_ttl,
             state: Mutex::new(SessionState {
@@ -1155,6 +1231,7 @@ mod lifecycle_tests {
                 master_playlist: "#EXTM3U\n".into(),
                 media_playlists: vec![("0".into(), "#EXTM3U\n".into())],
                 fast_start_segments: false,
+                generated_playlist_start_ms: None,
             })
             .await
             .unwrap();
@@ -1175,5 +1252,36 @@ mod lifecycle_tests {
         assert!(session.ffmpeg_pid().await.is_none());
         assert!(!session.dir.exists());
         assert!(session.renew_activity().await.is_err());
+    }
+}
+
+/// Select an actual completed fragment by its muxer-reported cumulative duration.
+fn generated_segment_at(playlist: &str, goal_ms: u64) -> Option<u32> {
+    let mut elapsed_ms = 0.0;
+    let mut duration_ms = None;
+    let mut last = None;
+    for line in playlist.lines() {
+        if let Some(value) = line.strip_prefix("#EXTINF:") {
+            let seconds: f64 = value.split(',').next()?.parse().ok()?;
+            if !seconds.is_finite() || seconds <= 0.0 {
+                return None;
+            }
+            duration_ms = Some(seconds * 1000.0);
+        } else if let Some(index) = line.strip_suffix(".m4s").and_then(|v| v.parse::<u32>().ok()) {
+            elapsed_ms += duration_ms.take()?;
+            last = Some(index);
+            if elapsed_ms >= goal_ms as f64 {
+                return last;
+            }
+        }
+    }
+    // The last frame/audio packet can end just short of container duration.
+    if playlist.lines().any(|line| line == "#EXT-X-ENDLIST")
+        && elapsed_ms > 0.0
+        && elapsed_ms + 100.0 >= goal_ms as f64
+    {
+        last
+    } else {
+        None
     }
 }

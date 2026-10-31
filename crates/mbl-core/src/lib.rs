@@ -7,6 +7,7 @@ pub mod ids;
 pub mod kinds;
 pub mod livetv;
 pub mod node;
+pub mod online;
 pub mod pagination;
 pub mod plugins;
 pub mod time;

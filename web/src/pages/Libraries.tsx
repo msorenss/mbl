@@ -1,17 +1,28 @@
 import { A } from "@solidjs/router";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createResource, createSignal, For, onMount, Show } from "solid-js";
 import client from "../api/client";
+import { apiErrorMessage } from "../api/errors";
 import type { components } from "../api/schema";
+import { LibraryFolderPicker } from "../components/LibraryFolderPicker";
+import { Dialog } from "../components/ui/Dialog";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 
 type LibraryDto = components["schemas"]["LibraryDto"];
 type LibraryKind = components["schemas"]["LibraryKind"];
-type DirEntry = components["schemas"]["DirEntry"];
 
 export function Libraries() {
   const { user } = useAuth();
   const { showToast } = useToast();
+
+  const [settings] = createResource(async () => {
+    try {
+      const res = await client.GET("/api/v1/system/settings");
+      return res.data;
+    } catch {
+      return null;
+    }
+  });
 
   const [libraries, setLibraries] = createSignal<LibraryDto[]>([]);
   const [loading, setLoading] = createSignal(true);
@@ -22,11 +33,9 @@ export function Libraries() {
   const [newLibName, setNewLibName] = createSignal("");
   const [newLibKind, setNewLibKind] = createSignal<LibraryKind>("movie");
   const [selectedPaths, setSelectedPaths] = createSignal<string[]>([]);
-  const [currentBrowsePath, setCurrentBrowsePath] = createSignal<string>("");
-  const [browseEntries, setBrowseEntries] = createSignal<DirEntry[]>([]);
-  const [browseParent, setBrowseParent] = createSignal<string | null>(null);
-  const [browseLoading, setBrowseLoading] = createSignal(false);
   const [isCreating, setIsCreating] = createSignal(false);
+  const [formError, setFormError] = createSignal("");
+  let dialogTrigger: HTMLElement | undefined;
 
   const loadLibraries = async () => {
     setLoading(true);
@@ -45,35 +54,15 @@ export function Libraries() {
     }
   };
 
-  const browseFolder = async (path?: string) => {
-    setBrowseLoading(true);
-    try {
-      const { data } = await client.GET("/api/v1/system/browse", {
-        params: { query: { path: path || undefined } },
-      });
-      if (data) {
-        setCurrentBrowsePath(data.path || "");
-        setBrowseParent(data.parent || null);
-        setBrowseEntries(data.entries || []);
-      }
-    } catch {
-      showToast({
-        title: "Error",
-        message: "The server request failed. Try again.",
-        type: "error",
-      });
-    } finally {
-      setBrowseLoading(false);
-    }
-  };
-
   const handleOpenAddModal = () => {
+    dialogTrigger =
+      document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     setEditingId(null);
     setNewLibName("");
     setNewLibKind("movie");
     setSelectedPaths([]);
     setShowAddModal(true);
-    browseFolder();
+    setFormError("");
   };
 
   const addPath = (path: string) => {
@@ -101,6 +90,7 @@ export function Libraries() {
       return;
     }
 
+    setFormError("");
     setIsCreating(true);
     try {
       const editId = editingId();
@@ -133,16 +123,18 @@ export function Libraries() {
           });
         await loadLibraries();
       } else {
+        setFormError(apiErrorMessage(error, "Failed to save library"));
         showToast({
-          title: "Creation Failed",
-          message: error ? String(error) : "Failed to create library",
+          title: "Save failed",
+          message: apiErrorMessage(error, "Failed to save library"),
           type: "danger",
         });
       }
     } catch (e) {
+      setFormError(apiErrorMessage(e, "Failed to save library"));
       showToast({
         title: "Error",
-        message: e instanceof Error ? e.message : "Error creating library",
+        message: apiErrorMessage(e, "Failed to save library"),
         type: "danger",
       });
     } finally {
@@ -151,12 +143,14 @@ export function Libraries() {
   };
 
   const editLibrary = (library: LibraryDto) => {
+    dialogTrigger =
+      document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     setEditingId(library.id);
     setNewLibName(library.name);
     setNewLibKind(library.kind);
     setSelectedPaths([...library.paths]);
     setShowAddModal(true);
-    void browseFolder();
+    setFormError("");
   };
   const deleteLibrary = async (library: LibraryDto) => {
     if (
@@ -188,7 +182,7 @@ export function Libraries() {
       } else {
         showToast({
           title: "Scan Failed",
-          message: error ? String(error) : "Failed to trigger scan",
+          message: apiErrorMessage(error, "Failed to trigger scan"),
           type: "danger",
         });
       }
@@ -242,6 +236,43 @@ export function Libraries() {
           </button>
         </Show>
       </div>
+
+      <Show when={user()?.isAdmin && settings() && !settings()?.tmdbConfigured}>
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            padding: "12px 16px",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            "margin-bottom": "20px",
+            "font-size": "13px",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+            <span>💡</span>
+            <span>
+              <strong>Metadata Provider:</strong> TMDB API key is not configured. Media will match
+              local NFO files and embedded tags only.
+            </span>
+          </div>
+          <A
+            href="/admin/settings"
+            style={{
+              color: "var(--accent)",
+              "font-weight": "600",
+              "text-decoration": "underline",
+              "white-space": "nowrap",
+              "margin-left": "12px",
+            }}
+          >
+            Configure TMDB &rarr;
+          </A>
+        </div>
+      </Show>
 
       {/* Libraries Grid */}
       <Show
@@ -390,356 +421,143 @@ export function Libraries() {
         </Show>
       </Show>
 
-      {/* Add Library Modal (Admin) */}
       <Show when={showAddModal()}>
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            "justify-content": "center",
-            "align-items": "center",
-            "z-index": 1000,
+        <Dialog
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            document.getElementById("lib-name")?.focus();
           }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            dialogTrigger?.focus();
+          }}
+          open={showAddModal()}
+          onOpenChange={(open) => {
+            if (!isCreating()) setShowAddModal(open);
+          }}
+          title={editingId() === null ? "Add New Library" : "Edit Library"}
+          description="Select readable media folders on the server. Existing library roots cannot overlap."
         >
-          <div
-            style={{
-              width: "560px",
-              "max-height": "90vh",
-              overflow: "auto",
-              padding: "28px",
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              "border-radius": "var(--radius-lg)",
-            }}
+          <form
+            onSubmit={handleCreateLibrary}
+            style={{ display: "flex", "flex-direction": "column", gap: "16px" }}
           >
+            <div>
+              <label
+                for="lib-name"
+                style={{
+                  display: "block",
+                  "margin-bottom": "6px",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                }}
+              >
+                Library Name
+              </label>
+              <input
+                id="lib-name"
+                type="text"
+                value={newLibName()}
+                onInput={(e) => setNewLibName(e.currentTarget.value)}
+                placeholder="e.g. Movies, TV Shows, Anime"
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  background: "var(--bg-base)",
+                  border: "1px solid var(--border)",
+                  "border-radius": "var(--radius-sm)",
+                  color: "var(--text-primary)",
+                  "font-size": "14px",
+                }}
+              />
+            </div>
+
+            <div>
+              <label
+                for="lib-kind"
+                style={{
+                  display: "block",
+                  "margin-bottom": "6px",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                }}
+              >
+                Content Type
+              </label>
+              <select
+                id="lib-kind"
+                disabled={editingId() !== null}
+                value={newLibKind()}
+                onChange={(e) => setNewLibKind(e.currentTarget.value as LibraryKind)}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  background: "var(--bg-base)",
+                  border: "1px solid var(--border)",
+                  "border-radius": "var(--radius-sm)",
+                  color: "var(--text-primary)",
+                  "font-size": "14px",
+                }}
+              >
+                <option value="movie">Movies</option>
+                <option value="show">TV Shows</option>
+                <option value="music">Music</option>
+                <option value="other">Other / Mixed</option>
+              </select>
+            </div>
+
+            <LibraryFolderPicker
+              paths={selectedPaths()}
+              disabled={isCreating()}
+              onAdd={addPath}
+              onRemove={removePath}
+            />
+            <Show when={formError()}>
+              <p role="alert">{formError()}</p>
+            </Show>
+
+            {/* Submit Buttons */}
             <div
               style={{
                 display: "flex",
-                "justify-content": "space-between",
-                "margin-bottom": "20px",
+                "justify-content": "flex-end",
+                gap: "10px",
+                "margin-top": "12px",
               }}
             >
-              <h2 style={{ margin: 0, "font-size": "20px", "font-weight": "700" }}>
-                {editingId() === null ? "Add New Library" : "Edit Library"}
-              </h2>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
+                disabled={isCreating()}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text-muted)",
-                  "font-size": "18px",
+                  padding: "9px 16px",
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  "border-radius": "var(--radius-sm)",
                   cursor: "pointer",
                 }}
               >
-                ✕
+                Cancel
               </button>
-            </div>
-
-            <form
-              onSubmit={handleCreateLibrary}
-              style={{ display: "flex", "flex-direction": "column", gap: "16px" }}
-            >
-              <div>
-                <label
-                  for="lib-name"
-                  style={{
-                    display: "block",
-                    "margin-bottom": "6px",
-                    "font-size": "13px",
-                    "font-weight": "600",
-                  }}
-                >
-                  Library Name
-                </label>
-                <input
-                  id="lib-name"
-                  type="text"
-                  value={newLibName()}
-                  onInput={(e) => setNewLibName(e.currentTarget.value)}
-                  placeholder="e.g. Movies, TV Shows, Anime"
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    background: "var(--bg-base)",
-                    border: "1px solid var(--border)",
-                    "border-radius": "var(--radius-sm)",
-                    color: "var(--text-primary)",
-                    "font-size": "14px",
-                  }}
-                />
-              </div>
-
-              <div>
-                <label
-                  for="lib-kind"
-                  style={{
-                    display: "block",
-                    "margin-bottom": "6px",
-                    "font-size": "13px",
-                    "font-weight": "600",
-                  }}
-                >
-                  Content Type
-                </label>
-                <select
-                  id="lib-kind"
-                  disabled={editingId() !== null}
-                  value={newLibKind()}
-                  onChange={(e) => setNewLibKind(e.currentTarget.value as LibraryKind)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    background: "var(--bg-base)",
-                    border: "1px solid var(--border)",
-                    "border-radius": "var(--radius-sm)",
-                    color: "var(--text-primary)",
-                    "font-size": "14px",
-                  }}
-                >
-                  <option value="movie">Movies</option>
-                  <option value="show">TV Shows</option>
-                  <option value="music">Music</option>
-                  <option value="other">Other / Mixed</option>
-                </select>
-              </div>
-
-              {/* Folder Browser */}
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    "justify-content": "space-between",
-                    "margin-bottom": "6px",
-                  }}
-                >
-                  <span style={{ "font-size": "13px", "font-weight": "600" }}>Folder Roots</span>
-                  <span style={{ "font-size": "12px", color: "var(--text-muted)" }}>
-                    Select directories on server
-                  </span>
-                </div>
-
-                {/* Selected Paths */}
-                <Show when={selectedPaths().length > 0}>
-                  <div
-                    style={{
-                      display: "flex",
-                      "flex-direction": "column",
-                      gap: "6px",
-                      "margin-bottom": "12px",
-                    }}
-                  >
-                    <For each={selectedPaths()}>
-                      {(p) => (
-                        <div
-                          style={{
-                            display: "flex",
-                            "align-items": "center",
-                            "justify-content": "space-between",
-                            padding: "6px 10px",
-                            background: "var(--bg-card)",
-                            border: "1px solid var(--border)",
-                            "border-radius": "var(--radius-sm)",
-                            "font-size": "12px",
-                          }}
-                        >
-                          <span style={{ overflow: "hidden", "text-overflow": "ellipsis" }}>
-                            📁 {p}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removePath(p)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "var(--danger)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </Show>
-
-                {/* Directory Explorer */}
-                <div
-                  style={{
-                    border: "1px solid var(--border)",
-                    "border-radius": "var(--radius-sm)",
-                    background: "var(--bg-base)",
-                    padding: "10px",
-                    "max-height": "180px",
-                    overflow: "auto",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      "align-items": "center",
-                      "justify-content": "space-between",
-                      "margin-bottom": "8px",
-                      "padding-bottom": "6px",
-                      "border-bottom": "1px solid var(--border)",
-                      "font-size": "12px",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    <span style={{ overflow: "hidden", "text-overflow": "ellipsis" }}>
-                      Current: {currentBrowsePath() || "/"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => addPath(currentBrowsePath())}
-                      disabled={
-                        !currentBrowsePath() || selectedPaths().includes(currentBrowsePath())
-                      }
-                      style={{
-                        padding: "3px 8px",
-                        background: "var(--accent)",
-                        color: "#fff",
-                        border: "none",
-                        "border-radius": "var(--radius-sm)",
-                        "font-size": "11px",
-                        "font-weight": "600",
-                        cursor: "pointer",
-                      }}
-                    >
-                      + Add Current
-                    </button>
-                  </div>
-
-                  <Show when={browseParent()}>
-                    {(parent) => (
-                      <button
-                        type="button"
-                        onClick={() => browseFolder(parent())}
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          "text-align": "left",
-                          background: "transparent",
-                          border: "none",
-                          padding: "5px 8px",
-                          cursor: "pointer",
-                          color: "var(--accent)",
-                          "font-size": "13px",
-                        }}
-                      >
-                        📁 .. (up)
-                      </button>
-                    )}
-                  </Show>
-
-                  <Show
-                    when={!browseLoading()}
-                    fallback={
-                      <div style={{ "font-size": "12px", color: "var(--text-muted)" }}>
-                        Loading...
-                      </div>
-                    }
-                  >
-                    <For each={browseEntries()}>
-                      {(entry) => (
-                        <div
-                          style={{
-                            padding: "4px 8px",
-                            display: "flex",
-                            "align-items": "center",
-                            "justify-content": "space-between",
-                            "font-size": "13px",
-                            "border-radius": "var(--radius-sm)",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => browseFolder(entry.path)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "inherit",
-                              cursor: "pointer",
-                              padding: 0,
-                              "font-size": "13px",
-                              display: "flex",
-                              "align-items": "center",
-                              gap: "6px",
-                            }}
-                          >
-                            <span>📁 {entry.name}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => addPath(entry.path)}
-                            style={{
-                              padding: "2px 6px",
-                              background: "var(--bg-card)",
-                              border: "1px solid var(--border)",
-                              color: "var(--text-secondary)",
-                              "border-radius": "var(--radius-sm)",
-                              "font-size": "11px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            + Add
-                          </button>
-                        </div>
-                      )}
-                    </For>
-                  </Show>
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div
+              <button
+                type="submit"
+                disabled={isCreating()}
                 style={{
-                  display: "flex",
-                  "justify-content": "flex-end",
-                  gap: "10px",
-                  "margin-top": "12px",
+                  padding: "9px 18px",
+                  background: "var(--accent)",
+                  color: "#fff",
+                  border: "none",
+                  "border-radius": "var(--radius-sm)",
+                  "font-weight": "600",
+                  cursor: isCreating() ? "not-allowed" : "pointer",
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  style={{
-                    padding: "9px 16px",
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-primary)",
-                    "border-radius": "var(--radius-sm)",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCreating()}
-                  style={{
-                    padding: "9px 18px",
-                    background: "var(--accent)",
-                    color: "#fff",
-                    border: "none",
-                    "border-radius": "var(--radius-sm)",
-                    "font-weight": "600",
-                    cursor: isCreating() ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {isCreating() ? "Creating..." : "Save Library"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+                {isCreating() ? "Saving..." : "Save Library"}
+              </button>
+            </div>
+          </form>
+        </Dialog>
       </Show>
     </div>
   );

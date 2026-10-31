@@ -17,6 +17,7 @@
 - [Remote Access & Networking](remote-access.md)
 - [Distributed Nodes & Workers](distributed-workers.md)
 - [Live TV, EPG & DVR](live-tv-dvr.md)
+- [WebDrama: internet discovery & source checks](online-discovery.md)
 - [Music, Photos & Media Breadth](media-breadth.md)
 - [Chromecast & Remote Playback](chromecast.md)
 

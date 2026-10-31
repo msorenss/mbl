@@ -17,11 +17,13 @@ interface PlayerContextType {
   playItem: (req: PlayRequest) => void;
   closePlayer: () => void;
   activeItem: () => PlayRequest | null;
+  playbackRevision: () => number;
 }
 
 const PlayerContext = createContext<PlayerContextType>();
 
 export function PlayerProvider(props: { children: JSX.Element }) {
+  const [playbackRevision, setPlaybackRevision] = createSignal(0);
   const [activeItem, setActiveItem] = createSignal<PlayRequest | null>(null);
 
   const playItem = (req: PlayRequest) => {
@@ -33,7 +35,7 @@ export function PlayerProvider(props: { children: JSX.Element }) {
   };
 
   return (
-    <PlayerContext.Provider value={{ playItem, closePlayer, activeItem }}>
+    <PlayerContext.Provider value={{ playItem, closePlayer, activeItem, playbackRevision }}>
       {props.children}
       <Show keyed when={activeItem()}>
         {(item) => (
@@ -46,6 +48,7 @@ export function PlayerProvider(props: { children: JSX.Element }) {
             title={item.title}
             subtitle={item.subtitle}
             onClose={closePlayer}
+            onStopped={() => setPlaybackRevision((v) => v + 1)}
             onPlayNext={playItem}
             autoplayNext={item.autoplayNext}
           />

@@ -1,0 +1,693 @@
+{
+  "version": 1,
+  "attempt": 2,
+  "events": [
+    {
+      "at": "2026-10-30T16:25:42.138Z",
+      "elapsedMs": 0,
+      "stage": "attempt.start",
+      "details": {
+        "attempt": 2
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:42.138Z",
+      "elapsedMs": 0,
+      "stage": "sdk.available",
+      "details": {
+        "google": true,
+        "remote": true,
+        "localPaused": true,
+        "localPosition": 596.578667
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:42.138Z",
+      "elapsedMs": 0,
+      "stage": "chooser.open",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T16:25:42.212Z",
+      "elapsedMs": 75,
+      "stage": "local.pause",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:44.952Z",
+      "elapsedMs": 2814,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:49.833Z",
+      "elapsedMs": 7695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:54.833Z",
+      "elapsedMs": 12695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:57.719Z",
+      "elapsedMs": 15581,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": true
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:57.720Z",
+      "elapsedMs": 15582,
+      "stage": "chooser.accepted",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T16:25:57.720Z",
+      "elapsedMs": 15582,
+      "stage": "prepare.begin",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T16:25:57.720Z",
+      "elapsedMs": 15582,
+      "stage": "local.prepare",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:57.720Z",
+      "elapsedMs": 15582,
+      "stage": "server.negotiate",
+      "details": {
+        "itemId": 3,
+        "profile": "chromecast",
+        "startMs": 596301
+      }
+    },
+    {
+      "at": "2026-10-30T16:25:59.833Z",
+      "elapsedMs": 17695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:00.618Z",
+      "elapsedMs": 18480,
+      "stage": "server.response",
+      "details": {
+        "status": 200,
+        "method": "transcode",
+        "startMs": 596301,
+        "url": "http://192.168.68.147:18421/api/v1/stream/hls/[session]/master.m3u8"
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:00.646Z",
+      "elapsedMs": 18508,
+      "stage": "prepare.ready",
+      "details": {
+        "contentType": "application/vnd.apple.mpegurl",
+        "url": "http://192.168.68.147:18421/api/v1/stream/hls/[session]/master.m3u8",
+        "hlsFmp4": true
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:00.647Z",
+      "elapsedMs": 18509,
+      "stage": "load.send",
+      "details": {
+        "url": "http://192.168.68.147:18421/api/v1/stream/hls/[session]/master.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "audioFormat": "fmp4",
+        "videoFormat": "fmp4",
+        "autoplay": true,
+        "position": 596.578,
+        "tracks": 44
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:00.942Z",
+      "elapsedMs": 18807,
+      "stage": "load.accepted",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T16:26:00.981Z",
+      "elapsedMs": 18843,
+      "stage": "local.handoff",
+      "details": {
+        "casting": true,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 596.578667,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:01.155Z",
+      "elapsedMs": 19017,
+      "stage": "local.released",
+      "details": {
+        "casting": true,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:01.439Z",
+      "elapsedMs": 19301,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:01.490Z",
+      "elapsedMs": 19352,
+      "stage": "commands.connected",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T16:26:02.640Z",
+      "elapsedMs": 20502,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:02.641Z",
+      "elapsedMs": 20504,
+      "stage": "media.status",
+      "details": {
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:02.643Z",
+      "elapsedMs": 20505,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "BUFFERING",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:02.667Z",
+      "elapsedMs": 20529,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:02.750Z",
+      "elapsedMs": 20612,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:02.881Z",
+      "elapsedMs": 20743,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "BUFFERING",
+        "paused": false,
+        "position": 0,
+        "duration": 3609.523,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:02.881Z",
+      "elapsedMs": 20743,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:03.314Z",
+      "elapsedMs": 21176,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "BUFFERING",
+        "paused": false,
+        "position": 596,
+        "duration": 3609.523,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:03.314Z",
+      "elapsedMs": 21176,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:03.391Z",
+      "elapsedMs": 21253,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:04.834Z",
+      "elapsedMs": 22696,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:06.728Z",
+      "elapsedMs": 24590,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "PLAYING",
+        "paused": false,
+        "position": 596,
+        "duration": 3609.523,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:06.728Z",
+      "elapsedMs": 24590,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PLAYING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:09.833Z",
+      "elapsedMs": 27695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:10.948Z",
+      "elapsedMs": 28810,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "playing",
+        "position": 596.578,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:14.833Z",
+      "elapsedMs": 32695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:16.542Z",
+      "elapsedMs": 34404,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PLAYING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:19.833Z",
+      "elapsedMs": 37695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:20.948Z",
+      "elapsedMs": 38810,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "playing",
+        "position": 596.578,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:24.833Z",
+      "elapsedMs": 42695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:29.833Z",
+      "elapsedMs": 47695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:30.948Z",
+      "elapsedMs": 48810,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "playing",
+        "position": 596.578,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:34.833Z",
+      "elapsedMs": 52695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:39.833Z",
+      "elapsedMs": 57695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:40.948Z",
+      "elapsedMs": 58810,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "playing",
+        "position": 596.578,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:44.833Z",
+      "elapsedMs": 62695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:48.488Z",
+      "elapsedMs": 66350,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "PLAYING",
+        "paused": false,
+        "position": 596,
+        "duration": 3609.523,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:48.489Z",
+      "elapsedMs": 66351,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "PLAYING",
+        "paused": false,
+        "position": 0,
+        "duration": 3609.523,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:48.519Z",
+      "elapsedMs": 66381,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "PLAYING",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:48.519Z",
+      "elapsedMs": 66381,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:48.527Z",
+      "elapsedMs": 66389,
+      "stage": "media.status",
+      "details": {
+        "alive": false,
+        "state": "IDLE",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:49.833Z",
+      "elapsedMs": 67695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:50.948Z",
+      "elapsedMs": 68810,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "idle",
+        "position": 0,
+        "sdkConnected": true,
+        "mediaLoaded": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:54.833Z",
+      "elapsedMs": 72695,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:58.781Z",
+      "elapsedMs": 76643,
+      "stage": "receiver.status",
+      "details": {
+        "connected": false,
+        "loaded": false,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T16:26:58.792Z",
+      "elapsedMs": 76654,
+      "stage": "session.clear",
+      "details": {
+        "reason": "sdk-disconnected",
+        "wasCasting": true,
+        "requesting": false
+      }
+    }
+  ]
+}

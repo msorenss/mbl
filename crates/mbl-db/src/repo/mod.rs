@@ -15,6 +15,7 @@ pub mod m9;
 pub mod mcp;
 pub mod media;
 pub mod metadata;
+pub mod online;
 pub mod sessions;
 pub mod settings;
 pub mod users;

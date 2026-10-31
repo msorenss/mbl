@@ -16,6 +16,7 @@ vi.mock("../context/AuthContext", () => ({
 }));
 vi.mock("../context/PlayerContext", () => ({ usePlayer: () => ({ playItem: ui.play }) }));
 vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: ui.toast }) }));
+vi.mock("../context/ThemeContext", () => ({ useTheme: () => ({ locale: () => "en" }) }));
 vi.mock("../components/LiveStreamPlayer", () => ({
   default: (props: View) => {
     ui.views.push(props);

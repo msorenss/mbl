@@ -81,7 +81,18 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     );
     runner.register(Arc::new(ScanHandler { scanner }));
 
-    let tmdb = match config.metadata.tmdb_api_key.trim() {
+    let settings_repo = mbl_db::repo::settings::SettingsRepo::new(db.clone());
+    let saved_key = settings_repo.get("tmdb_api_key").await.ok().flatten();
+    let effective_key = match (saved_key.as_deref(), config.metadata.tmdb_api_key.trim()) {
+        (Some(saved), _) if !saved.trim().is_empty() => saved.trim().to_string(),
+        (_, cfg) if !cfg.is_empty() => {
+            let _ = settings_repo.set("tmdb_api_key", cfg).await;
+            cfg.to_string()
+        }
+        _ => String::new(),
+    };
+
+    let tmdb = match effective_key.as_str() {
         "" => None,
         key => {
             let mut tmdb = mbl_metadata::TmdbConfig::new(key, config.metadata.language.clone());
@@ -106,6 +117,7 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         AppState::new(db.clone(), runner.queue(), images, events.clone(), info, secure_cookies);
     state.services.stream =
         state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
+    state.services.online = state.services.online.with_tools(tools.clone());
     state.services.livetv = state
         .services
         .livetv

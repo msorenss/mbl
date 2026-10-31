@@ -1,5 +1,5 @@
-import { A } from "@solidjs/router";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { A, useNavigate } from "@solidjs/router";
+import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { PosterCard } from "../components/PosterCard";
@@ -11,8 +11,13 @@ type Hub = components["schemas"]["Hub"];
 type ItemSummary = components["schemas"]["ItemSummary"];
 
 export function Home() {
-  const { playItem } = usePlayer();
+  const { playItem, playbackRevision } = usePlayer();
+  const navigate = useNavigate();
   const { t } = useI18n();
+
+  createEffect(() => {
+    if (playbackRevision() > 0) void loadData();
+  });
 
   const [layoutError, setLayoutError] = createSignal<string | null>(null);
   const [savingLayout, setSavingLayout] = createSignal(false);
@@ -107,14 +112,18 @@ export function Home() {
               durationMs={item().durationMs || undefined}
               backdropUrl={item().posterId ? `/api/v1/images/${item().posterId}?w=1080` : undefined}
               detailsHref={`/item/${item().id}`}
-              onPlay={() =>
+              onPlay={() => {
+                if (["show", "season", "artist", "album"].includes(item().kind)) {
+                  navigate(`/item/${item().id}`);
+                  return;
+                }
                 playItem({
                   itemId: item().id,
                   initialStartMs: Math.max(0, item().viewOffsetMs),
                   title: item().title,
                   subtitle: item().year ? String(item().year) : undefined,
-                })
-              }
+                });
+              }}
             />
           )}
         </Show>

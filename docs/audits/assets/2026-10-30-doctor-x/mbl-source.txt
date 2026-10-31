@@ -1,0 +1,215 @@
+- complementary:
+  - generic: M
+  - generic: MBL
+  - generic: Media Server
+  - navigation:
+    - link:
+      - /url: /
+      - generic: 🏠
+      - generic: Hem
+    - link:
+      - /url: /libraries
+      - generic: 📚
+      - generic: Bibliotek
+    - link:
+      - /url: /search
+      - generic: 🔍
+      - generic: Sök
+    - link:
+      - /url: /livetv
+      - generic: 📺
+      - generic: Live-TV
+    - generic: Admin
+    - link:
+      - /url: /admin/users
+      - generic: 👥
+      - generic: Användare
+    - link:
+      - /url: /admin/ai-agents
+      - generic: 🤖
+      - generic: AI-agenter
+    - link:
+      - /url: /admin/hardware
+      - generic: ⚡
+      - generic: Hårdvara
+    - link:
+      - /url: /admin/remote
+      - text: Remote access
+    - link:
+      - /url: /admin/workers
+      - generic: 🖥️
+      - generic: Distributed Nodes
+    - link:
+      - /url: /collections
+      - text: Collections & playlists
+    - link:
+      - /url: /requests
+      - text: Media requests
+    - link:
+      - /url: /account
+      - text: Account & security
+  - link:
+    - /url: /profiles
+    - generic: A
+    - generic: admin
+  - button: ⚙
+  - button: 🚪
+- banner:
+  - button:
+    - generic: 🔍
+    - generic: Search or jump to...
+    - generic: Ctrl+K
+  - button:
+    - generic: 🎨
+    - text: Tema & Inställningar
+  - generic: Online
+- main:
+  - heading [level=1]: 📺 Live TV & Channels
+  - paragraph: Watch broadcast television, manage DVR recordings, and stream online media plugins. Age-limited profiles record only the guide programme window, without extra padding.
+  - radiogroup:
+    - radio: EPG TV Guide
+    - radio: Tuners & Sources
+    - radio: DVR Recordings
+    - radio [checked]: Virtual & Plugins
+  - heading [level=2]: Virtual 24/7 Linear Channels
+  - paragraph: Continuous linear TV channels calculated mathematically with zero idle CPU overhead.
+  - button: ➕ Create Virtual Channel
+  - generic: No virtual channels configured. Create one above to assemble a continuous 24/7 channel from your library.
+  - heading [level=2]: Online Media Streaming Plugins
+  - paragraph: Integrate online services (YouTube, Spotify, WebDrama) directly into the unified media server.
+  - generic: Spotify (demo)
+  - generic: Disabled
+  - generic: v1.0.0
+  - generic: "Demo provider: sample catalogue only. Spotify streaming is not implemented."
+  - generic: "Author: MBL Team • Capabilities: audio_source"
+  - button: Enable
+  - button [disabled]: Browse Feeds
+  - generic: WebDrama
+  - generic: Active
+  - generic: v1.1.0
+  - generic: Internet title discovery, structured series metadata and checked direct-media previews. Some sites require their own player.
+  - generic: "Author: MBL Community • Capabilities: media_scraper"
+  - button: Disable
+  - button: Sök på webben
+  - generic: YouTube (demo)
+  - generic: Disabled
+  - generic: v1.0.0
+  - generic: "Demo provider: sample catalogue only. YouTube streaming is not implemented."
+  - generic: "Author: MBL Team • Capabilities: live_tv_channel, media_scraper"
+  - button: Enable
+  - button [disabled]: Browse Feeds
+- dialog "WebDrama — sök på internet":
+  - heading "WebDrama — sök på internet" [level=2]
+  - button "Dismiss": ✕
+  - paragraph: Sök titlar på hela webben. Kontrollera en källa före förhandsvisning. Vissa sidor kräver inloggning eller sin egen spelare.
+  - region "Senast spelat online":
+    - heading "Senast spelat online" [level=3]
+    - paragraph:
+      - button "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8 · 1:57"
+  - generic "Sökinställningar"
+  - option "Mwmbl" [selected]
+  - option "SearXNG"
+  - generic: Titel eller serie
+  - textbox "Titel eller serie":
+    - /placeholder: Single’s Inferno
+    - text: Doctor X episode 3
+  - button "Sök på webben"
+  - generic: Kontrollera en offentlig källadress
+  - textbox "Kontrollera en offentlig källadress":
+    - /placeholder: https://…
+    - text: https://flixstorm.cyou/watch/tv-doctor-x-mafia-in-white-1a00edpy?s=1&e=3
+  - button "Kontrollera källa"
+  - region "Kontrollerad källa":
+    - heading "Kontrollerad källa" [level=3]
+    - 'article "Doctor X: Mafia in White"':
+      - strong: "Doctor X: Mafia in White"
+      - generic: flixstorm.cyou
+      - paragraph: In a hospital dominated by ego and corruption, an enigmatic but brilliant surgeon arrives — taking on seemingly impossible cases amid fierce opposition.
+      - paragraph: Webbsida hittad
+      - paragraph: "Doctor X: Mafia in White"
+      - button "Kontrollera källa"
+      - link "Öppna webbplats":
+        - /url: https://flixstorm.cyou/watch/tv-doctor-x-mafia-in-white-1a00edpy?s=1&e=3
+    - paragraph: Page found. No directly verifiable video source was exposed; open the website to continue.
+  - paragraph: "Söktjänst: Mwmbl"
+  - heading "Webbträffar — Doctor X episode 3" [level=3]
+  - article "BiliBili":
+    - strong: BiliBili
+    - generic: www.bilibili.tv
+    - paragraph: Samurai X Episode 77 Season 3 Tagalog dubbed! (1996) Plot In the final years of the Bakumatsu era lived a legendary assassin known as Hitokiri Battousai.…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://www.bilibili.tv/en/video/2049618263
+  - article "BBC - In the Highest Tradition, Episode 3":
+    - strong: BBC - In the Highest Tradition, Episode 3
+    - generic: www.bbc.co.uk
+    - paragraph: Episode 3 First transmitted in 1989, this third episode in a six-part series delving into the world of regimental tradition looks at the role of the Gurk…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://www.bbc.co.uk/i/p00jvf2t/
+  - article "Back to Saturn X Episode 2 is out of beta! (v1.0.1 Aug 13, 2020)…":
+    - strong: Back to Saturn X Episode 2 is out of beta! (v1.0.1 Aug 13, 2020)…
+    - generic: www.doomworld.com
+    - paragraph: Recommended Posts The second episode of Back to Saturn X is now officially in public betareleased! We've been working our tails off getting everything to…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: http://www.doomworld.com/vb/thread/69960
+  - article "Ian Ziering - Alchetron, The Free Social Encyclopedia":
+    - strong: Ian Ziering - Alchetron, The Free Social Encyclopedia
+    - generic: alchetron.com
+    - paragraph: Project X Episode 048 - Ian Ziering and Dana Cavalea Ian Andrew Ziering (; born March 30, 1964) is an American actor and voice actor best known for his r…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://alchetron.com/Ian-Ziering
+  - article "BBC Two - Vikings, Episode 3":
+    - strong: BBC Two - Vikings, Episode 3
+    - generic: www.bbc.co.uk
+    - paragraph: Episode 3 Neil Oliver uncovers the truth about King Canute and explores how Christian conversions saw the Viking Age finally come to an end and the doors…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: http://www.bbc.co.uk/programmes/b01n3gbj
+  - article "Episode 3 Release Date - Andromeda Six by Wanderlust Games":
+    - strong: Episode 3 Release Date - Andromeda Six by Wanderlust Games
+    - generic: itch.io
+    - paragraph: Andromeda Six Episode 3 Release Date You've all been waiting so patiently for the next Episode, and today we're finally able to share the release date wi…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://itch.io/post/1427683/view-in-topic
+  - article "BBC One - Capital, Episode 3":
+    - strong: BBC One - Capital, Episode 3
+    - generic: www.bbc.co.uk
+    - paragraph: Episode 3 Contemporary drama. As the police investigation into the 'We Want What You Have' campaign leads them in an unexpected direction, DI Mill hopes …
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://www.bbc.co.uk/programmes/b06s2bb5
+  - article "Scythe X Episode 3? | DOOMUniverse":
+    - strong: Scythe X Episode 3? | DOOMUniverse
+    - generic: doomuniverse.com
+    - paragraph
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://doomuniverse.com/post/976
+  - article "BBC One - Hidden, Episode 3, Episode 3":
+    - strong: BBC One - Hidden, Episode 3, Episode 3
+    - generic: www.bbc.co.uk
+    - paragraph: Episode 3 After the explosion in his office and being held at gunpoint by a man he thought long dead, Harry has more questions for Gina. Determined to ge…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://www.bbc.co.uk/programmes/p00l72sv
+  - article "Doctor X (1932) - IMDb":
+    - strong: Doctor X (1932) - IMDb
+    - generic: www.imdb.com
+    - paragraph: For a time Warner Brothers did not have a print of the original Technicolor version and it was assumed to be lost. The Technicolor version was finally dis…
+    - paragraph: Inte kontrollerad
+    - button "Kontrollera källa"
+    - link "Öppna webbplats":
+      - /url: https://www.imdb.com/title/tt0022827/

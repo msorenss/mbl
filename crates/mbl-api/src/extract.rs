@@ -108,6 +108,30 @@ pub fn client_ip(parts_or_extensions: &axum::http::Extensions) -> String {
         .map_or_else(|| "unknown".to_owned(), |ci| ci.0.ip().to_string())
 }
 
+/// Client IP address from TCP ConnectInfo or X-Forwarded-For header.
+#[derive(Debug, Clone)]
+pub struct RemoteClientIp(pub String);
+
+impl<S: Send + Sync> FromRequestParts<S> for RemoteClientIp {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let ip = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ci| ci.0.ip().to_string())
+            .or_else(|| {
+                parts
+                    .headers
+                    .get("x-forwarded-for")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
+        Ok(Self(ip))
+    }
+}
+
 pub fn device_info(
     headers: &HeaderMap,
     device_name: Option<String>,

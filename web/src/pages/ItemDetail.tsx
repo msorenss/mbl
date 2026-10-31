@@ -15,7 +15,7 @@ type PlaybackPreview = components["schemas"]["PlaybackPreview"];
 export function ItemDetail() {
   const params = useParams();
   const itemId = () => Number(params.id);
-  const { playItem } = usePlayer();
+  const { playItem, playbackRevision } = usePlayer();
   const { showToast } = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -65,6 +65,7 @@ export function ItemDetail() {
 
   createEffect(() => {
     itemId();
+    playbackRevision();
     void loadData();
   });
 
@@ -684,7 +685,7 @@ export function ItemDetail() {
                     "font-weight": "var(--font-weight-bold)",
                   }}
                 >
-                  {t("episodes")}
+                  {item()?.kind === "show" ? t("seasons") : t("episodes")}
                 </h2>
                 <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-3)" }}>
                   <For each={children()}>
@@ -721,7 +722,7 @@ export function ItemDetail() {
                             <div
                               style={{ "font-weight": "600", "font-size": "var(--font-size-sm)" }}
                             >
-                              {child.title}
+                              <a href={`/item/${child.id}`}>{child.title}</a>
                             </div>
                             <div
                               style={{
@@ -737,16 +738,22 @@ export function ItemDetail() {
                         <Button
                           size="sm"
                           variant="primary"
-                          onClick={() =>
+                          onClick={() => {
+                            if (["show", "season", "artist", "album"].includes(child.kind)) {
+                              navigate(`/item/${child.id}`);
+                              return;
+                            }
                             playItem({
                               itemId: child.id,
                               initialStartMs: Math.max(0, child.viewOffsetMs),
                               title: child.title,
                               subtitle: item()?.title,
-                            })
-                          }
+                            });
+                          }}
                         >
-                          ▶ Play
+                          {["show", "season", "artist", "album"].includes(child.kind)
+                            ? child.title
+                            : "▶ Play"}
                         </Button>
                       </div>
                     )}

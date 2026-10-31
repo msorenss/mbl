@@ -3,10 +3,12 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Serialize;
+use mbl_core::Error;
+use mbl_db::repo::settings::SettingsRepo;
+use serde::{Deserialize, Serialize};
 
 use crate::dto::{LoginResponse, SetupRequest, SetupStatus};
-use crate::extract::device_info;
+use crate::extract::{AdminUser, AuthUser, device_info};
 use crate::routes::auth::login_response;
 use crate::{ApiError, AppState, ServerInfo};
 
@@ -16,6 +18,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/system/health", get(system_health))
         .route("/api/v1/system/info", get(info))
         .route("/api/v1/system/setup", get(setup_status).post(setup))
+        .route("/api/v1/system/settings", get(get_system_settings).patch(update_system_settings))
+        .route("/api/v1/system/settings/test-tmdb", axum::routing::post(test_tmdb))
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -73,4 +77,150 @@ async fn setup(
         .setup(&req.username, &req.password, req.display_name.as_deref(), &device)
         .await?;
     Ok(login_response(StatusCode::CREATED, result, state.secure_cookies))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemSettingsDto {
+    pub tmdb_configured: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tmdb_api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSystemSettingsRequest {
+    pub tmdb_api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TestTmdbRequest {
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TestTmdbResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// Current server system settings, including TMDB metadata provider status.
+#[utoipa::path(
+    get,
+    path = "/api/v1/system/settings",
+    tag = "system",
+    security(("bearer" = []), ("cookie" = [])),
+    responses(
+        (status = 200, body = SystemSettingsDto),
+        (status = 401, description = "Unauthorized")
+    )
+)]
+async fn get_system_settings(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> Result<Json<SystemSettingsDto>, ApiError> {
+    let repo = SettingsRepo::new(state.db.clone());
+    let saved_key = repo.get("tmdb_api_key").await?;
+    let is_configured = saved_key.as_deref().is_some_and(|k| !k.trim().is_empty());
+    let tmdb_api_key = if auth.actor.is_admin { saved_key } else { None };
+    Ok(Json(SystemSettingsDto { tmdb_configured: is_configured, tmdb_api_key }))
+}
+
+/// Update system settings (admin only).
+#[utoipa::path(
+    patch,
+    path = "/api/v1/system/settings",
+    tag = "system",
+    security(("bearer" = []), ("cookie" = [])),
+    request_body = UpdateSystemSettingsRequest,
+    responses(
+        (status = 200, body = SystemSettingsDto),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden (admin only)")
+    )
+)]
+async fn update_system_settings(
+    State(state): State<AppState>,
+    AdminUser(_admin): AdminUser,
+    Json(req): Json<UpdateSystemSettingsRequest>,
+) -> Result<Json<SystemSettingsDto>, ApiError> {
+    let repo = SettingsRepo::new(state.db.clone());
+    if let Some(key) = req.tmdb_api_key {
+        let trimmed = key.trim();
+        if trimmed.is_empty() {
+            repo.delete("tmdb_api_key").await?;
+        } else {
+            repo.set("tmdb_api_key", trimmed).await?;
+        }
+    }
+    let saved_key = repo.get("tmdb_api_key").await?;
+    let is_configured = saved_key.as_deref().is_some_and(|k| !k.trim().is_empty());
+    Ok(Json(SystemSettingsDto { tmdb_configured: is_configured, tmdb_api_key: saved_key }))
+}
+
+/// Test TMDB API key reachability and authentication (admin only).
+#[utoipa::path(
+    post,
+    path = "/api/v1/system/settings/test-tmdb",
+    tag = "system",
+    security(("bearer" = []), ("cookie" = [])),
+    request_body = TestTmdbRequest,
+    responses(
+        (status = 200, body = TestTmdbResponse),
+        (status = 400, description = "Invalid API key or communication failure"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden (admin only)")
+    )
+)]
+async fn test_tmdb(
+    State(state): State<AppState>,
+    AdminUser(_admin): AdminUser,
+    Json(req): Json<TestTmdbRequest>,
+) -> Result<Json<TestTmdbResponse>, ApiError> {
+    let key = if let Some(k) = req.api_key.filter(|k| !k.trim().is_empty()) {
+        k.trim().to_string()
+    } else {
+        let repo = SettingsRepo::new(state.db.clone());
+        repo.get("tmdb_api_key")
+            .await?
+            .filter(|k| !k.trim().is_empty())
+            .ok_or_else(|| Error::Validation("No TMDB API key provided or configured".into()))?
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(Error::internal)?;
+
+    // v4 read access tokens are JWTs (>40 chars); v3 keys are 32 hex chars.
+    let is_bearer = key.len() > 40;
+    let mut req_builder = client.get("https://api.themoviedb.org/3/configuration");
+    if is_bearer {
+        req_builder = req_builder.bearer_auth(&key);
+    } else {
+        req_builder = req_builder.query(&[("api_key", &key)]);
+    }
+
+    let resp = req_builder
+        .send()
+        .await
+        .map_err(|e| Error::External(format!("Failed to reach TMDB API: {e}")))?;
+
+    if resp.status().is_success() {
+        Ok(Json(TestTmdbResponse {
+            success: true,
+            message: "Successfully connected to TMDB API".into(),
+        }))
+    } else {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        tracing::warn!(status = %status, body = %body, "TMDB API verification failed");
+        Err(Error::Validation(format!(
+            "TMDB verification failed (status {}): please check that the API key is correct",
+            status.as_u16()
+        ))
+        .into())
+    }
 }

@@ -79,6 +79,8 @@ pub use playback::{
 };
 pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
 pub use plugins::PluginService;
+pub mod online;
+pub use online::OnlineService;
 pub use remote::{
     BandwidthUsageResponse, RemoteService, RemoteStatusResponse, UpdateRemotePolicyRequest,
 };
@@ -122,6 +124,7 @@ pub struct Services {
     pub nodes: RemoteNodeService,
     pub livetv: LiveTvService,
     pub plugins: PluginService,
+    pub online: OnlineService,
     pub import: ImportService,
 }
 
@@ -157,6 +160,7 @@ impl Services {
         let nodes = RemoteNodeService::new(db_arc.clone());
         let livetv = LiveTvService::new(db_arc.clone());
         let plugins = PluginService::new(db_arc.clone());
+        let online = OnlineService::new(db.clone());
         let import = ImportService::new(db_arc.clone());
 
         Self {
@@ -184,6 +188,7 @@ impl Services {
             nodes,
             livetv,
             plugins,
+            online,
             import,
         }
     }

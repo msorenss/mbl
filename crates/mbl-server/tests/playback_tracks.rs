@@ -342,3 +342,69 @@ async fn video_without_audio_transcodes_without_mapping_a_nonexistent_stream() {
     assert!(!master.body.as_str().unwrap().contains("mp4a"));
     stop(&app, &admin, &start.body).await;
 }
+
+#[tokio::test]
+async fn receiver_audio_encode_honors_profile_channel_limit() {
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let seeded = seed_playback_fixtures(&app, &db, &admin).await;
+    let path: String = sqlx::query_scalar("SELECT path FROM media_parts WHERE id=?")
+        .bind(seeded.movie_part_id)
+        .fetch_one(&db.read)
+        .await
+        .unwrap();
+    let tools = FfTools::locate("", "").await.unwrap();
+    let output = tokio::process::Command::new(&tools.ffmpeg)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=black:s=320x180:r=24:d=3",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=48000:cl=5.1:d=3",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "ac3",
+            "-f",
+            "matroska",
+        ])
+        .arg(&path)
+        .output()
+        .await
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    cache_probe(&db, &tools, &path, seeded.movie_part_id).await;
+    for (profile, channels, offset) in [
+        (json!("chromecast"), 2, 0),
+        (json!({"name":"chromecast", "maxAudioChannels":1}), 1, 250),
+        (json!({"name":"chromecast", "maxAudioChannels":6}), 6, 0),
+    ] {
+        let response = app
+            .call(
+                Method::POST,
+                "/api/v1/playback",
+                Some(&admin),
+                Some(json!({"itemId":seeded.movie_id,"profile":profile,"audioOffsetMs":offset})),
+            )
+            .await;
+        assert_eq!(response.status, StatusCode::OK, "{}", response.body);
+        assert_eq!(response.body["hlsGeneratedTimeline"], true);
+        let media = playlist(&services, &response.body).await;
+        let info = tools.probe(&media, Duration::from_secs(15)).await.unwrap();
+        let audio = info.streams.iter().find(|s| s.kind == mbl_core::StreamKind::Audio).unwrap();
+        assert_eq!(audio.codec, "aac");
+        assert_eq!(audio.channels, Some(channels));
+        stop(&app, &admin, &response.body).await;
+    }
+}

@@ -3,6 +3,8 @@ import client, { getStoredToken } from "../api/client";
 import { guideWindow } from "../api/liveTvTime";
 import type { components } from "../api/schema";
 import LiveStreamPlayer from "../components/LiveStreamPlayer";
+import { OnlineSearch } from "../components/OnlineSearch";
+import { PluginFeedBrowser } from "../components/PluginFeedBrowser";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Dialog } from "../components/ui/Dialog";
@@ -10,6 +12,7 @@ import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { useAuth } from "../context/AuthContext";
 import { usePlayer } from "../context/PlayerContext";
 import { useToast } from "../context/ToastContext";
+import { useI18n } from "../i18n";
 
 type EpgProgram = components["schemas"]["EpgProgram"];
 type Channel = components["schemas"]["Channel"];
@@ -20,10 +23,9 @@ type RecordingRule = components["schemas"]["RecordingRule"];
 type VirtualChannel = components["schemas"]["VirtualChannel"];
 type VirtualPlayhead = components["schemas"]["VirtualPlayhead"];
 type PluginManifest = components["schemas"]["PluginManifest"];
-type PluginChannelFeed = components["schemas"]["PluginChannelFeed"];
-type PluginItem = components["schemas"]["PluginItem"];
 
 export function LiveTv() {
+  const { t } = useI18n();
   const { showToast } = useToast();
   const { playItem } = usePlayer();
   const { user } = useAuth();
@@ -215,9 +217,6 @@ export function LiveTv() {
   const [plugins, setPlugins] = createSignal<PluginManifest[]>([]);
   const [pluginModalOpen, setPluginModalOpen] = createSignal(false);
   const [selectedPlugin, setSelectedPlugin] = createSignal<PluginManifest | null>(null);
-  const [pluginFeeds, setPluginFeeds] = createSignal<PluginChannelFeed[]>([]);
-  const [activeFeedItems, setActiveFeedItems] = createSignal<PluginItem[]>([]);
-  const [activeFeedTitle, setActiveFeedTitle] = createSignal("");
 
   // ---------------------------------------------------------------------------
   // Fetch Functions
@@ -855,36 +854,9 @@ export function LiveTv() {
     }
   };
 
-  const handleOpenPluginFeeds = async (manifest: PluginManifest) => {
+  const handleOpenPluginFeeds = (manifest: PluginManifest) => {
     setSelectedPlugin(manifest);
     setPluginModalOpen(true);
-    setPluginFeeds([]);
-    setActiveFeedItems([]);
-    try {
-      const res = await client.GET("/api/v1/plugins/{id}/channels", {
-        params: { path: { id: manifest.id } },
-      });
-      if (res.data) {
-        setPluginFeeds(res.data);
-        if (res.data.length > 0) {
-          handleSelectFeed(manifest.id, res.data[0].id, res.data[0].title);
-        }
-      }
-    } catch {
-      showToast({ title: "Error", message: "Failed to load plugin channels", type: "error" });
-    }
-  };
-
-  const handleSelectFeed = async (pluginId: string, feedId: string, feedTitle: string) => {
-    setActiveFeedTitle(feedTitle);
-    try {
-      const res = await client.GET("/api/v1/plugins/{id}/channels/{feedId}", {
-        params: { path: { id: pluginId, feedId } },
-      });
-      if (res.data) setActiveFeedItems(res.data);
-    } catch {
-      showToast({ title: "Error", message: "Failed to load feed items", type: "error" });
-    }
   };
 
   // ---------------------------------------------------------------------------
@@ -2119,7 +2091,7 @@ export function LiveTv() {
                         disabled={plugin.enabled === false}
                         onClick={() => handleOpenPluginFeeds(plugin)}
                       >
-                        Browse Feeds
+                        {plugin.id === "webdrama" ? t("onlineSearchAction") : "Browse Feeds"}
                       </Button>
                     </div>
                   </div>
@@ -2778,77 +2750,26 @@ export function LiveTv() {
       <Dialog
         open={pluginModalOpen()}
         onOpenChange={setPluginModalOpen}
-        title={`${selectedPlugin()?.name || "Plugin"} Channels & Feeds`}
-        description="Select a feed to browse online streaming channels and media items."
+        title={
+          selectedPlugin()?.id === "webdrama"
+            ? t("onlineTitle")
+            : `${selectedPlugin()?.name || "Plugin"} Channels & Feeds`
+        }
+        description={
+          selectedPlugin()?.id === "webdrama"
+            ? t("onlineDescription")
+            : "Select a feed to browse online streaming channels and media items."
+        }
       >
-        <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
-          {/* Feed Tabs / Pills */}
-          <div style={{ display: "flex", "flex-wrap": "wrap", gap: "6px" }}>
-            <For each={pluginFeeds()}>
-              {(feed) => (
-                <Button
-                  variant={activeFeedTitle() === feed.title ? "primary" : "secondary"}
-                  onClick={() => handleSelectFeed(selectedPlugin()!.id, feed.id, feed.title)}
-                >
-                  {feed.title}
-                </Button>
-              )}
-            </For>
-          </div>
-
-          {/* Active Feed Items */}
-          <div
-            style={{
-              "max-height": "360px",
-              "overflow-y": "auto",
-              display: "flex",
-              "flex-direction": "column",
-              gap: "8px",
-            }}
-          >
-            <Show
-              when={activeFeedItems().length > 0}
-              fallback={<div style={{ color: "var(--text-muted)" }}>No items in this feed.</div>}
-            >
-              <For each={activeFeedItems()}>
-                {(item) => (
-                  <div
-                    style={{
-                      display: "flex",
-                      "align-items": "center",
-                      "justify-content": "space-between",
-                      padding: "8px 12px",
-                      background: "var(--bg-base)",
-                      "border-radius": "var(--radius-sm)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <div>
-                      <div style={{ "font-weight": "700", "font-size": "13px" }}>{item.title}</div>
-                      {item.durationMs && (
-                        <div style={{ "font-size": "11px", color: "var(--text-muted)" }}>
-                          {Math.floor(item.durationMs / 60000)} mins
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        showToast({
-                          title: "Streaming Media",
-                          message: `Playing "${item.title}" via ${selectedPlugin()?.name}`,
-                          type: "info",
-                        });
-                      }}
-                    >
-                      ▶ Play
-                    </Button>
-                  </div>
-                )}
-              </For>
-            </Show>
-          </div>
-        </div>
+        <Show when={pluginModalOpen() ? selectedPlugin() : null} keyed>
+          {(plugin) =>
+            plugin.id === "webdrama" ? (
+              <OnlineSearch admin={user()?.isAdmin} />
+            ) : (
+              <PluginFeedBrowser pluginId={plugin.id} />
+            )
+          }
+        </Show>
       </Dialog>
     </div>
   );

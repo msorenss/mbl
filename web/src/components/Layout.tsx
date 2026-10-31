@@ -192,6 +192,10 @@ export function Layout(props: { children?: JSX.Element }) {
               <span>🖥️</span>
               <span>Distributed Nodes</span>
             </A>
+            <A href="/admin/settings" style={navLinkStyle("/admin/settings")}>
+              <span>⚙️</span>
+              <span>Settings</span>
+            </A>
           </Show>
           <A href="/collections" style={navLinkStyle("/collections")}>
             Collections & playlists
@@ -480,6 +484,7 @@ export function Layout(props: { children?: JSX.Element }) {
       {/* Settings & Appearance Sheet */}
       <Sheet open={settingsOpen()} onOpenChange={setSettingsOpen} title={t("settings")}>
         <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-6)" }}>
+          <a href="/api/docs">{t("apiReference")}</a>
           <A href="/collections" onClick={() => setSettingsOpen(false)}>
             Collections & playlists
           </A>
@@ -497,6 +502,18 @@ export function Layout(props: { children?: JSX.Element }) {
           <Show when={user()?.isAdmin}>
             <A href="/admin/remote" onClick={() => setSettingsOpen(false)}>
               Remote access
+            </A>
+            <A href="/admin/ai-agents" onClick={() => setSettingsOpen(false)}>
+              {t("aiAgents")}
+            </A>
+            <A href="/admin/hardware" onClick={() => setSettingsOpen(false)}>
+              {t("hardware")}
+            </A>
+            <A href="/admin/workers" onClick={() => setSettingsOpen(false)}>
+              {t("distributedNodes")}
+            </A>
+            <A href="/admin/settings" onClick={() => setSettingsOpen(false)}>
+              Settings
             </A>
           </Show>
           {/* Theme Selector */}

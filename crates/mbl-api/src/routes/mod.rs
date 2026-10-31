@@ -15,6 +15,7 @@ pub mod mcp;
 pub mod media_audio;
 pub mod nodes;
 pub mod oauth;
+pub mod online;
 pub mod photos;
 pub mod playback;
 pub mod players;

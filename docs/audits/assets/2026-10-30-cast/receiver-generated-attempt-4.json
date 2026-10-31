@@ -1,0 +1,556 @@
+{
+  "version": 1,
+  "attempt": 2,
+  "events": [
+    {
+      "at": "2026-10-30T18:33:23.891Z",
+      "elapsedMs": 0,
+      "stage": "attempt.start",
+      "details": {
+        "attempt": 2
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:23.918Z",
+      "elapsedMs": 27,
+      "stage": "sdk.available",
+      "details": {
+        "google": true,
+        "remote": true,
+        "localPaused": true,
+        "localPosition": 143.506
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:23.919Z",
+      "elapsedMs": 28,
+      "stage": "chooser.open",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T18:33:24.414Z",
+      "elapsedMs": 523,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 143.506,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:28.185Z",
+      "elapsedMs": 4294,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": true
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:28.198Z",
+      "elapsedMs": 4307,
+      "stage": "chooser.accepted",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T18:33:28.198Z",
+      "elapsedMs": 4307,
+      "stage": "prepare.begin",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T18:33:28.199Z",
+      "elapsedMs": 4308,
+      "stage": "local.prepare",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 143.506,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:28.204Z",
+      "elapsedMs": 4313,
+      "stage": "server.negotiate",
+      "details": {
+        "itemId": 3,
+        "profile": "chromecast",
+        "startMs": 143506
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:29.416Z",
+      "elapsedMs": 5525,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 143.506,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:34.414Z",
+      "elapsedMs": 10523,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 143.506,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.268Z",
+      "elapsedMs": 15377,
+      "stage": "server.response",
+      "details": {
+        "status": 200,
+        "generatedTimeline": true,
+        "method": "transcode",
+        "startMs": 143506,
+        "url": "http://192.168.68.147:18421/api/v1/stream/hls/[session]/master.m3u8"
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.369Z",
+      "elapsedMs": 15478,
+      "stage": "prepare.ready",
+      "details": {
+        "contentType": "application/vnd.apple.mpegurl",
+        "url": "http://192.168.68.147:18421/api/v1/stream/hls/[session]/master.m3u8",
+        "hlsFmp4": true
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.375Z",
+      "elapsedMs": 15484,
+      "stage": "load.send",
+      "details": {
+        "url": "http://192.168.68.147:18421/api/v1/stream/hls/[session]/master.m3u8",
+        "contentType": "application/vnd.apple.mpegurl",
+        "audioFormat": "fmp4",
+        "videoFormat": "fmp4",
+        "autoplay": false,
+        "position": 143.506,
+        "tracks": 44
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.444Z",
+      "elapsedMs": 15553,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": false,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 143.506,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.589Z",
+      "elapsedMs": 15698,
+      "stage": "load.accepted",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T18:33:39.598Z",
+      "elapsedMs": 15707,
+      "stage": "local.handoff",
+      "details": {
+        "casting": true,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 143.506,
+        "readyState": 4,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.609Z",
+      "elapsedMs": 15718,
+      "stage": "local.released",
+      "details": {
+        "casting": true,
+        "connecting": true,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.643Z",
+      "elapsedMs": 15752,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": false,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:39.987Z",
+      "elapsedMs": 16096,
+      "stage": "commands.connected",
+      "details": {}
+    },
+    {
+      "at": "2026-10-30T18:33:40.766Z",
+      "elapsedMs": 16875,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "IDLE",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:40.772Z",
+      "elapsedMs": 16881,
+      "stage": "media.status",
+      "details": {
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:40.773Z",
+      "elapsedMs": 16882,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "BUFFERING",
+        "paused": false,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:40.902Z",
+      "elapsedMs": 17011,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:40.948Z",
+      "elapsedMs": 17057,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "BUFFERING",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.057Z",
+      "elapsedMs": 17166,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "BUFFERING",
+        "paused": true,
+        "position": 0,
+        "duration": 0,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.078Z",
+      "elapsedMs": 17187,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "BUFFERING",
+        "paused": true,
+        "position": 0,
+        "duration": -1,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.081Z",
+      "elapsedMs": 17190,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "PAUSED",
+        "paused": true,
+        "position": 0,
+        "duration": -1,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.084Z",
+      "elapsedMs": 17193,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PAUSED",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.215Z",
+      "elapsedMs": 17324,
+      "stage": "registry.failed",
+      "details": {
+        "status": 422
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.458Z",
+      "elapsedMs": 17567,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PAUSED",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.719Z",
+      "elapsedMs": 17828,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PAUSED",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:41.993Z",
+      "elapsedMs": 18102,
+      "stage": "receiver.status",
+      "details": {
+        "connected": true,
+        "loaded": true,
+        "state": "PAUSED",
+        "paused": true,
+        "position": 140,
+        "duration": -1,
+        "requesting": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:42.011Z",
+      "elapsedMs": 18120,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PAUSED",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:42.493Z",
+      "elapsedMs": 18602,
+      "stage": "media.status",
+      "details": {
+        "alive": true,
+        "state": "PAUSED",
+        "idleReason": null
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:44.414Z",
+      "elapsedMs": 20523,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:49.415Z",
+      "elapsedMs": 25524,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:49.634Z",
+      "elapsedMs": 25743,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "paused",
+        "position": 140.104,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:49.985Z",
+      "elapsedMs": 26094,
+      "stage": "registry.failed",
+      "details": {
+        "status": 422
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:54.420Z",
+      "elapsedMs": 30529,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:59.414Z",
+      "elapsedMs": 35523,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:59.607Z",
+      "elapsedMs": 35716,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "paused",
+        "position": 140.104,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T18:33:59.770Z",
+      "elapsedMs": 35879,
+      "stage": "registry.failed",
+      "details": {
+        "status": 422
+      }
+    },
+    {
+      "at": "2026-10-30T18:34:04.414Z",
+      "elapsedMs": 40523,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:34:09.414Z",
+      "elapsedMs": 45523,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    },
+    {
+      "at": "2026-10-30T18:34:09.610Z",
+      "elapsedMs": 45719,
+      "stage": "receiver.heartbeat",
+      "details": {
+        "mode": "google",
+        "state": "paused",
+        "position": 140.104,
+        "sdkConnected": true,
+        "mediaLoaded": true
+      }
+    },
+    {
+      "at": "2026-10-30T18:34:09.859Z",
+      "elapsedMs": 45968,
+      "stage": "registry.failed",
+      "details": {
+        "status": 422
+      }
+    },
+    {
+      "at": "2026-10-30T18:34:14.416Z",
+      "elapsedMs": 50525,
+      "stage": "local.heartbeat",
+      "details": {
+        "casting": true,
+        "connecting": false,
+        "paused": true,
+        "ended": false,
+        "position": 0,
+        "readyState": 0,
+        "muted": false
+      }
+    }
+  ]
+}

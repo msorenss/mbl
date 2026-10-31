@@ -18,18 +18,27 @@ pub struct HlsRendition {
 /// When `segment_secs >= 6`, the first two segments use 3 s (`3000 ms`) for fast startup
 /// latency, and subsequent segments use `segment_secs * 1000 ms` (M2.5).
 pub fn segment_durations_ms(duration_ms: u64, segment_secs: u32) -> Vec<u64> {
+    segment_durations_ms_full(duration_ms, segment_secs, true)
+}
+
+/// Compute per-segment durations with explicit control over fast startup segments.
+pub fn segment_durations_ms_full(
+    duration_ms: u64,
+    segment_secs: u32,
+    fast_start: bool,
+) -> Vec<u64> {
     let seg_ms = u64::from(segment_secs.max(1)) * 1000;
     if duration_ms == 0 {
         return vec![seg_ms];
     }
 
-    let first_two_ms = if segment_secs >= 6 { 3_000 } else { seg_ms };
+    let first_two_ms = if fast_start && segment_secs >= 6 { 3_000 } else { seg_ms };
     let mut remaining = duration_ms;
     let mut out = Vec::new();
     let mut idx = 0usize;
 
     while remaining > 0 {
-        let target = if idx < 2 { first_two_ms } else { seg_ms };
+        let target = if fast_start && idx < 2 { first_two_ms } else { seg_ms };
         let chunk = remaining.min(target);
         out.push(chunk);
         remaining -= chunk;
@@ -40,8 +49,13 @@ pub fn segment_durations_ms(duration_ms: u64, segment_secs: u32) -> Vec<u64> {
 
 /// Compute the start timestamp in milliseconds for `segment_index`.
 pub fn segment_start_ms(segment_index: u32, segment_secs: u32) -> u64 {
+    segment_start_ms_full(segment_index, segment_secs, true)
+}
+
+/// Compute the start timestamp in milliseconds for `segment_index` with explicit fast-start control.
+pub fn segment_start_ms_full(segment_index: u32, segment_secs: u32, fast_start: bool) -> u64 {
     let seg_ms = u64::from(segment_secs.max(1)) * 1000;
-    if segment_secs >= 6 {
+    if fast_start && segment_secs >= 6 {
         match segment_index {
             0 => 0,
             1 => 3_000,
@@ -76,13 +90,23 @@ pub fn render_master_playlist(renditions: &[HlsRendition]) -> String {
 
 /// Render the upfront HLS VOD media playlist (`index.m3u8`) from the total media duration.
 pub fn render_media_playlist(duration_ms: u64, segment_secs: u32) -> String {
-    let target_duration = segment_secs.max(1);
-    let durations = segment_durations_ms(duration_ms, target_duration);
+    render_media_playlist_with_target(duration_ms, segment_secs, segment_secs.max(1), true)
+}
+
+/// Render the upfront HLS VOD media playlist (`index.m3u8`) with an explicit target duration.
+pub fn render_media_playlist_with_target(
+    duration_ms: u64,
+    segment_secs: u32,
+    target_duration: u32,
+    fast_start: bool,
+) -> String {
+    let target = target_duration.max(segment_secs).max(1);
+    let durations = segment_durations_ms_full(duration_ms, segment_secs.max(1), fast_start);
 
     let mut out = String::with_capacity(128 + durations.len() * 28);
     out.push_str("#EXTM3U\n");
     out.push_str("#EXT-X-VERSION:7\n");
-    let _ = writeln!(out, "#EXT-X-TARGETDURATION:{target_duration}");
+    let _ = writeln!(out, "#EXT-X-TARGETDURATION:{target}");
     out.push_str("#EXT-X-MEDIA-SEQUENCE:0\n");
     out.push_str("#EXT-X-PLAYLIST-TYPE:VOD\n");
     out.push_str("#EXT-X-MAP:URI=\"init.mp4\"\n");
@@ -129,6 +153,25 @@ fn rfc6381_codecs(video: Option<&str>, audio: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn media_playlist_uniform_segments_without_fast_start() {
+        let durations = segment_durations_ms_full(24_000, 6, false);
+        assert_eq!(durations, vec![6_000, 6_000, 6_000, 6_000]);
+
+        let m3u8 = render_media_playlist_with_target(24_000, 6, 10, false);
+        assert!(m3u8.contains("#EXT-X-TARGETDURATION:10\n"));
+        assert!(m3u8.contains("#EXT-X-PLAYLIST-TYPE:VOD\n"));
+        assert!(
+            m3u8.contains("#EXTINF:6.000,\n0.m4s\n#EXTINF:6.000,\n1.m4s\n#EXTINF:6.000,\n2.m4s\n#EXTINF:6.000,\n3.m4s\n")
+        );
+        assert!(m3u8.ends_with("#EXT-X-ENDLIST\n"));
+
+        assert_eq!(segment_start_ms_full(0, 6, false), 0);
+        assert_eq!(segment_start_ms_full(1, 6, false), 6_000);
+        assert_eq!(segment_start_ms_full(2, 6, false), 12_000);
+        assert_eq!(segment_start_ms_full(3, 6, false), 18_000);
+    }
 
     #[test]
     fn media_playlist_uses_3s_for_first_two_segments_then_6s() {

@@ -99,6 +99,20 @@ export function CommandPalette(props: CommandPaletteProps) {
 
     actions.push(
       {
+        id: "nav-api",
+        category: "Navigation",
+        label: t("apiReference"),
+        icon: "📖",
+        run: () => window.location.assign("/api/docs"),
+      },
+      {
+        id: "nav-requests",
+        category: "Navigation",
+        label: t("mediaRequests"),
+        icon: "🎬",
+        run: () => navigate("/requests"),
+      },
+      {
         id: "nav-collections",
         category: "Navigation",
         label: "Collections & playlists",
@@ -130,6 +144,13 @@ export function CommandPalette(props: CommandPaletteProps) {
       });
       actions.push(
         {
+          id: "admin-nodes",
+          category: "Admin",
+          label: t("distributedNodes"),
+          icon: "🖥️",
+          run: () => navigate("/admin/workers"),
+        },
+        {
           id: "admin-users",
           category: "Admin",
           label: t("users"),
@@ -149,6 +170,13 @@ export function CommandPalette(props: CommandPaletteProps) {
           label: t("hardware"),
           icon: "⚡",
           run: () => navigate("/admin/hardware"),
+        },
+        {
+          id: "admin-settings",
+          category: "Admin",
+          label: "Server Settings & TMDB",
+          icon: "⚙️",
+          run: () => navigate("/admin/settings"),
         },
       );
     }

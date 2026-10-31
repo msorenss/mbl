@@ -4045,6 +4045,306 @@
         ]
       }
     },
+    "/api/v1/online/history": {
+      "get": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "online_history",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OnlineHistoryEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/online/inspect": {
+      "post": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "inspect_online_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectOnlineSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnlineSource"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "422": {
+            "description": "Only public HTTP(S) source addresses are allowed"
+          },
+          "429": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/online/playback": {
+      "post": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "start_online",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectOnlineSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnlinePlayback"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "422": {},
+          "429": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/online/playback/{id}": {
+      "delete": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "stop_online",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {},
+          "403": {},
+          "404": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "progress_online",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnlineProgress"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "401": {},
+          "403": {},
+          "404": {},
+          "422": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/online/playback/{id}/index.m3u8": {
+      "get": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "online_manifest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "404": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/online/playback/{id}/resource/{index}": {
+      "get": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "online_resource",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validated bounded HLS segment or initialization bytes"
+          },
+          "401": {},
+          "403": {},
+          "404": {},
+          "429": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/online/search": {
+      "get": {
+        "tags": [
+          "online"
+        ],
+        "operationId": "search_online_sources",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Title to search for across the public web (2–160 characters)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnlineSearchResponse"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {
+            "description": "Unrated internet content is unavailable to restricted profiles"
+          },
+          "422": {
+            "description": "Search titles must contain 2–160 characters"
+          },
+          "429": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/playback": {
       "post": {
         "tags": [
@@ -5846,6 +6146,126 @@
           },
           "403": {}
         }
+      }
+    },
+    "/api/v1/system/settings": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Current server system settings, including TMDB metadata provider status.",
+        "operationId": "get_system_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Update system settings (admin only).",
+        "operationId": "update_system_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSystemSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden (admin only)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/settings/test-tmdb": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Test TMDB API key reachability and authentication (admin only).",
+        "operationId": "test_tmdb",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestTmdbRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestTmdbResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid API key or communication failure"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden (admin only)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
       }
     },
     "/api/v1/system/setup": {
@@ -8726,6 +9146,17 @@
           }
         }
       },
+      "InspectOnlineSourceRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "InviteRow": {
         "type": "object",
         "description": "Invitation to register with pre-assigned permissions.",
@@ -10131,6 +10562,247 @@
           }
         }
       },
+      "OnlineAvailability": {
+        "type": "string",
+        "enum": [
+          "unchecked",
+          "external_page",
+          "external_player",
+          "media_detected",
+          "restricted",
+          "unavailable",
+          "unknown"
+        ]
+      },
+      "OnlineEpisode": {
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "properties": {
+          "episodeNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "seasonNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "OnlineHistoryEntry": {
+        "type": "object",
+        "required": [
+          "source",
+          "position",
+          "duration",
+          "updatedAt"
+        ],
+        "properties": {
+          "duration": {
+            "type": "number",
+            "format": "double"
+          },
+          "position": {
+            "type": "number",
+            "format": "double"
+          },
+          "source": {
+            "$ref": "#/components/schemas/OnlineSource"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "OnlinePlayback": {
+        "type": "object",
+        "required": [
+          "id",
+          "streamUrl",
+          "hls",
+          "position",
+          "expiresAt"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hls": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number",
+            "format": "double"
+          },
+          "streamUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "OnlineProgress": {
+        "type": "object",
+        "required": [
+          "position",
+          "duration"
+        ],
+        "properties": {
+          "duration": {
+            "type": "number",
+            "format": "double"
+          },
+          "ended": {
+            "type": "boolean"
+          },
+          "heartbeatOnly": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "OnlineSearchResponse": {
+        "type": "object",
+        "required": [
+          "query",
+          "provider",
+          "results",
+          "indexed"
+        ],
+        "properties": {
+          "indexed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OnlineSource"
+            }
+          },
+          "provider": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OnlineSource"
+            }
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OnlineSource": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "title",
+          "kind",
+          "episodes",
+          "availability",
+          "detail"
+        ],
+        "properties": {
+          "availability": {
+            "$ref": "#/components/schemas/OnlineAvailability"
+          },
+          "checkedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "episodeNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OnlineEpisode"
+            }
+          },
+          "hasVideo": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mediaUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seasonNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "seriesTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "OptimizationEstimate": {
         "type": "object",
         "required": [
@@ -10892,6 +11564,13 @@
           "hasVideo": {
             "type": "boolean",
             "description": "Whether the negotiated source has a real video stream (cover art does not count)."
+          },
+          "hlsGeneratedTimeline": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Actual growing muxer timeline. Prepare a new playback request before seeking\nbeyond its indexed prefix; absent for direct play and fixed-grid sessions."
           },
           "itemId": {
             "$ref": "#/components/schemas/ItemId"
@@ -13082,6 +13761,23 @@
           }
         }
       },
+      "SystemSettingsDto": {
+        "type": "object",
+        "required": [
+          "tmdbConfigured"
+        ],
+        "properties": {
+          "tmdbApiKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tmdbConfigured": {
+            "type": "boolean"
+          }
+        }
+      },
       "TailscalePeer": {
         "type": "object",
         "description": "A peer on the tailnet and whether the connection is direct or relayed.",
@@ -13184,6 +13880,32 @@
           },
           "nodeName": {
             "type": "string"
+          }
+        }
+      },
+      "TestTmdbRequest": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TestTmdbResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
           }
         }
       },
@@ -13802,6 +14524,17 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateSystemSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "tmdbApiKey": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

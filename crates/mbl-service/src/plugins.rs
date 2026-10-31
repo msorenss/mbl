@@ -65,14 +65,14 @@ impl PluginService {
             "webdrama".to_string(),
             PluginManifest {
                 id: "webdrama".into(),
-                name: "WebDrama (demo)".into(),
-                version: "1.0.0".into(),
+                name: "WebDrama".into(),
+                version: "1.1.0".into(),
                 description:
-                    "Demo provider: sample catalogue only. WebDrama streaming is not implemented."
+                    "Internet title discovery, structured series metadata and checked direct-media previews. Some sites require their own player."
                         .into(),
                 author: "MBL Community".into(),
                 icon_url: None,
-                capabilities: vec![PluginCapability::MediaScraper, PluginCapability::LiveTvChannel],
+                capabilities: vec![PluginCapability::MediaScraper],
                 enabled: false,
             },
         );
@@ -146,6 +146,9 @@ impl PluginService {
         settings: serde_json::Value,
     ) -> Result<PluginConfig> {
         let manifest = self.get_manifest(plugin_id)?;
+        if plugin_id == "webdrama" {
+            crate::online::search::validate_settings(&settings)?;
+        }
         m9::upsert_plugin_config(&self.db, plugin_id, &manifest.name, enabled, &settings).await?;
         self.get_config(plugin_id).await
     }
@@ -189,15 +192,9 @@ impl PluginService {
                     items: tracks,
                 }])
             }
-            "webdrama" => {
-                let kdrama = self.get_feed_items(plugin_id, "k-drama").await.unwrap_or_default();
-                Ok(vec![PluginChannelFeed {
-                    id: "k-drama".into(),
-                    title: "Korean Dramas".into(),
-                    description: Some("Latest K-Drama episodes with subtitles".into()),
-                    items: kdrama,
-                }])
-            }
+            "webdrama" => Err(Error::Unavailable(
+                "WebDrama uses internet title search at /api/v1/online/search".into(),
+            )),
             _ => Ok(Vec::new()),
         }
     }
@@ -277,28 +274,9 @@ impl PluginService {
                     subtitles: Vec::new(),
                 },
             ]),
-            ("webdrama", "k-drama") => Ok(vec![PluginItem {
-                id: "wd-kd-1".into(),
-                plugin_id: plugin_id.into(),
-                title: "Crash Landing on Destiny - Episode 01".into(),
-                kind: "episode".into(),
-                overview: Some("Two strangers meet unexpectedly across borders.".into()),
-                thumbnail_url: None,
-                duration_ms: Some(4200 * 1000),
-                stream_url: None,
-                subtitles: vec![
-                    PluginSubtitle {
-                        language: "kor".into(),
-                        label: "Korean".into(),
-                        url: "https://example.com/drama/kd1_ep1_ko.vtt".into(),
-                    },
-                    PluginSubtitle {
-                        language: "eng".into(),
-                        label: "English".into(),
-                        url: "https://example.com/drama/kd1_ep1_en.vtt".into(),
-                    },
-                ],
-            }]),
+            ("webdrama", _) => Err(Error::Unavailable(
+                "Use WebDrama title search instead of the legacy demo feed".into(),
+            )),
             _ => Ok(Vec::new()),
         }
     }

@@ -8,6 +8,8 @@ export interface DialogProps {
   description?: string;
   children: JSX.Element;
   trigger?: JSX.Element;
+  onOpenAutoFocus?: (event: Event) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function Dialog(props: DialogProps) {
@@ -18,6 +20,8 @@ export function Dialog(props: DialogProps) {
     "description",
     "children",
     "trigger",
+    "onOpenAutoFocus",
+    "onCloseAutoFocus",
   ]);
 
   return (
@@ -46,9 +50,13 @@ export function Dialog(props: DialogProps) {
           }}
         >
           <KobalteDialog.Content
+            onOpenAutoFocus={local.onOpenAutoFocus}
+            onCloseAutoFocus={local.onCloseAutoFocus}
             style={{
               width: "100%",
               "max-width": "480px",
+              "max-height": "calc(100dvh - 2 * var(--space-4))",
+              "overflow-y": "auto",
               "background-color": "var(--bg-card)",
               border: "1px solid var(--border)",
               "border-radius": "var(--radius-lg)",

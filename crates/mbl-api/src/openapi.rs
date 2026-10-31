@@ -10,8 +10,8 @@ use utoipa::{Modify, OpenApi};
 use crate::AppState;
 use crate::routes::{
     auth, collections, companion, events, hw, images, import, intelligence, invites, items,
-    libraries, livetv, matchmaker, mcp, media_audio, nodes, oauth, photos, playback, players,
-    playlists, plugins, remote, requests, stream, system, users, webhooks, workers,
+    libraries, livetv, matchmaker, mcp, media_audio, nodes, oauth, online, photos, playback,
+    players, playlists, plugins, remote, requests, stream, system, users, webhooks, workers,
 };
 
 #[derive(OpenApi)]
@@ -19,6 +19,7 @@ use crate::routes::{
     info(title = "MBL API", description = "MBL media server REST API."),
     paths(
         system::health, system::system_health, system::info, system::setup_status, system::setup,
+        system::get_system_settings, system::update_system_settings, system::test_tmdb,
         auth::login, auth::logout, auth::me, auth::list_sessions, auth::revoke_session,
         auth::create_token, auth::list_tokens, auth::revoke_token,
         auth::totp_setup, auth::totp_verify, auth::totp_disable, auth::register_invite, auth::login_tailscale,
@@ -76,6 +77,8 @@ use crate::routes::{
         livetv::delete_virtual_channel, livetv::get_virtual_playhead,
         plugins::list_plugins, plugins::get_plugin, plugins::update_plugin_config,
         plugins::get_plugin_channels, plugins::get_feed_items, plugins::get_plugin_item, plugins::resolve_plugin_stream,
+        online::search_online_sources, online::inspect_online_source,
+        online::online_history, online::start_online, online::progress_online, online::stop_online, online::online_manifest, online::online_resource,
         import::import_plex, import::import_jellyfin,
     ),
     components(schemas(
@@ -236,11 +239,23 @@ use crate::routes::{
         livetv::SuccessResponse,
         plugins::UpdatePluginConfigRequest,
         plugins::PluginStreamUrlResponse,
+        online::InspectOnlineSourceRequest,
+        mbl_core::online::OnlineSearchResponse,
+        mbl_core::online::OnlineSource,
+        mbl_core::online::OnlineHistoryEntry,
+        mbl_core::online::OnlinePlayback,
+        mbl_core::online::OnlineProgress,
+        mbl_core::online::OnlineEpisode,
+        mbl_core::online::OnlineAvailability,
         mbl_service::PlexImportRequest,
         mbl_service::PlexImportItem,
         mbl_service::JellyfinImportRequest,
         mbl_service::JellyfinImportItem,
         mbl_service::ImportSummary,
+        system::SystemSettingsDto,
+        system::UpdateSystemSettingsRequest,
+        system::TestTmdbRequest,
+        system::TestTmdbResponse,
     )),
     modifiers(&Security),
     security(("bearer" = []), ("cookie" = [])),

@@ -24,6 +24,7 @@ vi.mock("../utils/cast", () => ({ castManager: cast }));
 const preferences = vi.hoisted(() => ({ offset: 0, saveOffset: vi.fn() }));
 vi.mock("../context/ThemeContext", () => ({
   useTheme: () => ({
+    locale: () => "en",
     subtitleStyle: () => ({ size: "md", background: "dim", color: "white" }),
     nightMode: () => false,
     setNightMode: vi.fn(),
@@ -624,4 +625,265 @@ it("renews a paused receiver session without using the hidden local video's time
     "/api/v1/playback/{session}/progress",
     expect.objectContaining({ body: { positionMs: 91000, state: "paused" } }),
   );
+});
+
+it("sends whole milliseconds when casting a fractional browser position", async () => {
+  vi.spyOn(client, "GET").mockResolvedValue({
+    data: { title: "Movie" },
+    response: new Response(),
+  } as never);
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    await prepare();
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  const video = document.querySelector("video") as HTMLVideoElement;
+  video.currentTime = 303.693649;
+  video.dispatchEvent(new Event("timeupdate"));
+  document.querySelector<HTMLButtonElement>('[title="Cast to TV (Chromecast)"]')?.click();
+  await tick();
+  await tick();
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({
+      body: expect.objectContaining({ profile: "chromecast", startMs: 303693 }),
+    }),
+  );
+});
+
+it("releases buffered local media on Google Cast handoff and blocks late local play", async () => {
+  const load = vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  const video = document.querySelector("video")!;
+  expect(video.getAttribute("src")).toBe("/movie.mp4");
+  const pauses = vi.mocked(video.pause).mock.calls.length;
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    playerState: "playing",
+    currentTime: 120,
+  };
+  emit(state);
+  expect(video.pause).toHaveBeenCalledTimes(pauses + 1);
+  expect(video.hasAttribute("src")).toBe(false);
+  expect(load).toHaveBeenCalledTimes(1);
+  video.dispatchEvent(new Event("play"));
+  video.dispatchEvent(new Event("playing"));
+  expect(video.pause).toHaveBeenCalledTimes(pauses + 3);
+  // Disconnect restores a local source, paused, at the receiver position.
+  const plays = vi.mocked(video.play).mock.calls.length;
+  state = { ...state, isCasting: false, currentTime: 0, playerState: "idle" };
+  emit(state);
+  expect(video.getAttribute("src")).toBe("/movie.mp4");
+  expect(video.currentTime).toBe(120);
+  expect(video.play).toHaveBeenCalledTimes(plays);
+});
+
+it("does not restart locally from keyboard or a late play event while Google chooser is pending", async () => {
+  let cancel: (success: boolean) => void = () => {};
+  cast.requestCastSession.mockImplementation(
+    () =>
+      new Promise<boolean>((resolve) => {
+        cancel = resolve;
+      }),
+  );
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  const video = document.querySelector("video")!;
+  video.dispatchEvent(new Event("play"));
+  document.querySelector<HTMLButtonElement>('[title="Cast to TV (Chromecast)"]')?.click();
+  state = { ...state, supportsAutoplayNext: true };
+  const plays = vi.mocked(video.play).mock.calls.length;
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
+  expect(video.play).toHaveBeenCalledTimes(plays);
+  const pauses = vi.mocked(video.pause).mock.calls.length;
+  video.dispatchEvent(new Event("play"));
+  expect(video.pause).toHaveBeenCalledTimes(pauses + 1);
+  cancel(false);
+  await tick();
+  expect(video.play).toHaveBeenCalledTimes(plays + 1);
+});
+
+it("keeps the media element available for native Remote Playback", async () => {
+  const load = vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  const video = document.querySelector("video")!;
+  const pauses = vi.mocked(video.pause).mock.calls.length;
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: false,
+    playerState: "playing",
+    currentTime: 120,
+  };
+  emit(state);
+  video.dispatchEvent(new Event("play"));
+  video.dispatchEvent(new Event("playing"));
+  expect(video.getAttribute("src")).toBe("/movie.mp4");
+  expect(video.pause).toHaveBeenCalledTimes(pauses);
+  expect(load).not.toHaveBeenCalled();
+});
+
+it("prepares a Cast HLS seek target instead of seeking outside the generated timeline", async () => {
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.spyOn(client, "POST").mockImplementation(async (path, options) => {
+    const body = (options as { body?: { profile?: string; startMs?: number } })?.body;
+    return path === "/api/v1/playback"
+      ? ({
+          data: {
+            sessionId: body?.profile === "chromecast" ? "receiver-new" : "local",
+            hlsGeneratedTimeline: true,
+            url: "http://192.168.1.20/stream.m3u8",
+            contentType: "application/vnd.apple.mpegurl",
+            method: "transcode",
+            startMs: body?.startMs ?? 0,
+            durationMs: 600000,
+            subtitles: [],
+            markers: [],
+          },
+          response: new Response(),
+        } as never)
+      : ({ response: new Response(null, { status: 204 }) } as never);
+  });
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    const media = await prepare();
+    expect(media.currentTime).toBe(100);
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    playerState: "playing",
+    currentTime: 90,
+  };
+  emit(state);
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+  await tick();
+  await tick();
+  expect(cast.seek).not.toHaveBeenCalled();
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({
+      body: expect.objectContaining({ profile: "chromecast", startMs: 100000, waitForReady: true }),
+    }),
+  );
+  expect(cast.requestCastSession).toHaveBeenCalledTimes(1);
+});
+
+it("keeps SDK seeking for older and fixed-grid Cast HLS responses", async () => {
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.spyOn(client, "POST").mockResolvedValue({
+    data: {
+      sessionId: "legacy",
+      url: "/legacy.m3u8",
+      method: "transcode",
+      startMs: 0,
+      durationMs: 600000,
+      subtitles: [],
+      markers: [],
+    },
+    response: new Response(),
+  } as never);
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    playerState: "playing",
+    currentTime: 90,
+  };
+  emit(state);
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+  expect(cast.seek).toHaveBeenCalledWith(100);
+  expect(cast.requestCastSession).not.toHaveBeenCalled();
+});
+
+it("replays a locally finished clip from zero when casting and reports new progress", async () => {
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  let heartbeat: () => void = () => {};
+  vi.spyOn(window, "setInterval").mockImplementation((fn) => {
+    heartbeat = fn as () => void;
+    return 999;
+  });
+  vi.spyOn(client, "POST").mockImplementation(async (path, options) => {
+    const body = (options as { body?: { profile?: string; startMs?: number } })?.body;
+    return path === "/api/v1/playback"
+      ? ({
+          data: {
+            sessionId: body?.profile === "chromecast" ? "replay" : "test",
+            url: "http://192.168.1.20/movie.mp4",
+            contentType: "video/mp4",
+            startMs: body?.startMs ?? 0,
+            durationMs: 600000,
+            subtitles: [],
+            markers: [],
+          },
+          response: new Response(),
+        } as never)
+      : ({ response: new Response(null, { status: 204 }) } as never);
+  });
+  cast.requestCastSession.mockImplementation(async (media, _video, prepare) => {
+    expect(media.currentTime).toBe(0);
+    expect(media.autoplay).toBe(true);
+    const prepared = await prepare();
+    expect(prepared.currentTime).toBe(0);
+    expect(prepared.autoplay).toBe(true);
+    state = {
+      ...state,
+      isCasting: true,
+      supportsAutoplayNext: true,
+      playerState: "playing",
+      currentTime: 0,
+    };
+    emit(state);
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  const video = document.querySelector("video")!;
+  video.currentTime = 600;
+  video.dispatchEvent(new Event("timeupdate"));
+  video.dispatchEvent(new Event("ended"));
+  await tick();
+  document.querySelector<HTMLButtonElement>('[title="Cast to TV (Chromecast)"]')?.click();
+  await tick();
+  await tick();
+  heartbeat();
+  await tick();
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({
+      body: expect.objectContaining({ startMs: 0, profile: "chromecast" }),
+    }),
+  );
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback/{session}/progress",
+    expect.objectContaining({
+      params: { path: { session: "replay" } },
+      body: { positionMs: 0, state: "playing" },
+    }),
+  );
+});
+
+it("does not start local replay when an EOF Cast chooser is canceled", async () => {
+  cast.requestCastSession.mockResolvedValue(false);
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  const video = document.querySelector("video")!;
+  video.currentTime = 600;
+  video.dispatchEvent(new Event("timeupdate"));
+  video.dispatchEvent(new Event("ended"));
+  const plays = vi.mocked(video.play).mock.calls.length;
+  document.querySelector<HTMLButtonElement>('[title="Cast to TV (Chromecast)"]')?.click();
+  await tick();
+  expect(cast.requestCastSession).toHaveBeenCalled();
+  expect(video.play).toHaveBeenCalledTimes(plays);
 });

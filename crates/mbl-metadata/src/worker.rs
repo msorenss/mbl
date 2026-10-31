@@ -13,13 +13,16 @@ use serde_json::json;
 use crate::nfo::{find_local_artwork, read_first_nfo};
 use crate::{Candidate, MetadataBundle, TmdbClient, score};
 
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
 /// Minimum confidence for automatically accepting a search result.
 pub const ACCEPT: f64 = 0.85;
 
 #[derive(Debug, Clone)]
 pub struct Matcher {
     db: Db,
-    tmdb: Option<TmdbClient>,
+    tmdb: Arc<RwLock<Option<(String, TmdbClient)>>>,
     events: EventBus,
 }
 
@@ -28,7 +31,41 @@ impl Matcher {
         if tmdb.is_none() {
             tracing::warn!("no TMDB API key configured: only local NFO metadata will be used");
         }
-        Self { db, tmdb, events }
+        Self { db, tmdb: Arc::new(RwLock::new(None)), events }
+    }
+
+    pub async fn get_tmdb(&self) -> Option<TmdbClient> {
+        let repo = mbl_db::repo::settings::SettingsRepo::new(self.db.clone());
+        let current_key = repo.get("tmdb_api_key").await.ok().flatten().unwrap_or_default();
+        let trimmed = current_key.trim();
+        if trimmed.is_empty() {
+            let mut lock = self.tmdb.write().await;
+            *lock = None;
+            return None;
+        }
+
+        {
+            let lock = self.tmdb.read().await;
+            if let Some((ref cached_key, ref client)) = *lock
+                && cached_key == trimmed
+            {
+                return Some(client.clone());
+            }
+        }
+
+        let config = crate::TmdbConfig::new(trimmed, "en-US");
+        if let Ok(client) = TmdbClient::new(config) {
+            let mut lock = self.tmdb.write().await;
+            *lock = Some((trimmed.to_string(), client.clone()));
+            Some(client)
+        } else {
+            None
+        }
+    }
+
+    pub async fn set_tmdb(&self, client: Option<TmdbClient>) {
+        let mut lock = self.tmdb.write().await;
+        *lock = client.map(|c| (String::new(), c));
     }
 
     /// Match one top-level item (movie or show) and store the result.
@@ -53,7 +90,8 @@ impl Matcher {
 
     async fn match_movie(&self, t: &MatchTarget) -> Result<()> {
         let local = self.local(t.id, false).await?;
-        let (online, confidence) = match &self.tmdb {
+        let tmdb = self.get_tmdb().await;
+        let (online, confidence) = match &tmdb {
             None => (MetadataBundle::default(), None),
             Some(c) => match local.tmdb_id.or(t.tmdb_id) {
                 Some(id) => (c.movie(id).await?, Some(1.0)),
@@ -73,7 +111,8 @@ impl Matcher {
 
     async fn match_show(&self, t: &MatchTarget) -> Result<()> {
         let local = self.local(t.id, true).await?;
-        let Some(client) = &self.tmdb else {
+        let tmdb = self.get_tmdb().await;
+        let Some(client) = tmdb.as_ref() else {
             return self.store(t, local, None).await;
         };
         let (online, confidence) = match local.tmdb_id.or(t.tmdb_id) {

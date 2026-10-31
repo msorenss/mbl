@@ -7,6 +7,7 @@ import { Player } from "./Player";
 const preferences = vi.hoisted(() => ({ offset: 0, saveOffset: vi.fn() }));
 vi.mock("../context/ThemeContext", () => ({
   useTheme: () => ({
+    locale: () => "en",
     subtitleStyle: () => ({ size: "md", background: "dim", color: "white" }),
     nightMode: () => false,
     setNightMode: vi.fn(),
@@ -941,4 +942,30 @@ it("times out a stuck heartbeat so it can renew again and aborts progress on clo
   } finally {
     vi.useRealTimers();
   }
+});
+
+it("notifies the parent only after close has persisted the stopped session", async () => {
+  const stopped = vi.fn();
+  let finishStop: (() => void) | undefined;
+  vi.mocked(client.POST).mockImplementation(async (path) => {
+    if (path === "/api/v1/playback/{session}/stop") {
+      await new Promise<void>((resolve) => {
+        finishStop = resolve;
+      });
+      return { response: new Response(null, { status: 204 }) } as never;
+    }
+    return { data: playback, response: new Response() } as never;
+  });
+  dispose = render(
+    () => createComponent(Player, { itemId: 7, onClose: vi.fn(), onStopped: stopped }),
+    container,
+  );
+  await tick();
+  dispose();
+  dispose = undefined;
+  expect(stopped).not.toHaveBeenCalled();
+  expect(finishStop).toBeTypeOf("function");
+  finishStop?.();
+  await tick();
+  expect(stopped).toHaveBeenCalledOnce();
 });

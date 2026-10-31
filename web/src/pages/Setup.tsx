@@ -728,7 +728,18 @@ export function Setup() {
 
           <button
             type="button"
-            onClick={() => setStep(4)}
+            onClick={async () => {
+              if (tmdbKey().trim()) {
+                try {
+                  await client.PATCH("/api/v1/system/settings", {
+                    body: { tmdbApiKey: tmdbKey().trim() },
+                  });
+                } catch {
+                  // Non-blocking in setup wizard
+                }
+              }
+              setStep(4);
+            }}
             style={{
               width: "100%",
               padding: "12px",

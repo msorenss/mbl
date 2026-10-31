@@ -210,3 +210,23 @@ reason = "Interactive player lease creation/renewal bound to the authenticated l
 [[exclusions]]
 path = "/api/v1/livetv/stream/{channelId}/release"
 reason = "Interactive player cleanup of an owned live-stream lease."
+
+[[exclusions]]
+path = "/api/v1/online/playback"
+reason = "Login-bound interactive online player lifecycle, resume heartbeats and binary HLS relay; discovery and media inspection are exposed by existing online MCP tools."
+
+[[exclusions]]
+path = "/api/v1/online/playback/{id}"
+reason = "Login-bound interactive online player lifecycle, resume heartbeats and binary HLS relay; discovery and media inspection are exposed by existing online MCP tools."
+
+[[exclusions]]
+path = "/api/v1/online/playback/{id}/index.m3u8"
+reason = "Login-bound interactive online player lifecycle, resume heartbeats and binary HLS relay; discovery and media inspection are exposed by existing online MCP tools."
+
+[[exclusions]]
+path = "/api/v1/online/playback/{id}/resource/{index}"
+reason = "Login-bound interactive online player lifecycle, resume heartbeats and binary HLS relay; discovery and media inspection are exposed by existing online MCP tools."
+
+[[exclusions]]
+path = "/api/v1/system/settings/test-tmdb"
+reason = "Interactive validation and connection testing for external TMDB API credentials."

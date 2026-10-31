@@ -1432,6 +1432,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/online/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspect_online_source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["start_online"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online/playback/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["stop_online"];
+        options?: never;
+        head?: never;
+        patch: operations["progress_online"];
+        trace?: never;
+    };
+    "/api/v1/online/playback/{id}/index.m3u8": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_manifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online/playback/{id}/resource/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_resource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_online_sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/playback": {
         parameters: {
             query?: never;
@@ -2111,6 +2223,41 @@ export interface paths {
         get: operations["get_remote_status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current server system settings, including TMDB metadata provider status. */
+        get: operations["get_system_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update system settings (admin only). */
+        patch: operations["update_system_settings"];
+        trace?: never;
+    };
+    "/api/v1/system/settings/test-tmdb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test TMDB API key reachability and authentication (admin only). */
+        post: operations["test_tmdb"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2959,6 +3106,9 @@ export interface components {
         IndexScenesRequest: {
             scenes?: components["schemas"]["SceneHintInput"][];
         };
+        InspectOnlineSourceRequest: {
+            url: string;
+        };
         /** @description Invitation to register with pre-assigned permissions. */
         InviteRow: {
             code: string;
@@ -3330,6 +3480,68 @@ export interface components {
             resource: string;
             scopes_supported: string[];
         };
+        /** @enum {string} */
+        OnlineAvailability: "unchecked" | "external_page" | "external_player" | "media_detected" | "restricted" | "unavailable" | "unknown";
+        OnlineEpisode: {
+            /** Format: int32 */
+            episodeNumber?: number | null;
+            /** Format: int32 */
+            seasonNumber?: number | null;
+            title: string;
+            url: string;
+        };
+        OnlineHistoryEntry: {
+            /** Format: double */
+            duration: number;
+            /** Format: double */
+            position: number;
+            source: components["schemas"]["OnlineSource"];
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        OnlinePlayback: {
+            /** Format: int64 */
+            expiresAt: number;
+            hls: boolean;
+            id: string;
+            /** Format: double */
+            position: number;
+            streamUrl: string;
+        };
+        OnlineProgress: {
+            /** Format: double */
+            duration: number;
+            ended?: boolean;
+            heartbeatOnly?: boolean;
+            /** Format: double */
+            position: number;
+        };
+        OnlineSearchResponse: {
+            indexed: components["schemas"]["OnlineSource"][];
+            provider: string;
+            query: string;
+            results: components["schemas"]["OnlineSource"][];
+            warning?: string | null;
+        };
+        OnlineSource: {
+            availability: components["schemas"]["OnlineAvailability"];
+            /** Format: int64 */
+            checkedAt?: number | null;
+            detail: string;
+            /** Format: int32 */
+            episodeNumber?: number | null;
+            episodes: components["schemas"]["OnlineEpisode"][];
+            hasVideo?: boolean | null;
+            id: string;
+            kind: string;
+            mediaUrl?: string | null;
+            /** Format: int32 */
+            seasonNumber?: number | null;
+            seriesTitle?: string | null;
+            summary?: string | null;
+            title: string;
+            url: string;
+        };
         OptimizationEstimate: {
             /** Format: int64 */
             estimatedDurationSecs: number;
@@ -3543,6 +3755,11 @@ export interface components {
             durationMs: number;
             /** @description Whether the negotiated source has a real video stream (cover art does not count). */
             hasVideo: boolean;
+            /**
+             * @description Actual growing muxer timeline. Prepare a new playback request before seeking
+             *     beyond its indexed prefix; absent for direct play and fixed-grid sessions.
+             */
+            hlsGeneratedTimeline?: boolean | null;
             itemId: components["schemas"]["ItemId"];
             markers: components["schemas"]["PlaybackMarker"][];
             method: components["schemas"]["PlayMethod"];
@@ -4107,6 +4324,10 @@ export interface components {
             /** Format: int64 */
             totalMemoryBytes?: number | null;
         };
+        SystemSettingsDto: {
+            tmdbApiKey?: string | null;
+            tmdbConfigured: boolean;
+        };
         /** @description A peer on the tailnet and whether the connection is direct or relayed. */
         TailscalePeer: {
             curAddr?: string | null;
@@ -4130,6 +4351,13 @@ export interface components {
             loginName: string;
             nodeIps: string[];
             nodeName: string;
+        };
+        TestTmdbRequest: {
+            apiKey?: string | null;
+        };
+        TestTmdbResponse: {
+            message: string;
+            success: boolean;
         };
         /** @description Snapshot of host thermal and power status. */
         ThermalStatus: {
@@ -4308,6 +4536,9 @@ export interface components {
             /** Format: int64 */
             arrId?: number | null;
             status: string;
+        };
+        UpdateSystemSettingsRequest: {
+            tmdbApiKey?: string | null;
         };
         UpdateUserPermissionsRequest: {
             contentRatingCeiling?: string | null;
@@ -7999,6 +8230,378 @@ export interface operations {
             };
         };
     };
+    online_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineHistoryEntry"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    inspect_online_source: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectOnlineSourceRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineSource"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only public HTTP(S) source addresses are allowed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    start_online: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectOnlineSourceRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlinePlayback"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stop_online: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    progress_online: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnlineProgress"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    online_manifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    online_resource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Validated bounded HLS segment or initialization bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_online_sources: {
+        parameters: {
+            query: {
+                /** @description Title to search for across the public web (2–160 characters) */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineSearchResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unrated internet content is unavailable to restricted profiles */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Search titles must contain 2–160 characters */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     start: {
         parameters: {
             query?: never;
@@ -9496,6 +10099,113 @@ export interface operations {
                     "application/json": components["schemas"]["RemoteStatusResponse"];
                 };
             };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_system_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettingsDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_system_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSystemSettingsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettingsDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    test_tmdb: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestTmdbRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestTmdbResponse"];
+                };
+            };
+            /** @description Invalid API key or communication failure */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden (admin only) */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -105,3 +105,56 @@ Se [granskningsrapporten](../../audits/2026-10-27-web-and-service-audit.md).
 SDK-referenser: [Media och uppdateringslyssnare](https://developers.google.com/cast/docs/reference/web_sender/chrome.cast.media.Media),
 [slutorsaker](https://developers.google.com/cast/docs/media/messages),
 [mediestöd och CORS](https://developers.google.com/cast/docs/media).
+
+## Cast-diagnostik i spelaren
+
+Öppna **📊 → Cast-diagnostik** (eller tryck `s` för statistik) och välj
+**Kopiera Cast-logg**. Om urklipp inte är tillgängligt kan textfältet markeras
+och kopieras manuellt. Vyn finns även när mottagaren kopplats ned.
+
+Loggen visar TV-val, serverförhandlingens HTTP-status, mediaformat, startposition,
+LOAD-begäran och kvittens, mottagarens `isConnected`, `isMediaLoaded`,
+`playerState`, position och längd, medieuppdateringar/slutorsaker, kommandon,
+heartbeat och kommandokanalens anslutning. SDK-fel visar tillgängliga felkoder
+utan att serialisera SDK-objekt. Ett försök som väntar i 20 sekunder får en
+särskild väntemarkering; detta ändrar inte uppspelningsbeteendet.
+
+Tiderna anges både som UTC och millisekunder från försökets början. En accepterad
+LOAD är separat från mottagarens PLAYING; även PLAYING kan behöva jämföras med
+om positionen faktiskt avancerar. Medielänkar maskerar query/fragment och HLS-/
+live-sessionernas capability-ID. Inga cookies, bearer tokens, lösenord, titlar
+eller enhetsnamn loggas av diagnostiken.
+
+Loggen ligger endast i den aktuella sidans minne, utan uppladdning eller
+beständig lagring. Den begränsas till 200 händelser: början bevaras tillsammans
+med de senaste händelserna. Ett nytt Cast-försök ersätter det gamla; omladdning
+av sidan tömmer loggen. **Kopiera därför efter felet och före nästa försök eller
+omladdning.** Rapporten innehåller fortfarande tekniska uppgifter som serverns
+värd/adress och item-ID; granska den innan du delar den.
+
+Detta är klientdiagnostik, inte fullständig HTTP-/FFmpeg-/mottagartelemetri.
+Serverns vanliga loggar och spelarstatistik kompletterar tidslinjen. MCP kan
+inte läsa en privat webbläsares minneslogg; delning sker genom explicit kopiering.
+
+## HLS med kopierad Cast-video
+
+När Chromecast kan använda videocodecen men behöver ompaketering eller annat
+ljud använder MBL FFmpegs verkliga segmentlista. Nyckelbilderna i originalfilen
+avgör segmentlängderna; servern anger därför inte en uppskattad 3/6-sekunderslista
+för det här flödet. Mottagarens init-fil och segmentens tidsstämplar behålls under
+hela sessionen, även om mottagaren först hämtar början och sedan återupptar längre
+in i avsnittet.
+
+Servern förbereder segment fram till återupptagningspunkten med en liten marginal.
+En sen start eller sökning kan därför ta längre tid och använda mer temporärt
+utrymme: den kopierade videon och det konverterade ljudet före målpunkten behöver
+indexeras. Förberedelsen begränsas till 60 sekunder och sessionerna omfattas av
+den ordinarie cachekvoten. Ett misslyckat nytt försök ersätter inte en redan
+ansluten mottagares befintliga källa. Spelarens sökknappar förbereder en ny
+Cast-källa vid behov. Direkt uppspelning och native Remote Playback använder
+sina ordinarie sökflöden.
+
+Det här gäller kopierad Cast-video. Full videoomkodning, den vanliga webbspelarens
+HLS-flöde och en fullständig slumpmässigt sökbar segmentindexering har separata
+flöden och kräver fortsatt verifiering. Fysisk TV-acceptans krävs utöver server-
+och browsertester.

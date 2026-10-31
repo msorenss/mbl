@@ -619,7 +619,9 @@ async fn cancelling_preparation_and_shutdown_leave_no_live_child_slot_or_directo
             'found: loop {
                 if let Ok(entries) = std::fs::read_dir(&root) {
                     for entry in entries.flatten() {
-                        if let Ok(pid) = std::fs::read_to_string(entry.path().join("pid")) {
+                        if let Ok(pid) = std::fs::read_to_string(entry.path().join("pid"))
+                            && !pid.trim().is_empty()
+                        {
                             break 'found pid;
                         }
                     }

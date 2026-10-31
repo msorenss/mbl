@@ -1,5 +1,3 @@
-//! Direct-play and HLS streaming endpoints.
-
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
@@ -12,7 +10,7 @@ use mbl_stream::hls::{
 use mbl_stream::subtitles::{parse_subtitle_target, serve_subtitle_file};
 use serde::Deserialize;
 
-use crate::extract::{SESSION_COOKIE, bearer_token, cookie};
+use crate::extract::{RemoteClientIp, SESSION_COOKIE, bearer_token, cookie};
 use crate::{ApiError, AppState};
 
 pub fn router() -> Router<AppState> {
@@ -87,22 +85,62 @@ pub struct DirectStreamQuery {
 )]
 pub async fn direct(
     State(state): State<AppState>,
+    RemoteClientIp(client_ip): RemoteClientIp,
     method: Method,
     Path(part_id): Path<PartId>,
     Query(query): Query<DirectStreamQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let actor = authenticate_stream(&state, &headers, query.token.as_deref(), part_id).await?;
-    let resolved = state.services.stream.resolve_part(&actor, part_id).await?;
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("-");
     let range_header = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
     let is_head = method == Method::HEAD;
-    Ok(mbl_stream::serve_direct_file(
+    let start_time = std::time::Instant::now();
+    tracing::info!(
+        part_id = part_id.0,
+        client_ip = %client_ip,
+        user_agent = %user_agent,
+        range = ?range_header,
+        is_head,
+        "Direct stream requested"
+    );
+    let actor = authenticate_stream(&state, &headers, query.token.as_deref(), part_id).await?;
+    let resolved = state.services.stream.resolve_part(&actor, part_id).await?;
+    let res = mbl_stream::serve_direct_file(
         &resolved.path,
         resolved.container.as_deref(),
         range_header,
         is_head,
     )
-    .await?)
+    .await;
+    let elapsed_ms = start_time.elapsed().as_millis();
+    match &res {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let bytes = response
+                .headers()
+                .get(header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("-");
+            tracing::info!(
+                part_id = part_id.0,
+                client_ip = %client_ip,
+                status,
+                bytes = %bytes,
+                elapsed_ms,
+                "Direct stream served"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                part_id = part_id.0,
+                client_ip = %client_ip,
+                error = %e,
+                elapsed_ms,
+                "Direct stream failed"
+            );
+        }
+    }
+    Ok(res?)
 }
 
 /// Read a live HLS capability URL while its authenticated owner's lease remains active.
@@ -111,10 +149,20 @@ pub async fn direct(
     responses((status = 200, description = "Live HLS playlist or fMP4 media"), (status = 404, description = "Expired lease or unavailable media"), (status = 401, description = "Owner login expired or revoked"), (status = 403, description = "Programme no longer allowed for this profile")))]
 pub async fn live_file(
     State(state): State<AppState>,
+    RemoteClientIp(client_ip): RemoteClientIp,
     method: Method,
     Path((session, file)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("-");
+    let start_time = std::time::Instant::now();
+    tracing::info!(
+        session = %session,
+        file = %file,
+        client_ip = %client_ip,
+        user_agent = %user_agent,
+        "Live file requested"
+    );
     let path = state.services.livetv.live_file(&session, &file).await?;
     let mut response = if file == "index.m3u8" {
         let playlist = tokio::fs::read_to_string(&path).await.map_err(|error| {
@@ -146,6 +194,19 @@ pub async fn live_file(
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    let elapsed_ms = start_time.elapsed().as_millis();
+    let status = response.status().as_u16();
+    let bytes =
+        response.headers().get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).unwrap_or("-");
+    tracing::info!(
+        session = %session,
+        file = %file,
+        client_ip = %client_ip,
+        status,
+        bytes = %bytes,
+        elapsed_ms,
+        "Live file served"
+    );
     Ok(response)
 }
 
@@ -162,9 +223,24 @@ pub async fn live_file(
 )]
 pub async fn hls_master(
     State(state): State<AppState>,
+    RemoteClientIp(client_ip): RemoteClientIp,
+    headers: HeaderMap,
     Path(session): Path<String>,
 ) -> Result<Response, ApiError> {
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("-");
+    tracing::info!(
+        session = %session,
+        client_ip = %client_ip,
+        user_agent = %user_agent,
+        "HLS master playlist requested"
+    );
     let m3u8 = state.services.stream.hls_master_playlist(&session).await?;
+    tracing::info!(
+        session = %session,
+        client_ip = %client_ip,
+        bytes = m3u8.len(),
+        "HLS master playlist served"
+    );
     Ok(serve_playlist(m3u8))
 }
 
@@ -188,9 +264,23 @@ pub async fn hls_master(
 )]
 pub async fn hls_rendition_file(
     State(state): State<AppState>,
+    RemoteClientIp(client_ip): RemoteClientIp,
+    headers: HeaderMap,
     Path((session, rendition, file)): Path<(String, String, String)>,
 ) -> Result<Response, ApiError> {
-    match file.as_str() {
+    let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("-");
+    let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
+    let start_time = std::time::Instant::now();
+    tracing::info!(
+        session = %session,
+        rendition = %rendition,
+        file = %file,
+        client_ip = %client_ip,
+        user_agent = %user_agent,
+        ?range,
+        "HLS rendition file requested"
+    );
+    let res = match file.as_str() {
         "index.m3u8" => {
             let m3u8 = state.services.stream.hls_media_playlist(&session, &rendition).await?;
             Ok(serve_playlist(m3u8))
@@ -205,7 +295,40 @@ pub async fn hls_rendition_file(
                 state.services.stream.hls_media_segment(&session, &rendition, seg_num).await?;
             Ok(serve_segment_file(&path, MIME_M4S).await?)
         }
+    };
+    let elapsed_ms = start_time.elapsed().as_millis();
+    match &res {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let bytes = response
+                .headers()
+                .get(header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("-");
+            tracing::info!(
+                session = %session,
+                rendition = %rendition,
+                file = %file,
+                client_ip = %client_ip,
+                status,
+                bytes = %bytes,
+                elapsed_ms,
+                "HLS rendition file served"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                session = %session,
+                rendition = %rendition,
+                file = %file,
+                client_ip = %client_ip,
+                error = ?e,
+                elapsed_ms,
+                "HLS rendition file failed"
+            );
+        }
     }
+    res
 }
 
 /// Convert an embedded or external subtitle stream to WebVTT (`{streamIndex}.vtt`) or serve raw

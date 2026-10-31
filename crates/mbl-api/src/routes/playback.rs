@@ -46,7 +46,22 @@ pub async fn start(
         mbl_remote::NetworkClass::Tailnet => mbl_service::PlaybackNetwork::TailnetDirect,
         mbl_remote::NetworkClass::Lan => mbl_service::PlaybackNetwork::Lan,
     });
+    tracing::info!(
+        user_id = %auth.actor.user_id.0,
+        item_id = req.item_id.0,
+        profile = ?req.profile,
+        start_ms = req.start_ms,
+        network = ?req.network,
+        "Playback start requested"
+    );
     let res = state.services.playback.start(&auth.actor, req).await?;
+    tracing::info!(
+        session = ?res.session_id,
+        method = ?res.method,
+        url = %res.url,
+        content_type = %res.content_type,
+        "Playback start decided"
+    );
     Ok(Json(res))
 }
 
@@ -70,6 +85,12 @@ pub async fn progress(
     Path(session): Path<String>,
     Json(req): Json<PlaybackProgressRequest>,
 ) -> Result<StatusCode, ApiError> {
+    tracing::debug!(
+        session = %session,
+        position_ms = req.position_ms,
+        state = ?req.state,
+        "Playback progress reported"
+    );
     state.services.playback.progress(&auth.actor, &session, req).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -99,6 +120,11 @@ pub async fn stop(
         serde_json::from_slice::<PlaybackStopRequest>(&body)
             .map_err(|e| Error::Validation(e.to_string()))?
     };
+    tracing::info!(
+        session = %session,
+        position_ms = req.position_ms,
+        "Playback stop requested"
+    );
     state.services.playback.stop(&auth.actor, &session, req).await?;
     Ok(StatusCode::NO_CONTENT)
 }
