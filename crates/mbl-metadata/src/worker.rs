@@ -31,19 +31,13 @@ impl Matcher {
         if tmdb.is_none() {
             tracing::warn!("no TMDB API key configured: only local NFO metadata will be used");
         }
-        Self { db, tmdb: Arc::new(RwLock::new(None)), events }
+        Self { db, tmdb: Arc::new(RwLock::new(tmdb.map(|client| (String::new(), client)))), events }
     }
 
     pub async fn get_tmdb(&self) -> Option<TmdbClient> {
         let repo = mbl_db::repo::settings::SettingsRepo::new(self.db.clone());
         let current_key = repo.get("tmdb_api_key").await.ok().flatten().unwrap_or_default();
         let trimmed = current_key.trim();
-        if trimmed.is_empty() {
-            let mut lock = self.tmdb.write().await;
-            *lock = None;
-            return None;
-        }
-
         {
             let lock = self.tmdb.read().await;
             if let Some((ref cached_key, ref client)) = *lock
@@ -51,6 +45,12 @@ impl Matcher {
             {
                 return Some(client.clone());
             }
+        }
+
+        if trimmed.is_empty() {
+            let mut lock = self.tmdb.write().await;
+            *lock = None;
+            return None;
         }
 
         let config = crate::TmdbConfig::new(trimmed, "en-US");
