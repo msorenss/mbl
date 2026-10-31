@@ -195,6 +195,33 @@ export function Libraries() {
     }
   };
 
+  const handleRefreshMetadata = async (lib: LibraryDto) => {
+    try {
+      const { data, error } = await client.POST("/api/v1/libraries/{id}/refresh", {
+        params: { path: { id: lib.id } },
+      });
+      if (data && !error) {
+        showToast({
+          title: "Metadata Refresh Queued",
+          message: `Refreshing TMDB metadata for ${lib.name} (Job #${data.jobId})`,
+          type: "success",
+        });
+      } else {
+        showToast({
+          title: "Refresh Failed",
+          message: apiErrorMessage(error, "Failed to trigger metadata refresh"),
+          type: "danger",
+        });
+      }
+    } catch (e) {
+      showToast({
+        title: "Error",
+        message: e instanceof Error ? e.message : "Network error",
+        type: "danger",
+      });
+    }
+  };
+
   onMount(loadLibraries);
 
   return (
@@ -405,6 +432,22 @@ export function Libraries() {
                         }}
                       >
                         🔄 Scan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRefreshMetadata(lib)}
+                        title="Refresh TMDB metadata and artwork"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-secondary)",
+                          padding: "5px 10px",
+                          "border-radius": "var(--radius-sm)",
+                          "font-size": "12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✨ Refresh TMDB
                       </button>
                       <button type="button" onClick={() => editLibrary(lib)}>
                         Edit

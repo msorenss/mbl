@@ -80,6 +80,26 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-31 — WebTV dedicated page with embedded player, TMDB library refresh, and Admin hub
+- **WebTV Rebranding & Dedicated Page:**
+  - Renamed WebDrama to **WebTV** across the UI, translations (`web/src/i18n/index.ts`), Command Palette, and navigation links.
+  - Created a dedicated top-level page `/webtv` (`web/src/pages/WebTv.tsx`) accessible directly from the desktop sidebar and mobile drawer.
+  - Embedded player prominently positioned at the top of the WebTV page for an integrated MBL streaming experience with personal resume, progress tracking, and stream previews.
+  - Linked WebTV from Live TV plugins with direct one-click navigation rather than trapping search in a modal.
+- **TMDB Metadata Refresh Endpoint & UI Controls:**
+  - Added backend route `POST /api/v1/libraries/{id}/refresh` in `crates/mbl-api/src/routes/libraries.rs` and `LibraryService::refresh` in `crates/mbl-service/src/libraries.rs`, enqueuing `metadata.refresh` background jobs to query TMDB and download posters, plot overviews, and season/episode details.
+  - Added "✨ Refresh TMDB" buttons to library cards in `Libraries.tsx` and the action bar in `LibraryDetail.tsx`.
+  - Tested live against TMDB API in the preview server: verified `Dark Matter` plot summaries, TMDB ID (`196322`), and artwork fetched and updated in SQLite.
+- **Centralized Settings Navigation Hub:**
+  - Added a responsive Admin Quick-Navigation Hub at the top of `/admin/settings` (`web/src/pages/admin/Settings.tsx`) linking to Users & PINs, AI Agents, Hardware & NPU, Remote Access, and Distributed Nodes.
+- **Verification:**
+  - `just web-check`: Biome clean, 209/209 Vitest passed across 40 test files (including new `WebTv.test.tsx`), `tsc -b` clean, initial Vite bundle 49.43 KB gzip (<= 150 KB budget).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo fmt --check`: Clean (0 diffs).
+  - `cargo xtask openapi-check`: Up to date.
+  - `cargo xtask mcp-parity`: 100.0% parity (160/160 endpoints).
+  - Deployed updated binary to `.dev/preview-cast/mbl-server` daemon on port 18421.
+
 ### 2026-10-31 — Media Lounge Box branding, Home Assistant MQTT, DLNA, AI Agent snippets, and TMDB Request search
 - **MBL Branding Update:**
   - Standardized branding across the application to **Media Lounge Box (MBL)** in `web/index.html`, sidebar navigation in `Layout.tsx`, and DLNA/UPnP device descriptions.

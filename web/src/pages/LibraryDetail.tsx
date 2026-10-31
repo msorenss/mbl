@@ -28,6 +28,7 @@ export function LibraryDetail() {
   let requestVersion = 0;
   const [loading, setLoading] = createSignal(true);
   const [isScanning, setIsScanning] = createSignal(false);
+  const [isRefreshing, setIsRefreshing] = createSignal(false);
   const [sortField, setSortField] = createSignal<SortField>("title");
   const [sortOrder, setSortOrder] = createSignal<SortOrder>("asc");
   const [unwatchedOnly, setUnwatchedOnly] = createSignal(false);
@@ -138,6 +139,37 @@ export function LibraryDetail() {
     }
   };
 
+  const handleRefreshMetadata = async () => {
+    if (isRefreshing()) return;
+    setIsRefreshing(true);
+    try {
+      const { data, error } = await client.POST("/api/v1/libraries/{id}/refresh", {
+        params: { path: { id: libraryId() } },
+      });
+      if (data && !error) {
+        showToast({
+          title: "Refresh Started",
+          message: `TMDB metadata refresh queued (Job #${data.jobId})`,
+          type: "success",
+        });
+      } else {
+        showToast({
+          title: "Refresh Failed",
+          message: error ? String(error) : "Failed to queue metadata refresh",
+          type: "danger",
+        });
+      }
+    } catch (e) {
+      showToast({
+        title: "Refresh Error",
+        message: e instanceof Error ? e.message : "Network error",
+        type: "danger",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   onMount(() => {
     const updateWidth = () => {
       if (parentRef) {
@@ -238,30 +270,55 @@ export function LibraryDetail() {
           </p>
         </div>
 
-        {/* Scan Button (Admin) */}
+        {/* Scan & Refresh Buttons (Admin) */}
         <Show when={user()?.isAdmin}>
-          <button
-            type="button"
-            onClick={handleScan}
-            disabled={isScanning()}
-            style={{
-              display: "flex",
-              "align-items": "center",
-              gap: "8px",
-              padding: "9px 16px",
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              "border-radius": "var(--radius-sm)",
-              "font-size": "13px",
-              "font-weight": "600",
-              cursor: isScanning() ? "not-allowed" : "pointer",
-              opacity: isScanning() ? 0.6 : 1,
-            }}
-          >
-            <span>🔄</span>
-            <span>{isScanning() ? "Scanning..." : "Scan Library"}</span>
-          </button>
+          <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
+            <button
+              type="button"
+              onClick={handleScan}
+              disabled={isScanning()}
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "8px",
+                padding: "9px 16px",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                "border-radius": "var(--radius-sm)",
+                "font-size": "13px",
+                "font-weight": "600",
+                cursor: isScanning() ? "not-allowed" : "pointer",
+                opacity: isScanning() ? 0.6 : 1,
+              }}
+            >
+              <span>🔄</span>
+              <span>{isScanning() ? "Scanning..." : "Scan Library"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRefreshMetadata}
+              disabled={isRefreshing()}
+              title="Refresh TMDB metadata and posters for items in this library"
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "8px",
+                padding: "9px 16px",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                "border-radius": "var(--radius-sm)",
+                "font-size": "13px",
+                "font-weight": "600",
+                cursor: isRefreshing() ? "not-allowed" : "pointer",
+                opacity: isRefreshing() ? 0.6 : 1,
+              }}
+            >
+              <span>✨</span>
+              <span>{isRefreshing() ? "Refreshing..." : "Refresh TMDB"}</span>
+            </button>
+          </div>
         </Show>
       </div>
 

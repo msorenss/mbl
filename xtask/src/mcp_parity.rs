@@ -76,6 +76,7 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
             "/api/v1/libraries" => mcp_tool_names.contains("list_libraries"),
             "/api/v1/libraries/{id}" => mcp_tool_names.contains("list_libraries"),
             "/api/v1/libraries/{id}/scan" => mcp_tool_names.contains("scan_library"),
+            "/api/v1/libraries/{id}/refresh" => mcp_tool_names.contains("refresh_metadata"),
             "/api/v1/libraries/{id}/items" => mcp_tool_names.contains("browse_items"),
             "/api/v1/search" => mcp_tool_names.contains("search_media"),
             "/api/v1/hubs/home" => mcp_tool_names.contains("get_hubs"),

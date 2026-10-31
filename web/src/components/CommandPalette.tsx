@@ -133,6 +133,13 @@ export function CommandPalette(props: CommandPaletteProps) {
         icon: "📺",
         run: () => navigate("/livetv"),
       },
+      {
+        id: "nav-webtv",
+        category: "Navigation",
+        label: t("webtv"),
+        icon: "🌐",
+        run: () => navigate("/webtv"),
+      },
     );
     if (user()?.isAdmin) {
       actions.push({

@@ -28,6 +28,7 @@ const RemoteAccess = lazy(() => import("./pages/admin/RemoteAccess"));
 const Workers = lazy(() => import("./pages/admin/Workers"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const LiveTv = lazy(() => import("./pages/LiveTv"));
+const WebTv = lazy(() => import("./pages/WebTv"));
 
 export function App() {
   return (
@@ -54,6 +55,7 @@ export function App() {
                 <Route path="/item/:id" component={ItemDetail} />
                 <Route path="/search" component={Search} />
                 <Route path="/livetv" component={LiveTv} />
+                <Route path="/webtv" component={WebTv} />
                 <Route path="/collections" component={Collections} />
                 <Route path="/account" component={Account} />
                 <Route path="/requests" component={Requests} />

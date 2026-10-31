@@ -1,3 +1,4 @@
+import { A } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
 import CastDiagnostics from "../../components/CastDiagnostics";
@@ -153,6 +154,117 @@ export default function Settings() {
           Could not load settings. Please refresh the page.
         </div>
       </Show>
+
+      {/* Central Admin Hub Quick Navigation */}
+      <div
+        style={{
+          display: "grid",
+          "grid-template-columns": "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: "10px",
+          "margin-bottom": "24px",
+        }}
+      >
+        <A
+          href="/admin/users"
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            padding: "12px 8px",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            color: "var(--text-primary)",
+            "text-decoration": "none",
+            gap: "6px",
+            "font-size": "13px",
+            "font-weight": "600",
+          }}
+        >
+          <span style={{ "font-size": "20px" }}>👥</span>
+          <span>Users & PINs</span>
+        </A>
+        <A
+          href="/admin/ai-agents"
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            padding: "12px 8px",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            color: "var(--text-primary)",
+            "text-decoration": "none",
+            gap: "6px",
+            "font-size": "13px",
+            "font-weight": "600",
+          }}
+        >
+          <span style={{ "font-size": "20px" }}>🤖</span>
+          <span>AI Agents</span>
+        </A>
+        <A
+          href="/admin/hardware"
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            padding: "12px 8px",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            color: "var(--text-primary)",
+            "text-decoration": "none",
+            gap: "6px",
+            "font-size": "13px",
+            "font-weight": "600",
+          }}
+        >
+          <span style={{ "font-size": "20px" }}>⚡</span>
+          <span>Hardware & NPU</span>
+        </A>
+        <A
+          href="/admin/remote"
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            padding: "12px 8px",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            color: "var(--text-primary)",
+            "text-decoration": "none",
+            gap: "6px",
+            "font-size": "13px",
+            "font-weight": "600",
+          }}
+        >
+          <span style={{ "font-size": "20px" }}>🌐</span>
+          <span>Remote Access</span>
+        </A>
+        <A
+          href="/admin/workers"
+          style={{
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            padding: "12px 8px",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            "border-radius": "var(--radius-md)",
+            color: "var(--text-primary)",
+            "text-decoration": "none",
+            gap: "6px",
+            "font-size": "13px",
+            "font-weight": "600",
+          }}
+        >
+          <span style={{ "font-size": "20px" }}>🖥️</span>
+          <span>Distributed Nodes</span>
+        </A>
+      </div>
 
       {/* 1. Server Branding & TMDB Section */}
       <div

@@ -16,6 +16,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/libraries", get(list).post(create))
         .route("/api/v1/libraries/{id}", get(get_one).patch(update).delete(remove))
         .route("/api/v1/libraries/{id}/scan", post(scan))
+        .route("/api/v1/libraries/{id}/refresh", post(refresh))
         .route("/api/v1/system/browse", get(browse))
 }
 
@@ -144,5 +145,17 @@ async fn scan(
     Path(id): Path<LibraryId>,
 ) -> Result<(StatusCode, Json<JobAccepted>), ApiError> {
     let job_id = state.services.libraries.scan(&auth.actor, id).await?;
+    Ok((StatusCode::ACCEPTED, Json(JobAccepted { job_id })))
+}
+
+/// Queue a metadata refresh for all items in a library (admin).
+#[utoipa::path(post, path = "/api/v1/libraries/{id}/refresh", tag = "libraries", operation_id = "refresh_library_metadata",
+    params(("id" = i64, Path)), responses((status = 202, body = JobAccepted), (status = 404)))]
+pub async fn refresh(
+    State(state): State<AppState>,
+    AdminUser(auth): AdminUser,
+    Path(id): Path<LibraryId>,
+) -> Result<(StatusCode, Json<JobAccepted>), ApiError> {
+    let job_id = state.services.libraries.refresh(&auth.actor, id).await?;
     Ok((StatusCode::ACCEPTED, Json(JobAccepted { job_id })))
 }

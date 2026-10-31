@@ -217,6 +217,39 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
         "overflow-wrap": "anywhere",
       }}
     >
+      <Show when={player()} keyed>
+        {(source) => (
+          <div
+            style={{
+              background: "var(--bg-surface)",
+              border: "2px solid var(--accent)",
+              "border-radius": "var(--radius-lg)",
+              padding: "16px",
+              "box-shadow": "0 8px 32px rgba(0, 0, 0, 0.4)",
+            }}
+          >
+            <OnlinePlayer
+              source={source}
+              onClose={() => setPlayer(undefined)}
+              onSaved={() => setHistoryVersion((v) => v + 1)}
+            />
+          </div>
+        )}
+      </Show>
+      <Show when={preview()} keyed>
+        {(source) => (
+          <div
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              "border-radius": "var(--radius-lg)",
+              padding: "16px",
+            }}
+          >
+            <OnlinePreview source={source} onClose={() => setPreview(undefined)} />
+          </div>
+        )}
+      </Show>
       <For each={[historyVersion()]}>
         {() => (
           <OnlineHistory
@@ -346,18 +379,6 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             </Show>
           </section>
         )}
-      </Show>
-      <Show when={player()} keyed>
-        {(source) => (
-          <OnlinePlayer
-            source={source}
-            onClose={() => setPlayer(undefined)}
-            onSaved={() => setHistoryVersion((v) => v + 1)}
-          />
-        )}
-      </Show>
-      <Show when={preview()} keyed>
-        {(source) => <OnlinePreview source={source} onClose={() => setPreview(undefined)} />}
       </Show>
       <Show when={results()} keyed>
         {(response) => (

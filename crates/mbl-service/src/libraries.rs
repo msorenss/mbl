@@ -39,6 +39,19 @@ impl LibraryService {
             .await
     }
 
+    /// Queue a metadata refresh for all items in a library.
+    pub async fn refresh(&self, actor: &Actor, id: LibraryId) -> Result<JobId> {
+        actor.require_admin()?;
+        self.repo.get(id).await?.ok_or(Error::NotFound)?;
+        self.jobs
+            .enqueue(
+                kinds::METADATA_REFRESH,
+                &serde_json::json!({ "libraryId": id }),
+                Priority::Normal,
+            )
+            .await
+    }
+
     /// Libraries visible to the actor.
     pub async fn list(&self, actor: &Actor) -> Result<Vec<Library>> {
         let mut libs = self.repo.list().await?;

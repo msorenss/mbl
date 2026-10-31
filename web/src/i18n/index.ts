@@ -24,9 +24,9 @@ export const translations = {
     onlineProviderSave: "Save search settings",
     onlineProviderSaved: "Search settings saved. Submit the title again.",
 
-    onlineTitle: "WebDrama — internet search",
+    onlineTitle: "WebTV — Online Media",
     onlineDescription:
-      "Search titles across the public web. Check each source before previewing. Some websites require sign-in or their own player.",
+      "Search and stream video channels, series, and online media directly inside Media Lounge Box.",
     onlineSearchLabel: "Title or series",
     onlineSearchAction: "Search the web",
     onlineSearching: "Searching the web…",
@@ -90,6 +90,7 @@ export const translations = {
     libraries: "Libraries",
     search: "Search",
     liveTv: "Live TV",
+    webtv: "WebTV",
     admin: "Admin",
     users: "Users",
     aiAgents: "AI Agents",
@@ -181,9 +182,9 @@ export const translations = {
     onlineProviderSave: "Spara sökinställningar",
     onlineProviderSaved: "Sökinställningar sparade. Sök på titeln igen.",
 
-    onlineTitle: "WebDrama — sök på internet",
+    onlineTitle: "WebTV — Strömmande webbmedia",
     onlineDescription:
-      "Sök titlar på hela webben. Kontrollera en källa före förhandsvisning. Vissa sidor kräver inloggning eller sin egen spelare.",
+      "Sök och spela upp strömmande video, serier och webb-tv direkt i Media Lounge Box.",
     onlineSearchLabel: "Titel eller serie",
     onlineSearchAction: "Sök på webben",
     onlineSearching: "Söker på webben…",
@@ -248,6 +249,7 @@ export const translations = {
     libraries: "Bibliotek",
     search: "Sök",
     liveTv: "Live-TV",
+    webtv: "WebTV",
     admin: "Admin",
     users: "Användare",
     aiAgents: "AI-agenter",
@@ -338,9 +340,9 @@ export const translations = {
     onlineProviderSave: "Sucheinstellungen speichern",
     onlineProviderSaved: "Gespeichert. Titel erneut suchen.",
 
-    onlineTitle: "WebDrama — Internetsuche",
+    onlineTitle: "WebTV — Online-Medien",
     onlineDescription:
-      "Titel im öffentlichen Web suchen. Jede Quelle vor der Vorschau prüfen. Manche Websites benötigen eine Anmeldung oder einen eigenen Player.",
+      "Durchsuchen und streamen Sie Online-Kanäle, Serien und Web-TV direkt in der Media Lounge Box.",
     onlineSearchLabel: "Titel oder Serie",
     onlineSearchAction: "Im Web suchen",
     onlineSearching: "Websuche läuft…",
@@ -407,6 +409,7 @@ export const translations = {
     libraries: "Mediathek",
     search: "Suche",
     liveTv: "Live-TV",
+    webtv: "WebTV",
     admin: "Admin",
     users: "Benutzer",
     aiAgents: "KI-Agenten",
@@ -497,9 +500,9 @@ export const translations = {
     onlineProviderSave: "Enregistrer la recherche",
     onlineProviderSaved: "Enregistré. Relancez la recherche du titre.",
 
-    onlineTitle: "WebDrama — recherche Internet",
+    onlineTitle: "WebTV — Médias en ligne",
     onlineDescription:
-      "Recherchez des titres sur le Web public. Vérifiez chaque source avant l’aperçu. Certains sites exigent une connexion ou leur propre lecteur.",
+      "Recherchez et diffusez des chaînes, séries et vidéos en ligne directement dans Media Lounge Box.",
     onlineSearchLabel: "Titre ou série",
     onlineSearchAction: "Rechercher sur le Web",
     onlineSearching: "Recherche sur le Web…",
@@ -564,6 +567,7 @@ export const translations = {
     libraries: "Médiathèques",
     search: "Rechercher",
     liveTv: "TV en direct",
+    webtv: "WebTV",
     admin: "Administration",
     users: "Utilisateurs",
     aiAgents: "Agents IA",
@@ -653,9 +657,9 @@ export const translations = {
     onlineProviderSave: "Guardar ajustes de búsqueda",
     onlineProviderSaved: "Guardado. Busque el título de nuevo.",
 
-    onlineTitle: "WebDrama — búsqueda en Internet",
+    onlineTitle: "WebTV — Medios en línea",
     onlineDescription:
-      "Busca títulos en la Web pública. Comprueba cada fuente antes de la vista previa. Algunas páginas requieren iniciar sesión o su propio reproductor.",
+      "Busque y reproduzca canales, series y vídeos en línea directamente en Media Lounge Box.",
     onlineSearchLabel: "Título o serie",
     onlineSearchAction: "Buscar en la Web",
     onlineSearching: "Buscando en la Web…",
@@ -720,6 +724,7 @@ export const translations = {
     libraries: "Bibliotecas",
     search: "Buscar",
     liveTv: "TV en vivo",
+    webtv: "WebTV",
     admin: "Administración",
     users: "Usuarios",
     aiAgents: "Agentes IA",

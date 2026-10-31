@@ -2086,13 +2086,35 @@ export function LiveTv() {
                       >
                         {plugin.enabled !== false ? "Disable" : "Enable"}
                       </Button>
-                      <Button
-                        variant="primary"
-                        disabled={plugin.enabled === false}
-                        onClick={() => handleOpenPluginFeeds(plugin)}
+                      <Show
+                        when={plugin.id === "webdrama"}
+                        fallback={
+                          <Button
+                            variant="primary"
+                            disabled={plugin.enabled === false}
+                            onClick={() => handleOpenPluginFeeds(plugin)}
+                          >
+                            Browse Feeds
+                          </Button>
+                        }
                       >
-                        {plugin.id === "webdrama" ? t("onlineSearchAction") : "Browse Feeds"}
-                      </Button>
+                        <a
+                          href="/webtv"
+                          style={{
+                            display: "inline-flex",
+                            "align-items": "center",
+                            padding: "8px 16px",
+                            background: "var(--accent)",
+                            color: "#fff",
+                            "border-radius": "var(--radius-sm)",
+                            "text-decoration": "none",
+                            "font-size": "13px",
+                            "font-weight": "600",
+                          }}
+                        >
+                          Open WebTV
+                        </a>
+                      </Show>
                     </div>
                   </div>
                 )}

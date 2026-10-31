@@ -157,6 +157,10 @@ export function Layout(props: { children?: JSX.Element }) {
             <span>📺</span>
             <span>{t("liveTv")}</span>
           </A>
+          <A href="/webtv" style={navLinkStyle("/webtv")}>
+            <span>🌐</span>
+            <span>{t("webtv")}</span>
+          </A>
 
           <Show when={user()?.isAdmin}>
             <div

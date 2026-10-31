@@ -2053,6 +2053,38 @@
         }
       }
     },
+    "/api/v1/libraries/{id}/refresh": {
+      "post": {
+        "tags": [
+          "libraries"
+        ],
+        "summary": "Queue a metadata refresh for all items in a library (admin).",
+        "operationId": "refresh_library_metadata",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          },
+          "404": {}
+        }
+      }
+    },
     "/api/v1/libraries/{id}/scan": {
       "post": {
         "tags": [
