@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::routing::get;
@@ -20,6 +20,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/system/setup", get(setup_status).post(setup))
         .route("/api/v1/system/settings", get(get_system_settings).patch(update_system_settings))
         .route("/api/v1/system/settings/test-tmdb", axum::routing::post(test_tmdb))
+        .route("/api/v1/system/tmdb/search", get(search_tmdb))
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -82,15 +83,31 @@ async fn setup(
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemSettingsDto {
+    pub server_name: String,
     pub tmdb_configured: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tmdb_api_key: Option<String>,
+    pub mqtt_enabled: bool,
+    pub mqtt_broker_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mqtt_username: Option<String>,
+    pub mqtt_topic_prefix: String,
+    pub dlna_enabled: bool,
+    pub dlna_friendly_name: String,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSystemSettingsRequest {
+    pub server_name: Option<String>,
     pub tmdb_api_key: Option<String>,
+    pub mqtt_enabled: Option<bool>,
+    pub mqtt_broker_url: Option<String>,
+    pub mqtt_username: Option<String>,
+    pub mqtt_password: Option<String>,
+    pub mqtt_topic_prefix: Option<String>,
+    pub dlna_enabled: Option<bool>,
+    pub dlna_friendly_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
@@ -106,7 +123,33 @@ pub struct TestTmdbResponse {
     pub message: String,
 }
 
-/// Current server system settings, including TMDB metadata provider status.
+#[derive(Debug, Clone, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchTmdbQuery {
+    pub query: String,
+    pub kind: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TmdbSearchHit {
+    pub id: i64,
+    pub title: String,
+    pub kind: String,
+    pub year: Option<i32>,
+    pub overview: Option<String>,
+    pub poster_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TmdbSearchResponse {
+    pub configured: bool,
+    pub results: Vec<TmdbSearchHit>,
+}
+
+/// Current server system settings, including TMDB metadata, MQTT, and DLNA configuration.
 #[utoipa::path(
     get,
     path = "/api/v1/system/settings",
@@ -122,10 +165,33 @@ async fn get_system_settings(
     AuthUser(auth): AuthUser,
 ) -> Result<Json<SystemSettingsDto>, ApiError> {
     let repo = SettingsRepo::new(state.db.clone());
+    let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
     let saved_key = repo.get("tmdb_api_key").await?;
     let is_configured = saved_key.as_deref().is_some_and(|k| !k.trim().is_empty());
     let tmdb_api_key = if auth.actor.is_admin { saved_key } else { None };
-    Ok(Json(SystemSettingsDto { tmdb_configured: is_configured, tmdb_api_key }))
+
+    let mqtt_enabled = repo.get("mqtt_enabled").await?.as_deref() == Some("true");
+    let mqtt_broker_url =
+        repo.get("mqtt_broker_url").await?.unwrap_or_else(|| "mqtt://localhost:1883".into());
+    let mqtt_username = if auth.actor.is_admin { repo.get("mqtt_username").await? } else { None };
+    let mqtt_topic_prefix =
+        repo.get("mqtt_topic_prefix").await?.unwrap_or_else(|| "mbl/media_lounge_box".into());
+
+    let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
+    let dlna_friendly_name =
+        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+
+    Ok(Json(SystemSettingsDto {
+        server_name,
+        tmdb_configured: is_configured,
+        tmdb_api_key,
+        mqtt_enabled,
+        mqtt_broker_url,
+        mqtt_username,
+        mqtt_topic_prefix,
+        dlna_enabled,
+        dlna_friendly_name,
+    }))
 }
 
 /// Update system settings (admin only).
@@ -147,6 +213,14 @@ async fn update_system_settings(
     Json(req): Json<UpdateSystemSettingsRequest>,
 ) -> Result<Json<SystemSettingsDto>, ApiError> {
     let repo = SettingsRepo::new(state.db.clone());
+    if let Some(name) = req.server_name {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            repo.delete("server_name").await?;
+        } else {
+            repo.set("server_name", trimmed).await?;
+        }
+    }
     if let Some(key) = req.tmdb_api_key {
         let trimmed = key.trim();
         if trimmed.is_empty() {
@@ -155,9 +229,77 @@ async fn update_system_settings(
             repo.set("tmdb_api_key", trimmed).await?;
         }
     }
+    if let Some(enabled) = req.mqtt_enabled {
+        repo.set("mqtt_enabled", if enabled { "true" } else { "false" }).await?;
+    }
+    if let Some(url) = req.mqtt_broker_url {
+        let trimmed = url.trim();
+        if trimmed.is_empty() {
+            repo.delete("mqtt_broker_url").await?;
+        } else {
+            repo.set("mqtt_broker_url", trimmed).await?;
+        }
+    }
+    if let Some(user) = req.mqtt_username {
+        let trimmed = user.trim();
+        if trimmed.is_empty() {
+            repo.delete("mqtt_username").await?;
+        } else {
+            repo.set("mqtt_username", trimmed).await?;
+        }
+    }
+    if let Some(pass) = req.mqtt_password {
+        let trimmed = pass.trim();
+        if trimmed.is_empty() {
+            repo.delete("mqtt_password").await?;
+        } else {
+            repo.set("mqtt_password", trimmed).await?;
+        }
+    }
+    if let Some(prefix) = req.mqtt_topic_prefix {
+        let trimmed = prefix.trim();
+        if trimmed.is_empty() {
+            repo.delete("mqtt_topic_prefix").await?;
+        } else {
+            repo.set("mqtt_topic_prefix", trimmed).await?;
+        }
+    }
+    if let Some(enabled) = req.dlna_enabled {
+        repo.set("dlna_enabled", if enabled { "true" } else { "false" }).await?;
+    }
+    if let Some(name) = req.dlna_friendly_name {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            repo.delete("dlna_friendly_name").await?;
+        } else {
+            repo.set("dlna_friendly_name", trimmed).await?;
+        }
+    }
+
+    let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
     let saved_key = repo.get("tmdb_api_key").await?;
     let is_configured = saved_key.as_deref().is_some_and(|k| !k.trim().is_empty());
-    Ok(Json(SystemSettingsDto { tmdb_configured: is_configured, tmdb_api_key: saved_key }))
+    let mqtt_enabled = repo.get("mqtt_enabled").await?.as_deref() == Some("true");
+    let mqtt_broker_url =
+        repo.get("mqtt_broker_url").await?.unwrap_or_else(|| "mqtt://localhost:1883".into());
+    let mqtt_username = repo.get("mqtt_username").await?;
+    let mqtt_topic_prefix =
+        repo.get("mqtt_topic_prefix").await?.unwrap_or_else(|| "mbl/media_lounge_box".into());
+    let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
+    let dlna_friendly_name =
+        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+
+    Ok(Json(SystemSettingsDto {
+        server_name,
+        tmdb_configured: is_configured,
+        tmdb_api_key: saved_key,
+        mqtt_enabled,
+        mqtt_broker_url,
+        mqtt_username,
+        mqtt_topic_prefix,
+        dlna_enabled,
+        dlna_friendly_name,
+    }))
 }
 
 /// Test TMDB API key reachability and authentication (admin only).
@@ -223,4 +365,111 @@ async fn test_tmdb(
         ))
         .into())
     }
+}
+
+/// Search TMDB for movies or TV shows (authenticated users).
+#[utoipa::path(
+    get,
+    path = "/api/v1/system/tmdb/search",
+    tag = "system",
+    security(("bearer" = []), ("cookie" = [])),
+    params(SearchTmdbQuery),
+    responses(
+        (status = 200, body = TmdbSearchResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
+async fn search_tmdb(
+    State(state): State<AppState>,
+    AuthUser(_auth): AuthUser,
+    Query(params): Query<SearchTmdbQuery>,
+) -> Result<Json<TmdbSearchResponse>, ApiError> {
+    let repo = SettingsRepo::new(state.db.clone());
+    let key = repo.get("tmdb_api_key").await?;
+    let Some(key) = key.filter(|k| !k.trim().is_empty()) else {
+        return Ok(Json(TmdbSearchResponse { configured: false, results: vec![] }));
+    };
+
+    let trimmed_query = params.query.trim();
+    if trimmed_query.is_empty() {
+        return Ok(Json(TmdbSearchResponse { configured: true, results: vec![] }));
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(Error::internal)?;
+
+    let is_bearer = key.len() > 40;
+    let endpoint = match params.kind.as_deref() {
+        Some("movie") => "https://api.themoviedb.org/3/search/movie",
+        Some("tv") | Some("show") => "https://api.themoviedb.org/3/search/tv",
+        _ => "https://api.themoviedb.org/3/search/multi",
+    };
+
+    let mut req = client.get(endpoint).query(&[("query", trimmed_query)]);
+    if is_bearer {
+        req = req.bearer_auth(&key);
+    } else {
+        req = req.query(&[("api_key", &key)]);
+    }
+
+    let resp =
+        req.send().await.map_err(|e| Error::External(format!("Failed to reach TMDB: {e}")))?;
+    if !resp.status().is_success() {
+        return Ok(Json(TmdbSearchResponse { configured: true, results: vec![] }));
+    }
+
+    #[derive(Deserialize)]
+    struct TmdbRawItem {
+        id: i64,
+        title: Option<String>,
+        name: Option<String>,
+        media_type: Option<String>,
+        release_date: Option<String>,
+        first_air_date: Option<String>,
+        overview: Option<String>,
+        poster_path: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    struct TmdbRawResponse {
+        #[serde(default)]
+        results: Vec<TmdbRawItem>,
+    }
+
+    let raw: TmdbRawResponse = resp.json().await.unwrap_or(TmdbRawResponse { results: vec![] });
+    let hits = raw
+        .results
+        .into_iter()
+        .filter_map(|item| {
+            let title = item.title.or(item.name)?;
+            let kind = item.media_type.unwrap_or_else(|| {
+                if params.kind.as_deref() == Some("tv") || params.kind.as_deref() == Some("show") {
+                    "show".to_string()
+                } else {
+                    "movie".to_string()
+                }
+            });
+            let normalized_kind = if kind == "tv" { "show".to_string() } else { kind };
+            if normalized_kind != "movie" && normalized_kind != "show" {
+                return None;
+            }
+            let date = item.release_date.or(item.first_air_date);
+            let year = date.as_deref().and_then(|d| d.get(..4)).and_then(|y| y.parse::<i32>().ok());
+            let poster_url =
+                item.poster_path.map(|p| format!("https://image.tmdb.org/t/p/w300{p}"));
+            Some(TmdbSearchHit {
+                id: item.id,
+                title,
+                kind: normalized_kind,
+                year,
+                overview: item.overview.filter(|o| !o.is_empty()),
+                poster_url,
+            })
+        })
+        .take(10)
+        .collect();
+
+    Ok(Json(TmdbSearchResponse { configured: true, results: hits }))
 }

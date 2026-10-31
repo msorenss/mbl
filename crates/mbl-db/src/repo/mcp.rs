@@ -195,6 +195,7 @@ pub async fn list_all_tokens(db: &Db) -> Result<Vec<ApiTokenInfo>> {
     let rows = sqlx::query_as::<_, ApiTokenRow>(
         "SELECT id, user_id, name, scopes, allowed_networks, created_at, expires_at, last_used_at, revoked_at
          FROM api_tokens
+         WHERE revoked_at IS NULL
          ORDER BY created_at DESC, id DESC",
     )
     .fetch_all(&db.read)

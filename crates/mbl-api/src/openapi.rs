@@ -19,7 +19,7 @@ use crate::routes::{
     info(title = "MBL API", description = "MBL media server REST API."),
     paths(
         system::health, system::system_health, system::info, system::setup_status, system::setup,
-        system::get_system_settings, system::update_system_settings, system::test_tmdb,
+        system::get_system_settings, system::update_system_settings, system::test_tmdb, system::search_tmdb,
         auth::login, auth::logout, auth::me, auth::list_sessions, auth::revoke_session,
         auth::create_token, auth::list_tokens, auth::revoke_token,
         auth::totp_setup, auth::totp_verify, auth::totp_disable, auth::register_invite, auth::login_tailscale,
@@ -256,6 +256,8 @@ use crate::routes::{
         system::UpdateSystemSettingsRequest,
         system::TestTmdbRequest,
         system::TestTmdbResponse,
+        system::TmdbSearchHit,
+        system::TmdbSearchResponse,
     )),
     modifiers(&Security),
     security(("bearer" = []), ("cookie" = [])),

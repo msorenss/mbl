@@ -959,6 +959,18 @@ async fn m2_14_ai_agent_wizard_audit_view_and_kill_switch_lifecycle() {
     assert!(stdio.contains("MBL_TOKEN=\"mbl_pat_dummy_token_123\""));
     assert!(stdio.contains("mbl-cli mcp --server \"http://192.168.1.100:8420\""));
 
+    let antigravity = snippets_res.body["antigravity"].as_str().unwrap();
+    assert!(antigravity.contains("mbl-cli"));
+    assert!(antigravity.contains("mbl_pat_dummy_token_123"));
+
+    let hermes = snippets_res.body["hermes"].as_str().unwrap();
+    assert!(hermes.contains("http://192.168.1.100:8420/mcp"));
+    assert!(hermes.contains("Bearer mbl_pat_dummy_token_123"));
+
+    let openclaw = snippets_res.body["openclaw"].as_str().unwrap();
+    assert!(openclaw.contains("http://192.168.1.100:8420/mcp"));
+    assert!(openclaw.contains("Bearer mbl_pat_dummy_token_123"));
+
     // 3. Token creation (Token Wizard flow)
     let tok_res = app
         .call(

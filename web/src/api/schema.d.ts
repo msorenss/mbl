@@ -2236,7 +2236,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Current server system settings, including TMDB metadata provider status. */
+        /** Current server system settings, including TMDB metadata, MQTT, and DLNA configuration. */
         get: operations["get_system_settings"];
         put?: never;
         post?: never;
@@ -2276,6 +2276,23 @@ export interface paths {
         put?: never;
         /** Create the first admin account. Only allowed while no users exist. */
         post: operations["setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/tmdb/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search TMDB for movies or TV shows (authenticated users). */
+        get: operations["search_tmdb"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3320,8 +3337,11 @@ export interface components {
         };
         /** @description Ready-to-copy configuration snippets for popular AI agents and IDEs. */
         McpConfigSnippets: {
+            antigravity: string;
             claudeDesktop: string;
             cursor: string;
+            hermes: string;
+            openclaw: string;
             stdio: string;
             vscode: string;
         };
@@ -4325,6 +4345,13 @@ export interface components {
             totalMemoryBytes?: number | null;
         };
         SystemSettingsDto: {
+            dlnaEnabled: boolean;
+            dlnaFriendlyName: string;
+            mqttBrokerUrl: string;
+            mqttEnabled: boolean;
+            mqttTopicPrefix: string;
+            mqttUsername?: string | null;
+            serverName: string;
             tmdbApiKey?: string | null;
             tmdbConfigured: boolean;
         };
@@ -4385,6 +4412,20 @@ export interface components {
             underVoltageOccurred: boolean;
             /** @description Human-readable dashboard warnings for admins. */
             warnings: string[];
+        };
+        TmdbSearchHit: {
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            overview?: string | null;
+            posterUrl?: string | null;
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        TmdbSearchResponse: {
+            configured: boolean;
+            results: components["schemas"]["TmdbSearchHit"][];
         };
         TokenForm: {
             client_id?: string | null;
@@ -4538,6 +4579,14 @@ export interface components {
             status: string;
         };
         UpdateSystemSettingsRequest: {
+            dlnaEnabled?: boolean | null;
+            dlnaFriendlyName?: string | null;
+            mqttBrokerUrl?: string | null;
+            mqttEnabled?: boolean | null;
+            mqttPassword?: string | null;
+            mqttTopicPrefix?: string | null;
+            mqttUsername?: string | null;
+            serverName?: string | null;
             tmdbApiKey?: string | null;
         };
         UpdateUserPermissionsRequest: {
@@ -10255,6 +10304,35 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_tmdb: {
+        parameters: {
+            query: {
+                query: string;
+                kind?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TmdbSearchResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

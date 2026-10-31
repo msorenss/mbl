@@ -6153,7 +6153,7 @@
         "tags": [
           "system"
         ],
-        "summary": "Current server system settings, including TMDB metadata provider status.",
+        "summary": "Current server system settings, including TMDB metadata, MQTT, and DLNA configuration.",
         "operationId": "get_system_settings",
         "responses": {
           "200": {
@@ -6317,6 +6317,55 @@
           "409": {}
         },
         "security": []
+      }
+    },
+    "/api/v1/system/tmdb/search": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Search TMDB for movies or TV shows (authenticated users).",
+        "operationId": "search_tmdb",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TmdbSearchResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
       }
     },
     "/api/v1/users": {
@@ -9982,13 +10031,25 @@
           "vscode",
           "claudeDesktop",
           "cursor",
-          "stdio"
+          "stdio",
+          "antigravity",
+          "hermes",
+          "openclaw"
         ],
         "properties": {
+          "antigravity": {
+            "type": "string"
+          },
           "claudeDesktop": {
             "type": "string"
           },
           "cursor": {
+            "type": "string"
+          },
+          "hermes": {
+            "type": "string"
+          },
+          "openclaw": {
             "type": "string"
           },
           "stdio": {
@@ -13764,9 +13825,39 @@
       "SystemSettingsDto": {
         "type": "object",
         "required": [
-          "tmdbConfigured"
+          "serverName",
+          "tmdbConfigured",
+          "mqttEnabled",
+          "mqttBrokerUrl",
+          "mqttTopicPrefix",
+          "dlnaEnabled",
+          "dlnaFriendlyName"
         ],
         "properties": {
+          "dlnaEnabled": {
+            "type": "boolean"
+          },
+          "dlnaFriendlyName": {
+            "type": "string"
+          },
+          "mqttBrokerUrl": {
+            "type": "string"
+          },
+          "mqttEnabled": {
+            "type": "boolean"
+          },
+          "mqttTopicPrefix": {
+            "type": "string"
+          },
+          "mqttUsername": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serverName": {
+            "type": "string"
+          },
           "tmdbApiKey": {
             "type": [
               "string",
@@ -13969,6 +14060,63 @@
               "type": "string"
             },
             "description": "Human-readable dashboard warnings for admins."
+          }
+        }
+      },
+      "TmdbSearchHit": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "overview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "posterUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TmdbSearchResponse": {
+        "type": "object",
+        "required": [
+          "configured",
+          "results"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TmdbSearchHit"
+            }
           }
         }
       },
@@ -14530,6 +14678,54 @@
       "UpdateSystemSettingsRequest": {
         "type": "object",
         "properties": {
+          "dlnaEnabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "dlnaFriendlyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mqttBrokerUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mqttEnabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "mqttPassword": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mqttTopicPrefix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mqttUsername": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serverName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "tmdbApiKey": {
             "type": [
               "string",

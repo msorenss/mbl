@@ -55,6 +55,9 @@ pub struct McpConfigSnippets {
     pub claude_desktop: String,
     pub cursor: String,
     pub stdio: String,
+    pub antigravity: String,
+    pub hermes: String,
+    pub openclaw: String,
 }
 
 /// Preset permission bundle for the Token Wizard.
@@ -67,7 +70,7 @@ pub struct McpPreset {
     pub scopes: Vec<String>,
 }
 
-/// Generate client configuration snippets for VS Code, Claude Desktop, Cursor, and stdio.
+/// Generate client configuration snippets for VS Code, Claude Desktop, Cursor, stdio, Antigravity, Hermes, and OpenClaw.
 pub fn generate_snippets(server_url: Option<&str>, token: &str) -> McpConfigSnippets {
     let base = server_url
         .unwrap_or("http://localhost:8420")
@@ -112,6 +115,44 @@ pub fn generate_snippets(server_url: Option<&str>, token: &str) -> McpConfigSnip
         }
     });
 
+    let antigravity_obj = serde_json::json!({
+        "mcpServers": {
+            "media-lounge-box": {
+                "command": "mbl-cli",
+                "args": ["mcp", "--server", base],
+                "env": {
+                    "MBL_TOKEN": token
+                }
+            }
+        }
+    });
+
+    let hermes_obj = serde_json::json!({
+        "mcpServers": {
+            "media_lounge_box": {
+                "url": mcp_url,
+                "headers": {
+                    "Authorization": format!("Bearer {token}")
+                },
+                "capabilities": ["tools", "resources", "companion"]
+            }
+        }
+    });
+
+    let openclaw_obj = serde_json::json!({
+        "mcp": {
+            "servers": [
+                {
+                    "name": "media-lounge-box",
+                    "url": mcp_url,
+                    "headers": {
+                        "Authorization": format!("Bearer {token}")
+                    }
+                }
+            ]
+        }
+    });
+
     let stdio_cmd = format!(r#"MBL_TOKEN="{token}" mbl-cli mcp --server "{base}""#);
 
     McpConfigSnippets {
@@ -119,6 +160,9 @@ pub fn generate_snippets(server_url: Option<&str>, token: &str) -> McpConfigSnip
         claude_desktop: serde_json::to_string_pretty(&claude_obj).unwrap_or_default(),
         cursor: serde_json::to_string_pretty(&cursor_obj).unwrap_or_default(),
         stdio: stdio_cmd,
+        antigravity: serde_json::to_string_pretty(&antigravity_obj).unwrap_or_default(),
+        hermes: serde_json::to_string_pretty(&hermes_obj).unwrap_or_default(),
+        openclaw: serde_json::to_string_pretty(&openclaw_obj).unwrap_or_default(),
     }
 }
 

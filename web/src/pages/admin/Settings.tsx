@@ -6,6 +6,9 @@ import { useToast } from "../../context/ToastContext";
 
 export default function Settings() {
   const { showToast } = useToast();
+
+  // Server & TMDB state
+  const [serverName, setServerName] = createSignal("Media Lounge Box");
   const [apiKey, setApiKey] = createSignal("");
   const [showKey, setShowKey] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
@@ -14,10 +17,29 @@ export default function Settings() {
     null,
   );
 
+  // Home Assistant & MQTT state
+  const [mqttEnabled, setMqttEnabled] = createSignal(false);
+  const [mqttBrokerUrl, setMqttBrokerUrl] = createSignal("mqtt://localhost:1883");
+  const [mqttUsername, setMqttUsername] = createSignal("");
+  const [mqttPassword, setMqttPassword] = createSignal("");
+  const [showMqttPassword, setShowMqttPassword] = createSignal(false);
+  const [mqttTopicPrefix, setMqttTopicPrefix] = createSignal("mbl/media_lounge_box");
+
+  // DLNA state
+  const [dlnaEnabled, setDlnaEnabled] = createSignal(true);
+  const [dlnaFriendlyName, setDlnaFriendlyName] = createSignal("Media Lounge Box");
+
   const [settings, { refetch }] = createResource(async () => {
     const res = await client.GET("/api/v1/system/settings");
     if (res.data) {
+      setServerName(res.data.serverName || "Media Lounge Box");
       setApiKey(res.data.tmdbApiKey || "");
+      setMqttEnabled(Boolean(res.data.mqttEnabled));
+      setMqttBrokerUrl(res.data.mqttBrokerUrl || "mqtt://localhost:1883");
+      setMqttUsername(res.data.mqttUsername || "");
+      setMqttTopicPrefix(res.data.mqttTopicPrefix || "mbl/media_lounge_box");
+      setDlnaEnabled(res.data.dlnaEnabled ?? true);
+      setDlnaFriendlyName(res.data.dlnaFriendlyName || "Media Lounge Box");
       return res.data;
     }
     throw new Error("Could not load system settings.");
@@ -29,15 +51,23 @@ export default function Settings() {
     setTestResult(null);
     try {
       const res = await client.PATCH("/api/v1/system/settings", {
-        body: { tmdbApiKey: apiKey().trim() },
+        body: {
+          serverName: serverName().trim() || undefined,
+          tmdbApiKey: apiKey().trim(),
+          mqttEnabled: mqttEnabled(),
+          mqttBrokerUrl: mqttBrokerUrl().trim() || undefined,
+          mqttUsername: mqttUsername().trim() || undefined,
+          mqttPassword: mqttPassword().trim() || undefined,
+          mqttTopicPrefix: mqttTopicPrefix().trim() || undefined,
+          dlnaEnabled: dlnaEnabled(),
+          dlnaFriendlyName: dlnaFriendlyName().trim() || undefined,
+        },
       });
       if (res.data) {
         await refetch();
         showToast({
           title: "Settings Saved",
-          message: res.data.tmdbConfigured
-            ? "TMDB API key saved and activated."
-            : "TMDB API key removed. MBL will use local NFO files.",
+          message: "Media Lounge Box server settings successfully saved and applied.",
           type: "success",
         });
       } else {
@@ -91,19 +121,20 @@ export default function Settings() {
     }
   };
 
-  const handleClear = async () => {
+  const handleClearTmdb = async () => {
     setApiKey("");
     await handleSave();
   };
 
   return (
-    <div style={{ "max-width": "800px", padding: "16px 0" }}>
+    <div style={{ "max-width": "860px", padding: "16px 0" }}>
       <div style={{ "margin-bottom": "28px" }}>
         <h1 style={{ margin: "0 0 6px 0", "font-size": "26px", "font-weight": "800" }}>
-          Server Settings
+          Server Settings — Media Lounge Box
         </h1>
         <p style={{ margin: 0, color: "var(--text-secondary)", "font-size": "14px" }}>
-          Configure external metadata providers, API keys, and diagnostic logging.
+          Configure external metadata providers, Home Assistant MQTT automation, DLNA streaming, and
+          AI integrations.
         </p>
       </div>
 
@@ -123,7 +154,7 @@ export default function Settings() {
         </div>
       </Show>
 
-      {/* TMDB Section Card */}
+      {/* 1. Server Branding & TMDB Section */}
       <div
         style={{
           background: "var(--bg-surface)",
@@ -145,10 +176,10 @@ export default function Settings() {
             <span style={{ "font-size": "24px" }}>🎬</span>
             <div>
               <h2 style={{ margin: 0, "font-size": "18px", "font-weight": "700" }}>
-                The Movie Database (TMDB)
+                Server & TMDB Metadata
               </h2>
               <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
-                Metadata, posters, backdrops and cast info
+                Server identification and The Movie Database metadata provider
               </span>
             </div>
           </div>
@@ -166,25 +197,41 @@ export default function Settings() {
               border: `1px solid ${settings()?.tmdbConfigured ? "var(--success)" : "var(--border)"}`,
             }}
           >
-            {settings()?.tmdbConfigured ? "● Configured" : "○ Local NFO only"}
+            {settings()?.tmdbConfigured ? "● TMDB Configured" : "○ Local NFO only"}
           </span>
         </div>
 
-        <p
-          style={{
-            "font-size": "13px",
-            color: "var(--text-secondary)",
-            "line-height": "1.6",
-            "margin-bottom": "18px",
-          }}
-        >
-          Supplying a free TMDB API key allows MBL to automatically identify movies and TV shows,
-          download high-resolution artwork, and enrich episodes with summaries and ratings. Without
-          an API key, MBL operates exclusively in local-metadata mode reading embedded tags and
-          sidecar NFO files.
-        </p>
-
         <form onSubmit={handleSave}>
+          <div style={{ "margin-bottom": "16px" }}>
+            <label
+              for="server-name"
+              style={{
+                display: "block",
+                "font-size": "13px",
+                "font-weight": "600",
+                "margin-bottom": "6px",
+              }}
+            >
+              Server Name
+            </label>
+            <input
+              id="server-name"
+              type="text"
+              value={serverName()}
+              onInput={(e) => setServerName(e.currentTarget.value)}
+              placeholder="Media Lounge Box"
+              style={{
+                width: "100%",
+                padding: "9px 12px",
+                background: "var(--bg-base)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-sm)",
+                color: "var(--text-primary)",
+                "font-size": "14px",
+              }}
+            />
+          </div>
+
           <div style={{ "margin-bottom": "14px" }}>
             <label
               for="tmdb-key"
@@ -280,7 +327,7 @@ export default function Settings() {
                 variant="danger"
                 size="md"
                 disabled={saving() || testing()}
-                onClick={handleClear}
+                onClick={handleClearTmdb}
               >
                 Remove Key
               </Button>
@@ -289,7 +336,379 @@ export default function Settings() {
         </form>
       </div>
 
-      {/* Diagnostics Section Card */}
+      {/* 2. Home Assistant & MQTT Automation Section */}
+      <div
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+          "border-radius": "var(--radius-lg)",
+          padding: "24px",
+          "margin-bottom": "24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            "margin-bottom": "14px",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
+            <span style={{ "font-size": "24px" }}>🏠</span>
+            <div>
+              <h2 style={{ margin: 0, "font-size": "18px", "font-weight": "700" }}>
+                Home Assistant & MQTT Automation
+              </h2>
+              <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
+                Auto-discovery of media player entities, live telemetry & incoming control commands
+              </span>
+            </div>
+          </div>
+
+          <label
+            style={{ display: "flex", "align-items": "center", gap: "8px", cursor: "pointer" }}
+          >
+            <input
+              type="checkbox"
+              checked={mqttEnabled()}
+              onChange={(e) => setMqttEnabled(e.currentTarget.checked)}
+              style={{ width: "18px", height: "18px" }}
+            />
+            <span style={{ "font-size": "13px", "font-weight": "600" }}>
+              {mqttEnabled() ? "Enabled" : "Disabled"}
+            </span>
+          </label>
+        </div>
+
+        <p
+          style={{
+            "font-size": "13px",
+            color: "var(--text-secondary)",
+            "line-height": "1.6",
+            "margin-bottom": "16px",
+          }}
+        >
+          Connect Media Lounge Box to your Home Assistant instance via MQTT Discovery. Home
+          Assistant automatically discovers all active players as <code>media_player</code>{" "}
+          entities, receives real-time telemetry (playing state, title, series/episode, position,
+          duration, volume), and can send playback commands (<code>PLAY</code>, <code>PAUSE</code>,{" "}
+          <code>STOP</code>, <code>SEEK &lt;seconds&gt;</code>, <code>VOLUME &lt;0-100&gt;</code>).
+        </p>
+
+        <form onSubmit={handleSave}>
+          <div
+            style={{
+              display: "grid",
+              "grid-template-columns": "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "14px",
+              "margin-bottom": "16px",
+            }}
+          >
+            <div>
+              <label
+                for="mqtt-broker"
+                style={{
+                  display: "block",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                  "margin-bottom": "6px",
+                }}
+              >
+                Broker URL
+              </label>
+              <input
+                id="mqtt-broker"
+                type="text"
+                value={mqttBrokerUrl()}
+                onInput={(e) => setMqttBrokerUrl(e.currentTarget.value)}
+                placeholder="mqtt://192.168.1.50:1883"
+                disabled={!mqttEnabled()}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  background: "var(--bg-base)",
+                  border: "1px solid var(--border)",
+                  "border-radius": "var(--radius-sm)",
+                  color: "var(--text-primary)",
+                  "font-size": "13px",
+                  "font-family": "monospace",
+                }}
+              />
+            </div>
+
+            <div>
+              <label
+                for="mqtt-prefix"
+                style={{
+                  display: "block",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                  "margin-bottom": "6px",
+                }}
+              >
+                Topic Prefix
+              </label>
+              <input
+                id="mqtt-prefix"
+                type="text"
+                value={mqttTopicPrefix()}
+                onInput={(e) => setMqttTopicPrefix(e.currentTarget.value)}
+                placeholder="mbl/media_lounge_box"
+                disabled={!mqttEnabled()}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  background: "var(--bg-base)",
+                  border: "1px solid var(--border)",
+                  "border-radius": "var(--radius-sm)",
+                  color: "var(--text-primary)",
+                  "font-size": "13px",
+                  "font-family": "monospace",
+                }}
+              />
+            </div>
+
+            <div>
+              <label
+                for="mqtt-user"
+                style={{
+                  display: "block",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                  "margin-bottom": "6px",
+                }}
+              >
+                Username (optional)
+              </label>
+              <input
+                id="mqtt-user"
+                type="text"
+                value={mqttUsername()}
+                onInput={(e) => setMqttUsername(e.currentTarget.value)}
+                placeholder="homeassistant"
+                disabled={!mqttEnabled()}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  background: "var(--bg-base)",
+                  border: "1px solid var(--border)",
+                  "border-radius": "var(--radius-sm)",
+                  color: "var(--text-primary)",
+                  "font-size": "13px",
+                }}
+              />
+            </div>
+
+            <div>
+              <label
+                for="mqtt-pass"
+                style={{
+                  display: "block",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                  "margin-bottom": "6px",
+                }}
+              >
+                Password (optional)
+              </label>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <input
+                  id="mqtt-pass"
+                  type={showMqttPassword() ? "text" : "password"}
+                  value={mqttPassword()}
+                  onInput={(e) => setMqttPassword(e.currentTarget.value)}
+                  placeholder="••••••••"
+                  disabled={!mqttEnabled()}
+                  style={{
+                    flex: 1,
+                    padding: "9px 12px",
+                    background: "var(--bg-base)",
+                    border: "1px solid var(--border)",
+                    "border-radius": "var(--radius-sm)",
+                    color: "var(--text-primary)",
+                    "font-size": "13px",
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMqttPassword(!showMqttPassword())}
+                  disabled={!mqttEnabled()}
+                >
+                  {showMqttPassword() ? "Hide" : "Show"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <Button type="submit" variant="primary" size="md" disabled={saving()}>
+            {saving() ? "Saving…" : "Save MQTT Settings"}
+          </Button>
+        </form>
+      </div>
+
+      {/* 3. DLNA & UPnP Media Server Section */}
+      <div
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+          "border-radius": "var(--radius-lg)",
+          padding: "24px",
+          "margin-bottom": "24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            "margin-bottom": "14px",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
+            <span style={{ "font-size": "24px" }}>📺</span>
+            <div>
+              <h2 style={{ margin: 0, "font-size": "18px", "font-weight": "700" }}>
+                DLNA & UPnP Media Server
+              </h2>
+              <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
+                SSDP local network broadcasting and Smart TV ContentDirectory
+              </span>
+            </div>
+          </div>
+
+          <label
+            style={{ display: "flex", "align-items": "center", gap: "8px", cursor: "pointer" }}
+          >
+            <input
+              type="checkbox"
+              checked={dlnaEnabled()}
+              onChange={(e) => setDlnaEnabled(e.currentTarget.checked)}
+              style={{ width: "18px", height: "18px" }}
+            />
+            <span style={{ "font-size": "13px", "font-weight": "600" }}>
+              {dlnaEnabled() ? "Enabled" : "Disabled"}
+            </span>
+          </label>
+        </div>
+
+        <p
+          style={{
+            "font-size": "13px",
+            color: "var(--text-secondary)",
+            "line-height": "1.6",
+            "margin-bottom": "16px",
+          }}
+        >
+          When enabled, MBL announces itself via UPnP SSDP on port 1900 and serves XML
+          ContentDirectory endpoints. Supported smart TVs (Samsung Tizen, LG webOS, Sony Bravia) and
+          DLNA media renderers can browse movies, TV shows, and music natively without installing
+          client applications.
+        </p>
+
+        <form onSubmit={handleSave}>
+          <div style={{ "margin-bottom": "16px" }}>
+            <label
+              for="dlna-name"
+              style={{
+                display: "block",
+                "font-size": "13px",
+                "font-weight": "600",
+                "margin-bottom": "6px",
+              }}
+            >
+              DLNA Friendly Name
+            </label>
+            <input
+              id="dlna-name"
+              type="text"
+              value={dlnaFriendlyName()}
+              onInput={(e) => setDlnaFriendlyName(e.currentTarget.value)}
+              placeholder="Media Lounge Box"
+              disabled={!dlnaEnabled()}
+              style={{
+                width: "100%",
+                padding: "9px 12px",
+                background: "var(--bg-base)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-sm)",
+                color: "var(--text-primary)",
+                "font-size": "14px",
+              }}
+            />
+          </div>
+
+          <Button type="submit" variant="primary" size="md" disabled={saving()}>
+            {saving() ? "Saving…" : "Save DLNA Settings"}
+          </Button>
+        </form>
+      </div>
+
+      {/* 4. AI & MCP Integrations Card */}
+      <div
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+          "border-radius": "var(--radius-lg)",
+          padding: "24px",
+          "margin-bottom": "24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            "margin-bottom": "14px",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
+            <span style={{ "font-size": "24px" }}>🤖</span>
+            <div>
+              <h2 style={{ margin: 0, "font-size": "18px", "font-weight": "700" }}>
+                AI Agents & MCP Protocols
+              </h2>
+              <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
+                Google Antigravity, Hermes Agent (Co-watching Companion), OpenClaw & Token Wizard
+              </span>
+            </div>
+          </div>
+
+          <a
+            href="/admin/agents"
+            style={{
+              padding: "6px 14px",
+              background: "var(--accent)",
+              color: "#fff",
+              "border-radius": "var(--radius-sm)",
+              "font-size": "13px",
+              "font-weight": "600",
+              "text-decoration": "none",
+            }}
+          >
+            Manage AI Agents →
+          </a>
+        </div>
+
+        <p
+          style={{
+            "font-size": "13px",
+            color: "var(--text-secondary)",
+            "line-height": "1.6",
+            margin: 0,
+          }}
+        >
+          MBL implements 78 scoped Model Context Protocol (MCP) tools. You can connect{" "}
+          <strong>Google Antigravity</strong>, pair <strong>Hermes Agent</strong> for real-time
+          co-watching dialogue cues and commentary, or configure <strong>OpenClaw</strong> with
+          scoped Personal Access Tokens. Use the AI Agents panel to create tokens and copy one-click
+          client snippets.
+        </p>
+      </div>
+
+      {/* 5. Diagnostics Section Card */}
       <div
         style={{
           background: "var(--bg-surface)",
@@ -307,7 +726,7 @@ export default function Settings() {
               Cast & Stream Diagnostics
             </h2>
             <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
-              Inspect live receiver handshakes and connection logs
+              Inspect live receiver handshakes, telemetry and connection logs
             </span>
           </div>
         </div>

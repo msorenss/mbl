@@ -36,9 +36,9 @@ export function AiAgents() {
   // Newly minted token modal
   const [newPlaintextToken, setNewPlaintextToken] = createSignal<string | null>(null);
   const [snippets, setSnippets] = createSignal<McpConfigSnippets | null>(null);
-  const [snippetTab, setSnippetTab] = createSignal<"vscode" | "claudeDesktop" | "cursor" | "stdio">(
-    "vscode",
-  );
+  const [snippetTab, setSnippetTab] = createSignal<
+    "antigravity" | "hermes" | "openclaw" | "vscode" | "claudeDesktop" | "cursor" | "stdio"
+  >("antigravity");
 
   // Audit Log state
   const [auditEntries, setAuditEntries] = createSignal<McpAuditEntry[]>([]);
@@ -174,6 +174,7 @@ export function AiAgents() {
           message: "API token has been revoked",
           type: "success",
         });
+        setTokens((prev) => prev.filter((t) => t.id !== id));
         loadTokens();
       }
     } catch {
@@ -428,9 +429,19 @@ export function AiAgents() {
                 <div style={{ "font-size": "14px", "font-weight": "600", "margin-bottom": "8px" }}>
                   Quick Configuration Snippets:
                 </div>
-                <div style={{ display: "flex", gap: "8px", "margin-bottom": "12px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    "margin-bottom": "12px",
+                    "flex-wrap": "wrap",
+                  }}
+                >
                   {(
                     [
+                      ["antigravity", "Google Antigravity"],
+                      ["hermes", "Hermes Agent"],
+                      ["openclaw", "OpenClaw"],
                       ["vscode", "VS Code (.vscode/mcp.json)"],
                       ["claudeDesktop", "Claude Desktop"],
                       ["cursor", "Cursor (.cursor/mcp.json)"],
@@ -894,21 +905,39 @@ export function AiAgents() {
                         {tok.lastUsedAt ? new Date(tok.lastUsedAt).toLocaleDateString() : "Never"}
                       </td>
                       <td style={{ padding: "12px 16px", "text-align": "right" }}>
-                        <button
-                          type="button"
-                          onClick={() => handleRevokeToken(tok.id)}
-                          style={{
-                            padding: "4px 8px",
-                            background: "transparent",
-                            border: "1px solid var(--danger)",
-                            color: "var(--danger)",
-                            "border-radius": "var(--radius-sm)",
-                            "font-size": "12px",
-                            cursor: "pointer",
-                          }}
+                        <Show
+                          when={!tok.revokedAt}
+                          fallback={
+                            <span
+                              style={{
+                                padding: "3px 8px",
+                                background: "rgba(239, 68, 68, 0.15)",
+                                color: "var(--danger)",
+                                "border-radius": "var(--radius-sm)",
+                                "font-size": "11px",
+                                "font-weight": "600",
+                              }}
+                            >
+                              Revoked
+                            </span>
+                          }
                         >
-                          Revoke
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeToken(tok.id)}
+                            style={{
+                              padding: "4px 8px",
+                              background: "transparent",
+                              border: "1px solid var(--danger)",
+                              color: "var(--danger)",
+                              "border-radius": "var(--radius-sm)",
+                              "font-size": "12px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Revoke
+                          </button>
+                        </Show>
                       </td>
                     </tr>
                   )}

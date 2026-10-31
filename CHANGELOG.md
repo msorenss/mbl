@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Added
+- Standardized branding to **Media Lounge Box (MBL)** across web titles, navigation layout, and DLNA device definitions.
+- Home Assistant MQTT automation settings in Server Settings (`mqttEnabled`, `mqttBrokerUrl`, `mqttUsername`, `mqttPassword`, `mqttTopicPrefix`) with media player entity auto-discovery, telemetry, and remote control commands.
+- DLNA UPnP configuration in Server Settings (`dlnaEnabled`, `dlnaFriendlyName`) for SSDP broadcasting and smart TV ContentDirectory streaming.
+- Ready-to-copy configuration snippets for **Google Antigravity**, **Hermes Agent** (co-watching companion), and **OpenClaw** in the MCP Token Wizard (`AiAgents.tsx`).
+- TMDB search endpoint (`GET /api/v1/system/tmdb/search`) and interactive TMDB search with poster previews in Media Requests (`Requests.tsx`), making manual TMDB ID entry optional.
 - Direct MP4 remux delivery for Google Cast with H.264 video copy, stereo AAC 192 kbps audio, and upfront faststart indexing, enabling stutter-free Chromecast playback on high-bitrate media.
 - Real-time subtitle selection and toggling on Google Cast during playback via `media.editTracksInfo` without requiring session disconnect.
 - Server Settings page (`/admin/settings`) in web GUI with TMDB API key management, live API connection test, key removal, and setup notification banners in Libraries and Setup.
@@ -19,6 +24,7 @@ All notable changes to this project are documented here. The format is based on 
 - Authenticated online search/inspection REST endpoints and equivalent MCP tools. MCP now exposes 78 admin tools (33 read, 38 read+library); restricted profiles and private/reserved source destinations are denied.
 
 ### Fixed
+- Revoked API tokens no longer persist as active in the AI agent administration table (`WHERE revoked_at IS NULL`), displaying a distinct "Revoked" badge and removing active revocation controls.
 - Google Cast playback stall and freeze resolved by providing explicit `Content-Length` and `Accept-Ranges: bytes` headers on segments and playlists, avoiding chunked transfer buffering failures on Fuchsia decoders.
 - RFC 8216 target duration violation fixed for copied video in HLS manifests by using `#EXT-X-TARGETDURATION: 10`, matching variable keyframe GOP durations.
 - Subtitle track bounds (max 8) on Chromecast CAF receiver to prevent memory exhaustion and player crashes when casting media with numerous embedded subtitle streams.

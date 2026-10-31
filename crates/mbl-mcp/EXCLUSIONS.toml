@@ -230,3 +230,7 @@ reason = "Login-bound interactive online player lifecycle, resume heartbeats and
 [[exclusions]]
 path = "/api/v1/system/settings/test-tmdb"
 reason = "Interactive validation and connection testing for external TMDB API credentials."
+
+[[exclusions]]
+path = "/api/v1/system/tmdb/search"
+reason = "Interactive GUI autocomplete helper for TMDB metadata and media requests."

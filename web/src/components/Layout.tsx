@@ -127,7 +127,7 @@ export function Layout(props: { children?: JSX.Element }) {
             <div style={{ "font-weight": "700", "font-size": "17px", "letter-spacing": "0.5px" }}>
               MBL
             </div>
-            <div style={{ "font-size": "11px", color: "var(--text-muted)" }}>Media Server</div>
+            <div style={{ "font-size": "11px", color: "var(--text-muted)" }}>Media Lounge Box</div>
           </div>
         </div>
 

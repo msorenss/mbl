@@ -80,6 +80,28 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-31 — Media Lounge Box branding, Home Assistant MQTT, DLNA, AI Agent snippets, and TMDB Request search
+- **MBL Branding Update:**
+  - Standardized branding across the application to **Media Lounge Box (MBL)** in `web/index.html`, sidebar navigation in `Layout.tsx`, and DLNA/UPnP device descriptions.
+- **Home Assistant & MQTT Automation:**
+  - Added full MQTT settings management (`mqttEnabled`, `mqttBrokerUrl`, `mqttUsername`, `mqttPassword`, `mqttTopicPrefix`) to `crates/mbl-api/src/routes/system.rs` and the Server Settings GUI (`web/src/pages/admin/Settings.tsx`).
+  - Home Assistant MQTT Discovery integration for `media_player` entities, transmitting real-time telemetry (state, title, episode, timecode, volume) and supporting remote playback commands (`PLAY`, `PAUSE`, `STOP`, `SEEK`, `VOLUME`, `MUTE`).
+- **DLNA & UPnP Settings:**
+  - Integrated DLNA configuration (`dlnaEnabled`, `dlnaFriendlyName`) in Settings, managing SSDP discovery on port 1900 and XML ContentDirectory endpoints.
+- **AI Agent Snippets & Token Bug Fix:**
+  - Added ready-made configuration snippets for **Google Antigravity**, **Hermes Agent** (with real-time co-watching dialogue cues and commentary), and **OpenClaw** to `crates/mbl-service/src/mcp.rs`, `tests/mcp.rs`, and the Token Wizard in `web/src/pages/admin/AiAgents.tsx`.
+  - Fixed token listing defect in `crates/mbl-db/src/repo/mcp.rs`: added `WHERE revoked_at IS NULL` to `list_all_tokens` so revoked tokens no longer persist as active, and rendered a distinct "Revoked" badge with immediate local state filtering in `AiAgents.tsx`.
+- **TMDB Search for Media Requests:**
+  - Added `GET /api/v1/system/tmdb/search` in `crates/mbl-api/src/routes/system.rs` to query movies, shows, and multi-search via the TMDB API.
+  - Enhanced `web/src/pages/Requests.tsx` with live TMDB search, interactive result cards with poster previews, automatic form pre-filling, and optional TMDB ID input with fallback auto-search.
+- **Verification:**
+  - `just web-check`: Biome clean, 208/208 Vitest passed, `tsc -b` clean, Vite bundle 49.21 KB gzip (<= 150 KB budget).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo fmt --check`: Clean (0 diffs).
+  - `cargo xtask openapi-check`: Up to date.
+  - `cargo xtask mcp-parity`: 100.0% parity (159/159 endpoints).
+  - Preview server binary built, deployed to `.dev/preview-cast/mbl-server`, and verified active on port 18421.
+
 ### 2026-10-31 — Chromecast playback verified on TV, real-time subtitles & Settings GUI commit
 - **Chromecast Playback & Real-Time Subtitles Verified on Physical TV:**
   - Resolved Google Cast receiver stalling on high-bitrate media (Dark Matter S02E09) by serving progressive MP4 remuxes with H.264 video copy and 192 kbps stereo AAC audio with upfront faststart. Verified smooth, stutter-free playback on physical Bedroom TV (`192.168.68.119`).
