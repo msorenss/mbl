@@ -6,6 +6,8 @@ import type { components } from "../api/schema";
 import { PosterCard } from "../components/PosterCard";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useI18n } from "../i18n";
+import { formatRelativeTime } from "../utils/time";
 
 type ItemSummary = components["schemas"]["ItemSummary"];
 type LibraryDto = components["schemas"]["LibraryDto"];
@@ -18,6 +20,7 @@ export function LibraryDetail() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   let parentRef: HTMLDivElement | undefined;
 
@@ -264,9 +267,24 @@ export function LibraryDetail() {
             </span>
           </div>
           <p
-            style={{ margin: "4px 0 0 28px", color: "var(--text-secondary)", "font-size": "13px" }}
+            style={{
+              margin: "4px 0 0 28px",
+              color: "var(--text-secondary)",
+              "font-size": "13px",
+              display: "flex",
+              "align-items": "center",
+              gap: "10px",
+            }}
           >
-            {items().length} {items().length === 1 ? "item" : "items"} in library
+            <span>
+              {items().length} {items().length === 1 ? "item" : "items"} in library
+            </span>
+            <Show when={library()?.lastScannedAt}>
+              <span>•</span>
+              <span>
+                🕒 {t("lastScanned")}: {formatRelativeTime(library()!.lastScannedAt!)}
+              </span>
+            </Show>
           </p>
         </div>
 

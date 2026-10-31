@@ -115,6 +115,19 @@ pub async fn top_level_items(db: &Db, library: LibraryId) -> Result<Vec<ItemId>>
     .await?)
 }
 
+/// Top-level items of a library that have no metadata.
+pub async fn top_level_items_without_metadata(db: &Db, library: LibraryId) -> Result<Vec<ItemId>> {
+    Ok(sqlx::query_scalar(
+        r#"SELECT id FROM media_items
+           WHERE library_id = ? AND parent_id IS NULL
+             AND (metadata_refreshed_at IS NULL OR (summary IS NULL AND tmdb_id IS NULL AND musicbrainz_id IS NULL))
+           ORDER BY id"#,
+    )
+    .bind(library)
+    .fetch_all(&db.read)
+    .await?)
+}
+
 /// Path of the first media file under an item (or its first descendant with a file).
 pub async fn first_file(db: &Db, id: ItemId) -> Result<Option<String>> {
     Ok(sqlx::query_scalar!(

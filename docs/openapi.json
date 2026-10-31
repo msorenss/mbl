@@ -9685,6 +9685,13 @@
           "kind": {
             "$ref": "#/components/schemas/LibraryKind"
           },
+          "lastScannedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
           "name": {
             "type": "string"
           },
@@ -13863,9 +13870,18 @@
           "mqttBrokerUrl",
           "mqttTopicPrefix",
           "dlnaEnabled",
-          "dlnaFriendlyName"
+          "dlnaFriendlyName",
+          "autoScanOnChange",
+          "periodicScanIntervalMinutes",
+          "autoFetchMissingMetadata"
         ],
         "properties": {
+          "autoFetchMissingMetadata": {
+            "type": "boolean"
+          },
+          "autoScanOnChange": {
+            "type": "boolean"
+          },
           "dlnaEnabled": {
             "type": "boolean"
           },
@@ -13886,6 +13902,11 @@
               "string",
               "null"
             ]
+          },
+          "periodicScanIntervalMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           },
           "serverName": {
             "type": "string"
@@ -14710,6 +14731,18 @@
       "UpdateSystemSettingsRequest": {
         "type": "object",
         "properties": {
+          "autoFetchMissingMetadata": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "autoScanOnChange": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "dlnaEnabled": {
             "type": [
               "boolean",
@@ -14751,6 +14784,14 @@
               "string",
               "null"
             ]
+          },
+          "periodicScanIntervalMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           },
           "serverName": {
             "type": [

@@ -10,6 +10,7 @@ pub struct Library {
     pub kind: LibraryKind,
     pub created_at: i64,
     pub paths: Vec<String>,
+    pub last_scanned_at: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,18 +62,30 @@ impl LibrariesRepo {
         .fetch_all(&self.db.read)
         .await?;
         let paths = self.all_paths().await?;
+        let last_scans: std::collections::HashMap<LibraryId, Option<i64>> =
+            sqlx::query_as::<_, (LibraryId, Option<i64>)>(
+                "SELECT library_id, MAX(last_scan_at) FROM library_paths GROUP BY library_id",
+            )
+            .fetch_all(&self.db.read)
+            .await?
+            .into_iter()
+            .collect();
         Ok(rows
             .into_iter()
-            .map(|r| Library {
-                paths: paths
-                    .iter()
-                    .filter(|(lib, _)| *lib == r.id)
-                    .map(|(_, p)| p.clone())
-                    .collect(),
-                id: r.id,
-                name: r.name,
-                kind: r.kind,
-                created_at: r.created_at,
+            .map(|r| {
+                let last_scanned_at = last_scans.get(&r.id).copied().flatten();
+                Library {
+                    paths: paths
+                        .iter()
+                        .filter(|(lib, _)| *lib == r.id)
+                        .map(|(_, p)| p.clone())
+                        .collect(),
+                    id: r.id,
+                    name: r.name,
+                    kind: r.kind,
+                    created_at: r.created_at,
+                    last_scanned_at,
+                }
             })
             .collect())
     }
@@ -94,7 +107,21 @@ impl LibrariesRepo {
         )
         .fetch_all(&self.db.read)
         .await?;
-        Ok(Some(Library { id: r.id, name: r.name, kind: r.kind, created_at: r.created_at, paths }))
+        let last_scanned_at: Option<i64> =
+            sqlx::query_scalar("SELECT MAX(last_scan_at) FROM library_paths WHERE library_id = ?")
+                .bind(id)
+                .fetch_one(&self.db.read)
+                .await
+                .ok()
+                .flatten();
+        Ok(Some(Library {
+            id: r.id,
+            name: r.name,
+            kind: r.kind,
+            created_at: r.created_at,
+            paths,
+            last_scanned_at,
+        }))
     }
 
     /// Every configured root as `(library, path)`.

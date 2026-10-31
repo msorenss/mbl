@@ -3254,6 +3254,8 @@ export interface components {
             createdAt: number;
             id: components["schemas"]["LibraryId"];
             kind: components["schemas"]["LibraryKind"];
+            /** Format: int64 */
+            lastScannedAt?: number | null;
             name: string;
             paths: string[];
         };
@@ -4362,12 +4364,16 @@ export interface components {
             totalMemoryBytes?: number | null;
         };
         SystemSettingsDto: {
+            autoFetchMissingMetadata: boolean;
+            autoScanOnChange: boolean;
             dlnaEnabled: boolean;
             dlnaFriendlyName: string;
             mqttBrokerUrl: string;
             mqttEnabled: boolean;
             mqttTopicPrefix: string;
             mqttUsername?: string | null;
+            /** Format: int32 */
+            periodicScanIntervalMinutes: number;
             serverName: string;
             tmdbApiKey?: string | null;
             tmdbConfigured: boolean;
@@ -4596,6 +4602,8 @@ export interface components {
             status: string;
         };
         UpdateSystemSettingsRequest: {
+            autoFetchMissingMetadata?: boolean | null;
+            autoScanOnChange?: boolean | null;
             dlnaEnabled?: boolean | null;
             dlnaFriendlyName?: string | null;
             mqttBrokerUrl?: string | null;
@@ -4603,6 +4611,8 @@ export interface components {
             mqttPassword?: string | null;
             mqttTopicPrefix?: string | null;
             mqttUsername?: string | null;
+            /** Format: int32 */
+            periodicScanIntervalMinutes?: number | null;
             serverName?: string | null;
             tmdbApiKey?: string | null;
         };

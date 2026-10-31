@@ -80,6 +80,25 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-10-31 — Library Auto-Scan, Inotify Change Scanning & Missing Metadata Auto-Fetch
+- **Auto-Fetch Missing Metadata on Scan:**
+  - Implemented `top_level_items_without_metadata` in `crates/mbl-db/src/repo/metadata.rs` to identify items lacking summaries and external metadata IDs (`tmdb_id` and `musicbrainz_id`).
+  - Integrated into `crates/mbl-scanner/src/lib.rs`: whenever a library scan runs and `auto_fetch_missing_metadata` is enabled, MBL scans for un-metadated items and enqueues `metadata.match` background jobs automatically.
+- **Inotify & Periodic Automatic Scanning Automation:**
+  - Configured `LibraryWatcher::run` in `crates/mbl-scanner/src/watch.rs` to dynamically read `auto_scan_on_change` (debounced inotify watcher) and `periodic_scan_interval_minutes` (schedule intervals: Disabled, 15m, 30m, 1h, 6h, 24h) from `SettingsRepo`.
+  - Added settings fields to `SystemSettingsDto` and `UpdateSystemSettingsRequest` in `crates/mbl-api/src/routes/system.rs`.
+- **Last Scanned Relative Time Display & GUI Settings:**
+  - Added `last_scanned_at` to `Library` repository and `LibraryDto` in `crates/mbl-api/src/routes/libraries.rs`, tracking `MAX(last_scan_at)` across library paths.
+  - Added relative time formatting helper `formatRelativeTime` (`web/src/utils/time.ts` and `time.test.ts`), rendering last scan relative times (e.g. "🕒 Last scanned: 5m ago" / "⏳ Never scanned") on cards in `Libraries.tsx` and `LibraryDetail.tsx`.
+  - Added "Biblioteksskanning & Automatisering" / "Library Scanning & Automation" controls in `/admin/settings` (`web/src/pages/admin/Settings.tsx`) with 5-language translations (`en`, `sv`, `de`, `fr`, `es`).
+- **Verification:**
+  - `just web-check`: Biome clean, 213/213 Vitest passed across 41 test files, `tsc -b` clean, initial bundle 51.20 KB gzip (<= 150 KB budget).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo fmt --all -- --check`: Clean (0 diffs).
+  - `cargo xtask openapi-check`: Up to date.
+  - `cargo xtask mcp-parity`: 100.0% parity (160/160 endpoints).
+  - Tested live on preview server daemon on port 18421: verified GET/PATCH settings, library scan job enqueueing missing metadata matching and artwork fetch jobs.
+
 ### 2026-10-31 — WebTV dedicated page with embedded player, TMDB library refresh, and Admin hub
 - **WebTV Rebranding & Dedicated Page:**
   - Renamed WebDrama to **WebTV** across the UI, translations (`web/src/i18n/index.ts`), Command Palette, and navigation links.

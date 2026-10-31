@@ -94,6 +94,9 @@ pub struct SystemSettingsDto {
     pub mqtt_topic_prefix: String,
     pub dlna_enabled: bool,
     pub dlna_friendly_name: String,
+    pub auto_scan_on_change: bool,
+    pub periodic_scan_interval_minutes: u32,
+    pub auto_fetch_missing_metadata: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
@@ -108,6 +111,9 @@ pub struct UpdateSystemSettingsRequest {
     pub mqtt_topic_prefix: Option<String>,
     pub dlna_enabled: Option<bool>,
     pub dlna_friendly_name: Option<String>,
+    pub auto_scan_on_change: Option<bool>,
+    pub periodic_scan_interval_minutes: Option<u32>,
+    pub auto_fetch_missing_metadata: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
@@ -181,6 +187,16 @@ async fn get_system_settings(
     let dlna_friendly_name =
         repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
 
+    let auto_scan_on_change =
+        repo.get("auto_scan_on_change").await?.map(|v| v != "false").unwrap_or(true);
+    let periodic_scan_interval_minutes = repo
+        .get("periodic_scan_interval_minutes")
+        .await?
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(60);
+    let auto_fetch_missing_metadata =
+        repo.get("auto_fetch_missing_metadata").await?.map(|v| v != "false").unwrap_or(true);
+
     Ok(Json(SystemSettingsDto {
         server_name,
         tmdb_configured: is_configured,
@@ -191,6 +207,9 @@ async fn get_system_settings(
         mqtt_topic_prefix,
         dlna_enabled,
         dlna_friendly_name,
+        auto_scan_on_change,
+        periodic_scan_interval_minutes,
+        auto_fetch_missing_metadata,
     }))
 }
 
@@ -275,6 +294,15 @@ async fn update_system_settings(
             repo.set("dlna_friendly_name", trimmed).await?;
         }
     }
+    if let Some(enabled) = req.auto_scan_on_change {
+        repo.set("auto_scan_on_change", if enabled { "true" } else { "false" }).await?;
+    }
+    if let Some(mins) = req.periodic_scan_interval_minutes {
+        repo.set("periodic_scan_interval_minutes", &mins.to_string()).await?;
+    }
+    if let Some(enabled) = req.auto_fetch_missing_metadata {
+        repo.set("auto_fetch_missing_metadata", if enabled { "true" } else { "false" }).await?;
+    }
 
     let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
     let saved_key = repo.get("tmdb_api_key").await?;
@@ -288,6 +316,15 @@ async fn update_system_settings(
     let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
     let dlna_friendly_name =
         repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+    let auto_scan_on_change =
+        repo.get("auto_scan_on_change").await?.map(|v| v != "false").unwrap_or(true);
+    let periodic_scan_interval_minutes = repo
+        .get("periodic_scan_interval_minutes")
+        .await?
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(60);
+    let auto_fetch_missing_metadata =
+        repo.get("auto_fetch_missing_metadata").await?.map(|v| v != "false").unwrap_or(true);
 
     Ok(Json(SystemSettingsDto {
         server_name,
@@ -299,6 +336,9 @@ async fn update_system_settings(
         mqtt_topic_prefix,
         dlna_enabled,
         dlna_friendly_name,
+        auto_scan_on_change,
+        periodic_scan_interval_minutes,
+        auto_fetch_missing_metadata,
     }))
 }
 

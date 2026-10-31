@@ -82,6 +82,24 @@ export const translations = {
     apiReference: "API reference",
     distributedNodes: "Distributed nodes",
     mediaRequests: "Media requests",
+    libraryScanningTitle: "Library Scanning & Automation",
+    libraryScanningDesc:
+      "Real-time folder watching, missing metadata lookup, and scheduled periodic scans",
+    autoScanOnChange: "Scan when changes are detected",
+    autoScanOnChangeHelp:
+      "Monitors library folders with inotify/file events and scans new or modified files automatically after settle debounce.",
+    periodicScanInterval: "Periodic auto-scan interval",
+    periodicScanDisabled: "Disabled (Manual only)",
+    periodicScan15m: "Every 15 minutes",
+    periodicScan30m: "Every 30 minutes",
+    periodicScan1h: "Every hour (Recommended)",
+    periodicScan6h: "Every 6 hours",
+    periodicScan24h: "Every 24 hours",
+    autoFetchMissingMetadata: "Automatically query metadata for items without metadata",
+    autoFetchMissingMetadataHelp:
+      "When scanning, query TMDB and MusicBrainz for existing media that currently lack plot, posters, or metadata.",
+    lastScanned: "Last scanned",
+    neverScanned: "Never scanned",
     pluginDemoUnavailable: "Demo — playback unavailable",
     pluginDemoHelp:
       "This provider contains sample catalogue entries. Streaming is not connected, so these entries cannot be played.",
@@ -241,6 +259,24 @@ export const translations = {
     apiReference: "API-referens",
     distributedNodes: "Distribuerade noder",
     mediaRequests: "Medieförfrågningar",
+    libraryScanningTitle: "Biblioteksskanning & Automatisering",
+    libraryScanningDesc:
+      "Realtidsbevakning av mappar, automatisk hämtning av saknad metadata och schemalagda skanningar",
+    autoScanOnChange: "Skanna vid filändringar",
+    autoScanOnChangeHelp:
+      "Bevakar biblioteksmappar i realtid med filsystemhändelser och skannar automatiskt nya och ändrade filer när de kopierats klart.",
+    periodicScanInterval: "Periodisk automatisk skanning",
+    periodicScanDisabled: "Inaktiverad (Endast manuell)",
+    periodicScan15m: "Var 15:e minut",
+    periodicScan30m: "Var 30:e minut",
+    periodicScan1h: "Varje timme (Rekommenderas)",
+    periodicScan6h: "Var 6:e timme",
+    periodicScan24h: "Var 24:e timme (Dagligen)",
+    autoFetchMissingMetadata: "Sök automatiskt efter saknad metadata vid skanning",
+    autoFetchMissingMetadataHelp:
+      "Vid skanning görs automatiska sökningar mot TMDB och MusicBrainz för befintliga filmer, serier och musik som saknar beskrivning eller omslag.",
+    lastScanned: "Senast skannad",
+    neverScanned: "Aldrig skannad",
     pluginDemoUnavailable: "Demo — kan inte spelas",
     pluginDemoHelp:
       "Leverantören innehåller exempelposter. Streaming är inte ansluten och posterna går därför inte att spela.",
@@ -401,6 +437,24 @@ export const translations = {
     apiReference: "API-Referenz",
     distributedNodes: "Verteilte Knoten",
     mediaRequests: "Medienanfragen",
+    libraryScanningTitle: "Mediathek-Scan & Automatisierung",
+    libraryScanningDesc:
+      "Echtzeit-Ordnerüberwachung, Metadaten-Nachrecherche und regelmäßige Scans",
+    autoScanOnChange: "Bei Dateiänderungen automatisch scannen",
+    autoScanOnChangeHelp:
+      "Überwacht Mediathek-Ordner in Echtzeit und importiert neue oder geänderte Dateien automatisch.",
+    periodicScanInterval: "Intervall für regelmäßigen Scan",
+    periodicScanDisabled: "Deaktiviert (Nur manuell)",
+    periodicScan15m: "Alle 15 Minuten",
+    periodicScan30m: "Alle 30 Minuten",
+    periodicScan1h: "Stündlich (Empfohlen)",
+    periodicScan6h: "Alle 6 Stunden",
+    periodicScan24h: "Alle 24 Stunden (Täglich)",
+    autoFetchMissingMetadata: "Fehlende Metadaten bei Bibliotheks-Scan abrufen",
+    autoFetchMissingMetadataHelp:
+      "Sucht bei Scans automatisch nach Metadaten auf TMDB und MusicBrainz für Einträge ohne Beschreibung oder Cover.",
+    lastScanned: "Zuletzt gescannt",
+    neverScanned: "Noch nie gescannt",
     pluginDemoUnavailable: "Demo — Wiedergabe nicht verfügbar",
     pluginDemoHelp:
       "Dieser Anbieter enthält Katalogbeispiele. Streaming ist nicht verbunden; die Einträge können nicht abgespielt werden.",
@@ -559,6 +613,24 @@ export const translations = {
     apiReference: "Référence API",
     distributedNodes: "Nœuds distribués",
     mediaRequests: "Demandes de médias",
+    libraryScanningTitle: "Analyse de la médiathèque & Automatisation",
+    libraryScanningDesc:
+      "Surveillance des dossiers en temps réel, recherche des métadonnées manquantes et analyses périodiques",
+    autoScanOnChange: "Analyser lors de modifications",
+    autoScanOnChangeHelp:
+      "Surveille les dossiers multimédias en temps réel et analyse automatiquement les fichiers ajoutés ou modifiés.",
+    periodicScanInterval: "Intervalle d'analyse automatique",
+    periodicScanDisabled: "Désactivé (Manuel uniquement)",
+    periodicScan15m: "Toutes les 15 minutes",
+    periodicScan30m: "Toutes les 30 minutes",
+    periodicScan1h: "Toutes les heures (Recommandé)",
+    periodicScan6h: "Toutes les 6 heures",
+    periodicScan24h: "Toutes les 24 heures",
+    autoFetchMissingMetadata: "Rechercher automatiquement les métadonnées manquantes",
+    autoFetchMissingMetadataHelp:
+      "Interroge automatiquement TMDB et MusicBrainz lors de l'analyse pour les médias sans résumé ni affiche.",
+    lastScanned: "Dernière analyse",
+    neverScanned: "Jamais analysé",
     pluginDemoUnavailable: "Démo — lecture indisponible",
     pluginDemoHelp:
       "Ce fournisseur contient des exemples de catalogue. Le streaming n’est pas connecté et ces éléments ne peuvent pas être lus.",
@@ -716,6 +788,24 @@ export const translations = {
     apiReference: "Referencia de API",
     distributedNodes: "Nodos distribuidos",
     mediaRequests: "Solicitudes de medios",
+    libraryScanningTitle: "Escaneo de biblioteca y automatización",
+    libraryScanningDesc:
+      "Monitoreo de carpetas en tiempo real, búsqueda de metadatos faltantes y escaneos programados",
+    autoScanOnChange: "Escanear al detectar cambios",
+    autoScanOnChangeHelp:
+      "Supervisa las carpetas en tiempo real y analiza automáticamente los archivos nuevos o modificados tras completarse.",
+    periodicScanInterval: "Intervalo de escaneo periódico",
+    periodicScanDisabled: "Desactivado (Solo manual)",
+    periodicScan15m: "Cada 15 minutos",
+    periodicScan30m: "Cada 30 minutos",
+    periodicScan1h: "Cada hora (Recomendado)",
+    periodicScan6h: "Cada 6 horas",
+    periodicScan24h: "Cada 24 horas",
+    autoFetchMissingMetadata: "Buscar metadatos faltantes automáticamente al escanear",
+    autoFetchMissingMetadataHelp:
+      "Consulta automáticamente TMDB y MusicBrainz al escanear para contenidos que carecen de sinopsis o portada.",
+    lastScanned: "Último escaneo",
+    neverScanned: "Nunca escaneado",
     pluginDemoUnavailable: "Demo — reproducción no disponible",
     pluginDemoHelp:
       "Este proveedor contiene ejemplos de catálogo. El streaming no está conectado y estas entradas no se pueden reproducir.",

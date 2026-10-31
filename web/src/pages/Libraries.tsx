@@ -7,6 +7,8 @@ import { LibraryFolderPicker } from "../components/LibraryFolderPicker";
 import { Dialog } from "../components/ui/Dialog";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useI18n } from "../i18n";
+import { formatRelativeTime } from "../utils/time";
 
 type LibraryDto = components["schemas"]["LibraryDto"];
 type LibraryKind = components["schemas"]["LibraryKind"];
@@ -14,6 +16,7 @@ type LibraryKind = components["schemas"]["LibraryKind"];
 export function Libraries() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { t } = useI18n();
 
   const [settings] = createResource(async () => {
     try {
@@ -396,6 +399,23 @@ export function Libraries() {
                           </div>
                         )}
                       </For>
+                    </div>
+
+                    <div
+                      style={{
+                        "margin-top": "10px",
+                        "font-size": "11px",
+                        color: "var(--text-muted)",
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <Show when={lib.lastScannedAt} fallback={<span>⏳ {t("neverScanned")}</span>}>
+                        <span>
+                          🕒 {t("lastScanned")}: {formatRelativeTime(lib.lastScannedAt!)}
+                        </span>
+                      </Show>
                     </div>
                   </div>
 

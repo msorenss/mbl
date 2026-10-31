@@ -273,7 +273,23 @@ impl Scanner {
 
         stats.new_items = new_top_items.len();
         if let Some(jobs) = &self.jobs {
-            for id in &new_top_items {
+            let mut to_match: HashSet<ItemId> = new_top_items.into_iter().collect();
+            // Automatically look for metadata on any existing items in this library that lack metadata if enabled
+            let auto_fetch = mbl_db::repo::settings::SettingsRepo::new(self.db.clone())
+                .get("auto_fetch_missing_metadata")
+                .await
+                .ok()
+                .flatten()
+                .map(|v| v != "false")
+                .unwrap_or(true);
+            if auto_fetch {
+                let missing =
+                    mbl_db::repo::metadata::top_level_items_without_metadata(&self.db, library_id)
+                        .await
+                        .unwrap_or_default();
+                to_match.extend(missing);
+            }
+            for id in to_match {
                 jobs.enqueue(MATCH_JOB, &json!({ "itemId": id }), Priority::Normal).await?;
             }
         }

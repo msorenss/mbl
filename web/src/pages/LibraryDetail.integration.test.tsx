@@ -17,6 +17,7 @@ vi.mock("../context/AuthContext", () => ({
   useAuth: () => ({ user: () => ({ isAdmin: false }) }),
 }));
 vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: vi.fn() }) }));
+vi.mock("../i18n", () => ({ useI18n: () => ({ t: (s: string) => s }) }));
 vi.mock("@tanstack/solid-virtual", () => ({
   createVirtualizer: () => ({ getVirtualItems: () => [], getTotalSize: () => 0 }),
 }));

@@ -4,9 +4,11 @@ import client from "../../api/client";
 import CastDiagnostics from "../../components/CastDiagnostics";
 import { Button } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
+import { useI18n } from "../../i18n";
 
 export default function Settings() {
   const { showToast } = useToast();
+  const { t } = useI18n();
 
   // Server & TMDB state
   const [serverName, setServerName] = createSignal("Media Lounge Box");
@@ -17,6 +19,11 @@ export default function Settings() {
   const [testResult, setTestResult] = createSignal<{ success: boolean; message: string } | null>(
     null,
   );
+
+  // Library Scanning & Automation state
+  const [autoScanOnChange, setAutoScanOnChange] = createSignal(true);
+  const [periodicInterval, setPeriodicInterval] = createSignal(60);
+  const [autoFetchMissingMetadata, setAutoFetchMissingMetadata] = createSignal(true);
 
   // Home Assistant & MQTT state
   const [mqttEnabled, setMqttEnabled] = createSignal(false);
@@ -35,6 +42,9 @@ export default function Settings() {
     if (res.data) {
       setServerName(res.data.serverName || "Media Lounge Box");
       setApiKey(res.data.tmdbApiKey || "");
+      setAutoScanOnChange(res.data.autoScanOnChange ?? true);
+      setPeriodicInterval(res.data.periodicScanIntervalMinutes ?? 60);
+      setAutoFetchMissingMetadata(res.data.autoFetchMissingMetadata ?? true);
       setMqttEnabled(Boolean(res.data.mqttEnabled));
       setMqttBrokerUrl(res.data.mqttBrokerUrl || "mqtt://localhost:1883");
       setMqttUsername(res.data.mqttUsername || "");
@@ -55,6 +65,9 @@ export default function Settings() {
         body: {
           serverName: serverName().trim() || undefined,
           tmdbApiKey: apiKey().trim(),
+          autoScanOnChange: autoScanOnChange(),
+          periodicScanIntervalMinutes: Number(periodicInterval()),
+          autoFetchMissingMetadata: autoFetchMissingMetadata(),
           mqttEnabled: mqttEnabled(),
           mqttBrokerUrl: mqttBrokerUrl().trim() || undefined,
           mqttUsername: mqttUsername().trim() || undefined,
@@ -448,7 +461,143 @@ export default function Settings() {
         </form>
       </div>
 
-      {/* 2. Home Assistant & MQTT Automation Section */}
+      {/* 2. Library Scanning & Automation Section */}
+      <div
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+          "border-radius": "var(--radius-lg)",
+          padding: "24px",
+          "margin-bottom": "24px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            "margin-bottom": "14px",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
+            <span style={{ "font-size": "24px" }}>🔄</span>
+            <div>
+              <h2 style={{ margin: 0, "font-size": "18px", "font-weight": "700" }}>
+                {t("libraryScanningTitle")}
+              </h2>
+              <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
+                {t("libraryScanningDesc")}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p
+          style={{
+            "font-size": "13px",
+            color: "var(--text-secondary)",
+            "line-height": "1.6",
+            "margin-bottom": "16px",
+          }}
+        >
+          {t("autoScanOnChangeHelp")}
+        </p>
+
+        <form onSubmit={handleSave}>
+          <div style={{ "margin-bottom": "16px" }}>
+            <label
+              style={{
+                display: "flex",
+                "align-items": "flex-start",
+                gap: "10px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={autoScanOnChange()}
+                onChange={(e) => setAutoScanOnChange(e.currentTarget.checked)}
+                style={{ width: "18px", height: "18px", "margin-top": "2px" }}
+              />
+              <div>
+                <span style={{ "font-size": "14px", "font-weight": "600", display: "block" }}>
+                  {t("autoScanOnChange")}
+                </span>
+                <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
+                  {t("autoScanOnChangeHelp")}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <div style={{ "margin-bottom": "16px" }}>
+            <label
+              style={{
+                display: "flex",
+                "align-items": "flex-start",
+                gap: "10px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={autoFetchMissingMetadata()}
+                onChange={(e) => setAutoFetchMissingMetadata(e.currentTarget.checked)}
+                style={{ width: "18px", height: "18px", "margin-top": "2px" }}
+              />
+              <div>
+                <span style={{ "font-size": "14px", "font-weight": "600", display: "block" }}>
+                  {t("autoFetchMissingMetadata")}
+                </span>
+                <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
+                  {t("autoFetchMissingMetadataHelp")}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <div style={{ "margin-bottom": "20px", "max-width": "360px" }}>
+            <label
+              for="periodic-interval"
+              style={{
+                display: "block",
+                "font-size": "13px",
+                "font-weight": "600",
+                "margin-bottom": "6px",
+              }}
+            >
+              {t("periodicScanInterval")}
+            </label>
+            <select
+              id="periodic-interval"
+              value={periodicInterval()}
+              onChange={(e) => setPeriodicInterval(Number(e.currentTarget.value))}
+              style={{
+                width: "100%",
+                padding: "9px 12px",
+                background: "var(--bg-base)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-sm)",
+                color: "var(--text-primary)",
+                "font-size": "14px",
+              }}
+            >
+              <option value="0">{t("periodicScanDisabled")}</option>
+              <option value="15">{t("periodicScan15m")}</option>
+              <option value="30">{t("periodicScan30m")}</option>
+              <option value="60">{t("periodicScan1h")}</option>
+              <option value="360">{t("periodicScan6h")}</option>
+              <option value="1440">{t("periodicScan24h")}</option>
+            </select>
+          </div>
+
+          <Button type="submit" variant="primary" size="md" disabled={saving()}>
+            {saving() ? "Saving…" : "Save Automation Settings"}
+          </Button>
+        </form>
+      </div>
+
+      {/* 3. Home Assistant & MQTT Automation Section */}
       <div
         style={{
           background: "var(--bg-surface)",

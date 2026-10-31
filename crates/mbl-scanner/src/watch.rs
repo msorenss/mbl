@@ -91,13 +91,16 @@ impl LibraryWatcher {
         let mut last_poll: HashMap<String, Instant> = HashMap::new();
         let mut pending: HashMap<PathBuf, Pending> = HashMap::new();
         let mut last_reload: Option<Instant> = None;
+        let mut last_periodic_scan: HashMap<LibraryId, Instant> = HashMap::new();
+        let mut auto_scan_on_change = true;
+        let mut periodic_scan_interval_minutes = 60u32;
         let mut tick = tokio::time::interval(Duration::from_millis(500));
 
         loop {
             tokio::select! {
                 () = stop.cancelled() => return,
                 Some(path) = rx.recv() => {
-                    if let Some(root) = root_for(&roots, &path) {
+                    if auto_scan_on_change && let Some(root) = root_for(&roots, &path) {
                         let folder = folder_for(&path, &root.path);
                         pending.insert(path, Pending { library: root.library, folder, last_event: Instant::now() });
                     }
@@ -105,6 +108,19 @@ impl LibraryWatcher {
                 _ = tick.tick() => {
                     if last_reload.is_none_or(|t| t.elapsed() >= self.cfg.reload_interval) {
                         last_reload = Some(Instant::now());
+                        let settings = mbl_db::repo::settings::SettingsRepo::new(self.db.clone());
+                        if let Ok(Some(val)) = settings.get("auto_scan_on_change").await {
+                            auto_scan_on_change = val != "false";
+                        }
+                        if let Some(mins) = settings
+                            .get("periodic_scan_interval_minutes")
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|v| v.parse::<u32>().ok())
+                        {
+                            periodic_scan_interval_minutes = mins;
+                        }
                         match self.load_roots().await {
                             Ok(new) if new != roots => {
                                 apply_roots(&mut watcher, &roots, &new);
@@ -112,6 +128,20 @@ impl LibraryWatcher {
                             }
                             Ok(_) => {}
                             Err(e) => tracing::warn!(error = %e, "watcher could not load libraries"),
+                        }
+                    }
+                    if periodic_scan_interval_minutes > 0 {
+                        let interval = Duration::from_secs(periodic_scan_interval_minutes as u64 * 60);
+                        let mut due_libs = BTreeSet::new();
+                        for r in &roots {
+                            if last_periodic_scan.get(&r.library).is_none_or(|t| t.elapsed() >= interval) {
+                                due_libs.insert(r.library);
+                            }
+                        }
+                        for lib_id in due_libs {
+                            last_periodic_scan.insert(lib_id, Instant::now());
+                            tracing::info!(library_id = %lib_id, "periodic auto-scan triggered");
+                            self.enqueue(lib_id, BTreeSet::new()).await;
                         }
                     }
                     self.poll_network(&roots, &mut last_poll).await;
@@ -182,8 +212,12 @@ impl LibraryWatcher {
     }
 
     async fn enqueue(&self, library: LibraryId, folders: BTreeSet<String>) {
-        tracing::debug!(library_id = %library, ?folders, "queueing partial scan");
-        let payload = json!({ "libraryId": library, "folders": folders });
+        tracing::debug!(library_id = %library, ?folders, "queueing scan");
+        let payload = if folders.is_empty() {
+            json!({ "libraryId": library })
+        } else {
+            json!({ "libraryId": library, "folders": folders })
+        };
         if let Err(e) = self.jobs.enqueue(SCAN_JOB, &payload, Priority::Normal).await {
             tracing::warn!(error = %e, "could not queue scan");
         }

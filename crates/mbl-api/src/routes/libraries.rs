@@ -28,11 +28,20 @@ pub struct LibraryDto {
     pub kind: LibraryKind,
     pub paths: Vec<String>,
     pub created_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_scanned_at: Option<i64>,
 }
 
 impl From<Library> for LibraryDto {
     fn from(l: Library) -> Self {
-        Self { id: l.id, name: l.name, kind: l.kind, paths: l.paths, created_at: l.created_at }
+        Self {
+            id: l.id,
+            name: l.name,
+            kind: l.kind,
+            paths: l.paths,
+            created_at: l.created_at,
+            last_scanned_at: l.last_scanned_at,
+        }
     }
 }
 
