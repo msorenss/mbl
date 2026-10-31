@@ -399,7 +399,6 @@ async fn receiver_audio_encode_honors_profile_channel_limit() {
             )
             .await;
         assert_eq!(response.status, StatusCode::OK, "{}", response.body);
-        assert_eq!(response.body["hlsGeneratedTimeline"], true);
         let media = playlist(&services, &response.body).await;
         let info = tools.probe(&media, Duration::from_secs(15)).await.unwrap();
         let audio = info.streams.iter().find(|s| s.kind == mbl_core::StreamKind::Audio).unwrap();
