@@ -3,8 +3,8 @@ This document lives at the repository root so every AI agent, contributor, and a
 
 ---
 ## 1. Current status (quick overview)
-- Current work: post-release GUI batches 1–8 are implemented locally. WebDrama has configurable internet title search, per-user structured metadata, bounded media checks, direct previews and an authenticated VOD HLS player with personal history/resume. Actual HLS play/seek/resume is verified on isolated preview 18421. Streaming-source coverage, site adapters, real-series acceptance and unified library player/Up Next integration remain unfinished. Installed/published v1.1.0 is unchanged; native M11 clients remain on hold. Current source MCP has 78 admin tools (33 read, 38 read+library).
-- Latest release tag: `v1.1.0` (published 2026-10-29; source `5ee9753`, annotated tag `b6ccb1f618644d780c2981b4989eaf4e29209ca3`)
+- Current work: v1.2.0 is published from the latest verified release commit. WebDrama has configurable internet title search, per-user structured metadata, bounded media checks, direct previews and an authenticated VOD HLS player with personal history/resume. Actual HLS play/seek/resume is verified on isolated preview 18421. Streaming-source coverage, site adapters, real-series acceptance and unified library player/Up Next integration remain unfinished. Native M11 clients remain on hold. Current source MCP has 78 admin tools (33 read, 38 read+library).
+- Latest release tag: `v1.2.0` (published 2026-10-31; source `57d219a`)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -79,6 +79,12 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-10-31 — v1.2.0 published from latest main
+- Published GitHub Release `v1.2.0` from commit `57d219a` after the preceding candidate exposed Windows/metadata CI failures and an obsolete playback-test assertion.
+- CI run 41251841282 passed across Linux, Windows and ARM64, including workspace tests, lint, SQLx and the ARM64 server build. Release run 41251994295 passed all release guards and platform package builds.
+- GitHub confirms the release is published (not draft/prerelease) with 19 uploaded assets, including Debian/tar packages, Windows MSI/ZIPs and `SHA256SUMS`. Release page: https://github.com/msorenss/mbl/releases/tag/v1.2.0
+- CI fixes included a global localhost `NO_PROXY`, preserving an injected TMDB client during dynamic-key cache checks, and removing a stale `hlsGeneratedTimeline` assertion from the audio channel-limit test. The matching suite passed 7/7, server DVR/Live TV slices 10/10, and playback track tests 3/3 locally under the proxy simulation.
 
 ### 2026-10-31 — Library Auto-Scan, Inotify Change Scanning & Missing Metadata Auto-Fetch
 - **Auto-Fetch Missing Metadata on Scan:**
