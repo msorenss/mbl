@@ -80,6 +80,14 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-01 — Library Permissions & TLS Certificate Management Documentation
+- **Folder Permissions & Service Accounts (`docs/book/src/troubleshooting.md`, `installation/linux.md`, `installation/windows.md`):**
+  - Documented permission architecture: why unprivileged system users (`mbl` on Linux, `NT AUTHORITY\NetworkService` on Windows) need traversal (`--x`) on parent directories and read (`r-x`) on media library roots.
+  - Added exact commands for POSIX ACLs (`setfacl -m u:mbl:rx /home/$USER`, `setfacl -R -d -m u:mbl:rx`) and Windows NTFS ACLs (`icacls ... /grant "NETWORK SERVICE:(OI)(CI)RX"`).
+- **HTTPS & TLS Certificate Guide (`docs/book/src/tls-certificates.md` & `SUMMARY.md`):**
+  - Created dedicated chapter detailing the three certificate modes: MBL Local CA (with OS trust installation guides for Linux/Raspberry Pi OS, Windows, macOS, iOS, Android), Tailscale HTTPS (`*.ts.net`), and Let's Encrypt / custom PEM.
+  - Documented Google Chromecast behavior (fixed Google hardware root store) and how MBL handles it via local HTTP LAN media streaming while keeping web/API traffic encrypted over HTTPS.
+
 ### 2026-11-01 — Home Assistant MQTT Discovery, Live Player Telemetry & Command Dispatcher
 - **Active MQTT Background Bridge (`crates/mbl-remote/src/mqtt.rs` & `crates/mbl-server/src/mqtt.rs`):**
   - Integrated `rumqttc = "0.24"` to manage dynamic connections to configured MQTT brokers (`mqtt_enabled`, `mqtt_broker_url`, `mqtt_username`, `mqtt_password`, `mqtt_topic_prefix`).
