@@ -44,7 +44,7 @@ impl FromRequestParts<AppState> for AuthUser {
             // Cookies are sent automatically by browsers: reject cross-site state changes.
             // WebSocket upgrades are GETs but carry the session too (cross-site hijacking).
             if (is_unsafe(&parts.method) || is_upgrade(&parts.headers))
-                && !same_origin(&parts.headers)
+                && !same_origin(&parts.headers, parts.uri.authority().map(|a| a.as_str()))
             {
                 return Err(Error::Forbidden.into());
             }
@@ -174,14 +174,24 @@ fn is_upgrade(headers: &HeaderMap) -> bool {
     headers.contains_key(header::UPGRADE)
 }
 
-/// True when there is no `Origin` header or its host matches the `Host` header.
-fn same_origin(headers: &HeaderMap) -> bool {
+/// True when there is no `Origin` header or its host matches the `Host`, `:authority` (HTTP/2),
+/// or `X-Forwarded-Host` header.
+fn same_origin(headers: &HeaderMap, uri_authority: Option<&str>) -> bool {
     let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
         return true;
     };
     let origin_host = origin.split_once("://").map_or(origin, |(_, rest)| rest);
-    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok());
-    host.is_some_and(|h| h.eq_ignore_ascii_case(origin_host))
+    let host = headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .or(uri_authority)
+        .or_else(|| headers.get("x-forwarded-host").and_then(|v| v.to_str().ok()));
+    host.is_some_and(|h| {
+        h.eq_ignore_ascii_case(origin_host)
+            || h.split_once(':').map_or(h, |(name, _)| name).eq_ignore_ascii_case(
+                origin_host.split_once(':').map_or(origin_host, |(name, _)| name),
+            )
+    })
 }
 
 #[cfg(test)]
@@ -221,14 +231,24 @@ mod tests {
 
     #[test]
     fn origin_check() {
-        assert!(same_origin(&headers(&[(header::HOST, "mbl.local:8420")])));
-        assert!(same_origin(&headers(&[
-            (header::HOST, "mbl.local:8420"),
-            (header::ORIGIN, "http://mbl.local:8420"),
-        ])));
-        assert!(!same_origin(&headers(&[
-            (header::HOST, "mbl.local:8420"),
-            (header::ORIGIN, "https://evil.example"),
-        ])));
+        assert!(same_origin(&headers(&[(header::HOST, "mbl.local:8420")]), None));
+        assert!(same_origin(
+            &headers(&[
+                (header::HOST, "mbl.local:8420"),
+                (header::ORIGIN, "http://mbl.local:8420"),
+            ]),
+            None
+        ));
+        // HTTP/2 :authority fallback when Host header is absent
+        assert!(same_origin(
+            &headers(&[(header::ORIGIN, "https://192.168.68.147:8443")]),
+            Some("192.168.68.147:8443")
+        ));
+        assert!(!same_origin(
+            &headers(
+                &[(header::HOST, "mbl.local:8420"), (header::ORIGIN, "https://evil.example"),]
+            ),
+            None
+        ));
     }
 }
