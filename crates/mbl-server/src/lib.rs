@@ -5,6 +5,7 @@ pub mod config;
 pub mod logging;
 pub mod recorder;
 pub mod shutdown;
+pub mod tls;
 pub mod web;
 
 pub use app::{Server, build};

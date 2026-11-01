@@ -200,6 +200,13 @@ impl Server {
             stop.clone(),
         ));
 
+        let https = tokio::spawn(crate::tls::run(
+            self.db.clone(),
+            self.router.clone(),
+            self.config.server.bind.clone(),
+            stop.clone(),
+        ));
+
         tracing::info!(%addr, "listening");
         let stop_on_signal = stop.clone();
         let served =
@@ -213,6 +220,7 @@ impl Server {
         stop.cancel();
         let _ = playback.await;
         let _ = recordings.await;
+        let _ = https.await;
         let _ = jobs.await;
         self.db.close().await;
         tracing::info!("stopped");

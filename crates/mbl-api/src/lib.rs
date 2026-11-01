@@ -19,6 +19,7 @@ pub use state::{AppState, ServerInfo};
 pub fn router(state: AppState) -> Router {
     Router::new()
         .merge(routes::system::router())
+        .merge(routes::tls::router())
         .merge(routes::auth::router())
         .merge(routes::users::router())
         .merge(routes::invites::router())

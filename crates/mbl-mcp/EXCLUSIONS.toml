@@ -234,3 +234,23 @@ reason = "Interactive validation and connection testing for external TMDB API cr
 [[exclusions]]
 path = "/api/v1/system/tmdb/search"
 reason = "Interactive GUI autocomplete helper for TMDB metadata and media requests."
+
+[[exclusions]]
+path = "/api/v1/system/tls"
+reason = "HTTPS listener and certificate administration handles private keys; intentionally a human-only security operation."
+
+[[exclusions]]
+path = "/api/v1/system/tls/local-ca"
+reason = "Issues local CA material and server certificates; human-only security operation."
+
+[[exclusions]]
+path = "/api/v1/system/tls/tailscale"
+reason = "Fetches a certificate and private key from the local Tailscale daemon; human-only security operation."
+
+[[exclusions]]
+path = "/api/v1/system/tls/acme"
+reason = "Configures or imports a Let's Encrypt ACME certificate and private key; human-only security operation."
+
+[[exclusions]]
+path = "/api/v1/system/tls/ca.pem"
+reason = "Binary root certificate download for installation on client devices."

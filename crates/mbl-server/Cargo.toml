@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
+axum-server.workspace = true
 camino.workspace = true
 clap.workspace = true
 figment.workspace = true
@@ -22,6 +23,7 @@ mbl-mcp.workspace = true
 mbl-metadata.workspace = true
 mbl-platform.workspace = true
 mbl-probe.workspace = true
+mbl-remote.workspace = true
 mbl-scanner.workspace = true
 mbl-service.workspace = true
 mbl-stream.workspace = true
@@ -35,6 +37,7 @@ tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 mime_guess.workspace = true
 rust-embed.workspace = true
+rustls.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true

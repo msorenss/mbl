@@ -8,6 +8,7 @@ pub mod mqtt;
 pub mod network;
 pub mod reachability;
 pub mod tailscale;
+pub mod tls;
 
 pub use bandwidth::{BandwidthManager, NetworkQualityPreset};
 pub use dlna::{

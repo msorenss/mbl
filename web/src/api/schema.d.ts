@@ -2299,6 +2299,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/tls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current HTTPS configuration and certificate status (admin only). */
+        get: operations["get_tls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Enable/disable the HTTPS listener or change its port (admin only). */
+        patch: operations["update_tls"];
+        trace?: never;
+    };
+    "/api/v1/system/tls/acme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Configure or import a Let's Encrypt (ACME) certificate for a public domain (admin only). */
+        post: operations["issue_acme"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/tls/ca.pem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the local root CA certificate to install on client devices (admin only). */
+        get: operations["download_ca"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/tls/local-ca": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create (or reuse) the local root CA and issue a server certificate (admin only). */
+        post: operations["issue_local_ca"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/tls/tailscale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch a certificate for this node's MagicDNS name from the local Tailscale daemon (admin only). */
+        post: operations["issue_tailscale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/tmdb/search": {
         parameters: {
             query?: never;
@@ -2670,6 +2756,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcmeRequest: {
+            /** @description Optional PEM certificate chain (if importing an existing Let's Encrypt / ACME certificate). */
+            certPem?: string | null;
+            /** @description Public DNS domain name for the Let's Encrypt certificate. */
+            domain: string;
+            /** @description Contact email address for Let's Encrypt expiration notices. */
+            email?: string | null;
+            /** @description Optional PEM private key (if importing an existing Let's Encrypt / ACME private key). */
+            keyPem?: string | null;
+        };
         /** @description Live playback session metadata tracked in memory. */
         ActivePlaybackSession: {
             /** Format: int64 */
@@ -3289,6 +3385,10 @@ export interface components {
             sessionId: string;
             streamUrl: string;
             targetFormat: string;
+        };
+        LocalCaRequest: {
+            /** @description DNS names and/or IP addresses the certificate must be valid for. */
+            hostnames: string[];
         };
         LoginRequest: {
             clientName?: string | null;
@@ -4436,6 +4536,25 @@ export interface components {
             /** @description Human-readable dashboard warnings for admins. */
             warnings: string[];
         };
+        TlsStatus: {
+            /** @description Configured Let's Encrypt contact email (if any). */
+            acmeEmail?: string | null;
+            /** @description The local root CA exists and can be downloaded for installation on devices. */
+            caAvailable: boolean;
+            /** @description Serve HTTPS when a certificate is available. */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Certificate expiry in unix seconds.
+             */
+            expiresAt?: number | null;
+            hasCertificate: boolean;
+            hostnames: string[];
+            /** @description `none`, `local_ca`, `tailscale`, or `letsencrypt`. */
+            mode: string;
+            /** Format: int32 */
+            port: number;
+        };
         TmdbSearchHit: {
             /** Format: int64 */
             id: number;
@@ -4615,6 +4734,11 @@ export interface components {
             periodicScanIntervalMinutes?: number | null;
             serverName?: string | null;
             tmdbApiKey?: string | null;
+        };
+        UpdateTlsRequest: {
+            enabled?: boolean | null;
+            /** Format: int32 */
+            port?: number | null;
         };
         UpdateUserPermissionsRequest: {
             contentRatingCeiling?: string | null;
@@ -10358,6 +10482,240 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_tls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TlsStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_tls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTlsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TlsStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issue_acme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcmeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TlsStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    download_ca: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-x509-ca-cert": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issue_local_ca: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocalCaRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TlsStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issue_tailscale: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TlsStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

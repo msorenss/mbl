@@ -6351,6 +6351,220 @@
         "security": []
       }
     },
+    "/api/v1/system/tls": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Current HTTPS configuration and certificate status (admin only).",
+        "operationId": "get_tls",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TlsStatus"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Enable/disable the HTTPS listener or change its port (admin only).",
+        "operationId": "update_tls",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTlsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TlsStatus"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/tls/acme": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Configure or import a Let's Encrypt (ACME) certificate for a public domain (admin only).",
+        "operationId": "issue_acme",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcmeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TlsStatus"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "403": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/tls/ca.pem": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Download the local root CA certificate to install on client devices (admin only).",
+        "operationId": "download_ca",
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-x509-ca-cert": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "404": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/tls/local-ca": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Create (or reuse) the local root CA and issue a server certificate (admin only).",
+        "operationId": "issue_local_ca",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalCaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TlsStatus"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {},
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/tls/tailscale": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Fetch a certificate for this node's MagicDNS name from the local Tailscale daemon (admin only).",
+        "operationId": "issue_tailscale",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TlsStatus"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/system/tmdb/search": {
       "get": {
         "tags": [
@@ -7374,6 +7588,39 @@
   },
   "components": {
     "schemas": {
+      "AcmeRequest": {
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "properties": {
+          "certPem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional PEM certificate chain (if importing an existing Let's Encrypt / ACME certificate)."
+          },
+          "domain": {
+            "type": "string",
+            "description": "Public DNS domain name for the Let's Encrypt certificate."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Contact email address for Let's Encrypt expiration notices."
+          },
+          "keyPem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional PEM private key (if importing an existing Let's Encrypt / ACME private key)."
+          }
+        }
+      },
       "ActivePlaybackSession": {
         "type": "object",
         "description": "Live playback session metadata tracked in memory.",
@@ -9806,6 +10053,21 @@
           },
           "targetFormat": {
             "type": "string"
+          }
+        }
+      },
+      "LocalCaRequest": {
+        "type": "object",
+        "required": [
+          "hostnames"
+        ],
+        "properties": {
+          "hostnames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "DNS names and/or IP addresses the certificate must be valid for."
           }
         }
       },
@@ -14116,6 +14378,60 @@
           }
         }
       },
+      "TlsStatus": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "port",
+          "mode",
+          "hostnames",
+          "hasCertificate",
+          "caAvailable"
+        ],
+        "properties": {
+          "acmeEmail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Configured Let's Encrypt contact email (if any)."
+          },
+          "caAvailable": {
+            "type": "boolean",
+            "description": "The local root CA exists and can be downloaded for installation on devices."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Serve HTTPS when a certificate is available."
+          },
+          "expiresAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Certificate expiry in unix seconds."
+          },
+          "hasCertificate": {
+            "type": "boolean"
+          },
+          "hostnames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "description": "`none`, `local_ca`, `tailscale`, or `letsencrypt`."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "TmdbSearchHit": {
         "type": "object",
         "required": [
@@ -14804,6 +15120,25 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateTlsRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

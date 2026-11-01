@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
 import CastDiagnostics from "../../components/CastDiagnostics";
+import TlsSettings from "../../components/TlsSettings";
 import { Button } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
 import { useI18n } from "../../i18n";
@@ -460,6 +461,9 @@ export default function Settings() {
           </div>
         </form>
       </div>
+
+      {/* 1.5. HTTPS & TLS Certificates Section */}
+      <TlsSettings />
 
       {/* 2. Library Scanning & Automation Section */}
       <div

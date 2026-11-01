@@ -95,6 +95,19 @@ impl TailscaleClient {
         parse_tailscale_status(&json_str)
     }
 
+    /// Fetch a Let's Encrypt certificate for this node's MagicDNS name (`/localapi/v0/cert`).
+    ///
+    /// Returns the private key and certificate chain as PEM text (`type=pair`).
+    pub async fn fetch_cert_pair(&self, domain: &str) -> Result<String> {
+        if domain.is_empty()
+            || !domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        {
+            return Err(Error::Validation("invalid Tailscale domain name".into()));
+        }
+        let body = self.transport.request(&format!("/localapi/v0/cert/{domain}?type=pair")).await?;
+        Ok(crate::tls::dechunk(&body))
+    }
+
     /// Look up the identity of a peer IP address (`/localapi/v0/whois?addr=...`).
     pub async fn whois(&self, peer_addr: &str) -> Result<TailscaleWhois> {
         let query = format!("/localapi/v0/whois?addr={peer_addr}");

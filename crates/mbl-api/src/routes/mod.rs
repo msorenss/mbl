@@ -26,6 +26,7 @@ pub mod requests;
 pub mod stream;
 pub mod subsonic;
 pub mod system;
+pub mod tls;
 pub mod users;
 pub mod webhooks;
 pub mod workers;

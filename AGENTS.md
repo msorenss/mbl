@@ -80,6 +80,27 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-01 — Built-in HTTPS/TLS Certificate Manager (Local CA, Tailscale & Let's Encrypt) and Verified-Only WebTV
+- **Built-in HTTPS & TLS Certificate Management:**
+  - Added dynamic HTTPS listener in `crates/mbl-server/src/tls.rs` (`axum-server` + `rustls` with `aws-lc-rs`) polling `SettingsRepo` so certificates and the HTTPS port (default `8443`) reload live without restarting the server.
+  - Added certificate generation and PEM utilities in `crates/mbl-remote/src/tls.rs` (`rcgen` with X.509 v3 `AuthorityKeyIdentifier` extension required by OpenSSL 3.5+) and `TailscaleClient::fetch_cert_pair` in `crates/mbl-remote/src/tailscale.rs`.
+  - Added REST endpoints in `crates/mbl-api/src/routes/tls.rs`:
+    - `GET /api/v1/system/tls` and `PATCH /api/v1/system/tls` (enable/disable HTTPS listener and configure port)
+    - `POST /api/v1/system/tls/local-ca` (generates 10-year `MBL Local CA` root certificate and 1-year server certificate with SANs for LAN IPs and hostnames)
+    - `GET /api/v1/system/tls/ca.pem` (downloads `mbl-local-ca.crt` for one-time installation on client devices)
+    - `POST /api/v1/system/tls/tailscale` (fetches Let's Encrypt certificate pair for `*.ts.net` from local `tailscaled`)
+    - `POST /api/v1/system/tls/acme` (loads `/etc/letsencrypt/live/<domain>/{fullchain.pem,privkey.pem}` or imports PEM certificate chain + private key)
+  - Added `<TlsSettings />` (`web/src/components/TlsSettings.tsx` & `TlsSettings.test.tsx`) to `/admin/settings` (`web/src/pages/admin/Settings.tsx`) with tabs for all three certificate modes.
+- **WebTV Verified-Only Sources & Embedded Playback:**
+  - Updated `web/src/components/OnlineSearch.tsx` to automatically verify the top 8 search results in parallel and only list sources with `availability === "media_detected"`.
+  - Removed external target-blank source links so all WebTV playback happens inside MBL's embedded player.
+- **Verification:**
+  - `just web-check`: Biome clean, 42/42 Vitest test files passed, `tsc -b` clean, initial Vite bundle within budget.
+  - `cargo clippy -p mbl-remote -p mbl-api -p mbl-server --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo test -p mbl-remote tls`: 3/3 passed.
+  - `cargo xtask openapi-check` & `cargo xtask mcp-parity`: 100.0% parity (165/165 endpoints).
+  - Live-tested on preview server (`18421` HTTP / `18443` HTTPS): verified Local CA generation for `192.168.68.147`, `hallon.local`, `localhost`, and `127.0.0.1` and confirmed full TLS verification over `https://192.168.68.147:18443/health`.
+
 ### 2026-10-31 — v1.2.0 published from latest main
 - Published GitHub Release `v1.2.0` from commit `57d219a` after the preceding candidate exposed Windows/metadata CI failures and an obsolete playback-test assertion.
 - CI run 41251841282 passed across Linux, Windows and ARM64, including workspace tests, lint, SQLx and the ARM64 server build. Release run 41251994295 passed all release guards and platform package builds.
