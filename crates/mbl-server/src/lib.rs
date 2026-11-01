@@ -3,6 +3,7 @@
 pub mod app;
 pub mod config;
 pub mod logging;
+pub mod mqtt;
 pub mod recorder;
 pub mod shutdown;
 pub mod tls;

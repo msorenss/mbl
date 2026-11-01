@@ -38,6 +38,7 @@ tracing-subscriber.workspace = true
 mime_guess.workspace = true
 rust-embed.workspace = true
 rustls.workspace = true
+rumqttc.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true

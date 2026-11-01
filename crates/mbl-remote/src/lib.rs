@@ -20,7 +20,8 @@ pub use identity::{
 };
 pub use mqtt::{
     IncomingPlayerCommand, MediaPlayerDiscovery, MqttConfig, PlayerStatePayload, SensorDiscovery,
-    build_player_discovery, build_sensor_discovery, parse_incoming_command, playback_event_topic,
+    build_measurement_sensor_discovery, build_player_discovery, build_sensor_discovery,
+    create_mqtt_client, parse_broker_url, parse_incoming_command, playback_event_topic,
 };
 pub use network::{NetworkClass, classify_ip, resolve_client_ip};
 pub use reachability::{ReachabilityReport, RemoteRecommendation, analyze_reachability};
