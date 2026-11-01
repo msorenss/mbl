@@ -2,7 +2,7 @@
 //! Generates MQTT Discovery payloads for media players and diagnostic sensors,
 //! formats playback state and lifecycle trigger events, and parses control commands.
 
-use rumqttc::{AsyncClient, EventLoop, LastWill, MqttOptions, QoS, Transport};
+use rumqttc::{AsyncClient, EventLoop, LastWill, MqttOptions, QoS};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ pub fn create_mqtt_client(
     options.set_last_will(will);
 
     if is_tls {
-        options.set_transport(Transport::tls_with_default_config());
+        return Err("TLS for MQTT broker is not supported; connect via LAN TCP or Tailscale".into());
     }
 
     let (client, eventloop) = AsyncClient::new(options, 30);
