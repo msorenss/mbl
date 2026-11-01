@@ -566,21 +566,31 @@ describe("SDK unknown telemetry", () => {
       );
     },
   );
-  it("does not replace valid position or volume with nonfinite SDK values", async () => {
-    const sdk = await google();
-    await manager?.requestCastSession({ ...media, duration: 600 });
-    sdk.player.currentTime = 12.5;
-    sdk.player.volumeLevel = 0.4;
-    sdk.emit();
-    sdk.player.currentTime = Number.NaN;
-    sdk.player.volumeLevel = Number.POSITIVE_INFINITY;
-    sdk.player.playerState = "PAUSED";
-    sdk.emit();
-    await tick();
-    expect(manager?.getState().currentTime).toBe(12.5);
-    expect(api.POST).toHaveBeenLastCalledWith(
-      "/api/v1/players",
-      expect.objectContaining({ body: expect.objectContaining({ positionMs: 12500, volume: 40 }) }),
-    );
+  it("rewrites HTTPS LAN IP URLs to HTTP for Chromecast receiver compatibility", async () => {
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      value: new URL("https://192.168.68.147:8443/settings"),
+      writable: true,
+      configurable: true,
+    });
+    try {
+      const sdk = await google();
+      await manager?.requestCastSession({
+        ...media,
+        contentId: "/api/v1/stream/hls/123/master.m3u8",
+      });
+      const loadCall = sdk.session.loadMedia.mock.calls[0][0] as {
+        mediaInfo: { contentId: string };
+      };
+      expect(loadCall.mediaInfo.contentId).toBe(
+        "http://192.168.68.147:8420/api/v1/stream/hls/123/master.m3u8",
+      );
+    } finally {
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 });

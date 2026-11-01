@@ -1065,7 +1065,23 @@ class CastManager {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       return url;
     }
-    return new URL(url, window.location.origin).href;
+    const abs = new URL(url, window.location.origin);
+    // Chromecast devices run closed Google firmware with fixed root CAs and cannot
+    // trust custom Local CA certificates. When the sender is on HTTPS on a private LAN IP
+    // (e.g. 192.168.x.x, 10.x.x.x, *.local), rewrite the media URL to HTTP so the Chromecast
+    // receiver can stream directly without certificate validation failures.
+    const isPrivateLan =
+      /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.|localhost)/.test(abs.hostname) ||
+      abs.hostname.endsWith(".local");
+    if (abs.protocol === "https:" && isPrivateLan) {
+      abs.protocol = "http:";
+      if (abs.port === "8443") {
+        abs.port = "8420";
+      } else if (abs.port === "18443") {
+        abs.port = "18421";
+      }
+    }
+    return abs.href;
   }
 }
 
