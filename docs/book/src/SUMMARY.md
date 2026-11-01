@@ -15,6 +15,7 @@
 - [Web player & seek previews](playback.md)
 - [Hardware Acceleration](hardware-acceleration.md)
 - [Remote Access & Networking](remote-access.md)
+- [HTTPS, TLS & Certificates](tls-certificates.md)
 - [Distributed Nodes & Workers](distributed-workers.md)
 - [Live TV, EPG & DVR](live-tv-dvr.md)
 - [WebDrama: internet discovery & source checks](online-discovery.md)

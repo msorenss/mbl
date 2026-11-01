@@ -24,3 +24,9 @@ By default, administrative endpoints (`/api/v1/users`, `/api/v1/settings`, `/api
 ## Fair WAN Bandwidth Sharing
 
 When external users stream simultaneously over WAN, MBL enforces a strict bandwidth cap (`wan_upload_limit_kbps`) with dynamic fair-share rebalancing. If upload bandwidth is saturated, active transcode streams are downgraded gracefully to prevent buffering for other users.
+
+---
+
+## HTTPS & Encrypted Connections
+
+For details on generating Local CA certificates, provisioning Let's Encrypt certificates via Tailscale LocalAPI, or loading custom ACME PEM certificates, see the dedicated [HTTPS, TLS & Certificate Management](tls-certificates.md) guide.
