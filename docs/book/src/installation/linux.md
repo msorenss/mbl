@@ -43,3 +43,18 @@ sudo journalctl -u mbl -f
 # Application data & SQLite database:
 /var/lib/mbl/
 ```
+
+## Media Storage & Folder Permissions
+
+The `mbl` service account needs read and search access to your media folders. If you keep media inside your personal home directory (e.g. `/home/username/Downloads` or `/home/username/Media`):
+
+```bash
+# Allow mbl to browse into your home directory:
+sudo setfacl -m u:mbl:rx /home/$USER
+
+# Grant recursive read access to your media directory and future files:
+sudo setfacl -R -m u:mbl:rx /home/$USER/Media
+sudo setfacl -R -d -m u:mbl:rx /home/$USER/Media
+```
+
+See [Troubleshooting](../troubleshooting.md#4-library-folder-access--permissions-path-is-not-readable) for more details.

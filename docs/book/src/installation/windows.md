@@ -18,6 +18,17 @@ MBL provides an official **WiX-based MSI Installer** (`mbl-setup-x64.msi`) as we
 winget install msorenss.mbl
 ```
 
+## Media Storage & Folder Permissions
+
+On Windows, `MBLService` runs under `NT AUTHORITY\NetworkService`. If your library folders are stored inside your personal Windows profile (such as `C:\Users\<Username>\Videos` or `Downloads`), grant read permissions to the service:
+
+```powershell
+# Run PowerShell as Administrator:
+icacls "C:\Users\<Username>\Videos" /grant "NETWORK SERVICE:(OI)(CI)RX"
+```
+
+Dedicated secondary drives (e.g. `D:\Media`) typically inherit read access for all system services automatically.
+
 ## Hardware Acceleration on Windows
 
 - **Intel:** QuickSync Video (QSV) via Intel Graphics Driver.
