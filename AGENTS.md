@@ -3,8 +3,8 @@ This document lives at the repository root so every AI agent, contributor, and a
 
 ---
 ## 1. Current status (quick overview)
-- Current work: v1.2.0 is published from the latest verified release commit. WebDrama has configurable internet title search, per-user structured metadata, bounded media checks, direct previews and an authenticated VOD HLS player with personal history/resume. Actual HLS play/seek/resume is verified on isolated preview 18421. Streaming-source coverage, site adapters, real-series acceptance and unified library player/Up Next integration remain unfinished. Native M11 clients remain on hold. Current source MCP has 78 admin tools (33 read, 38 read+library).
-- Latest release tag: `v1.2.0` (published 2026-10-31; source `57d219a`)
+- Current work: v1.2.1 released with active Home Assistant MQTT discovery and two-way control, built-in HTTPS/TLS certificate manager (Local CA, Tailscale, Let's Encrypt), Chromecast HTTPS media routing, and comprehensive permissions/TLS documentation.
+- Latest release tag: `v1.2.1` (prepared 2026-11-01)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)

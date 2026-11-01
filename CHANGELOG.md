@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-01
+
+### Added
+- Active MQTT background bridge connecting dynamically to configured brokers with automatic Home Assistant MQTT Discovery for server status, active playback sessions, and media player entities.
+- Full two-way Home Assistant control: dispatching `PLAY`, `PAUSE`, `STOP`, `SEEK <seconds>`, and `VOLUME <0-100>` commands directly to registered players and active playback sessions.
+- Continuous player telemetry and rich JSON attributes (media title, season/episode, timecode position, duration, volume) published to `<prefix>/player/<id>/state` and `<prefix>/player/<id>/attributes`.
+- Dynamic MQTT broker connection lifecycle driven by SQLite settings changes without requiring server restarts.
+- Built-in HTTPS listener and TLS certificate manager supporting three certificate modes: MBL Local CA (with SANs for LAN IPs and hostnames), Tailscale HTTPS (`*.ts.net`), and ACME / Let's Encrypt / custom PEM.
+- Comprehensive documentation for media library folder permissions across Linux POSIX ACLs (`setfacl`) and Windows NTFS (`icacls`), plus a dedicated guide for HTTPS and TLS certificates (`docs/book/src/tls-certificates.md`).
+
+### Fixed
+- Fixed HTTP/2 pseudo-header `:authority` handling in session CSRF validation, resolving 403 Forbidden errors during browser playback over HTTPS.
+- Fixed Google Cast receiver stalls on HTTPS setups by rewriting private LAN media URLs to local HTTP (`8420`), accommodating Chromecast's fixed root certificate store.
+
 ## [1.2.0] - 2026-10-31
 
 ### Added

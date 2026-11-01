@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.2.0
+Current release: v1.2.1
 
-This release builds on v1.1.0 with WebTV discovery and playback, library automation, expanded server integrations, and playback improvements. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
+This release builds on v1.2.0 with active Home Assistant MQTT integration, built-in HTTPS & TLS certificate management, and Chromecast HTTPS compatibility. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
 
 ## Quick start
 
