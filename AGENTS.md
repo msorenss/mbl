@@ -80,6 +80,23 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-01 — Home Assistant MQTT Discovery, Live Player Telemetry & Command Dispatcher
+- **Active MQTT Background Bridge (`crates/mbl-remote/src/mqtt.rs` & `crates/mbl-server/src/mqtt.rs`):**
+  - Integrated `rumqttc = "0.24"` to manage dynamic connections to configured MQTT brokers (`mqtt_enabled`, `mqtt_broker_url`, `mqtt_username`, `mqtt_password`, `mqtt_topic_prefix`).
+  - Implemented dynamic worker lifecycle in `crates/mbl-server/src/mqtt.rs` that polls `SettingsRepo` every 5 seconds, establishing, updating, or cleanly disconnecting the bridge without restarting the server.
+  - Automatically publishes Home Assistant MQTT Discovery configs on connect:
+    - Server Status sensor (`homeassistant/sensor/<prefix>_server_status/config`)
+    - Active Playback Sessions sensor (`homeassistant/sensor/<prefix>_active_sessions/config`)
+    - Media Player entities (`homeassistant/media_player/<prefix>_<player_id>/config`) for all registered players and mirrored active sessions.
+  - Publishes continuous state updates and rich JSON attributes (media title, season/episode, timecode position, duration, volume) to `<prefix>/player/<player_id>/state` and `<prefix>/player/<player_id>/attributes`.
+  - Subscribes to `<prefix>/player/+/command` and dispatches incoming control commands (`PLAY`, `PAUSE`, `STOP`, `SEEK <seconds>`, `VOLUME <0-100>`) directly to `PlayerRegistry` (via WebSockets to Chromecast/remote clients) and `PlaybackService`.
+- **Verification:**
+  - `cargo clippy -p mbl-server -p mbl-remote --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo test -p mbl-remote mqtt`: 3/3 passed.
+  - `just web-check`: Biome clean, 213/213 Vitest passed, `tsc -b` clean, initial bundle 51.57 KB gzip (<= 150 KB budget).
+  - `cargo xtask openapi-check` & `cargo xtask mcp-parity`: 100.0% parity (165/165 endpoints).
+  - Live tested against Mosquitto broker on Pi (`192.168.68.147:1883`) with authenticated user `marcus`: verified connection, discovery configs published, availability status online, and incoming commands (`PAUSE`, `VOLUME 75`) successfully dispatched.
+
 ### 2026-11-01 — Built-in HTTPS/TLS Certificate Manager (Local CA, Tailscale & Let's Encrypt) and Verified-Only WebTV
 - **Built-in HTTPS & TLS Certificate Management:**
   - Added dynamic HTTPS listener in `crates/mbl-server/src/tls.rs` (`axum-server` + `rustls` with `aws-lc-rs`) polling `SettingsRepo` so certificates and the HTTPS port (default `8443`) reload live without restarting the server.
