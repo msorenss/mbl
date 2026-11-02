@@ -139,12 +139,45 @@ impl OnlineService {
                 active: Instant::now(),
             },
         );
+        tracing::info!(
+            target: "mbl::online",
+            session_id = %id,
+            user_id = auth.actor.user_id.0,
+            is_hls,
+            position,
+            "created active WebTV playback session"
+        );
         Ok(OnlinePlayback { id, stream_url, hls: is_hls, position, expires_at: expires })
     }
-    pub async fn online_manifest(&self, auth: &Authenticated, id: &str) -> Result<String> {
+    pub async fn online_manifest(
+        &self,
+        auth: &Authenticated,
+        id: &str,
+        token: Option<&str>,
+    ) -> Result<String> {
         let session = self.owned(auth, id).await?;
         let playlist = session.playlist.ok_or(Error::NotFound)?;
-        Ok(playlist.lines.join("\n") + "\n")
+        if let Some(tok) = token.filter(|t| !t.is_empty()) {
+            let lines: Vec<String> = playlist
+                .lines
+                .iter()
+                .map(|line| {
+                    if let Some(res) =
+                        line.strip_prefix("#EXT-X-MAP:URI=\"").and_then(|s| s.strip_suffix('"'))
+                    {
+                        return format!("#EXT-X-MAP:URI=\"{res}?token={tok}\"");
+                    }
+                    if line.starts_with("resource/") {
+                        format!("{line}?token={tok}")
+                    } else {
+                        line.clone()
+                    }
+                })
+                .collect();
+            Ok(lines.join("\n") + "\n")
+        } else {
+            Ok(playlist.lines.join("\n") + "\n")
+        }
     }
     pub async fn online_resource(
         &self,

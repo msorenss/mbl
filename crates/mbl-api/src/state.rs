@@ -42,6 +42,8 @@ impl AppState {
 pub struct ServerInfo {
     pub name: &'static str,
     pub version: &'static str,
+    pub git_commit: &'static str,
+    pub build_time: &'static str,
     pub os: &'static str,
     pub arch: &'static str,
     pub platform_profile: PlatformProfile,
@@ -49,11 +51,18 @@ pub struct ServerInfo {
 }
 
 impl ServerInfo {
-    pub fn current(version: &'static str, platform_profile: PlatformProfile) -> Self {
+    pub fn current(
+        version: &'static str,
+        git_commit: &'static str,
+        build_time: &'static str,
+        platform_profile: PlatformProfile,
+    ) -> Self {
         let npu_profile = mbl_hwaccel::detect_fingerprint().npu_profile;
         Self {
             name: "MBL",
             version,
+            git_commit,
+            build_time,
             os: std::env::consts::OS,
             arch: std::env::consts::ARCH,
             platform_profile,

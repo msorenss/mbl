@@ -3,6 +3,7 @@ import client from "../api/client";
 import { apiErrorMessage } from "../api/errors";
 import type { components } from "../api/schema";
 import { type TranslationKey, useI18n } from "../i18n";
+import { classifyStreamingProvider } from "../utils/streamingProviders";
 import { OnlineHistory } from "./OnlineHistory";
 import { OnlinePlayer } from "./OnlinePlayer";
 import { OnlinePreview } from "./OnlinePreview";
@@ -40,6 +41,9 @@ function webUrl(raw: string): string | undefined {
   }
 }
 
+export const isOnlinePlayable = (s: Source) =>
+  (s.availability === "media_detected" && !!s.mediaUrl) || s.availability === "external_player";
+
 export function OnlineSearch(props: { admin?: boolean } = {}) {
   const { t } = useI18n();
   const [query, setQuery] = createSignal("");
@@ -54,6 +58,7 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
   const [error, setError] = createSignal("");
   const [verified, setVerified] = createSignal<Source[]>([]);
   const [verifying, setVerifying] = createSignal(false);
+  const [resultsTab, setResultsTab] = createSignal<"verified" | "all">("verified");
   let searchRequest: AbortController | undefined;
   let checkRequest: AbortController | undefined;
   let searchDeadline: ReturnType<typeof setTimeout> | undefined;
@@ -72,9 +77,12 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
       })
       .slice(0, 8);
     setVerifying(true);
+    console.info(
+      `[WebTV] Verifierar de ${candidates.length} främsta sökträffarna för direkt videoström...`,
+    );
     const add = (source: Source) => {
       if (version !== searchVersion) return;
-      if (source.availability !== "media_detected") return;
+      if (!isOnlinePlayable(source)) return;
       setVerified((previous) =>
         previous.some((s) => s.url === source.url) ? previous : [...previous, source],
       );
@@ -83,7 +91,7 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
     const worker = async () => {
       for (let source = queue.shift(); source; source = queue.shift()) {
         if (version !== searchVersion || signal.aborted) return;
-        if (source.availability === "media_detected") {
+        if (isOnlinePlayable(source)) {
           add(source);
           continue;
         }
@@ -92,14 +100,22 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             body: { url: source.url },
             signal: AbortSignal.any([signal, AbortSignal.timeout(21000)]),
           });
-          if (res.data) add(res.data);
-        } catch {
-          // Unverifiable sources are simply not listed.
+          if (res.data) {
+            console.info(
+              `[WebTV] Inspekterade "${source.title}" (${source.url}) => ${res.data.availability}: ${res.data.detail}`,
+            );
+            add(res.data);
+          }
+        } catch (err) {
+          console.warn(`[WebTV] Kunde inte inspektera "${source.title}" (${source.url}):`, err);
         }
       }
     };
     await Promise.all([worker(), worker(), worker()]);
-    if (version === searchVersion) setVerifying(false);
+    if (version === searchVersion) {
+      setVerifying(false);
+      console.info(`[WebTV] Verifiering slutförd: ${verified().length} spelbara källor hittades.`);
+    }
   };
   const search = async () => {
     const title = query().trim();
@@ -118,10 +134,12 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
     setResults(undefined);
     setVerified([]);
     setVerifying(false);
+    setResultsTab("verified");
     setSelected(undefined);
     setPreview(undefined);
     setPlayer(undefined);
     setError("");
+    console.info(`[WebTV] Söker på webben efter "${title}"...`);
     try {
       const res = await client.GET("/api/v1/online/search", {
         params: { query: { q: title } },
@@ -130,11 +148,17 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
       if (version !== searchVersion) return;
       if (res.error || !res.data)
         throw new Error(apiErrorMessage(res.error, t("onlineSearchError")));
+      console.info(
+        `[WebTV] Leverantör "${res.data.provider}" returnerade ${res.data.results.length} träffar och ${res.data.indexed.length} indexerade`,
+      );
       setResults(res.data);
       setSearching(false);
       await verifyCandidates(res.data, version, abort.signal);
     } catch (cause) {
-      if (version === searchVersion) setError(apiErrorMessage(cause, t("onlineSearchError")));
+      if (version === searchVersion) {
+        console.warn(`[WebTV] Sökning misslyckades:`, cause);
+        setError(apiErrorMessage(cause, t("onlineSearchError")));
+      }
     } finally {
       if (version === searchVersion) {
         clearTimeout(searchDeadline);
@@ -181,6 +205,9 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             }
           : previous,
       );
+      setVerified((previous) =>
+        previous.map((s) => (s.id === source.id ? source : s)).filter(isOnlinePlayable),
+      );
       if (
         openPreview &&
         source.availability === "media_detected" &&
@@ -206,50 +233,201 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
     clearTimeout(checkDeadline);
   });
 
-  const sourceCard = (source: Source) => (
-    <article
-      aria-label={source.title}
-      style={{
-        padding: "12px",
-        border: "1px solid var(--border)",
-        "border-radius": "var(--radius-sm)",
-        background: "var(--bg-base)",
-        "overflow-wrap": "anywhere",
-      }}
-    >
-      <strong>{source.title}</strong>
-      <div style={{ color: "var(--text-muted)", "font-size": "12px", "margin-top": "4px" }}>
-        {webUrl(source.url) ? new URL(source.url).hostname : ""}
-      </div>
-      <p>{source.summary}</p>
-      <p>
-        <span>{t(availabilityKeys[source.availability])}</span>
-      </p>
-      <Show
-        when={source.seriesTitle || source.seasonNumber !== null || source.episodeNumber !== null}
+  const sourceCard = (source: Source) => {
+    const info = classifyStreamingProvider(
+      source.url,
+      source,
+      t("onlineTitle").includes("WebTV") ? "sv" : "en",
+    );
+    return (
+      <article
+        aria-label={source.title}
+        style={{
+          padding: "14px",
+          border: "1px solid var(--border)",
+          "border-radius": "var(--radius-sm)",
+          background: "var(--bg-base)",
+          "overflow-wrap": "anywhere",
+          display: "flex",
+          "flex-direction": "column",
+          gap: "8px",
+        }}
       >
-        <p>
-          {source.seriesTitle}{" "}
-          <Show when={source.seasonNumber !== null}>
-            {t("onlineSeason")} {source.seasonNumber}
-          </Show>{" "}
-          <Show when={source.episodeNumber !== null}>
-            {t("onlineEpisode")} {source.episodeNumber}
-          </Show>
-        </p>
-      </Show>
-      <div style={{ display: "flex", "flex-wrap": "wrap", gap: "8px", "align-items": "center" }}>
-        <Button
-          type="button"
-          size="sm"
-          disabled={checking() === source.url}
-          onClick={() => void inspect(source.url)}
+        <div
+          style={{
+            display: "flex",
+            "align-items": "flex-start",
+            "justify-content": "space-between",
+            gap: "8px",
+            "flex-wrap": "wrap",
+          }}
         >
-          {checking() === source.url ? t("onlineChecking") : t("onlineCheck")}
-        </Button>
-      </div>
-    </article>
-  );
+          <div>
+            <strong style={{ "font-size": "15px" }}>{source.title}</strong>
+            <div style={{ color: "var(--text-muted)", "font-size": "12px", "margin-top": "2px" }}>
+              {info.siteName !== info.hostname ? `${info.siteName} • ` : ""}
+              {info.hostname}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+            <span
+              style={{
+                "font-size": "11px",
+                "font-weight": "600",
+                padding: "3px 8px",
+                "border-radius": "var(--radius-sm)",
+                background:
+                  info.streamingBadge.variant === "accent"
+                    ? "var(--accent)"
+                    : info.streamingBadge.variant === "success"
+                      ? "rgba(34, 197, 94, 0.15)"
+                      : "var(--bg-overlay)",
+                color:
+                  info.streamingBadge.variant === "accent"
+                    ? "#ffffff"
+                    : info.streamingBadge.variant === "success"
+                      ? "#22c55e"
+                      : "var(--text-muted)",
+                border:
+                  info.streamingBadge.variant === "success"
+                    ? "1px solid rgba(34, 197, 94, 0.3)"
+                    : "1px solid var(--border)",
+              }}
+            >
+              {info.streamingBadge.text}
+            </span>
+            <span
+              style={{
+                "font-size": "11px",
+                "font-weight": "600",
+                padding: "3px 8px",
+                "border-radius": "var(--radius-sm)",
+                background:
+                  info.paymentBadge.variant === "warning"
+                    ? "rgba(234, 179, 8, 0.15)"
+                    : info.paymentBadge.variant === "info"
+                      ? "rgba(59, 130, 246, 0.15)"
+                      : info.paymentBadge.variant === "success"
+                        ? "rgba(16, 185, 129, 0.15)"
+                        : "var(--bg-overlay)",
+                color:
+                  info.paymentBadge.variant === "warning"
+                    ? "#eab308"
+                    : info.paymentBadge.variant === "info"
+                      ? "#3b82f6"
+                      : info.paymentBadge.variant === "success"
+                        ? "#10b981"
+                        : "var(--text-muted)",
+                border:
+                  info.paymentBadge.variant === "warning"
+                    ? "1px solid rgba(234, 179, 8, 0.3)"
+                    : info.paymentBadge.variant === "info"
+                      ? "1px solid rgba(59, 130, 246, 0.3)"
+                      : info.paymentBadge.variant === "success"
+                        ? "1px solid rgba(16, 185, 129, 0.3)"
+                        : "1px solid var(--border)",
+              }}
+            >
+              {info.paymentBadge.text}
+            </span>
+          </div>
+        </div>
+
+        <Show when={source.summary}>
+          <p style={{ margin: "2px 0", "font-size": "13px", color: "var(--text-secondary)" }}>
+            {source.summary}
+          </p>
+        </Show>
+
+        <p style={{ margin: 0, "font-size": "12px", color: "var(--text-muted)" }}>
+          <span>{t(availabilityKeys[source.availability])}</span>
+          {source.detail && source.detail !== "Public web result" ? ` — ${source.detail}` : ""}
+        </p>
+
+        <Show
+          when={source.seriesTitle || source.seasonNumber !== null || source.episodeNumber !== null}
+        >
+          <p style={{ margin: "2px 0", "font-size": "13px" }}>
+            {source.seriesTitle}{" "}
+            <Show when={source.seasonNumber !== null}>
+              {t("onlineSeason")} {source.seasonNumber}
+            </Show>{" "}
+            <Show when={source.episodeNumber !== null}>
+              {t("onlineEpisode")} {source.episodeNumber}
+            </Show>
+          </p>
+        </Show>
+
+        <div
+          style={{
+            display: "flex",
+            "flex-wrap": "wrap",
+            gap: "8px",
+            "align-items": "center",
+            "margin-top": "4px",
+          }}
+        >
+          <Button
+            type="button"
+            size="sm"
+            disabled={checking() === source.url}
+            onClick={() => void inspect(source.url)}
+          >
+            {checking() === source.url ? t("onlineChecking") : t("onlineCheck")}
+          </Button>
+
+          <Show when={isOnlinePlayable(source)}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setPreview(undefined);
+                setPlayer(source);
+              }}
+            >
+              ▶ {t("onlinePlay")}
+            </Button>
+          </Show>
+
+          <Show when={source.availability === "media_detected" && !!source.mediaUrl}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={checking() === source.url}
+              onClick={() => void inspect(source.url, true)}
+            >
+              {t("onlinePreview")}
+            </Button>
+          </Show>
+
+          <Show when={webUrl(source.url)}>
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mbl-button"
+              style={{
+                display: "inline-flex",
+                "align-items": "center",
+                gap: "6px",
+                "text-decoration": "none",
+                padding: "6px 12px",
+                "font-size": "var(--font-size-sm)",
+                "border-radius": "var(--radius-sm)",
+                background: "var(--bg-overlay)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+            >
+              🌐 {t("onlineOpen")} ↗
+            </a>
+          </Show>
+        </div>
+      </article>
+    );
+  };
   return (
     <div
       style={{
@@ -367,19 +545,10 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             <h3>{t("onlineCheckedSource")}</h3>
             {sourceCard(source)}
             <p>{source.detail}</p>
-            <Show when={source.availability !== "media_detected"}>
+            <Show when={!isOnlinePlayable(source)}>
               <p role="status">{t("onlineNotVerified")}</p>
             </Show>
-            <Show when={source.availability === "media_detected" && !!source.mediaUrl}>
-              <Button
-                type="button"
-                disabled={!!checking()}
-                onClick={() => void inspect(source.url, true)}
-              >
-                {t("onlinePreview")}
-              </Button>
-            </Show>
-            <Show when={source.availability === "media_detected" && !!source.mediaUrl}>
+            <Show when={isOnlinePlayable(source)}>
               <Button
                 type="button"
                 disabled={!!checking()}
@@ -388,7 +557,17 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
                   setPlayer(source);
                 }}
               >
-                {t("onlinePlay")}
+                ▶ {t("onlinePlay")}
+              </Button>
+            </Show>
+            <Show when={source.availability === "media_detected" && !!source.mediaUrl}>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!!checking()}
+                onClick={() => void inspect(source.url, true)}
+              >
+                {t("onlinePreview")}
               </Button>
             </Show>
             <Show when={source.episodes.length > 0}>
@@ -426,19 +605,100 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             <Show when={response.warning}>
               <p role="status">{response.warning}</p>
             </Show>
-            <p>
-              {t("onlineProvider")}: {response.provider}
-            </p>
-            <h3>
-              {t("onlineVerifiedResults")} — {response.query}
-            </h3>
-            <Show when={verifying()}>
-              <p role="status">{t("onlineVerifying")}</p>
+            <div
+              style={{
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "space-between",
+                "flex-wrap": "wrap",
+                gap: "8px",
+                "border-bottom": "1px solid var(--border)",
+                "padding-bottom": "8px",
+              }}
+            >
+              <p style={{ margin: 0, "font-size": "13px", color: "var(--text-muted)" }}>
+                {t("onlineProvider")}: <strong>{response.provider}</strong> •{" "}
+                {response.results.length} träffar
+              </p>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={resultsTab() === "verified" ? "primary" : "secondary"}
+                  onClick={() => setResultsTab("verified")}
+                >
+                  ✓ {t("onlineVerifiedResults")} ({verified().length})
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={resultsTab() === "all" ? "primary" : "secondary"}
+                  onClick={() => setResultsTab("all")}
+                >
+                  ☰ {t("onlineResults")} ({response.results.length})
+                </Button>
+              </div>
+            </div>
+
+            <Show when={resultsTab() === "verified"}>
+              <Show when={verifying()}>
+                <p
+                  role="status"
+                  style={{
+                    color: "var(--accent)",
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "6px",
+                  }}
+                >
+                  <span>⏳</span> {t("onlineVerifying")}
+                </p>
+              </Show>
+              <Show when={!verifying() && verified().length === 0}>
+                <div
+                  style={{
+                    padding: "16px",
+                    background: "var(--bg-surface)",
+                    border: "1px dashed var(--border)",
+                    "border-radius": "var(--radius-md)",
+                    display: "flex",
+                    "flex-direction": "column",
+                    gap: "10px",
+                  }}
+                >
+                  <div>
+                    <p style={{ margin: "0 0 6px 0", "font-weight": "600" }}>
+                      {t("onlineNoVerified")}
+                    </p>
+                    <p style={{ margin: 0, "font-size": "13px", color: "var(--text-secondary)" }}>
+                      Kommersiella serier ligger ofta på externa streamingtjänster som kräver
+                      webbläsare eller inloggning. Du kan se och öppna alla{" "}
+                      {response.results.length} sökträffar med webblänkar under fliken{" "}
+                      <strong>"{t("onlineResults")}"</strong>.
+                    </p>
+                  </div>
+                  <div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setResultsTab("all")}
+                    >
+                      ☰ Visa alla {response.results.length} sökträffar med webblänkar
+                    </Button>
+                  </div>
+                </div>
+              </Show>
+              <For each={verified()}>{sourceCard}</For>
             </Show>
-            <Show when={!verifying() && verified().length === 0}>
-              <p>{t("onlineNoVerified")}</p>
+
+            <Show when={resultsTab() === "all"}>
+              <p style={{ margin: 0, "font-size": "13px", color: "var(--text-secondary)" }}>
+                Visar alla {response.results.length} sökträffar från {response.provider}. Klicka på
+                "Kontrollera källa" för att analysera en sida för direkt video.
+              </p>
+              <For each={response.results}>{sourceCard}</For>
             </Show>
-            <For each={verified()}>{sourceCard}</For>
           </div>
         )}
       </Show>

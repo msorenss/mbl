@@ -8,6 +8,7 @@ pub mod recorder;
 pub mod shutdown;
 pub mod tls;
 pub mod web;
+pub mod winservice;
 
 pub use app::{Server, build};
 pub use config::{CliOverrides, Config};

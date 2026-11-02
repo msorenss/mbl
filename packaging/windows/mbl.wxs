@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MBL Media Server WiX MSI installer configuration (M6.13, M7) -->
 <?ifndef Version?>
-  <?define Version = "1.1.0" ?>
+  <?define Version = "1.2.1" ?>
 <?endif?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
      xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
@@ -11,21 +11,61 @@
            Version="$(var.Version)"
            Manufacturer="MBL Contributors"
            UpgradeCode="4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d">
-    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             InstallPrivileges="elevated"
+             Description="MBL Media Server $(var.Version) Installer" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <!-- Feature Tree: Server, Worker, TV Client -->
-    <Feature Id="ProductFeature" Title="MBL Media Server" Level="1">
+    <!-- Bind INSTALLFOLDER so the user can choose the target installation path -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT"
+              Value="MBL Media Server is installed. Open http://localhost:8420 in your browser to complete the setup wizard." />
+    <WixVariable Id="WixUILicenseRtf" Value="packaging\windows\License.rtf" />
+
+    <!-- Feature Tree: Server, Optional Windows Background Service, Worker, Node, TV Client -->
+    <Feature Id="ProductFeature"
+             Title="MBL Media Server"
+             Description="Core MBL Media Server, embedded web interface, and Windows Firewall rule (port 8420)."
+             Level="1"
+             ConfigurableDirectory="INSTALLFOLDER"
+             AllowAdvertise="no"
+             Absent="disallow">
       <ComponentGroupRef Id="ServerComponents" />
       <ComponentGroupRef Id="DataDirectoryComponents" />
-      <Feature Id="WorkerFeature" Title="Transcode Worker" Level="1">
+      <ComponentGroupRef Id="ShortcutComponents" />
+
+      <Feature Id="ServiceFeature"
+               Title="Windows Background Service (Auto-Start)"
+               Description="Register and start MBL Media Server as an automatic Windows background service. Uncheck this if you prefer to start MBL manually."
+               Level="1"
+               AllowAdvertise="no">
+        <ComponentGroupRef Id="ServiceComponents" />
+      </Feature>
+
+      <Feature Id="WorkerFeature"
+               Title="Transcode Worker"
+               Description="Distributed hardware transcode worker (mbl-worker.exe) for offloading video encoding."
+               Level="1"
+               AllowAdvertise="no">
         <ComponentGroupRef Id="WorkerComponents" />
       </Feature>
-      <Feature Id="NodeFeature" Title="Federated Library Node" Level="1">
+
+      <Feature Id="NodeFeature"
+               Title="Federated Library Node"
+               Description="Remote storage node (mbl-node.exe) for serving media libraries across machines."
+               Level="1"
+               AllowAdvertise="no">
         <ComponentGroupRef Id="NodeComponents" />
       </Feature>
-      <Feature Id="TvFeature" Title="MBL TV 10-foot Client" Level="1">
+
+      <Feature Id="TvFeature"
+               Title="MBL TV 10-foot Client"
+               Description="Fullscreen 10-foot TV interface (mbl-tv.exe) with remote and gamepad navigation."
+               Level="1"
+               AllowAdvertise="no">
         <ComponentGroupRef Id="TvComponents" />
       </Feature>
     </Feature>
@@ -42,6 +82,9 @@
           <Directory Id="DATA_SUBFOLDER" Name="data" />
         </Directory>
       </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="MBL Media Server" />
+      </Directory>
     </Directory>
 
     <ComponentGroup Id="ServerComponents" Directory="BinFolder">
@@ -54,21 +97,40 @@
                                 Protocol="tcp"
                                 Scope="any"
                                 IgnoreFailure="yes" />
-        <!-- Windows Service Installation -->
-        <ServiceInstall Id="MblServiceInstaller"
-                        Type="ownProcess"
+        <!-- Non-blocking cleanup of any legacy service during upgrade or uninstall -->
+        <ServiceControl Id="MblLegacyServiceCleanup"
                         Name="MblServer"
-                        DisplayName="MBL Media Server"
-                        Description="High-performance, lightweight personal media server"
-                        Start="auto"
-                        Account="LocalSystem"
-                        ErrorControl="normal" />
-        <ServiceControl Id="MblServiceControl"
-                        Name="MblServer"
-                        Start="install"
                         Stop="both"
-                        Remove="uninstall"
-                        Wait="yes" />
+                        Remove="both"
+                        Wait="no" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="ServiceComponents" Directory="BinFolder">
+      <Component Id="MblServiceRegistration" Guid="55667788-9900-1122-3344-eeff00112233" Win64="yes">
+        <RegistryValue Root="HKLM"
+                       Key="Software\MBL\MediaServer"
+                       Name="ServiceEnabled"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="ShortcutComponents" Directory="ApplicationProgramsFolder">
+      <Component Id="MblStartMenuShortcuts" Guid="66778899-0011-2233-4455-ff0011223344" Win64="yes">
+        <Shortcut Id="MblServerConsoleShortcut"
+                  Name="MBL Media Server (Console)"
+                  Description="Run MBL Media Server in a console window"
+                  Target="[BinFolder]mbl-server.exe"
+                  WorkingDirectory="BinFolder" />
+        <RemoveFolder Id="CleanUpShortCutDir" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\MBL\MediaServer"
+                       Name="StartMenuShortcuts"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
       </Component>
     </ComponentGroup>
 
@@ -95,5 +157,81 @@
         <File Id="mbl_tv_exe" Source="mbl-tv.exe" KeyPath="yes" />
       </Component>
     </ComponentGroup>
+
+    <!-- Service installation / uninstallation tied to the optional ServiceFeature -->
+    <CustomAction Id="InstallMblService"
+                  FileKey="mbl_server_exe"
+                  ExeCommand="service install"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+    <CustomAction Id="UninstallMblService"
+                  FileKey="mbl_server_exe"
+                  ExeCommand="service uninstall"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="UninstallMblService" Before="RemoveFiles">
+        <![CDATA[(&ServiceFeature = 2) OR (REMOVE = "ALL")]]>
+      </Custom>
+      <Custom Action="InstallMblService" After="InstallFiles">
+        <![CDATA[(&ServiceFeature = 3) OR (!ServiceFeature = 3 AND NOT (&ServiceFeature = 2) AND NOT (REMOVE = "ALL"))]]>
+      </Custom>
+    </InstallExecuteSequence>
+
+    <!-- Wizard UI combining Destination Folder selection (InstallDirDlg) and Feature Tree (CustomizeDlg) -->
+    <UI Id="MblInstallerUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="FeatureTree" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="InstallDirDlg" />
+      <DialogRef Id="CustomizeDlg" />
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">LicenseAccepted = "1"</Publish>
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg" Order="2">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="1">Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="2">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg" Order="1">NOT Installed OR WixUI_InstallMode = "Change"</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="3">Installed AND PATCH</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="CustomizeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+    </UI>
+    <UIRef Id="WixUI_Common" />
+    <UIRef Id="WixUI_ErrorProgressText" />
   </Product>
-  </Wix>
+</Wix>

@@ -634,7 +634,12 @@ async fn real_hls_relay_is_login_bound_and_resume_survives_session_recreation() 
         .await
         .unwrap();
     assert!(service.online_history(&actor).await.unwrap().is_empty());
-    assert!(!service.online_manifest(&auth, &playback.id).await.unwrap().contains("https://"));
+    assert!(
+        !service.online_manifest(&auth, &playback.id, None).await.unwrap().contains("https://")
+    );
+    let manifest_with_tok =
+        service.online_manifest(&auth, &playback.id, Some("cast-tok")).await.unwrap();
+    assert!(manifest_with_tok.contains("resource/0?token=cast-tok"));
     assert_eq!(service.online_resource(&auth, &playback.id, 0).await.unwrap(), ts_clip());
     let foreign = login(&service, &actor, 2).await;
     assert!(matches!(
@@ -655,7 +660,7 @@ async fn real_hls_relay_is_login_bound_and_resume_survives_session_recreation() 
         .await
         .unwrap();
     service.stop_online(&auth, &playback.id).await.unwrap();
-    assert!(service.online_manifest(&auth, &playback.id).await.is_err());
+    assert!(service.online_manifest(&auth, &playback.id, None).await.is_err());
     let playback = service.start_online(&auth, "https://example.org/show.m3u8").await.unwrap();
     assert_eq!(playback.position, 0.5);
     assert_eq!(service.online_history(&actor).await.unwrap()[0].position, 0.5);

@@ -38,6 +38,15 @@ export default function Settings() {
   const [dlnaEnabled, setDlnaEnabled] = createSignal(true);
   const [dlnaFriendlyName, setDlnaFriendlyName] = createSignal("Media Lounge Box");
 
+  const [serverInfo] = createResource(async () => {
+    try {
+      const res = await client.GET("/api/v1/system/info");
+      return res.data;
+    } catch {
+      return undefined;
+    }
+  });
+
   const [settings, { refetch }] = createResource(async () => {
     const res = await client.GET("/api/v1/system/settings");
     if (res.data) {
@@ -168,6 +177,86 @@ export default function Settings() {
           Could not load settings. Please refresh the page.
         </div>
       </Show>
+
+      {/* System & Version Information Card */}
+      <div
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border)",
+          "border-radius": "var(--radius-md)",
+          padding: "16px 20px",
+          "margin-bottom": "24px",
+          display: "flex",
+          "flex-direction": "column",
+          gap: "10px",
+        }}
+      >
+        <div
+          style={{ display: "flex", "align-items": "center", "justify-content": "space-between" }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+            <span style={{ "font-size": "20px" }}>ℹ️</span>
+            <strong style={{ "font-size": "15px" }}>System- & Versionsinformation</strong>
+          </div>
+          <span
+            style={{
+              background: "var(--accent-light, rgba(59, 130, 246, 0.15))",
+              color: "var(--accent)",
+              padding: "2px 8px",
+              "border-radius": "var(--radius-sm)",
+              "font-size": "12px",
+              "font-weight": "600",
+            }}
+          >
+            v{serverInfo()?.version || __MBL_VERSION__}
+          </span>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            "grid-template-columns": "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "12px",
+            "font-size": "13px",
+            "border-top": "1px solid var(--border)",
+            "padding-top": "10px",
+          }}
+        >
+          <div>
+            <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
+              SERVERVERSION
+            </div>
+            <div>v{serverInfo()?.version || __MBL_VERSION__}</div>
+          </div>
+          <div>
+            <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
+              GIT COMMIT / BYGGVERSION
+            </div>
+            <div style={{ "font-family": "monospace", "font-size": "12px" }}>
+              {serverInfo()?.gitCommit || __MBL_GIT_COMMIT__}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
+              BYGGDATUM
+            </div>
+            <div style={{ "font-size": "12px" }}>
+              {serverInfo()?.buildTime || __MBL_BUILD_DATE__}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
+              PLATTFORM & NPU
+            </div>
+            <div style={{ "text-transform": "capitalize" }}>
+              {serverInfo()?.os || "linux"} {serverInfo()?.arch || "arm64"} (
+              {serverInfo()?.platformProfile || "standard"})
+              {serverInfo()?.npuProfile && serverInfo()?.npuProfile !== "none"
+                ? ` • ${serverInfo()?.npuProfile}`
+                : ""}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Central Admin Hub Quick Navigation */}
       <div

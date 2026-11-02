@@ -4338,6 +4338,8 @@ export interface components {
         };
         ServerInfo: {
             arch: string;
+            buildTime: string;
+            gitCommit: string;
             name: string;
             npuProfile: components["schemas"]["NpuProfile"];
             os: string;
@@ -8687,7 +8689,10 @@ export interface operations {
     };
     online_manifest: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional session or auth token for players (e.g. Chromecast) that cannot send custom HTTP headers. */
+                token?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -8726,7 +8731,10 @@ export interface operations {
     };
     online_resource: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional session or auth token for players (e.g. Chromecast) that cannot send custom HTTP headers. */
+                token?: string;
+            };
             header?: never;
             path: {
                 id: string;

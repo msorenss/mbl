@@ -4268,6 +4268,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Optional session or auth token for players (e.g. Chromecast) that cannot send custom HTTP headers.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4313,6 +4322,15 @@
             "schema": {
               "type": "integer",
               "minimum": 0
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Optional session or auth token for players (e.g. Chromecast) that cannot send custom HTTP headers.",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -13640,6 +13658,8 @@
         "required": [
           "name",
           "version",
+          "gitCommit",
+          "buildTime",
           "os",
           "arch",
           "platformProfile",
@@ -13647,6 +13667,12 @@
         ],
         "properties": {
           "arch": {
+            "type": "string"
+          },
+          "buildTime": {
+            "type": "string"
+          },
+          "gitCommit": {
             "type": "string"
           },
           "name": {

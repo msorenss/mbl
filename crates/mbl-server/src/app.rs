@@ -111,7 +111,12 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     }));
     runner.register(Arc::new(mbl_mcp::McpAuditPruneHandler { db: db.clone() }));
 
-    let info = ServerInfo::current(env!("CARGO_PKG_VERSION"), profile);
+    let info = ServerInfo::current(
+        env!("CARGO_PKG_VERSION"),
+        env!("MBL_GIT_COMMIT"),
+        env!("MBL_BUILD_TIMESTAMP"),
+        profile,
+    );
     let secure_cookies = config.server.public_url.starts_with("https://");
     let mut state =
         AppState::new(db.clone(), runner.queue(), images, events.clone(), info, secure_cookies);
@@ -210,7 +215,7 @@ impl Server {
         let mqtt =
             tokio::spawn(crate::mqtt::run(self.db.clone(), self.services.clone(), stop.clone()));
 
-        tracing::info!(%addr, "listening");
+        tracing::info!(%addr, version = env!("CARGO_PKG_VERSION"), commit = env!("MBL_GIT_COMMIT"), "listening");
         let stop_on_signal = stop.clone();
         let served =
             axum::serve(listener, self.router.into_make_service_with_connect_info::<SocketAddr>())

@@ -2,7 +2,8 @@ use std::io::Write;
 
 use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
-use mbl_server::{CliOverrides, Config};
+use mbl_server::winservice::ServiceAction;
+use mbl_server::{CliOverrides, winservice};
 
 #[derive(Debug, Parser)]
 #[command(name = "mbl-server", version, about = "MBL media server")]
@@ -16,6 +17,9 @@ struct Cli {
     /// Override the HTTP port.
     #[arg(long, global = true)]
     port: Option<u16>,
+    /// Run under the Windows Service Control Manager (SCM) dispatcher.
+    #[arg(long, global = true)]
+    service: bool,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -26,25 +30,22 @@ enum Command {
     Run,
     /// Print the OpenAPI document as JSON.
     Openapi,
+    /// Manage the Windows background service (install, uninstall, start, stop).
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let overrides =
+        CliOverrides { config_file: cli.config, data_dir: cli.data_dir, port: cli.port };
+
     match cli.command.as_ref().unwrap_or(&Command::Run) {
         Command::Openapi => print_openapi(),
-        Command::Run => {
-            let overrides =
-                CliOverrides { config_file: cli.config, data_dir: cli.data_dir, port: cli.port };
-            let config = Config::load(&overrides)?;
-            let paths = config.paths();
-            let _log_guard = mbl_server::logging::init(&config.log, &paths.logs)?;
-            tracing::info!(version = env!("CARGO_PKG_VERSION"), data = %paths.data, "starting MBL");
-
-            tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(async {
-                let server = mbl_server::build(config).await?;
-                server.serve(mbl_server::shutdown::signal()).await
-            })
-        }
+        Command::Service { action } => winservice::handle_service_command(action, overrides),
+        Command::Run => winservice::run_server(overrides, cli.service),
     }
 }
 

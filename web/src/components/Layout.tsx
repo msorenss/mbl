@@ -294,6 +294,26 @@ export function Layout(props: { children?: JSX.Element }) {
             </button>
           </div>
         </div>
+
+        {/* Version info footer */}
+        <div
+          style={{
+            padding: "6px 16px 10px",
+            "font-size": "11px",
+            color: "var(--text-muted)",
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            opacity: 0.75,
+            "user-select": "none",
+          }}
+          title={`MBL v${__MBL_VERSION__} (commit ${__MBL_GIT_COMMIT__}, built ${__MBL_BUILD_DATE__})`}
+        >
+          <span>v{__MBL_VERSION__}</span>
+          <span style={{ "font-family": "monospace", "font-size": "10px" }}>
+            {__MBL_GIT_COMMIT__}
+          </span>
+        </div>
       </aside>
 
       {/* Main content */}

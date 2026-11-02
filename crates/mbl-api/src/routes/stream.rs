@@ -28,11 +28,11 @@ pub fn router() -> Router<AppState> {
 
 // Cast receivers fetch media from a different origin. These headers apply only
 // to media routes; their existing signed-token/capability checks remain in force.
-async fn media_preflight() -> StatusCode {
+pub(crate) async fn media_preflight() -> StatusCode {
     StatusCode::NO_CONTENT
 }
 
-async fn media_cors(request_headers: HeaderMap, mut response: Response) -> Response {
+pub(crate) async fn media_cors(request_headers: HeaderMap, mut response: Response) -> Response {
     let headers = response.headers_mut();
     if let Some(origin) = request_headers.get(header::ORIGIN) {
         if origin

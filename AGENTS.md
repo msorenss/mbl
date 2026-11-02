@@ -80,6 +80,86 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-02 — Windows MSI Installer Wizard (Directory Chooser, Optional Service Feature) & Native Win32 SCM Service Support
+- **Root Cause & Fix for Windows MSI Hang (`crates/mbl-server/src/winservice.rs`, `packaging/windows/mbl.wxs`):**
+  - Previously, `mbl.wxs` used `<ServiceInstall>` and `<ServiceControl Start="install" Wait="yes" />` while `mbl-server.exe` ran as a standard console application without registering with the Windows Service Control Manager (`StartServiceCtrlDispatcherW` / `SetServiceStatus`). Consequently, `msiexec` hung at "Starting services" until SCM timed out (Error 1053 / 1920).
+  - Implemented native Win32 SCM dispatcher (`StartServiceCtrlDispatcherW`, `RegisterServiceCtrlHandlerExW`, `SetServiceStatus` via `advapi32`) in `crates/mbl-server/src/winservice.rs` that immediately reports `SERVICE_RUNNING` to Windows before running the Tokio runtime and handles `SERVICE_CONTROL_STOP` / `SERVICE_CONTROL_SHUTDOWN` cleanly.
+  - Added CLI support for `mbl-server --service` and `mbl-server service install|uninstall|start|stop|run` in `crates/mbl-server/src/main.rs`.
+  - Replaced blocking `<ServiceInstall>`/`<ServiceControl Wait="yes">` in `packaging/windows/mbl.wxs` with non-blocking `<ServiceControl Wait="no" Stop="both" Remove="both" />` and deferred custom actions (`InstallMblService` / `UninstallMblService` with `Return="ignore"`).
+- **Interactive MSI Wizard with Directory Selection & Optional Service (`packaging/windows/mbl.wxs`, `packaging/windows/build-msi.ps1`, `packaging/windows/License.rtf`):**
+  - Enabled `WixUIExtension` in `build-msi.ps1` and added a custom dialog sequence (`MblInstallerUI`) in `mbl.wxs`:
+    1. `WelcomeDlg` -> `LicenseAgreementDlg`
+    2. `InstallDirDlg` (`WIXUI_INSTALLDIR="INSTALLFOLDER"`, enabling the **Change...** button so users can choose any installation directory).
+    3. `CustomizeDlg` (Feature tree where users can toggle **Windows Background Service (Auto-Start)** (`ServiceFeature`), **Distributed Transcode Worker**, **Federated Storage Node**, and **MBL TV 10-Foot Client**).
+    4. `VerifyReadyDlg` -> `ExitDialog`.
+  - Added Start Menu shortcut (`MBL Media Server (Console)`) for running the server interactively when the background service is deselected.
+  - Updated `packaging/windows/README.txt` and `docs/book/src/installation/windows.md`.
+- **Verification:**
+  - `cargo test -p mbl-server --lib winservice`: 4/4 tests passed (including WiX XML schema/feature validation).
+  - `cargo clippy -p mbl-server --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo fmt --all -- --check`: clean.
+
+### 2026-11-02 — WebTV Streaming & Payment Classification with External Source Links
+- **Streaming Provider & Payment Tier Classification (`web/src/utils/streamingProviders.ts` & `streamingProviders.test.ts`):**
+  - Implemented automatic classification of web domains into streaming capability (`isStreaming: true/false`) and payment model (`paid`, `freemium`, `free`, `info`, `unknown`).
+  - Added knowledge catalog covering major platforms:
+    - Paid / Subscription: Netflix, Disney+, Max/HBO, Prime Video, Apple TV+, Hulu, Paramount+, Viaplay, SkyShowtime, Peacock.
+    - Freemium: Rakuten Viki, iQIYI, WeTV, Crunchyroll, TV4 Play.
+    - Free / Community: Bilibili, YouTube, Dailymotion, Vimeo, SVT Play, Pluto TV, Tubi, Internet Archive.
+    - Information / Non-streaming: Wikipedia, IMDb, MyDramaList, TMDB, Rotten Tomatoes, AsianWiki, Soompi, allkpop, Reddit.
+  - Implemented heuristic fallbacks for unknown domains based on `source.has_video`, `source.kind`, and restricted statuses.
+- **WebTV Source Card Badges & Safe Direct Links (`web/src/components/OnlineSearch.tsx`):**
+  - Added distinct visual badges to every source card:
+    - Streaming badge: `📺 Streaming tillgänglig` / `▶ Spelbar direkt i MBL` / `📄 Uppslagsverk/Info (ej streaming)`.
+    - Payment model badge: `🔒 Kräver prenumeration (Betaltjänst)` / `✨ Freemium (Gratis med reklam / VIP)` / `🎁 Gratis streaming` / `ℹ️ Gratis fakta & info`.
+  - Added safe direct link button `🌐 Öppna {t("onlineOpen")} ↗` (`target="_blank" rel="noopener noreferrer"`) for all valid web URLs.
+  - Added one-click action button on empty verified state: `☰ Visa alla sökträffar med webblänkar`, giving users immediate access to all commercial streaming links.
+  - Preserved button hierarchy (`t("onlineCheck")` first) to maintain unit test contracts.
+- **Backend Video Detection Refinement (`crates/mbl-service/src/online/mod.rs`):**
+  - Updated `inspect_source` to set `source.has_video = Some(true)` and descriptive detail when Schema.org `VideoObject`, `og:video`, or client-side SPA state (`__initialState`) are detected on external pages.
+- **Verification:**
+  - `just web-check`: Biome clean, 222/222 Vitest tests passed across 43 test files, `tsc -b` clean, initial bundle 51.81 KB gzip (<= 150 KB budget).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo test -p mbl-service online`: 24/24 tests passed.
+  - `cargo xtask openapi-check`: up to date.
+  - `cargo xtask mcp-parity`: 100.0% parity (165/165 endpoints covered or excluded).
+
+### 2026-11-02 — Version/Build Metadata Display & WebTV Structured Logging
+- **Version & Build Metadata System:**
+  - Added build timestamp and short git commit injection to `crates/mbl-server/build.rs` (`MBL_GIT_COMMIT` and `MBL_BUILD_TIMESTAMP`).
+  - Extended `ServerInfo` in `crates/mbl-api/src/state.rs` and `GET /api/v1/system/info` with `git_commit` and `build_time`.
+  - Added startup logging in `crates/mbl-server/src/main.rs`: logs version, commit hash, build time, and active data directory at startup.
+  - Added build defines `__MBL_VERSION__`, `__MBL_GIT_COMMIT__`, `__MBL_BUILD_DATE__` in `web/vite.config.ts` and `web/src/env.d.ts`.
+  - Added console banner logging on client initialization in `web/src/index.tsx` (`[MBL] Media Lounge Box v1.2.1 (build: ..., date: ...)`).
+  - Added version footer in the desktop sidebar (`web/src/components/Layout.tsx`) and a dedicated "System- & Versionsinformation" card in Server Settings (`web/src/pages/admin/Settings.tsx`).
+- **WebTV Logging & Source Transparency:**
+  - Added structured backend logging with target `mbl::online` across `crates/mbl-api/src/routes/online.rs`, `crates/mbl-service/src/online/mod.rs`, and `crates/mbl-service/src/online/session.rs`.
+  - Added browser console logs with `[WebTV]` and `[OnlinePlayer]` prefixes in `web/src/components/OnlineSearch.tsx` and `web/src/components/OnlinePlayer.tsx`.
+  - Added dual tab view ("✓ Verifierade källor" vs "☰ Alla sökträffar") in `OnlineSearch.tsx`, allowing users to inspect all raw search hits if video tags are not detected.
+- **Verification:**
+  - `just web-check`: Biome clean, 216/216 Vitest tests passed across 42 test files, `tsc -b` clean, initial bundle 51.83 KB gzip (<= 150 KB budget).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo test -p mbl-service online`: 24/24 tests passed.
+  - `cargo xtask openapi-check`: up to date.
+  - `cargo xtask mcp-parity`: 100.0% parity (165/165 endpoints covered or excluded).
+
+### 2026-11-01 — WebTV Embedded Playback & Google Chromecast TV Casting
+- **WebTV Playback & Discovery Evaluation:**
+  - Evaluated search performance for popular Korean drama queries (*Crash Landing on You*, *Queen of Tears*, *Squid Game*, *The Glory*, *Vincenzo*). Commercial streaming platforms protect K-dramas with DRM/Widevine and account logins; MBL's inspection engine correctly classifies paywalled/external news links as `external_page` and excludes unplayable links.
+  - Added direct "▶ Spela" and "Förhandsgranska" action buttons on verified source cards so playback can be started immediately.
+  - Fixed candidate filtering in `web/src/components/OnlineSearch.tsx` to include `external_player` sources (e.g. valid HLS `.m3u8` feeds) and updated dynamic verification state when re-inspecting.
+- **Chromecast & TV Casting for WebTV (`web/src/components/OnlinePlayer.tsx`, `crates/mbl-api`, `crates/mbl-service`):**
+  - Integrated `castManager` (`web/src/utils/cast.ts`) directly into `OnlinePlayer.tsx` with real-time cast state subscription (`isCasting`, `isAvailable`, `deviceName`), a "📺 Casta till TV" action button, and an active casting banner with play/pause and disconnect controls.
+  - Enabled URL token authentication (`OnlineStreamQuery { token: Option<String> }`) in `crates/mbl-api/src/routes/online.rs` for `/api/v1/online/playback/{id}/index.m3u8` and `/resource/{index}` because Google Chromecast receivers cannot attach custom `Authorization: Bearer` headers to video segment requests.
+  - Updated `OnlineService::online_manifest` in `crates/mbl-service/src/online/session.rs` to propagate `?token=` query parameters into `#EXT-X-MAP:URI` and segment URLs (`resource/{index}?token=...`), ensuring Chromecast authenticates every sub-segment fetch.
+  - Attached CORS (`media_cors`) and preflight (`media_preflight`) handlers to online playback routes allowing Cast receiver origins (`https://www.gstatic.com`).
+- **Verification:**
+  - `just web-check`: Biome clean, 216/216 Vitest tests passed, `tsc -b` clean, bundle size 51.58 KB gzip (<= 150 KB budget).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors across all workspace crates.
+  - `cargo test -p mbl-service online`: 24/24 tests passed.
+  - `cargo xtask openapi-check`: up to date.
+  - `cargo xtask mcp-parity`: 100.0% parity (165/165 endpoints covered or excluded).
+
 ### 2026-11-01 — Library Permissions & TLS Certificate Management Documentation
 - **Folder Permissions & Service Accounts (`docs/book/src/troubleshooting.md`, `installation/linux.md`, `installation/windows.md`):**
   - Documented permission architecture: why unprivileged system users (`mbl` on Linux, `NT AUTHORITY\NetworkService` on Windows) need traversal (`--x`) on parent directories and read (`r-x`) on media library roots.

@@ -120,10 +120,12 @@ impl OnlineService {
                 .find(|c| c.query == key && c.at.elapsed() < Duration::from_secs(600))
                 .map(|c| c.hits.clone());
             let hits = if let Some(hits) = cached {
+                tracing::debug!(target: "mbl::online", query = %query, hits = hits.len(), "returning cached search results");
                 hits
             } else {
                 let mut gate = self.last_search.lock().await;
                 if gate.is_some_and(|last| last.elapsed() < Duration::from_secs(1)) {
+                    tracing::warn!(target: "mbl::online", "search rate limit reached (1s throttle)");
                     return Err(Error::RateLimited { retry_after_secs: 1 });
                 }
                 *gate = Some(Instant::now());
@@ -137,24 +139,40 @@ impl OnlineService {
                 } else {
                     url.query_pairs_mut().append_pair("q", &query);
                 }
-                let response = tokio::time::timeout(
+                tracing::info!(target: "mbl::online", provider, query = %query, "querying search provider");
+                let fetch_start = Instant::now();
+                let response = match tokio::time::timeout(
                     Duration::from_secs(12),
                     self.http.fetch(url, 1024 * 1024, false),
                 )
                 .await
-                .map_err(|_| Error::Unavailable("Internet search timed out".into()))??;
+                {
+                    Ok(Ok(res)) => res,
+                    Ok(Err(e)) => {
+                        tracing::warn!(target: "mbl::online", provider, error = %e, elapsed_ms = fetch_start.elapsed().as_millis(), "search provider request failed");
+                        return Err(e);
+                    }
+                    Err(_) => {
+                        tracing::warn!(target: "mbl::online", provider, elapsed_ms = fetch_start.elapsed().as_millis(), "search provider request timed out");
+                        return Err(Error::Unavailable("Internet search timed out".into()));
+                    }
+                };
                 if response.status == 429 {
+                    tracing::warn!(target: "mbl::online", provider, "search provider returned HTTP 429 rate limit");
                     return Err(Error::RateLimited { retry_after_secs: 60 });
                 }
                 if response.status != 200 {
+                    tracing::warn!(target: "mbl::online", provider, status = response.status, "search provider returned non-200 status");
                     return Err(Error::Unavailable(
                         "Internet search provider is unavailable".into(),
                     ));
                 }
-                let doc: SearchDocument = serde_json::from_slice(&response.body).map_err(|_| {
+                let doc: SearchDocument = serde_json::from_slice(&response.body).map_err(|e| {
+                    tracing::warn!(target: "mbl::online", provider, error = %e, "search provider returned invalid JSON response");
                     Error::Unavailable("Search provider returned an invalid response".into())
                 })?;
                 let hits: Vec<_> = doc.results.into_iter().take(40).collect();
+                tracing::info!(target: "mbl::online", provider, hits = hits.len(), elapsed_ms = fetch_start.elapsed().as_millis(), "received hits from search provider");
                 let mut cache = self.searches.lock().await;
                 cache.push_front(CachedSearch {
                     query: key.clone(),
@@ -169,12 +187,15 @@ impl OnlineService {
         .await;
         let (hits, warning) = match remote {
             Ok(hits) => (hits, None),
-            Err(error) if !personal.is_empty() => (
-                Vec::new(),
-                Some(format!(
-                    "Internet search unavailable: {error}. Showing your indexed sources."
-                )),
-            ),
+            Err(error) if !personal.is_empty() => {
+                tracing::warn!(target: "mbl::online", error = %error, "remote search failed; falling back to indexed personal sources");
+                (
+                    Vec::new(),
+                    Some(format!(
+                        "Internet search unavailable: {error}. Showing your indexed sources."
+                    )),
+                )
+            }
             Err(error) => return Err(error),
         };
         let mut seen = HashSet::new();
@@ -216,20 +237,33 @@ impl OnlineService {
             .map_err(|_| Error::RateLimited { retry_after_secs: 1 })?;
         let mut source = source(url.as_str());
         source.checked_at = Some(mbl_core::time::now_ms());
+        tracing::info!(target: "mbl::online", url = %url, "starting online source inspection");
+        let start = Instant::now();
         match tokio::time::timeout(Duration::from_secs(18), self.inspect_source(&mut source, url))
             .await
         {
             Ok(Err(error @ Error::Validation(_))) => return Err(error),
-            Ok(Err(_)) => {
+            Ok(Err(error)) => {
+                tracing::warn!(target: "mbl::online", url = %source.url, error = %error, elapsed_ms = start.elapsed().as_millis(), "inspection failed with error");
                 source.availability = Availability::Unavailable;
                 source.detail = "The public source could not be checked. Try again later.".into();
             }
             Err(_) => {
+                tracing::warn!(target: "mbl::online", url = %source.url, elapsed_ms = start.elapsed().as_millis(), "inspection timed out (18s)");
                 source.availability = Availability::Unknown;
                 source.detail =
                     "The source check timed out. Playback has not been verified.".into();
             }
-            Ok(Ok(())) => {}
+            Ok(Ok(())) => {
+                tracing::info!(
+                    target: "mbl::online",
+                    url = %source.url,
+                    availability = ?source.availability,
+                    has_media = source.media_url.is_some(),
+                    elapsed_ms = start.elapsed().as_millis(),
+                    "inspection completed successfully"
+                );
+            }
         }
         self.require_enabled().await?;
         while !source.episodes.is_empty()
@@ -263,6 +297,13 @@ impl OnlineService {
             if let Some(media) = metadata::extract(source, &response.url, &html) {
                 let media = self.http.fetch(public_url(&media)?, MAX_SAMPLE, true).await?;
                 return self.check_media(source, media).await;
+            }
+            if matches!(source.kind.as_str(), "video" | "episode" | "movie")
+                || html.contains("og:video")
+                || html.contains("__initialState")
+            {
+                source.has_video = Some(true);
+                source.detail = "Video player detected on website. The source uses client-side playback or protection; open the website to stream.".into();
             }
             Ok(())
         } else {

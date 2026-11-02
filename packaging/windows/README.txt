@@ -17,8 +17,16 @@ Quick Start
        ffmpeg_path = "C:\\path\\to\\ffmpeg.exe"
        ffprobe_path = "C:\\path\\to\\ffprobe.exe"
 
-2. Run MBL Server:
-   - Run mbl-server.exe from PowerShell or Command Prompt:
+2. Run MBL Server (Console or Windows Service):
+   - Option A (Windows Background Service — Recommended):
+     During the MSI installation wizard, keep "Windows Background Service (Auto-Start)"
+     enabled, or run from an elevated PowerShell prompt:
+       .\mbl-server.exe service install
+     To stop or remove the background service later:
+       .\mbl-server.exe service stop
+       .\mbl-server.exe service uninstall
+   - Option B (Manual / Console Mode):
+     Run mbl-server.exe from PowerShell, Command Prompt, or the Start Menu shortcut:
        .\mbl-server.exe
    - By default, MBL listens on http://localhost:8420
    - Open http://localhost:8420 in your browser to complete the setup wizard.

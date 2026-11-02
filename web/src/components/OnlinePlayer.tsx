@@ -4,6 +4,7 @@ import client, { getStoredToken } from "../api/client";
 import { apiErrorMessage } from "../api/errors";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n";
+import { castManager } from "../utils/cast";
 import { Button } from "./ui/Button";
 
 type Source = components["schemas"]["OnlineSource"];
@@ -13,6 +14,10 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
   const [error, setError] = createSignal("");
   const [ready, setReady] = createSignal(false);
   const [playing, setPlaying] = createSignal(false);
+  const [isCasting, setIsCasting] = createSignal(castManager.getState().isCasting);
+  const [isCastAvailable, setIsCastAvailable] = createSignal(castManager.getState().isAvailable);
+  const [castDevice, setCastDevice] = createSignal(castManager.getState().deviceName);
+  const [castConnecting, setCastConnecting] = createSignal(false);
   let media!: HTMLVideoElement;
   let section!: HTMLElement;
   let session: Session | undefined;
@@ -84,12 +89,22 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
   };
   const fail = (message: string) => {
     if (disposed || error()) return;
+    console.warn(`[OnlinePlayer] Playback error: ${message}`);
     setError(message);
     setPlaying(false);
     release();
     stop();
   };
   onMount(async () => {
+    console.info(
+      `[OnlinePlayer] Initializing player for "${props.source.title}" (${props.source.url})`,
+    );
+    const unsubCast = castManager.subscribe((cState) => {
+      setIsCasting(cState.isCasting);
+      setIsCastAvailable(cState.isAvailable);
+      setCastDevice(cState.deviceName);
+    });
+    onCleanup(unsubCast);
     section.scrollIntoView?.({ block: "nearest" });
     try {
       const res = await client.POST("/api/v1/online/playback", {
@@ -98,6 +113,9 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
       });
       if (!res.data) throw new Error(apiErrorMessage(res.error, t("onlinePlayerError")));
       session = res.data;
+      console.info(
+        `[OnlinePlayer] Session started: id=${session.id}, HLS=${session.hls}, resumePos=${session.position}s`,
+      );
       if (disposed) {
         void client
           .DELETE("/api/v1/online/playback/{id}", {
@@ -146,6 +164,37 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
       clearTimeout(deadline);
     }
   });
+  const handleCast = async () => {
+    if (isCasting()) {
+      castManager.stopCasting();
+      return;
+    }
+    setCastConnecting(true);
+    try {
+      let streamUrl = session?.streamUrl || props.source.mediaUrl || props.source.url;
+      const token = getStoredToken();
+      if (session?.hls && token && !streamUrl.includes("token=")) {
+        streamUrl = `${streamUrl}${streamUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+      }
+      media?.pause?.();
+      await castManager.requestCastSession(
+        {
+          contentId: streamUrl,
+          title: props.source.title,
+          subtitle: props.source.seriesTitle || undefined,
+          currentTime: media && Number.isFinite(media.currentTime) ? media.currentTime : 0,
+          duration: media && Number.isFinite(media.duration) ? media.duration : undefined,
+          contentType: session?.hls ? "application/x-mpegurl" : "video/mp4",
+        },
+        media,
+      );
+    } catch {
+      // Handled by castManager
+    } finally {
+      setCastConnecting(false);
+    }
+  };
+
   onCleanup(() => {
     disposed = true;
     abort.abort();
@@ -166,6 +215,48 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
     >
       <h3>{props.source.title}</h3>
       <p>{t("onlinePlayerHelp")}</p>
+      <Show when={isCasting()}>
+        <div
+          style={{
+            padding: "20px 16px",
+            background: "var(--bg-base)",
+            border: "1px solid var(--accent)",
+            "border-radius": "var(--radius-md)",
+            "text-align": "center",
+            display: "flex",
+            "flex-direction": "column",
+            "align-items": "center",
+            gap: "10px",
+            "margin-bottom": "12px",
+          }}
+        >
+          <div style={{ "font-size": "44px" }}>📺</div>
+          <div style={{ "font-size": "17px", "font-weight": "bold" }}>
+            Casting till {castDevice() || "Chromecast"}
+          </div>
+          <div style={{ color: "var(--text-secondary)", "font-size": "13px" }}>
+            {props.source.title}
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                if (castManager.getState().playerState === "playing") {
+                  castManager.pause();
+                } else {
+                  castManager.play();
+                }
+              }}
+            >
+              {castManager.getState().playerState === "playing" ? "⏸ Pausa" : "▶ Spela"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => castManager.stopCasting()}>
+              Koppla från Cast
+            </Button>
+          </div>
+        </div>
+      </Show>
       <video
         ref={media}
         controls
@@ -212,9 +303,25 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
       >
         <p role="alert">{error()}</p>
       </Show>
-      <Button type="button" onClick={props.onClose}>
-        {t("close")}
-      </Button>
+      <div style={{ display: "flex", gap: "8px", "align-items": "center", "margin-top": "12px" }}>
+        <Show when={isCastAvailable() || (media && "remote" in media)}>
+          <Button
+            type="button"
+            variant={isCasting() ? "primary" : "secondary"}
+            disabled={castConnecting()}
+            onClick={handleCast}
+          >
+            {isCasting()
+              ? `📺 Kopplad till ${castDevice() || "TV"}`
+              : castConnecting()
+                ? "📺 Ansluter..."
+                : "📺 Casta till TV"}
+          </Button>
+        </Show>
+        <Button type="button" onClick={props.onClose}>
+          {t("close")}
+        </Button>
+      </div>
     </section>
   );
 }
