@@ -3,8 +3,8 @@ This document lives at the repository root so every AI agent, contributor, and a
 
 ---
 ## 1. Current status (quick overview)
-- Current work: v1.2.1 released with active Home Assistant MQTT discovery and two-way control, built-in HTTPS/TLS certificate manager (Local CA, Tailscale, Let's Encrypt), Chromecast HTTPS media routing, and comprehensive permissions/TLS documentation.
-- Latest release tag: `v1.2.1` (prepared 2026-11-01)
+- Current work: v1.2.2 released with interactive Windows MSI installer wizard (directory chooser & optional service feature), native Win32 SCM service support, WebTV streaming/payment badges and Chromecast casting, and build/version metadata display.
+- Latest release tag: `v1.2.2` (prepared 2026-11-02)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)

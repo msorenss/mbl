@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-02
+
+### Added
+- Interactive Windows MSI installer wizard (`WixUIExtension`) with installation directory selection (`InstallDirDlg` / **Change...** button) and customizable feature tree (`CustomizeDlg`) allowing optional toggling of the Windows Background Service (`ServiceFeature`), Distributed Transcode Worker, Federated Storage Node, and MBL TV Client.
+- Native Win32 Service Control Manager (SCM) dispatcher (`StartServiceCtrlDispatcherW` / `SetServiceStatus`) in `mbl-server` (`--service` and `mbl-server service install|uninstall|start|stop|run`), plus a Start Menu shortcut for console mode.
+- WebTV streaming provider and payment tier classification (`paid`, `freemium`, `free`, `info`) with visual badges and safe external site links (`🌐 Open`) across all search results.
+- Dual-tab WebTV source view (*Verified Sources* vs *All Search Hits*) with structured `[WebTV]`/`[OnlinePlayer]` browser logging and `mbl::online` server tracing.
+- Google Cast integration for WebTV online playback (`OnlinePlayer.tsx`) with URL token propagation (`?token=`) across HLS manifests and segments.
+- Build and git version metadata (`git_commit`, `build_time`) exposed via `GET /api/v1/system/info`, startup logs, sidebar footer, and Server Settings.
+
+### Fixed
+- Fixed Windows MSI installer hang at *"Starting services"* (Error 1053 / 1920) by replacing blocking `<ServiceInstall>`/`<ServiceControl Wait="yes">` with native Win32 SCM status reporting and non-blocking custom service actions.
+
 ## [1.2.1] - 2026-11-01
 
 ### Added

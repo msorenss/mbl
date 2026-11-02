@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.2.1
+Current release: v1.2.2
 
-This release builds on v1.2.0 with active Home Assistant MQTT integration, built-in HTTPS & TLS certificate management, and Chromecast HTTPS compatibility. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
+This release adds an interactive Windows MSI installer wizard (directory chooser + optional Windows service feature) with native Win32 SCM service support, WebTV streaming/payment badges and Chromecast casting, and build/version metadata display. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
 
 ## Quick start
 
