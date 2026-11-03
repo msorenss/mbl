@@ -9,6 +9,7 @@ use mbl_core::{Actor, Error, JobId, Result};
 use mbl_db::Db;
 use mbl_db::repo::hw::{self, HwCapabilityRow};
 use mbl_db::repo::jobs::{DONE, JobsRepo};
+use mbl_db::repo::settings::SettingsRepo;
 use mbl_hwaccel::{
     BadBackendFailure, BadBackendTracker, FfmpegProbeCaps, HailoConfig, HailoRuntimeStatus,
     HardwareFingerprint, HwCapEntry, NpuCoordinator, TranscodeCapacity, compute_capacity,
@@ -103,8 +104,27 @@ impl HwService {
         self.stream.hls_manager().map(|m| m.active_video_transcode_count()).unwrap_or(0)
     }
 
+    async fn sync_hailo_model_overrides(&self) {
+        let repo = SettingsRepo::new(self.db.clone());
+        let vision = repo.get("hailo_vision_hef_path").await.ok().flatten();
+        let vlm = repo.get("hailo_vlm_hef_path").await.ok().flatten();
+        let llm = repo.get("hailo_llm_hef_path").await.ok().flatten();
+        let whisper = repo.get("hailo_whisper_hef_path").await.ok().flatten();
+        let current = mbl_hwaccel::hailo::get_hailo_model_overrides();
+        let next = mbl_hwaccel::hailo::HailoModelOverrides {
+            vision_hef_path: vision,
+            vlm_hef_path: vlm,
+            llm_hef_path: llm,
+            whisper_hef_path: whisper,
+        };
+        if current != next {
+            mbl_hwaccel::hailo::set_hailo_model_overrides(next);
+        }
+    }
+
     /// Return the full [`HwReport`] for any authenticated user (`read` scope).
     pub async fn get_report(&self, _actor: &Actor) -> Result<HwReport> {
+        self.sync_hailo_model_overrides().await;
         let ffmpeg_bin = self.resolve_ffmpeg_bin();
         let probe = blocking(move || Ok(probe_ffmpeg(&ffmpeg_bin))).await?;
         let rows = hw::list_all(&self.db).await?;

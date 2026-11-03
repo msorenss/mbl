@@ -2151,7 +2151,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List server directories for picking library roots (admin). */
+        /** List server directories (and optionally files matching `ext`, e.g. `hef`) for picking library roots or models (admin). */
         get: operations["browse_directories"];
         put?: never;
         post?: never;
@@ -3020,8 +3020,11 @@ export interface components {
         /** @description Opaque pagination cursor. Its encoding is owned by the repository that issues it. */
         Cursor: string;
         DirEntry: {
+            isFile?: boolean;
             name: string;
             path: string;
+            /** Format: int64 */
+            sizeBytes?: number | null;
         };
         DirListing: {
             entries: components["schemas"]["DirEntry"][];
@@ -3130,17 +3133,32 @@ export interface components {
          * @description AI media pipelines accelerated by Hailo-8 / Hailo-8L / Hailo-10H.
          * @enum {string}
          */
-        HailoPipelineCapability: "whisperAsr" | "videoSuperResolution" | "sceneIntroDetection" | "clipSemanticIndexing" | "genAiLlm";
+        HailoPipelineCapability: "whisperAsr" | "videoSuperResolution" | "sceneIntroDetection" | "clipSemanticIndexing" | "genAiLlm" | "genAiVlm";
         /** @description Live runtime status and co-tenant sharing state of the Hailo NPU. */
         HailoRuntimeStatus: {
             activeCoTenants: string[];
+            activeHefModel?: string | null;
+            activeLlmHefModel?: string | null;
+            activeVlmHefModel?: string | null;
+            activeWhisperHefModel?: string | null;
             deviceBusyOrLocked: boolean;
             /** Format: int32 */
             dutyCyclePercent: number;
             externalInferenceUrl?: string | null;
+            firmwareVersion?: string | null;
+            /** Format: double */
+            nncUtilizationPercent?: number | null;
             npuProfile: components["schemas"]["NpuProfile"];
+            /** Format: int32 */
+            onDieVoltageMv?: number | null;
+            /** Format: int64 */
+            ramTotalMb?: number | null;
+            /** Format: int64 */
+            ramUsedMb?: number | null;
             sharingMode: components["schemas"]["HailoSharingMode"];
             supportedPipelines: components["schemas"]["HailoPipelineCapability"][];
+            /** Format: double */
+            temperatureC?: number | null;
             vdeviceGroupId: string;
         };
         /**
@@ -4470,6 +4488,10 @@ export interface components {
             autoScanOnChange: boolean;
             dlnaEnabled: boolean;
             dlnaFriendlyName: string;
+            hailoLlmHefPath?: string | null;
+            hailoVisionHefPath?: string | null;
+            hailoVlmHefPath?: string | null;
+            hailoWhisperHefPath?: string | null;
             mqttBrokerUrl: string;
             mqttEnabled: boolean;
             mqttTopicPrefix: string;
@@ -4727,6 +4749,10 @@ export interface components {
             autoScanOnChange?: boolean | null;
             dlnaEnabled?: boolean | null;
             dlnaFriendlyName?: string | null;
+            hailoLlmHefPath?: string | null;
+            hailoVisionHefPath?: string | null;
+            hailoVlmHefPath?: string | null;
+            hailoWhisperHefPath?: string | null;
             mqttBrokerUrl?: string | null;
             mqttEnabled?: boolean | null;
             mqttPassword?: string | null;
@@ -10198,6 +10224,7 @@ export interface operations {
         parameters: {
             query?: {
                 path?: string;
+                ext?: string;
             };
             header?: never;
             path?: never;

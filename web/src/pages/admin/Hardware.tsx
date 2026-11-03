@@ -1,10 +1,34 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../../api/client";
 import type { components } from "../../api/schema";
+import { HefModelPickerDialog, type HefModelSlot } from "../../components/HefModelPickerDialog";
 import { useToast } from "../../context/ToastContext";
 
 type HwReport = components["schemas"]["HwReport"];
 type SystemHealthReport = components["schemas"]["SystemHealthReport"];
+
+const SLOT_METADATA: Record<HefModelSlot, { label: string; description: string }> = {
+  vision: {
+    label: "Vision / Detection HEF",
+    description:
+      "Snabb bildanalys via InferModel (t.ex. yolov11s.hef, yolov8s.hef eller Qwen3-VL-2B-vision.hef).",
+  },
+  vlm: {
+    label: "GenAI VLM HEF (Hailo-10H)",
+    description:
+      "Vision-Language Model via hailort::genai::VLM (t.ex. Qwen3-VL-2B-Instruct.hef eller Qwen2-VL-2B-Instruct.hef).",
+  },
+  llm: {
+    label: "GenAI LLM HEF (Hailo-10H)",
+    description:
+      "Large Language Model via hailort::genai::LLM (t.ex. Qwen3-1.7B-Instruct.hef, Qwen2.5-1.5B-Instruct.hef eller Gemma4-E2B-Instruct.hef).",
+  },
+  whisper: {
+    label: "Whisper Speech2Text HEF (Hailo-10H)",
+    description:
+      "Tal-till-text och undertextsynk via hailort::genai::Speech2Text (t.ex. Whisper-Base.hef eller Whisper-Small.hef).",
+  },
+};
 
 export function Hardware() {
   const { showToast } = useToast();
@@ -12,6 +36,7 @@ export function Hardware() {
   const [sysHealth, setSysHealth] = createSignal<SystemHealthReport | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [testing, setTesting] = createSignal(false);
+  const [pickerSlot, setPickerSlot] = createSignal<HefModelSlot | null>(null);
 
   const loadReport = async () => {
     setLoading(true);
@@ -77,6 +102,48 @@ export function Hardware() {
     if (gb >= 1) return `${gb.toFixed(1)} GB`;
     const mb = bytes / (1024 * 1024);
     return `${mb.toFixed(0)} MB`;
+  };
+
+  const currentSlotPath = (slot: HefModelSlot | null): string | null | undefined => {
+    const h = report()?.hailo;
+    if (!h || !slot) return undefined;
+    switch (slot) {
+      case "vision":
+        return h.activeHefModel;
+      case "vlm":
+        return h.activeVlmHefModel;
+      case "llm":
+        return h.activeLlmHefModel;
+      case "whisper":
+        return h.activeWhisperHefModel;
+    }
+  };
+
+  const handleSaveHefPath = async (slot: HefModelSlot, hefPath: string) => {
+    const body =
+      slot === "vision"
+        ? { hailoVisionHefPath: hefPath }
+        : slot === "vlm"
+          ? { hailoVlmHefPath: hefPath }
+          : slot === "llm"
+            ? { hailoLlmHefPath: hefPath }
+            : { hailoWhisperHefPath: hefPath };
+
+    const { data, error } = await client.PATCH("/api/v1/system/settings", { body });
+    if (error || !data) {
+      throw new Error(
+        (error as unknown as { message?: string })?.message ||
+          "Kunde inte spara vald .hef-modellfil.",
+      );
+    }
+    await loadReport();
+    showToast({
+      title: hefPath ? "HEF-modell uppdaterad" : "Automatisk HEF-identifiering",
+      message: hefPath
+        ? `Valde ${hefPath.split("/").pop()} för ${SLOT_METADATA[slot].label}.`
+        : `Återställde ${SLOT_METADATA[slot].label} till automatisk identifiering.`,
+      type: "success",
+    });
   };
 
   return (
@@ -442,6 +509,225 @@ export function Hardware() {
                         : "CPU Fallback"}
                     </span>
                   </div>
+                  <Show when={rep().hailo.firmwareVersion}>
+                    <div style={{ display: "flex", "justify-content": "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>HailoRT Firmware:</span>
+                      <span style={{ "font-family": "var(--font-mono)", "font-size": "12px" }}>
+                        v{rep().hailo.firmwareVersion}
+                      </span>
+                    </div>
+                  </Show>
+                  {/* HEF Model rows with file picker buttons */}
+                  <div
+                    style={{
+                      display: "flex",
+                      "justify-content": "space-between",
+                      "align-items": "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span style={{ color: "var(--text-secondary)" }}>Vision HEF Model:</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        "min-width": "0",
+                      }}
+                    >
+                      <span
+                        style={{
+                          "font-family": "var(--font-mono)",
+                          "font-size": "12px",
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                        title={rep().hailo.activeHefModel ?? ""}
+                      >
+                        {rep().hailo.activeHefModel?.split("/").pop() || "Ingen vald"}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="pick-vision-hef"
+                        onClick={() => setPickerSlot("vision")}
+                        style={{
+                          padding: "2px 7px",
+                          "font-size": "11px",
+                          background: "var(--bg-overlay)",
+                          color: "var(--text-primary)",
+                          border: "1px solid var(--border)",
+                          "border-radius": "var(--radius-sm)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📁 Välj .hef
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      "justify-content": "space-between",
+                      "align-items": "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span style={{ color: "var(--text-secondary)" }}>GenAI VLM HEF:</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        "min-width": "0",
+                      }}
+                    >
+                      <span
+                        style={{
+                          "font-family": "var(--font-mono)",
+                          "font-size": "12px",
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                        title={rep().hailo.activeVlmHefModel ?? ""}
+                      >
+                        {rep().hailo.activeVlmHefModel?.split("/").pop() || "Ingen vald"}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="pick-vlm-hef"
+                        onClick={() => setPickerSlot("vlm")}
+                        style={{
+                          padding: "2px 7px",
+                          "font-size": "11px",
+                          background: "var(--bg-overlay)",
+                          color: "var(--text-primary)",
+                          border: "1px solid var(--border)",
+                          "border-radius": "var(--radius-sm)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📁 Välj .hef
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      "justify-content": "space-between",
+                      "align-items": "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span style={{ color: "var(--text-secondary)" }}>GenAI LLM HEF:</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        "min-width": "0",
+                      }}
+                    >
+                      <span
+                        style={{
+                          "font-family": "var(--font-mono)",
+                          "font-size": "12px",
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                        title={rep().hailo.activeLlmHefModel ?? ""}
+                      >
+                        {rep().hailo.activeLlmHefModel?.split("/").pop() || "Ingen vald"}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="pick-llm-hef"
+                        onClick={() => setPickerSlot("llm")}
+                        style={{
+                          padding: "2px 7px",
+                          "font-size": "11px",
+                          background: "var(--bg-overlay)",
+                          color: "var(--text-primary)",
+                          border: "1px solid var(--border)",
+                          "border-radius": "var(--radius-sm)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📁 Välj .hef
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      "justify-content": "space-between",
+                      "align-items": "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span style={{ color: "var(--text-secondary)" }}>Whisper ASR HEF:</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        "min-width": "0",
+                      }}
+                    >
+                      <span
+                        style={{
+                          "font-family": "var(--font-mono)",
+                          "font-size": "12px",
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                        title={rep().hailo.activeWhisperHefModel ?? ""}
+                      >
+                        {rep().hailo.activeWhisperHefModel?.split("/").pop() || "Ingen vald"}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid="pick-whisper-hef"
+                        onClick={() => setPickerSlot("whisper")}
+                        style={{
+                          padding: "2px 7px",
+                          "font-size": "11px",
+                          background: "var(--bg-overlay)",
+                          color: "var(--text-primary)",
+                          border: "1px solid var(--border)",
+                          "border-radius": "var(--radius-sm)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        📁 Välj .hef
+                      </button>
+                    </div>
+                  </div>
+                  <Show when={rep().hailo.nncUtilizationPercent != null}>
+                    <div style={{ display: "flex", "justify-content": "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>NNC Load / Temp:</span>
+                      <span style={{ "font-weight": "600" }}>
+                        {rep().hailo.nncUtilizationPercent?.toFixed(1)}%
+                        {rep().hailo.temperatureC != null
+                          ? ` · ${rep().hailo.temperatureC?.toFixed(1)} °C`
+                          : ""}
+                      </span>
+                    </div>
+                  </Show>
+                  <Show when={rep().hailo.ramUsedMb != null && rep().hailo.ramTotalMb != null}>
+                    <div style={{ display: "flex", "justify-content": "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>NPU DDR Memory:</span>
+                      <span style={{ "font-family": "var(--font-mono)", "font-size": "12px" }}>
+                        {rep().hailo.ramUsedMb} / {rep().hailo.ramTotalMb} MB
+                      </span>
+                    </div>
+                  </Show>
                 </div>
               </div>
             </div>
@@ -612,6 +898,19 @@ export function Hardware() {
               </div>
             </Show>
           </div>
+        )}
+      </Show>
+
+      <Show when={pickerSlot()}>
+        {(slot) => (
+          <HefModelPickerDialog
+            open={pickerSlot() !== null}
+            slotLabel={SLOT_METADATA[slot()].label}
+            slotDescription={SLOT_METADATA[slot()].description}
+            currentPath={currentSlotPath(slot())}
+            onClose={() => setPickerSlot(null)}
+            onSelect={(path) => handleSaveHefPath(slot(), path)}
+          />
         )}
       </Show>
     </div>

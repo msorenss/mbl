@@ -809,6 +809,12 @@ impl MediaIntelligenceService {
 
         let parts = media::parts_for_item(&self.db, item_id).await?;
         let primary_part_id = parts.first().map(|p| p.id);
+        let primary_part_path = parts.first().map(|p| PathBuf::from(&p.path));
+        let ffmpeg_bin = self
+            .stream
+            .hls_manager()
+            .map(|m| m.config().ffmpeg_bin.clone())
+            .unwrap_or_else(|| PathBuf::from("ffmpeg"));
 
         let scenes = if req.scenes.is_empty() {
             // Default scene indexing from item title + summary + chapters
@@ -838,7 +844,7 @@ impl MediaIntelligenceService {
             req.scenes
         };
 
-        let sample_img = image::DynamicImage::ImageRgb8(image::ImageBuffer::from_pixel(
+        let fallback_img = image::DynamicImage::ImageRgb8(image::ImageBuffer::from_pixel(
             64,
             36,
             image::Rgb([120, 130, 140]),
@@ -847,7 +853,14 @@ impl MediaIntelligenceService {
         let now = now_ms();
 
         for hint in scenes {
-            let analysis = self.hailo.analyze_image(&sample_img, Some(&hint.description));
+            let extracted_frame = match primary_part_path.as_deref() {
+                Some(path) if path.exists() => {
+                    extract_video_keyframe(&ffmpeg_bin, path, hint.timestamp_ms).await
+                }
+                _ => None,
+            };
+            let img_ref = extracted_frame.as_ref().unwrap_or(&fallback_img);
+            let analysis = self.hailo.analyze_image(img_ref, Some(&hint.description));
             repo.upsert(
                 item_id,
                 primary_part_id,
@@ -1015,6 +1028,36 @@ fn valid_sprite_name(name: &str) -> bool {
         && name.ends_with(".jpg")
         && name.len() <= 32
         && name[7..name.len() - 4].bytes().all(|b| b.is_ascii_digit())
+}
+
+async fn extract_video_keyframe(
+    ffmpeg_bin: &Path,
+    media_path: &Path,
+    timestamp_ms: i64,
+) -> Option<image::DynamicImage> {
+    let sec = format!("{:.3}", (timestamp_ms.max(0) as f64) / 1000.0);
+    let out = tokio::process::Command::new(ffmpeg_bin)
+        .args(["-nostdin", "-loglevel", "error", "-ss", &sec, "-i"])
+        .arg(media_path)
+        .args([
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=640:640",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-",
+        ])
+        .output()
+        .await
+        .ok()?;
+    if !out.status.success() || out.stdout.len() < 640 * 640 * 3 {
+        return None;
+    }
+    let buf = image::RgbImage::from_raw(640, 640, out.stdout[..640 * 640 * 3].to_vec())?;
+    Some(image::DynamicImage::ImageRgb8(buf))
 }
 
 pub struct TrickplayJobHandler {

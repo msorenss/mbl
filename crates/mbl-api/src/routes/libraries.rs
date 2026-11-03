@@ -63,6 +63,7 @@ pub struct UpdateLibraryRequest {
 #[derive(Debug, Deserialize)]
 pub struct BrowseQuery {
     pub path: Option<String>,
+    pub ext: Option<String>,
 }
 
 /// Libraries the user can access.
@@ -127,16 +128,16 @@ async fn remove(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// List server directories for picking library roots (admin).
+/// List server directories (and optionally files matching `ext`, e.g. `hef`) for picking library roots or models (admin).
 #[utoipa::path(get, path = "/api/v1/system/browse", tag = "libraries", operation_id = "browse_directories",
-    params(("path" = Option<String>, Query)),
+    params(("path" = Option<String>, Query), ("ext" = Option<String>, Query)),
     responses((status = 200, body = DirListing), (status = 403)))]
 async fn browse(
     State(state): State<AppState>,
     AdminUser(auth): AdminUser,
     Query(q): Query<BrowseQuery>,
 ) -> Result<Json<DirListing>, ApiError> {
-    Ok(Json(state.services.libraries.browse(&auth.actor, q.path).await?))
+    Ok(Json(state.services.libraries.browse(&auth.actor, q.path, q.ext).await?))
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]

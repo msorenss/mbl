@@ -374,7 +374,87 @@ pub fn run_selftest(
         }
     }
 
+    // 3. Hailo NPU cooperative inference self-test when a Hailo-8 / 8L / 10H is present
+    if fp.npu_profile.is_present() {
+        let (codec, ok, fps, error) = run_hailo_npu_selftest(fp);
+        entries.push(HwCapEntry {
+            backend: fp.npu_profile.as_str().to_owned(),
+            codec,
+            operation: "inference".to_owned(),
+            ok,
+            fps,
+            error,
+            ffmpeg_hash: probe.binary_hash.clone(),
+            driver_fingerprint: fp.driver_fingerprint.clone(),
+            tested_at: now,
+        });
+    }
+
     entries
+}
+
+fn run_hailo_npu_selftest(fp: &HardwareFingerprint) -> (String, bool, Option<f64>, Option<String>) {
+    let hef_opt = crate::hailo::discover_hef_model_for_profile(Path::new("/"), fp.npu_profile);
+    let hailortcli = Path::new("/usr/bin/hailortcli");
+
+    if hailortcli.exists() {
+        if let Some(hef_path) = hef_opt {
+            let model_name =
+                hef_path.file_name().and_then(|f| f.to_str()).unwrap_or("hef").to_owned();
+            let out = Command::new(hailortcli)
+                .args([
+                    "run2",
+                    "--group-id",
+                    crate::hailo::DEFAULT_VDEVICE_GROUP_ID,
+                    "-t",
+                    "1",
+                    "set-net",
+                    &hef_path.to_string_lossy(),
+                ])
+                .output();
+            match out {
+                Ok(res) if res.status.success() => {
+                    let stdout = String::from_utf8_lossy(&res.stdout);
+                    let parsed_fps = stdout.lines().find_map(|line| {
+                        let (_, after) = line.split_once("avg fps:")?;
+                        after.split_whitespace().next()?.parse::<f64>().ok()
+                    });
+                    return (model_name, true, parsed_fps, None);
+                }
+                Ok(res) => {
+                    let stderr = String::from_utf8_lossy(&res.stderr).trim().to_owned();
+                    let stdout = String::from_utf8_lossy(&res.stdout).trim().to_owned();
+                    let err = if !stderr.is_empty() { stderr } else { stdout };
+                    return (model_name, false, None, Some(err));
+                }
+                Err(e) => return (model_name, false, None, Some(e.to_string())),
+            }
+        }
+
+        // No .hef model on disk yet: verify physical NPU link via `hailortcli fw-control identify`
+        match Command::new(hailortcli).args(["fw-control", "identify"]).output() {
+            Ok(res) if res.status.success() => {
+                return ("vdevice-shared".to_owned(), true, None, None);
+            }
+            Ok(res) => {
+                let err = String::from_utf8_lossy(&res.stderr).trim().to_owned();
+                return ("vdevice-shared".to_owned(), false, None, Some(err));
+            }
+            Err(e) => return ("vdevice-shared".to_owned(), false, None, Some(e.to_string())),
+        }
+    }
+
+    let node_exists = fp.hailo_devices.iter().any(|d| Path::new(&d.device_node).exists());
+    if node_exists {
+        ("vdevice-shared".to_owned(), true, None, None)
+    } else {
+        (
+            "vdevice-shared".to_owned(),
+            false,
+            None,
+            Some("Hailo device node not accessible".to_owned()),
+        )
+    }
 }
 
 fn run_single_decode_test(

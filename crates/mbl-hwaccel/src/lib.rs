@@ -15,9 +15,10 @@ pub use fingerprint::{
     V4l2Device, detect_fingerprint, detect_fingerprint_from_root, parse_nvidia_smi_xml,
 };
 pub use hailo::{
-    DEFAULT_VDEVICE_GROUP_ID, DutyCyclePacer, HailoConfig, HailoPipelineCapability,
-    HailoRuntimeStatus, HailoSharingMode, NpuCoordinator, NpuExecutionPlan,
-    detect_hailo_co_tenants,
+    DEFAULT_VDEVICE_GROUP_ID, DutyCyclePacer, HailoConfig, HailoLiveTelemetry,
+    HailoPipelineCapability, HailoRuntimeStatus, HailoSharingMode, NpuCoordinator,
+    NpuExecutionPlan, detect_hailo_co_tenants, discover_hef_model_for_profile,
+    parse_hailortcli_identify_fw, parse_hailortcli_monitor_h10, probe_hailo_live_telemetry,
 };
 pub use selftest::{
     BadBackendFailure, BadBackendTracker, DEFAULT_BAD_BACKEND_TTL_MS, FPS_PER_STREAM_BUDGET,

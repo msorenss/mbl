@@ -6047,11 +6047,19 @@
         "tags": [
           "libraries"
         ],
-        "summary": "List server directories for picking library roots (admin).",
+        "summary": "List server directories (and optionally files matching `ext`, e.g. `hef`) for picking library roots or models (admin).",
         "operationId": "browse_directories",
         "parameters": [
           {
             "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ext",
             "in": "query",
             "required": false,
             "schema": {
@@ -8658,11 +8666,22 @@
           "path"
         ],
         "properties": {
+          "isFile": {
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
           },
           "path": {
             "type": "string"
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -9090,7 +9109,8 @@
           "videoSuperResolution",
           "sceneIntroDetection",
           "clipSemanticIndexing",
-          "genAiLlm"
+          "genAiLlm",
+          "genAiVlm"
         ]
       },
       "HailoRuntimeStatus": {
@@ -9112,6 +9132,30 @@
               "type": "string"
             }
           },
+          "activeHefModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activeLlmHefModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activeVlmHefModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "activeWhisperHefModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "deviceBusyOrLocked": {
             "type": "boolean"
           },
@@ -9126,8 +9170,45 @@
               "null"
             ]
           },
+          "firmwareVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nncUtilizationPercent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
           "npuProfile": {
             "$ref": "#/components/schemas/NpuProfile"
+          },
+          "onDieVoltageMv": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "ramTotalMb": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "ramUsedMb": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           },
           "sharingMode": {
             "$ref": "#/components/schemas/HailoSharingMode"
@@ -9137,6 +9218,13 @@
             "items": {
               "$ref": "#/components/schemas/HailoPipelineCapability"
             }
+          },
+          "temperatureC": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           },
           "vdeviceGroupId": {
             "type": "string"
@@ -14176,6 +14264,30 @@
           "dlnaFriendlyName": {
             "type": "string"
           },
+          "hailoLlmHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoVisionHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoVlmHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoWhisperHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "mqttBrokerUrl": {
             "type": "string"
           },
@@ -15092,6 +15204,30 @@
             ]
           },
           "dlnaFriendlyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoLlmHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoVisionHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoVlmHefPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hailoWhisperHefPath": {
             "type": [
               "string",
               "null"

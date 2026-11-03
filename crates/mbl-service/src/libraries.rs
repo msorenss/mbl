@@ -116,10 +116,15 @@ impl LibraryService {
         Ok(())
     }
 
-    /// Admin folder browser for picking library roots.
-    pub async fn browse(&self, actor: &Actor, path: Option<String>) -> Result<DirListing> {
+    /// Admin folder browser for picking library roots (or files with `ext` filter, e.g. `.hef`).
+    pub async fn browse(
+        &self,
+        actor: &Actor,
+        path: Option<String>,
+        ext: Option<String>,
+    ) -> Result<DirListing> {
         actor.require_admin()?;
-        blocking(move || paths::list_dirs(path.as_deref())).await
+        blocking(move || paths::list_dirs(path.as_deref(), ext.as_deref())).await
     }
 
     /// Canonicalize roots and reject duplicates or nesting, within the input and against other

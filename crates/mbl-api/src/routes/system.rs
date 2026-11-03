@@ -97,6 +97,14 @@ pub struct SystemSettingsDto {
     pub auto_scan_on_change: bool,
     pub periodic_scan_interval_minutes: u32,
     pub auto_fetch_missing_metadata: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hailo_vision_hef_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hailo_vlm_hef_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hailo_llm_hef_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hailo_whisper_hef_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
@@ -114,6 +122,10 @@ pub struct UpdateSystemSettingsRequest {
     pub auto_scan_on_change: Option<bool>,
     pub periodic_scan_interval_minutes: Option<u32>,
     pub auto_fetch_missing_metadata: Option<bool>,
+    pub hailo_vision_hef_path: Option<String>,
+    pub hailo_vlm_hef_path: Option<String>,
+    pub hailo_llm_hef_path: Option<String>,
+    pub hailo_whisper_hef_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
@@ -196,6 +208,17 @@ async fn get_system_settings(
         .unwrap_or(60);
     let auto_fetch_missing_metadata =
         repo.get("auto_fetch_missing_metadata").await?.map(|v| v != "false").unwrap_or(true);
+    let hailo_vision_hef_path = repo.get("hailo_vision_hef_path").await?;
+    let hailo_vlm_hef_path = repo.get("hailo_vlm_hef_path").await?;
+    let hailo_llm_hef_path = repo.get("hailo_llm_hef_path").await?;
+    let hailo_whisper_hef_path = repo.get("hailo_whisper_hef_path").await?;
+
+    mbl_hwaccel::hailo::set_hailo_model_overrides(mbl_hwaccel::hailo::HailoModelOverrides {
+        vision_hef_path: hailo_vision_hef_path.clone(),
+        vlm_hef_path: hailo_vlm_hef_path.clone(),
+        llm_hef_path: hailo_llm_hef_path.clone(),
+        whisper_hef_path: hailo_whisper_hef_path.clone(),
+    });
 
     Ok(Json(SystemSettingsDto {
         server_name,
@@ -210,6 +233,10 @@ async fn get_system_settings(
         auto_scan_on_change,
         periodic_scan_interval_minutes,
         auto_fetch_missing_metadata,
+        hailo_vision_hef_path,
+        hailo_vlm_hef_path,
+        hailo_llm_hef_path,
+        hailo_whisper_hef_path,
     }))
 }
 
@@ -303,6 +330,28 @@ async fn update_system_settings(
     if let Some(enabled) = req.auto_fetch_missing_metadata {
         repo.set("auto_fetch_missing_metadata", if enabled { "true" } else { "false" }).await?;
     }
+    for (key, val_opt) in [
+        ("hailo_vision_hef_path", req.hailo_vision_hef_path),
+        ("hailo_vlm_hef_path", req.hailo_vlm_hef_path),
+        ("hailo_llm_hef_path", req.hailo_llm_hef_path),
+        ("hailo_whisper_hef_path", req.hailo_whisper_hef_path),
+    ] {
+        if let Some(val) = val_opt {
+            let trimmed = val.trim();
+            if trimmed.is_empty() {
+                repo.delete(key).await?;
+            } else {
+                let p = std::path::Path::new(trimmed);
+                if !p.is_file() || p.extension().and_then(|e| e.to_str()) != Some("hef") {
+                    return Err(Error::Validation(format!(
+                        "HEF model path must point to an existing .hef file: {trimmed}"
+                    ))
+                    .into());
+                }
+                repo.set(key, trimmed).await?;
+            }
+        }
+    }
 
     let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
     let saved_key = repo.get("tmdb_api_key").await?;
@@ -325,6 +374,17 @@ async fn update_system_settings(
         .unwrap_or(60);
     let auto_fetch_missing_metadata =
         repo.get("auto_fetch_missing_metadata").await?.map(|v| v != "false").unwrap_or(true);
+    let hailo_vision_hef_path = repo.get("hailo_vision_hef_path").await?;
+    let hailo_vlm_hef_path = repo.get("hailo_vlm_hef_path").await?;
+    let hailo_llm_hef_path = repo.get("hailo_llm_hef_path").await?;
+    let hailo_whisper_hef_path = repo.get("hailo_whisper_hef_path").await?;
+
+    mbl_hwaccel::hailo::set_hailo_model_overrides(mbl_hwaccel::hailo::HailoModelOverrides {
+        vision_hef_path: hailo_vision_hef_path.clone(),
+        vlm_hef_path: hailo_vlm_hef_path.clone(),
+        llm_hef_path: hailo_llm_hef_path.clone(),
+        whisper_hef_path: hailo_whisper_hef_path.clone(),
+    });
 
     Ok(Json(SystemSettingsDto {
         server_name,
@@ -339,6 +399,10 @@ async fn update_system_settings(
         auto_scan_on_change,
         periodic_scan_interval_minutes,
         auto_fetch_missing_metadata,
+        hailo_vision_hef_path,
+        hailo_vlm_hef_path,
+        hailo_llm_hef_path,
+        hailo_whisper_hef_path,
     }))
 }
 

@@ -179,5 +179,9 @@ describe("Admin Hardware Acceleration UI (M4.15)", () => {
     expect(container.textContent).toContain("76.5 °C");
     expect(container.textContent).toContain("Power / Thermal Alert");
     expect(container.textContent).toContain("Under-voltage detected");
+    expect(container.querySelector('[data-testid="pick-vision-hef"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="pick-vlm-hef"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="pick-llm-hef"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="pick-whisper-hef"]')).toBeTruthy();
   });
 });

@@ -39,9 +39,14 @@ fn normalize(p: &str) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DirEntry {
     pub name: String,
     pub path: String,
+    #[serde(default)]
+    pub is_file: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
@@ -52,22 +57,43 @@ pub struct DirListing {
     pub entries: Vec<DirEntry>,
 }
 
-/// List sub-directories of `path`, or the filesystem roots when `path` is `None`.
-pub(crate) fn list_dirs(path: Option<&str>) -> Result<DirListing> {
+/// List sub-directories (and optionally files matching `ext`, e.g. `"hef"`) of `path`,
+/// or the filesystem roots when `path` is `None`.
+pub(crate) fn list_dirs(path: Option<&str>, ext: Option<&str>) -> Result<DirListing> {
     let Some(raw) = path.map(str::trim).filter(|p| !p.is_empty()) else {
         return Ok(DirListing { path: None, parent: None, entries: roots() });
     };
     let dir = canonical_root(raw)?;
+    let ext_filter = ext
+        .map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase())
+        .filter(|e| !e.is_empty());
+
     let mut entries: Vec<DirEntry> = std::fs::read_dir(&dir)?
         .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
         .filter_map(|e| {
+            let meta = e.metadata().ok()?;
+            let is_dir = meta.is_dir();
+            let is_file = meta.is_file();
+            if !is_dir && !is_file {
+                return None;
+            }
             let name = e.file_name().into_string().ok()?;
+            if is_hidden(&name) {
+                return None;
+            }
+            if is_file {
+                let want_ext = ext_filter.as_deref()?;
+                let file_ext = Path::new(&name).extension().and_then(|x| x.to_str()).unwrap_or("");
+                if !file_ext.eq_ignore_ascii_case(want_ext) {
+                    return None;
+                }
+            }
             let path = e.path().into_os_string().into_string().ok()?;
-            (!is_hidden(&name)).then_some(DirEntry { name, path })
+            Some(DirEntry { name, path, is_file, size_bytes: is_file.then_some(meta.len()) })
         })
         .collect();
-    entries.sort_by_key(|e| e.name.to_lowercase());
+    // Sort directories first, then files alphabetically
+    entries.sort_by_key(|e| (e.is_file, e.name.to_lowercase()));
     let parent = Path::new(&dir).parent().and_then(|p| p.to_str()).map(str::to_owned);
     Ok(DirListing { path: Some(dir), parent, entries })
 }
@@ -82,13 +108,13 @@ fn roots() -> Vec<DirEntry> {
     ('A'..='Z')
         .map(|d| format!("{d}:\\"))
         .filter(|p| Path::new(p).exists())
-        .map(|p| DirEntry { name: p.clone(), path: p })
+        .map(|p| DirEntry { name: p.clone(), path: p, is_file: false, size_bytes: None })
         .collect()
 }
 
 #[cfg(not(windows))]
 fn roots() -> Vec<DirEntry> {
-    vec![DirEntry { name: "/".into(), path: "/".into() }]
+    vec![DirEntry { name: "/".into(), path: "/".into(), is_file: false, size_bytes: None }]
 }
 
 #[cfg(test)]
@@ -118,16 +144,24 @@ mod tests {
     }
 
     #[test]
-    fn lists_visible_subdirectories() {
+    fn lists_visible_subdirectories_and_optional_file_extensions() {
         let dir = tempfile::tempdir().unwrap();
         for d in ["Movies", "tv", ".hidden", "lost+found"] {
             std::fs::create_dir(dir.path().join(d)).unwrap();
         }
         std::fs::write(dir.path().join("file.mkv"), "x").unwrap();
-        let listing = list_dirs(dir.path().to_str()).unwrap();
+        std::fs::write(dir.path().join("yolov11s.hef"), "hefdata").unwrap();
+
+        let listing = list_dirs(dir.path().to_str(), None).unwrap();
         let names: Vec<_> = listing.entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["Movies", "tv"]);
         assert!(listing.parent.is_some());
-        assert!(!list_dirs(None).unwrap().entries.is_empty());
+        assert!(!list_dirs(None, None).unwrap().entries.is_empty());
+
+        let listing_hef = list_dirs(dir.path().to_str(), Some("hef")).unwrap();
+        let names_hef: Vec<_> = listing_hef.entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names_hef, ["Movies", "tv", "yolov11s.hef"]);
+        assert!(listing_hef.entries[2].is_file);
+        assert_eq!(listing_hef.entries[2].size_bytes, Some(7));
     }
 }

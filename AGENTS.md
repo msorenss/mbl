@@ -3,7 +3,9 @@ This document lives at the repository root so every AI agent, contributor, and a
 
 ---
 ## 1. Current status (quick overview)
-- Current work: v1.2.2 released with interactive Windows MSI installer wizard (directory chooser & optional service feature), native Win32 SCM service support, WebTV streaming/payment badges and Chromecast casting, and build/version metadata display.
+- Current work:
+  - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
+  - Note: These Hailo NPU + `.hef` file picker changes are **uncommitted in the working tree** by explicit user request (`"Vill testa först"`) so the user can test their local build before committing/tagging.
 - Latest release tag: `v1.2.2` (prepared 2026-11-02)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
@@ -79,6 +81,66 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-03 — Hailo Model Zoo GenAI (`VLM`, `LLM`, `Whisper Speech2Text`) Direct C++ Driver & Interactive `.hef` File Picker UI
+- **Status / Git Note for Next Agent:**
+  - All changes from the 2026-11-02 and 2026-11-03 Hailo NPU work are currently **uncommitted in the working tree** because the user explicitly requested to test their local build first (`"Vill testa först"` / `"Jepp ska bara uppdatera mitt bygge"`). **Do not revert or discard uncommitted changes**; once the user confirms testing is complete, commit and tag the next release following §4.
+- **Why `hailo-ollama` Could Not Run VLMs or Whisper (`nm -D /usr/bin/hailo-ollama`):**
+  - Inspected `/usr/bin/hailo-ollama` and upstream [`hailo_model_zoo_genai` (`docs/MODELS.rst`, v5.5.0)](https://github.com/hailo-ai/hailo_model_zoo_genai/blob/main/docs/MODELS.rst).
+  - `hailo-ollama` only links `hailort::genai::LLM` symbols and has zero symbols for `hailort::genai::VLM` or `hailort::genai::Speech2Text`.
+  - Upstream `MODELS.rst` marks VLMs (`Qwen3-VL-2B-Instruct`, `Qwen2-VL-2B-Instruct`, `Qwen3-VL-4B-Instruct`), standalone vision encoders (`Qwen3-VL-2B-vision`, `Qwen3-VL-2B-vision-hailo8`, `Qwen2-VL-2B-vision-336x336`, `Qwen2-VL-7B-vision-*`), and Whisper (`Whisper-Tiny`, `Whisper-Base`, `Whisper-Small`, `Whisper-Medium`) as **C++ / Python HailoRT API only**.
+- **Direct C++ `libhailort.so` GenAI Bridge (`crates/mbl-hailo/src/runtime.rs` & `crates/mbl-hailo/src/lib.rs`):**
+  - Extended `INFER_BRIDGE_CPP_SOURCE` (`/tmp/mbl_hailo_infer_bridge_v3.so`, compiled on-demand via `g++ -std=c++17 -lhailort` against `/usr/include/hailo/hailort.hpp`, `hailo/genai/vlm/vlm.hpp`, `hailo/genai/llm/llm.hpp`, and `hailo/genai/speech2text/speech2text.hpp`) with C ABI entry points using `VDevice::create_shared(params)` (`group_id = "SHARED"`, `ROUND_ROBIN`):
+    1. **`mbl_hailo_genai_vlm_frame_shape` & `mbl_hailo_genai_vlm_describe` (`hailort::genai::VLM`):**
+       - Loads `VLMParams(hef_path, /*optimize_memory_on_device=*/true)`, queries `vlm.input_frame_shape()`, resizes the RGB24 frame to the exact model input dimensions, passes JSON chat messages + frame buffer into `vlm.generate(gen_params, messages, frames)`, and reads the generated scene description via `completion.read_all()`.
+       - Exposed via `HailoNativeRuntime::describe_image_vlm` and `HailoEngine::describe_image_vlm`, and integrated into `HailoEngine::analyze_image` (auto-used when `MBL_HAILO_ENABLE_VLM_INDEXING=1` or when no fast `InferModel` session is active).
+    2. **`mbl_hailo_genai_llm_generate` (`hailort::genai::LLM`):**
+       - Loads `LLMParams(hef_path, "", /*optimize_memory_on_device=*/true)` and runs `llm.generate(gen_params, messages)`.
+       - Exposed via `HailoNativeRuntime::generate_text_llm` and used as an automatic on-device NPU fallback in `HailoEngine::generate_spoiler_free_recap` whenever `hailo-ollama` is not running or when using C++-only models (e.g. `Qwen2-1.5B-Instruct-Function-Calling-v1.hef`).
+       - Updated `try_hailo_ollama_recap` to prioritize the new `MODELS.rst` tags (`qwen3:1.7b`, `qwen2.5:1.5b`, `gemma4:e2b`, `llama3.2:1b`, `deepseek_r1:1.5b`, `qwen3:4b`, `qwen2:1.5b`).
+    3. **`mbl_hailo_genai_speech2text` (`hailort::genai::Speech2Text`):**
+       - Loads `Speech2TextParams(hef_path)` and runs `s2t.generate_all_segments(generator_params, pcm_view)` on 16 kHz mono `f32` PCM audio, returning timestamped `HailoSpeechSegment { start_sec, end_sec, text }`.
+       - Exposed via `HailoNativeRuntime::transcribe_audio_whisper` and `HailoEngine::transcribe_audio`.
+- **Model Discovery & Filtering (`crates/mbl-hwaccel/src/hailo.rs`):**
+  - Added `HailoPipelineCapability::GenAiVlm` and included it in `NpuCoordinator::pipelines_for_profile(NpuProfile::Hailo10H)`.
+  - Added `discover_vlm_hef_model`, `discover_llm_hef_model`, and `discover_whisper_hef_model`, plus `active_vlm_hef_model`, `active_llm_hef_model`, and `active_whisper_hef_model` in `HailoRuntimeStatus` and `HailoLiveTelemetry`.
+  - Updated `discover_hef_model_for_profile` to include standalone `Qwen-VL` vision encoders (`Qwen3-VL-2B-vision.hef` on Hailo-10H, `Qwen3-VL-2B-vision-hailo8.hef` on Hailo-8, `Qwen2-VL-*-vision-*.hef`) while excluding multi-stage GenAI LLM/VLM/Whisper `.hef` bundles via `is_genai_or_whisper_hef_filename` so `InferModel` never attempts to open a multi-stage GenAI bundle as a single-network vision model.
+- **Interactive `.hef` File Picker in Admin Hardware UI & Hot-Reload (`web/src/components/HefModelPickerDialog.tsx`, `web/src/pages/admin/Hardware.tsx`, `crates/mbl-service/src/paths.rs`, `crates/mbl-api/src/routes/libraries.rs`, `crates/mbl-api/src/routes/system.rs`):**
+  - Extended `list_dirs` (`crates/mbl-service/src/paths.rs`) and `GET /api/v1/system/browse` (`crates/mbl-api/src/routes/libraries.rs`) with an optional `?ext=` query filter (e.g. `?ext=hef`) and `is_file` + `size_bytes` fields on `DirEntry`. When `ext` is omitted, `/api/v1/system/browse` returns directories only (100% backward-compatible with `LibraryFolderPicker`).
+  - Extended `SystemSettingsDto` and `UpdateSystemSettingsRequest` (`GET` / `PATCH /api/v1/system/settings` in `crates/mbl-api/src/routes/system.rs`) with `hailo_vision_hef_path`, `hailo_vlm_hef_path`, `hailo_llm_hef_path`, and `hailo_whisper_hef_path` (validated to ensure `.hef` extension and file existence on disk, persisted in SQLite `settings`).
+  - Added runtime override state (`HailoModelOverrides`, `set_hailo_model_overrides`, `get_hailo_model_overrides`, `invalidate_hailo_telemetry_cache`) in `crates/mbl-hwaccel/src/hailo.rs`, synced in `HwService::get_report` (`crates/mbl-service/src/hw.rs`).
+  - Added `HailoNativeRuntime::ensure_vision_session` (`crates/mbl-hailo/src/runtime.rs`) which tracks the active `.hef` `PathBuf` alongside `UnixHailoSession` and automatically hot-reloads the NPU session in-memory whenever the user selects a different `.hef` file in the UI (no server restart required).
+  - Created `web/src/components/HefModelPickerDialog.tsx` and added `📁 Välj .hef` buttons for all four model slots (`Vision HEF Model`, `GenAI VLM HEF`, `GenAI LLM HEF`, `Whisper ASR HEF`) in `web/src/pages/admin/Hardware.tsx`, with quick-jump buttons (`/usr/share/hailo-models`, `/var/lib/mbl/models`, `/usr/share/hailo-ollama/models/blobs`, `/`), file sizes, manual path input, and one-click reset to automatic discovery.
+- **Verification:**
+  - `cargo test -p mbl-hwaccel -p mbl-hailo`: 19/19 tests passed (including live Hailo-10H hardware probe, `yolov11s.hef` image inference, and GenAI VLM/LLM/Whisper discovery).
+  - `just web-check`: Biome clean, 222/222 Vitest tests passed across 43 test files, `tsc -b` clean, initial JS bundle 51.81 KB gzip (<= 150 KB budget).
+  - `cargo clippy -p mbl-hwaccel -p mbl-hailo -p mbl-service -p mbl-api --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `cargo xtask openapi-check` & `cargo xtask mcp-parity`: 100.0% parity (165/165 endpoints).
+  - `cargo fmt --all -- --check`: clean.
+
+### 2026-11-02 — Native Hailo-8 / Hailo-8L / Hailo-10H NPU Hardware Runtime, Telemetry & Real Keyframe Indexing
+- **Audit Findings:**
+  - `mbl-hwaccel::fingerprint` already detected `/dev/hailo*` (Hailo-8 / Hailo-8L) and `/dev/h1x-*` (Hailo-10H), but `mbl-hailo` (`crates/mbl-hailo/src/lib.rs`) had `active_backend_name() -> "cpu-heuristic"` hardcoded and never opened `libhailort.so` or executed `.hef` neural networks on the NPU.
+  - `detect_hailo_co_tenants` in `crates/mbl-hwaccel/src/hailo.rs` missed Frigate's Hailo detector process because Linux truncates `/proc/<pid>/comm` to 15 characters (`frigate.detecto` for `frigate.detector:hailo10h`).
+  - `MediaIntelligenceService::index_item_scenes` (`crates/mbl-service/src/intelligence.rs`) passed a hardcoded 64x36 solid grey image to `analyze_image` instead of extracting real video keyframes via `ffmpeg`.
+- **Native Hailo-8/8L & Hailo-10H Inference Driver (`crates/mbl-hailo/src/runtime.rs` & `crates/mbl-hailo/src/lib.rs`):**
+  - Implemented `HailoNativeRuntime` supporting both **Hailo-8 / Hailo-8L (HailoRT 4.x)** and **Hailo-10H (HailoRT 5.x)** with cooperative `VDevice` sharing (`group_id = "SHARED"`, `HAILO_SCHEDULING_ALGORITHM_ROUND_ROBIN`, and background scheduler priority `8` < normal `16` so real-time NVR co-tenants like Frigate are never starved):
+    - **Tier 1 (`InferModel` Native Bridge):** Unified HailoRT C++ `VDevice::create` -> `create_infer_model` -> `configure` -> `ConfiguredInferModel::Bindings` with 4096-byte page-aligned DMA buffers. Works on both Hailo-10H (where legacy `hailo_configure_vdevice` C VStreams returns `HAILO_NOT_IMPLEMENTED = 7`) and Hailo-8/8L at ~125+ FPS.
+    - **Tier 2 (Pure C `libhailort.so` FFI via `dlopen`):** Universal `hailo_identify` / `hailo_get_chip_temperature` hardware probing plus C VStreams (`hailo_create_input_vstreams` / `hailo_create_output_vstreams`) fallback for Hailo-8/8L runtime-only systems without C++ headers.
+  - Added full 80-class COCO `HAILO_FORMAT_ORDER_HAILO_NMS_BY_CLASS` parser (`parse_nms_by_class`) and semantic tag/face mapper (`map_detections_to_tags_and_faces`), verified on the host's Hailo-10H NPU (`/dev/h1x-0` with `yolov11s.hef` detecting `person` at 91.5% confidence while Frigate ran concurrently).
+  - Updated `try_hailo_ollama_recap` in `crates/mbl-hailo/src/lib.rs` to query `/api/tags` dynamically on `http://127.0.0.1:8000` (and fallback `http://127.0.0.1:11434`) to select an actually installed model instead of hardcoding `"qwen2.5:1.5b"`.
+- **Co-Tenant Detection, `.hef` Discovery, Live Telemetry & Self-Test (`crates/mbl-hwaccel/src/hailo.rs`, `crates/mbl-hwaccel/src/selftest.rs`, `web/src/pages/admin/Hardware.tsx`):**
+  - Fixed `detect_hailo_co_tenants` to inspect both `/proc/<pid>/comm` (including `frigate.*` prefix) and `/proc/<pid>/cmdline`, detecting both `frigate` and `hailo-ollama`.
+  - Added `discover_hef_model_for_profile` scanning `MBL_HAILO_HEF_PATH`, `/usr/share/hailo-models`, `/var/lib/mbl/models`, and Frigate's `model_cache`, verifying `.hef` architecture compatibility via `hailortcli parse-hef`.
+  - Extended `HailoRuntimeStatus` with `firmware_version`, `temperature_c`, `nnc_utilization_percent`, `ram_used_mb`, `ram_total_mb`, `on_die_voltage_mv`, and `active_hef_model` (cached for 5s via `hailortcli fw-control identify` and `hailortcli monitor`), and displayed them in `web/src/pages/admin/Hardware.tsx`.
+  - Added Hailo NPU inference self-test (`run_hailo_npu_selftest`) to `POST /api/v1/hw/test`.
+- **Real Video Keyframe Extraction (`crates/mbl-service/src/intelligence.rs`):**
+  - Updated `MediaIntelligenceService::index_item_scenes` to extract real 640x640 RGB24 video frames at `hint.timestamp_ms` via `ffmpeg` when the media file exists on disk.
+- **Verification:**
+  - `cargo test -p mbl-hwaccel -p mbl-hailo`: 18/18 tests passed (including live Hailo-10H NPU inference test).
+  - `cargo clippy --workspace --all-targets -- -D warnings`: 0 warnings, 0 errors.
+  - `just web-check`: Biome clean, 222/222 Vitest tests passed, `tsc -b` clean, initial bundle 51.81 KB gzip (<= 150 KB budget).
+  - `cargo xtask openapi-check` & `cargo xtask mcp-parity`: 100.0% parity.
 
 ### 2026-11-02 — Windows MSI Installer Wizard (Directory Chooser, Optional Service Feature) & Native Win32 SCM Service Support
 - **Root Cause & Fix for Windows MSI Hang (`crates/mbl-server/src/winservice.rs`, `packaging/windows/mbl.wxs`):**

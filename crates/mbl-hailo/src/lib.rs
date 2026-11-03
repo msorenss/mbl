@@ -4,13 +4,16 @@
 //! run semantic visual scene embeddings, face/object/scene tagging, and `hailo-ollama` spoiler-free
 //! recaps alongside co-tenants such as Frigate.
 
+pub mod runtime;
+
 use std::path::Path;
 use std::time::Instant;
 
 use image::{DynamicImage, GenericImageView};
 use mbl_hwaccel::NpuProfile;
 use mbl_hwaccel::fingerprint::detect_fingerprint_from_root;
-use mbl_hwaccel::hailo::{HailoConfig, HailoRuntimeStatus, NpuCoordinator};
+use mbl_hwaccel::hailo::{DutyCyclePacer, HailoConfig, HailoRuntimeStatus, NpuCoordinator};
+use runtime::{HailoNativeRuntime, map_detections_to_tags_and_faces};
 use serde::{Deserialize, Serialize};
 
 /// Dimension of the L2-normalized multimodal scene/text embedding vector.
@@ -86,6 +89,7 @@ pub struct SpoilerFreeRecap {
 pub struct HailoEngine {
     config: HailoConfig,
     ollama_url: String,
+    runtime: HailoNativeRuntime,
 }
 
 impl Default for HailoEngine {
@@ -98,7 +102,8 @@ impl HailoEngine {
     pub fn new(config: HailoConfig) -> Self {
         let ollama_url = std::env::var("MBL_HAILO_OLLAMA_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:8000".to_owned());
-        Self { config, ollama_url }
+        let runtime = HailoNativeRuntime::new(&config);
+        Self { config, ollama_url, runtime }
     }
 
     pub fn with_ollama_url(mut self, url: impl Into<String>) -> Self {
@@ -116,14 +121,16 @@ impl HailoEngine {
         NpuCoordinator::new(self.config.clone()).status(&fp, None)
     }
 
-    /// This implementation computes image heuristics on the CPU; device discovery
-    /// alone does not establish a loaded model or an executed NPU inference.
+    /// Returns the active inference backend identifier:
+    /// `"hailort-npu(<ARCH>,<MODEL.hef>)"` when a Hailo-8/8L/10H NPU session is loaded,
+    /// or `"cpu-heuristic"` when running without an NPU or `.hef` model.
     pub fn active_backend_name(&self) -> String {
-        "cpu-heuristic".into()
+        self.runtime.active_backend_name().unwrap_or_else(|| "cpu-heuristic".into())
     }
 
-    /// Analyze a video keyframe or photo: extract scene/object tags, estimate face regions,
-    /// synthesize a descriptive caption, and compute a 64-dim L2-normalized semantic embedding.
+    /// Analyze a video keyframe or photo: execute Hailo NPU inference when available,
+    /// extract scene/object tags, estimate face/person regions, synthesize a descriptive caption,
+    /// and compute a 64-dim L2-normalized semantic embedding.
     pub fn analyze_image(&self, img: &DynamicImage, hint_text: Option<&str>) -> FrameAnalysis {
         let (w, h) = img.dimensions();
         let mut r_sum = 0.0f64;
@@ -201,12 +208,56 @@ impl HailoEngine {
         }
 
         let face_ratio = f64::from(skin_tone_pixels) / total;
-        let face_count = if face_ratio > 0.12 {
+        let mut face_count = if face_ratio > 0.12 {
             tags.push("face".to_owned());
             ((face_ratio * 6.0).round() as u32).clamp(1, 4)
         } else {
             0
         };
+
+        // Execute hardware inference on Hailo-8 / 8L / 10H NPU if available
+        let npu_result = self.runtime.infer_image(img);
+        let mut backend = "cpu-heuristic".to_owned();
+        if let Some(ref npu) = npu_result {
+            backend = npu.backend_name.clone();
+            let (npu_tags, npu_persons) = map_detections_to_tags_and_faces(&npu.detections);
+            for t in npu_tags {
+                if !tags.iter().any(|existing| existing == &t) {
+                    tags.push(t);
+                }
+            }
+            if npu_persons > 0 {
+                face_count = npu_persons;
+            }
+        }
+
+        // Optional Hailo-10H Vision-Language Model (`hailort::genai::VLM`: Qwen3-VL / Qwen2-VL)
+        // when a VLM `.hef` is installed and explicitly enabled (`MBL_HAILO_ENABLE_VLM_INDEXING=1`)
+        // or when no fast `InferModel` vision session was available.
+        let use_vlm = npu_result.is_none()
+            || std::env::var("MBL_HAILO_ENABLE_VLM_INDEXING")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+        let vlm_caption_opt = if use_vlm {
+            self.runtime.describe_image_vlm(
+                img,
+                "Describe this video scene concisely in one sentence, naming key objects, setting, and mood.",
+                64,
+            )
+        } else {
+            None
+        };
+        if let Some((ref vlm_text, ref vlm_backend)) = vlm_caption_opt {
+            backend = vlm_backend.clone();
+            let lower_vlm = vlm_text.to_ascii_lowercase();
+            for (concept, synonyms) in CONCEPTS {
+                if (lower_vlm.contains(concept) || synonyms.iter().any(|w| lower_vlm.contains(w)))
+                    && !tags.iter().any(|t| t == concept)
+                {
+                    tags.push((*concept).to_owned());
+                }
+            }
+        }
 
         // Incorporate semantic hint text (e.g. chapter title, subtitle cue, or filename context)
         if let Some(hint) = hint_text {
@@ -236,47 +287,72 @@ impl HailoEngine {
                 vec[i] += text_emb[i] * 2.0;
             }
         }
+        if let Some((ref vlm_text, _)) = vlm_caption_opt {
+            let vlm_emb = embed_text_query(vlm_text);
+            for i in 0..EMBEDDING_DIM {
+                vec[i] += vlm_emb[i] * 1.5;
+            }
+        }
+        // Incorporate NPU detection confidence or dense embedding energy in dimensions 27..64
+        if let Some(ref npu) = npu_result {
+            for det in npu.detections.iter().take(12) {
+                let slot = 27 + (det.class_id % 36);
+                if slot < EMBEDDING_DIM {
+                    vec[slot] += det.score * 0.15;
+                }
+            }
+            if !npu.dense_features.is_empty() {
+                for (i, &val) in npu.dense_features.iter().take(36).enumerate() {
+                    if 27 + i < EMBEDDING_DIM && val.is_finite() {
+                        vec[27 + i] += val.clamp(-2.0, 2.0) * 0.05;
+                    }
+                }
+            }
+        }
         // Visual color & spatial energy features in dimensions 24..64 (scaled so concept anchors dominate)
         vec[24] = ((r_sum / (total * 255.0)) as f32) * 0.25;
         vec[25] = ((g_sum / (total * 255.0)) as f32) * 0.25;
         vec[26] = ((b_sum / (total * 255.0)) as f32) * 0.25;
         for (i, &val) in spatial_bins.iter().enumerate() {
             if 27 + i < EMBEDDING_DIM {
-                vec[27 + i] = (val / ((samples.max(1) as f32) / 32.0)) * 0.05;
+                vec[27 + i] += (val / ((samples.max(1) as f32) / 32.0)) * 0.05;
             }
         }
         l2_normalize(&mut vec);
 
-        let caption = match hint_text {
-            Some(h) if !h.trim().is_empty() => format!("{} ({})", h.trim(), tags.join(", ")),
-            _ => format!("Scene with {}", tags.join(", ")),
+        let caption = if let Some((vlm_text, _)) = vlm_caption_opt {
+            format!("{} ({})", vlm_text.trim(), tags.join(", "))
+        } else {
+            match hint_text {
+                Some(h) if !h.trim().is_empty() => format!("{} ({})", h.trim(), tags.join(", ")),
+                _ => format!("Scene with {}", tags.join(", ")),
+            }
         };
 
-        FrameAnalysis {
-            tags,
-            face_count,
-            caption,
-            embedding: vec,
-            backend: self.active_backend_name(),
-        }
+        FrameAnalysis { tags, face_count, caption, embedding: vec, backend }
     }
 
     /// Run a benchmark of semantic frame embedding extraction on the current host (M5.13 Accept).
     pub fn benchmark_frame_embeddings(&self, iterations: usize) -> HailoEmbeddingBenchmark {
         let iterations = iterations.max(1);
         let status = self.runtime_status();
+        let pacer = DutyCyclePacer::new(&self.config);
         let img = DynamicImage::ImageRgb8(image::ImageBuffer::from_fn(320, 180, |x, y| {
             image::Rgb([(x % 255) as u8, (y % 255) as u8, 220u8])
         }));
 
         let started = Instant::now();
+        let mut last_backend = self.active_backend_name();
         for i in 0..iterations {
+            let batch_start = Instant::now();
             let hint = if i % 2 == 0 {
                 Some("car chase in the snow on a mountain road")
             } else {
                 Some("night city skyline with rain")
             };
-            let _ = std::hint::black_box(self.analyze_image(&img, hint));
+            let res = std::hint::black_box(self.analyze_image(&img, hint));
+            last_backend = res.backend;
+            let _ = std::hint::black_box(pacer.sleep_after_batch(batch_start.elapsed()));
         }
         let elapsed = started.elapsed();
         let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
@@ -287,7 +363,7 @@ impl HailoEngine {
         let device_nodes = fp.hailo_devices.iter().map(|d| d.device_node.clone()).collect();
 
         HailoEmbeddingBenchmark {
-            backend: self.active_backend_name(),
+            backend: last_backend,
             npu_profile: status.npu_profile,
             device_nodes,
             sharing_mode: format!("{:?}", status.sharing_mode),
@@ -324,14 +400,40 @@ impl HailoEngine {
             };
         }
 
-        // Try local hailo-ollama first with a short timeout; fall back to deterministic synthesis if offline.
-        if let Some(llm_recap) = self.try_hailo_ollama_recap(show_title, &watched).await {
+        // 1. Try local hailo-ollama first with a short timeout.
+        if let Some((llm_recap, backend_label)) =
+            self.try_hailo_ollama_recap(show_title, &watched).await
+        {
             return SpoilerFreeRecap {
                 show_title: show_title.to_owned(),
                 episodes_included: watched.len(),
                 spoiler_protected_unwatched_excluded: excluded,
                 recap_text: llm_recap,
-                model_backend: "hailo-ollama".into(),
+                model_backend: backend_label,
+            };
+        }
+
+        // 2. Try direct C++ HailoRT `hailort::genai::LLM` on Hailo-10H (works even if hailo-ollama is stopped
+        //    or when using C++-only models from Hailo Model Zoo GenAI).
+        let mut context_lines = String::new();
+        for ep in watched.iter().rev().take(6).rev() {
+            context_lines.push_str(&format!(
+                "- S{:02}E{:02} {}: {}\n",
+                ep.season, ep.episode, ep.title, ep.summary
+            ));
+        }
+        let native_prompt = format!(
+            "Summarize the story so far for '{show_title}' in 3 concise sentences using ONLY these watched episodes:\n{context_lines}"
+        );
+        if let Some((native_recap, native_backend)) =
+            self.runtime.generate_text_llm(&native_prompt, 180)
+        {
+            return SpoilerFreeRecap {
+                show_title: show_title.to_owned(),
+                episodes_included: watched.len(),
+                spoiler_protected_unwatched_excluded: excluded,
+                recap_text: native_recap,
+                model_backend: native_backend,
             };
         }
 
@@ -366,9 +468,9 @@ impl HailoEngine {
         &self,
         show_title: &str,
         watched: &[&WatchedEpisodeContext],
-    ) -> Option<String> {
+    ) -> Option<(String, String)> {
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_millis(800))
+            .timeout(std::time::Duration::from_millis(2500))
             .build()
             .ok()?;
         let mut context_lines = String::new();
@@ -381,25 +483,103 @@ impl HailoEngine {
         let prompt = format!(
             "Summarize the story so far for '{show_title}' in 3 concise sentences using ONLY these watched episodes:\n{context_lines}"
         );
-        let url = format!("{}/api/generate", self.ollama_url.trim_end_matches('/'));
-        let resp = client
-            .post(&url)
-            .json(&serde_json::json!({
-                "model": "qwen2.5:1.5b",
-                "prompt": prompt,
-                "stream": false
-            }))
-            .send()
-            .await
-            .ok()?;
-        if !resp.status().is_success() {
-            return None;
+
+        let primary = self.ollama_url.trim_end_matches('/');
+        let mut endpoints = vec![primary.to_owned()];
+        if primary == "http://127.0.0.1:8000" {
+            endpoints.push("http://127.0.0.1:11434".to_owned());
         }
-        let body: serde_json::Value = resp.json().await.ok()?;
-        body.get("response")
-            .and_then(|v| v.as_str())
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty())
+
+        for base_url in endpoints {
+            // Query `/api/tags` to discover which local model is actually downloaded
+            // (Hailo Model Zoo GenAI v5.5.0: qwen3:1.7b, qwen2.5:1.5b, gemma4:e2b, llama3.2:1b, deepseek_r1:1.5b, qwen3:4b)
+            let tags_url = format!("{base_url}/api/tags");
+            let mut candidate_model = "qwen2.5:1.5b".to_owned();
+            if let Ok(tags_resp) = client.get(&tags_url).send().await
+                && tags_resp.status().is_success()
+                && let Ok(tags_json) = tags_resp.json::<serde_json::Value>().await
+                && let Some(models) = tags_json.get("models").and_then(|m| m.as_array())
+            {
+                let names: Vec<&str> = models
+                    .iter()
+                    .filter_map(|m| m.get("name").and_then(|n| n.as_str()))
+                    .map(str::trim)
+                    .filter(|n| !n.is_empty())
+                    .collect();
+                if names.is_empty() {
+                    // Server is up, but 0 models are pulled on this endpoint
+                    continue;
+                }
+                const PREFERRED: &[&str] = &[
+                    "qwen3:1.7b",
+                    "qwen2.5:1.5b",
+                    "gemma4:e2b",
+                    "llama3.2:1b",
+                    "deepseek_r1:1.5b",
+                    "qwen3:4b",
+                    "qwen2:1.5b",
+                ];
+                if let Some(&pref) =
+                    PREFERRED.iter().find(|&&p| names.iter().any(|n| n.eq_ignore_ascii_case(p)))
+                {
+                    candidate_model = pref.to_owned();
+                } else {
+                    candidate_model = names[0].to_owned();
+                }
+            }
+
+            let url = format!("{base_url}/api/generate");
+            let Ok(resp) = client
+                .post(&url)
+                .json(&serde_json::json!({
+                    "model": candidate_model,
+                    "prompt": prompt,
+                    "stream": false
+                }))
+                .send()
+                .await
+            else {
+                continue;
+            };
+            if !resp.status().is_success() {
+                continue;
+            }
+            let Ok(body) = resp.json::<serde_json::Value>().await else {
+                continue;
+            };
+            if let Some(text) = body
+                .get("response")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty())
+            {
+                return Some((text, format!("hailo-ollama({candidate_model})")));
+            }
+        }
+        None
+    }
+
+    /// Transcribe or translate 16 kHz mono float32 PCM audio on Hailo-10H using
+    /// `hailort::genai::Speech2Text` (`Whisper-Base.hef`, `Whisper-Small.hef`, `Whisper-Tiny.hef`,
+    /// or `Whisper-Medium.hef`).
+    pub fn transcribe_audio(
+        &self,
+        pcm_f32_16k: &[f32],
+        language: Option<&str>,
+        translate_to_english: bool,
+    ) -> Option<(Vec<runtime::HailoSpeechSegment>, String)> {
+        self.runtime.transcribe_audio_whisper(pcm_f32_16k, language, translate_to_english)
+    }
+
+    /// Describe an image directly on Hailo-10H using `hailort::genai::VLM`
+    /// (`Qwen3-VL-2B-Instruct.hef`, `Qwen2-VL-2B-Instruct.hef`, or `Qwen3-VL-4B-Instruct.hef`).
+    pub fn describe_image_vlm(
+        &self,
+        img: &DynamicImage,
+        prompt: &str,
+        max_tokens: u32,
+    ) -> Option<(String, String)> {
+        self.runtime.describe_image_vlm(img, prompt, max_tokens)
     }
 }
 
@@ -556,5 +736,76 @@ mod tests {
         assert!(recap.recap_text.contains("Europa"));
         assert!(!recap.recap_text.contains("SECRET SPOILER"));
         assert!(!recap.recap_text.contains("Vance"));
+    }
+
+    #[test]
+    fn parses_hailo_nms_by_class_and_maps_semantic_tags() {
+        let mut raw = vec![0.0f32; 80 + 10];
+        // Class 0 ("person"): 1 detection at score 0.92
+        raw[0] = 1.0;
+        raw[1] = 0.10;
+        raw[2] = 0.20;
+        raw[3] = 0.80;
+        raw[4] = 0.60;
+        raw[5] = 0.92;
+        // Class 1 ("bicycle"): 0 detections
+        raw[6] = 0.0;
+        // Class 2 ("car"): 1 detection at score 0.85
+        raw[7] = 1.0;
+        raw[8] = 0.40;
+        raw[9] = 0.10;
+        raw[10] = 0.90;
+        raw[11] = 0.90;
+        raw[12] = 0.85;
+
+        let dets = runtime::parse_nms_by_class(&raw, 80, 0.25);
+        assert_eq!(dets.len(), 2);
+        assert_eq!(dets[0].label, "person");
+        assert!((dets[0].score - 0.92).abs() < 1e-4);
+        assert_eq!(dets[1].label, "car");
+
+        let (tags, faces) = runtime::map_detections_to_tags_and_faces(&dets);
+        assert_eq!(faces, 1);
+        assert!(tags.contains(&"face".to_owned()));
+        assert!(tags.contains(&"person".to_owned()));
+        assert!(tags.contains(&"car_chase".to_owned()));
+        assert!(tags.contains(&"car".to_owned()));
+    }
+
+    #[test]
+    fn live_hailo_npu_hardware_probe_and_real_image_inference() {
+        let fp = detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, None);
+        if !fp.npu_profile.is_present() {
+            return;
+        }
+        let probe = runtime::HailoNativeRuntime::probe_device("SHARED");
+        assert!(probe.is_some(), "expected libhailort.so device probe to succeed on Hailo host");
+        let probe = probe.unwrap();
+        assert!(!probe.firmware_version.is_empty());
+        assert!(probe.architecture.starts_with("HAILO"));
+
+        let engine = HailoEngine::default();
+        if mbl_hwaccel::hailo::discover_hef_model_for_profile(Path::new("/"), fp.npu_profile)
+            .is_some()
+        {
+            assert!(
+                engine.active_backend_name().starts_with("hailort-npu("),
+                "expected active_backend_name to be hailort-npu(...), got {}",
+                engine.active_backend_name()
+            );
+            let photo_path = Path::new("/home/marcus/philip1.png");
+            if photo_path.exists()
+                && let Ok(img) = image::open(photo_path)
+            {
+                let analysis = engine.analyze_image(&img, None);
+                assert!(analysis.backend.starts_with("hailort-npu("));
+                assert!(
+                    analysis.face_count >= 1 && analysis.tags.contains(&"person".to_owned()),
+                    "expected Hailo NPU to detect person in philip1.png: tags={:?}, faces={}",
+                    analysis.tags,
+                    analysis.face_count
+                );
+            }
+        }
     }
 }

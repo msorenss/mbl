@@ -27,8 +27,10 @@ MBL treats any detected Hailo NPU as a **shared, cooperative resource** by defau
    - Background MBL tasks (Whisper subtitle generation, intro/credits OCR, offline super-resolution) run with configurable duty-cycle pacing (inter-batch yields and lower HailoRT scheduler priority) so real-time co-tenants (like NVR camera feeds) maintain sub-100ms frame latency.
    - Users can configure NPU usage policy in `mbl.toml`: `auto` (shared + throttled), `exclusive` (full speed when dedicated), `offload_only` (only via HTTP/Ollama API), or `disabled`.
 
-4. **Generalized Hardware Detection in `mbl-hwaccel`:**
-   - Probes `/dev/h1x-*`, `/dev/hailo*`, `/sys/class/hailo_chardev/`, and PCI vendor `1e60` (`Hailo-8`, `Hailo-8L`, `Hailo-10H`), and reports detected NPU model, driver version, sharing mode, and active co-tenant status in `/api/v1/system/info` and `/api/v1/hw/report`.
+4. **Generalized Hardware Detection, Direct GenAI C++ Bridge & `.hef` Model Management:**
+   - Probes `/dev/h1x-*`, `/dev/hailo*`, `/sys/class/hailo_chardev/`, and PCI vendor `1e60` (`Hailo-8`, `Hailo-8L`, `Hailo-10H`), and reports detected NPU model, driver/firmware version, live NNC load/temperature/DDR usage, sharing mode, active `.hef` models, and active co-tenant status in `/api/v1/hw/report`.
+   - Because `hailo-ollama` only links `hailort::genai::LLM` and does not expose Vision-Language Models (`VLM`) or `Whisper` (`Speech2Text`), `mbl-hailo::runtime` (`HailoNativeRuntime`) provides a unified C++ `InferModel` bridge (Hailo-8/8L/10H vision & standalone `Qwen-VL` vision encoders with 4096-byte page-aligned DMA buffers) plus direct C++ wrappers around `hailort::genai::VLM` (`Qwen3-VL-2B-Instruct`, `Qwen2-VL-2B-Instruct`, `Qwen3-VL-4B-Instruct`), `hailort::genai::LLM`, and `hailort::genai::Speech2Text` (`Whisper-Tiny`/`Base`/`Small`/`Medium`) using `VDevice::create_shared(params)` (`group_id = "SHARED"`, `ROUND_ROBIN`).
+   - Administrators can select `.hef` model files per slot (`Vision`, `GenAI VLM`, `GenAI LLM`, `Whisper ASR`) via the `.hef` File Picker in `/admin/hardware` (`GET /api/v1/system/browse?ext=hef` and `PATCH /api/v1/system/settings`), which hot-reloads the NPU session in-memory without restarting the server.
 
 ## Consequences
 - **Positive:** MBL works out-of-the-box alongside Frigate, `hailo-ollama`, Home Assistant, or any other Hailo workload without device lockouts or frame drops.
