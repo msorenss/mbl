@@ -68,11 +68,13 @@ pub struct ServerConfig {
     pub port: u16,
     /// Optional externally reachable URL, used for links and casting.
     pub public_url: String,
+    /// Advertise the server on the LAN via mDNS/DNS-SD (`_mbl._tcp`).
+    pub mdns: bool,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
-        Self { bind: "0.0.0.0".into(), port: 8420, public_url: String::new() }
+        Self { bind: "0.0.0.0".into(), port: 8420, public_url: String::new(), mdns: true }
     }
 }
 

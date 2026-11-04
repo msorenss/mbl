@@ -48,6 +48,8 @@ dunce = "1.0.5"
 figment = { version = "0.10.19", features = ["toml", "env"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 getrandom = "0.4.3"
+if-addrs = "0.15"
+mdns-sd = { version = "0.21", default-features = false, features = ["logging"] }
 governor = "0.10.4"
 hmac = "0.13.0"
 http-body-util = "0.1"

@@ -4,7 +4,57 @@ use mbl_core::events::{Event, EventBus};
 use mbl_core::time::now_ms;
 use mbl_core::{Actor, Error, ItemId, Result};
 use mbl_db::Db;
-use mbl_db::repo::watch::{self, WatchHistoryEntry};
+use mbl_db::repo::watch::{self, SyncedWatchState, WatchHistoryEntry};
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+/// Maximum entries accepted by one offline progress sync request.
+pub const MAX_PROGRESS_SYNC_ENTRIES: usize = 500;
+
+/// One offline progress entry recorded by a client while disconnected.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressSyncEntry {
+    pub item_id: ItemId,
+    /// Playback position in milliseconds; ignored when `played` is set.
+    #[serde(default)]
+    pub position_ms: u64,
+    /// `true` = watched, `false` = explicitly unwatched, absent = resume position.
+    #[serde(default)]
+    pub played: Option<bool>,
+    /// Client wall-clock time of the change (Unix epoch milliseconds).
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressSyncRequest {
+    pub entries: Vec<ProgressSyncEntry>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProgressSyncOutcome {
+    /// Entry was newer than the server state and was stored.
+    Applied,
+    /// Server already had a newer (or equal) change; entry ignored.
+    Stale,
+    /// Item does not exist or is not visible to this profile.
+    NotFound,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressSyncResult {
+    pub item_id: ItemId,
+    pub outcome: ProgressSyncOutcome,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressSyncResponse {
+    pub results: Vec<ProgressSyncResult>,
+}
 
 /// 1 minute in milliseconds (`60_000`).
 pub const MIN_RESUME_OFFSET_MS: u64 = 60_000;
@@ -105,6 +155,62 @@ impl WatchService {
             watch::save_progress_offset(&self.db, actor.user_id, item_id, offset, now).await?;
         }
         Ok(false)
+    }
+
+    /// Apply offline progress entries with last-write-wins on `updatedAt`. Each entry is
+    /// access-checked; timestamps in the future are clamped to the server clock.
+    pub async fn sync_progress(
+        &self,
+        actor: &Actor,
+        req: ProgressSyncRequest,
+    ) -> Result<ProgressSyncResponse> {
+        if req.entries.len() > MAX_PROGRESS_SYNC_ENTRIES {
+            return Err(Error::Validation(format!(
+                "at most {MAX_PROGRESS_SYNC_ENTRIES} entries per sync request"
+            )));
+        }
+        let now = now_ms();
+        let mut results = Vec::with_capacity(req.entries.len());
+        for entry in req.entries {
+            let outcome = self.sync_one(actor, &entry, now).await?;
+            results.push(ProgressSyncResult { item_id: entry.item_id, outcome });
+        }
+        Ok(ProgressSyncResponse { results })
+    }
+
+    async fn sync_one(
+        &self,
+        actor: &Actor,
+        entry: &ProgressSyncEntry,
+        now: i64,
+    ) -> Result<ProgressSyncOutcome> {
+        if entry.updated_at <= 0 {
+            return Err(Error::Validation("updatedAt must be a positive epoch millisecond".into()));
+        }
+        let Some((library_id, _)) = watch::cascade_item_ids(&self.db, entry.item_id).await? else {
+            return Ok(ProgressSyncOutcome::NotFound);
+        };
+        if !actor.can_access_library(library_id) {
+            return Ok(ProgressSyncOutcome::NotFound);
+        }
+        let rating = mbl_db::repo::m6::get_item_content_rating(&self.db, entry.item_id).await?;
+        if !actor.can_view_rating(rating.as_deref()) {
+            return Ok(ProgressSyncOutcome::NotFound);
+        }
+        let state = match entry.played {
+            Some(true) => SyncedWatchState::Watched,
+            Some(false) => SyncedWatchState::Unwatched,
+            None => SyncedWatchState::Resume {
+                offset_ms: i64::try_from(entry.position_ms).unwrap_or(i64::MAX),
+            },
+        };
+        let ts = entry.updated_at.min(now);
+        if watch::sync_progress_if_newer(&self.db, actor.user_id, entry.item_id, state, ts).await? {
+            self.events.publish(Event::ItemUpdated { item_id: entry.item_id });
+            Ok(ProgressSyncOutcome::Applied)
+        } else {
+            Ok(ProgressSyncOutcome::Stale)
+        }
     }
 
     /// Return recent watch history entries for `actor.user_id`.

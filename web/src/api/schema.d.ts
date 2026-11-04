@@ -455,6 +455,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's download tickets, newest first. */
+        get: operations["list_downloads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/downloads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of the caller's download tickets. */
+        get: operations["get_download"];
+        put?: never;
+        post?: never;
+        /** Delete a download ticket. The cached transcode is removed when unused. */
+        delete: operations["delete_download"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/downloads/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the file of a ready download (supports `Range` and `HEAD` for resumable transfers). */
+        get: operations["download_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -677,6 +729,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/items/{id}/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request an offline copy of an item. Idempotent per part and quality; optimized
+         *     qualities are transcoded in the background (poll the ticket until `ready`).
+         */
+        post: operations["create_download"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items/{id}/index-scenes": {
         parameters: {
             query?: never;
@@ -688,6 +760,23 @@ export interface paths {
         put?: never;
         /** Index visual scenes and tags for a media item using the Hailo NPU multimodal engine (M5.13). */
         post: operations["index_item_scenes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/lyrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lyrics for a music track: a sidecar `.lrc` (synced) or the embedded lyrics tag. */
+        get: operations["lyrics"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2161,6 +2250,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client discovery: LAN, public and tailnet URLs plus the local CA fingerprint. Contains no secrets. */
+        get: operations["endpoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/health": {
         parameters: {
             query?: never;
@@ -2420,6 +2526,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Permanently delete the caller's own account (password confirmation required).
+         * @description Removes the account, all sessions and per-user data (watch state, preferences,
+         *     downloads, tokens). Managed profiles get 403; the last admin gets 409.
+         */
+        delete: operations["delete_own_account"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/home-layout": {
         parameters: {
             query?: never;
@@ -2453,6 +2580,23 @@ export interface paths {
         head?: never;
         /** Update current user preferences. */
         patch: operations["update_user_preferences"];
+        trace?: never;
+    };
+    "/api/v1/users/me/progress/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload offline playback progress; each entry applies only if newer than the server state. */
+        post: operations["sync_progress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/users/profiles": {
@@ -2915,6 +3059,10 @@ export interface components {
             overview?: string | null;
             smartFilter?: string | null;
         };
+        CreateDownloadRequest: {
+            partId?: components["schemas"]["PartId"] | null;
+            quality: components["schemas"]["DownloadQuality"];
+        };
         CreateInviteRequest: {
             contentRatingCeiling?: string | null;
             libraryIds?: components["schemas"]["LibraryId"][];
@@ -3019,6 +3167,10 @@ export interface components {
         };
         /** @description Opaque pagination cursor. Its encoding is owned by the repository that issues it. */
         Cursor: string;
+        /** @description Self-service account deletion; the current password confirms intent. */
+        DeleteOwnAccountRequest: {
+            password: string;
+        };
         DirEntry: {
             isFile?: boolean;
             name: string;
@@ -3032,6 +3184,38 @@ export interface components {
             /** @description `None` for the virtual top level (filesystem root list). */
             path?: string | null;
         };
+        DownloadDto: {
+            /**
+             * Format: int64
+             * @description Unix milliseconds.
+             */
+            createdAt: number;
+            error?: string | null;
+            /** @description Suggested file name for the client's local copy. */
+            fileName: string;
+            /** Format: int64 */
+            id: number;
+            itemId: components["schemas"]["ItemId"];
+            /** @description MIME type of the downloaded file. */
+            mimeType: string;
+            partId: components["schemas"]["PartId"];
+            quality: components["schemas"]["DownloadQuality"];
+            /**
+             * Format: int64
+             * @description File size in bytes once known.
+             */
+            sizeBytes?: number | null;
+            status: components["schemas"]["DownloadStatus"];
+            /**
+             * Format: int64
+             * @description Unix milliseconds.
+             */
+            updatedAt: number;
+        };
+        /** @enum {string} */
+        DownloadQuality: "original" | "universal_1080p" | "universal_720p";
+        /** @enum {string} */
+        DownloadStatus: "pending" | "transcoding" | "ready" | "failed";
         /** @description Linux DRM/KMS device node (`/dev/dri/card*`, `/dev/dri/renderD*`). */
         DrmDevice: {
             card: string;
@@ -3419,6 +3603,23 @@ export interface components {
             token: string;
             user: components["schemas"]["UserDto"];
         };
+        LyricLine: {
+            /**
+             * Format: int64
+             * @description Start time in milliseconds; absent for unsynced lyrics.
+             */
+            startMs?: number | null;
+            text: string;
+        };
+        LyricsResponse: {
+            itemId: components["schemas"]["ItemId"];
+            lines: components["schemas"]["LyricLine"][];
+            source: components["schemas"]["LyricsSource"];
+            /** @description True when every line has a `startMs` (LRC timestamps were present). */
+            synced: boolean;
+        };
+        /** @enum {string} */
+        LyricsSource: "sidecar" | "embedded";
         MarkerRow: {
             /** Format: double */
             confidence: number;
@@ -4111,6 +4312,34 @@ export interface components {
         };
         /** Format: int64 */
         ProgramId: number;
+        /** @description One offline progress entry recorded by a client while disconnected. */
+        ProgressSyncEntry: {
+            itemId: components["schemas"]["ItemId"];
+            /** @description `true` = watched, `false` = explicitly unwatched, absent = resume position. */
+            played?: boolean | null;
+            /**
+             * Format: int64
+             * @description Playback position in milliseconds; ignored when `played` is set.
+             */
+            positionMs?: number;
+            /**
+             * Format: int64
+             * @description Client wall-clock time of the change (Unix epoch milliseconds).
+             */
+            updatedAt: number;
+        };
+        /** @enum {string} */
+        ProgressSyncOutcome: "applied" | "stale" | "not_found";
+        ProgressSyncRequest: {
+            entries: components["schemas"]["ProgressSyncEntry"][];
+        };
+        ProgressSyncResponse: {
+            results: components["schemas"]["ProgressSyncResult"][];
+        };
+        ProgressSyncResult: {
+            itemId: components["schemas"]["ItemId"];
+            outcome: components["schemas"]["ProgressSyncOutcome"];
+        };
         /** @description Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8). */
         QuickConnectAuthorizeRequest: {
             code: string;
@@ -4354,6 +4583,24 @@ export interface components {
             /** Format: int64 */
             timestampMs: number;
         };
+        /** @description Addresses a client may use to reach this server, plus the local CA fingerprint for pinning. */
+        ServerEndpoints: {
+            /** @description Lower-case hex SHA-256 of the MBL Local CA certificate (DER), if one exists. */
+            caSha256?: string | null;
+            /**
+             * Format: int32
+             * @description HTTPS listener port when TLS is enabled.
+             */
+            httpsPort?: number | null;
+            /** @description `http://<lan-ip>:<port>` for every non-loopback interface address. */
+            lanUrls: string[];
+            /** @description Configured externally reachable URL, if any. */
+            publicUrl?: string | null;
+            serverId: string;
+            /** @description MagicDNS and tailnet IP URLs when Tailscale is running. */
+            tailnetUrls: string[];
+            version: string;
+        };
         ServerInfo: {
             arch: string;
             buildTime: string;
@@ -4362,6 +4609,8 @@ export interface components {
             npuProfile: components["schemas"]["NpuProfile"];
             os: string;
             platformProfile: components["schemas"]["PlatformProfile"];
+            /** @description Stable random identifier of this server installation (persisted in settings). */
+            serverId: string;
             version: string;
         };
         SessionDto: {
@@ -5969,6 +6218,148 @@ export interface operations {
             };
         };
     };
+    list_downloads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadDto"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    download_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Partial content */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Download not ready */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Range not satisfiable */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     events: {
         parameters: {
             query?: never;
@@ -6355,6 +6746,50 @@ export interface operations {
             };
         };
     };
+    create_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDownloadRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Transcoded downloads need a cache directory */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     index_item_scenes: {
         parameters: {
             query?: never;
@@ -6384,6 +6819,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    lyrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LyricsResponse"];
+                };
             };
             404: {
                 headers: {
@@ -10248,6 +10710,25 @@ export interface operations {
             };
         };
     };
+    endpoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerEndpoints"];
+                };
+            };
+        };
+    };
     system_health: {
         parameters: {
             query?: never;
@@ -10847,6 +11328,45 @@ export interface operations {
             };
         };
     };
+    delete_own_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteOwnAccountRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     update_home_layout: {
         parameters: {
             query?: never;
@@ -10926,6 +11446,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sync_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressSyncRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressSyncResponse"];
                 };
             };
             400: {

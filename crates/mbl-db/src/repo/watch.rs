@@ -85,6 +85,53 @@ pub async fn save_progress_offset(
     Ok(())
 }
 
+/// Offline progress state carried by a sync entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncedWatchState {
+    Resume { offset_ms: i64 },
+    Watched,
+    Unwatched,
+}
+
+/// Apply an offline progress entry only when `client_ts` is newer than the stored
+/// `last_viewed_at` (last write wins). Returns `true` when the row was written.
+pub async fn sync_progress_if_newer(
+    db: &Db,
+    user_id: UserId,
+    item_id: ItemId,
+    state: SyncedWatchState,
+    client_ts: i64,
+) -> Result<bool> {
+    // mode: 0 = resume (keep count), 1 = watched (increment), 2 = unwatched (reset).
+    let (offset, count, mode) = match state {
+        SyncedWatchState::Resume { offset_ms } => (offset_ms, 0_i64, 0_i64),
+        SyncedWatchState::Watched => (0, 1, 1),
+        SyncedWatchState::Unwatched => (0, 0, 2),
+    };
+    let result = sqlx::query(
+        "INSERT INTO watch_state (user_id, item_id, view_offset_ms, view_count, last_viewed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(user_id, item_id) DO UPDATE SET
+           view_offset_ms = excluded.view_offset_ms,
+           view_count = CASE ?6
+             WHEN 1 THEN watch_state.view_count + 1
+             WHEN 2 THEN 0
+             ELSE watch_state.view_count END,
+           last_viewed_at = excluded.last_viewed_at
+         WHERE watch_state.last_viewed_at IS NULL
+            OR watch_state.last_viewed_at < excluded.last_viewed_at",
+    )
+    .bind(user_id)
+    .bind(item_id)
+    .bind(offset)
+    .bind(count)
+    .bind(client_ts)
+    .bind(mode)
+    .execute(&db.write)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Mark a single item watched during playback completion, resetting `view_offset_ms = 0` and
 /// optionally incrementing `view_count`.
 pub async fn complete_playback(

@@ -6,6 +6,7 @@
 pub mod auth;
 pub mod collections;
 pub mod companion;
+pub mod downloads;
 mod dvr;
 pub mod events;
 pub mod hw;
@@ -16,6 +17,7 @@ pub mod items;
 pub mod libraries;
 mod live_relay;
 pub mod livetv;
+pub mod lyrics;
 pub mod matchmaker;
 pub mod mcp;
 pub mod nodes;
@@ -25,6 +27,7 @@ pub mod players;
 pub mod plugins;
 pub mod remote;
 pub mod requests;
+pub mod server_id;
 pub mod stream;
 pub mod users;
 mod validate;
@@ -45,6 +48,10 @@ pub use collections::{
     PlaylistService, UpdateCollectionRequest, UpdatePlaylistRequest,
 };
 pub use companion::{CompanionReaction, CompanionService, LiveSessionContext};
+pub use downloads::{
+    CreateDownloadRequest, DownloadDto, DownloadFile, DownloadJobHandler, DownloadQuality,
+    DownloadService, DownloadStatus,
+};
 pub use events::EventService;
 pub use hw::{HwReport, HwSelftestResponse, HwService};
 pub use images::{ArtworkFetchHandler, ImageFile, ImageService};
@@ -80,6 +87,7 @@ pub use playback::{
 pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
 pub use plugins::PluginService;
 pub mod online;
+pub use lyrics::{LyricLine, LyricsResponse, LyricsSource};
 pub use online::OnlineService;
 pub use remote::{
     BandwidthUsageResponse, RemoteService, RemoteStatusResponse, UpdateRemotePolicyRequest,
@@ -90,10 +98,13 @@ pub use requests::{
 };
 pub use stream::{ResolvedPart, StreamService};
 pub use users::{
-    CreateUser, SetPinRequest, UpdateUser, UpdateUserPermissionsRequest, UserService,
-    VerifyPinRequest,
+    CreateUser, DeleteOwnAccountRequest, SetPinRequest, UpdateUser, UpdateUserPermissionsRequest,
+    UserService, VerifyPinRequest,
 };
-pub use watch::{WatchService, is_resume_threshold, is_watched_threshold};
+pub use watch::{
+    ProgressSyncEntry, ProgressSyncOutcome, ProgressSyncRequest, ProgressSyncResponse,
+    ProgressSyncResult, WatchService, is_resume_threshold, is_watched_threshold,
+};
 pub use webhooks::{CreateWebhookRequest, WebhookRow, WebhookService};
 pub use workers::{WorkerBatchEstimate, WorkerService};
 
@@ -126,6 +137,7 @@ pub struct Services {
     pub plugins: PluginService,
     pub online: OnlineService,
     pub import: ImportService,
+    pub downloads: DownloadService,
 }
 
 impl Services {
@@ -162,6 +174,7 @@ impl Services {
         let plugins = PluginService::new(db_arc.clone());
         let online = OnlineService::new(db.clone());
         let import = ImportService::new(db_arc.clone());
+        let downloads = DownloadService::new(db.clone(), jobs.clone(), stream.clone());
 
         Self {
             auth,
@@ -190,6 +203,7 @@ impl Services {
             plugins,
             online,
             import,
+            downloads,
         }
     }
 

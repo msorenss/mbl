@@ -254,3 +254,35 @@ reason = "Configures or imports a Let's Encrypt ACME certificate and private key
 [[exclusions]]
 path = "/api/v1/system/tls/ca.pem"
 reason = "Binary root certificate download for installation on client devices."
+
+[[exclusions]]
+path = "/api/v1/users/me"
+reason = "Self-service account deletion with password confirmation; irreversible, human-only."
+
+[[exclusions]]
+path = "/api/v1/users/me/progress/sync"
+reason = "Offline client devices upload their own queued playback progress; not an agent workflow."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/lyrics"
+reason = "Song lyrics for client players' lyric views; raw song text is not useful to agents."
+
+[[exclusions]]
+path = "/api/v1/system/endpoints"
+reason = "Unauthenticated discovery document for client devices pairing with the server."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/downloads"
+reason = "Client devices request offline copies for local storage; agents cannot store media."
+
+[[exclusions]]
+path = "/api/v1/downloads"
+reason = "Lists the caller's offline download tickets for client devices."
+
+[[exclusions]]
+path = "/api/v1/downloads/{id}"
+reason = "Offline download ticket status and removal for client devices."
+
+[[exclusions]]
+path = "/api/v1/downloads/{id}/file"
+reason = "Binary media download (Range/HEAD) for client devices."

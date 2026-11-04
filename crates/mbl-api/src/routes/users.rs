@@ -6,7 +6,8 @@ use mbl_core::UserId;
 use mbl_db::repo::m6::UserSecurityInfo;
 use mbl_db::repo::users::{HomeLayoutRequest, UpdateUserPreferences, UserPreferences};
 use mbl_service::{
-    CreateUser, SetPinRequest, UpdateUser, UpdateUserPermissionsRequest, VerifyPinRequest,
+    CreateUser, DeleteOwnAccountRequest, ProgressSyncRequest, ProgressSyncResponse, SetPinRequest,
+    UpdateUser, UpdateUserPermissionsRequest, VerifyPinRequest,
 };
 
 use crate::dto::{CreateUserRequest, UpdateUserRequest, UserDto, UserProfileDto};
@@ -17,12 +18,26 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/users", get(list).post(create))
         .route("/api/v1/users/profiles", get(list_profiles))
+        .route("/api/v1/users/me", axum::routing::delete(delete_own_account))
         .route("/api/v1/users/me/preferences", get(get_preferences).patch(update_preferences))
         .route("/api/v1/users/me/home-layout", put(update_home_layout))
+        .route("/api/v1/users/me/progress/sync", post(sync_progress))
         .route("/api/v1/users/{id}", get(get_one).patch(update).delete(remove))
         .route("/api/v1/users/{id}/permissions", get(get_permissions).put(update_permissions))
         .route("/api/v1/users/{id}/pin", post(set_pin))
         .route("/api/v1/users/{id}/pin/verify", post(verify_pin))
+}
+
+/// Upload offline playback progress; each entry applies only if newer than the server state.
+#[utoipa::path(post, path = "/api/v1/users/me/progress/sync", tag = "users",
+    operation_id = "sync_progress", request_body = ProgressSyncRequest,
+    responses((status = 200, body = ProgressSyncResponse), (status = 400), (status = 401)))]
+pub(crate) async fn sync_progress(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Json(req): Json<ProgressSyncRequest>,
+) -> Result<Json<ProgressSyncResponse>, ApiError> {
+    Ok(Json(state.services.watch.sync_progress(&auth.actor, req).await?))
 }
 
 /// All users (admin).
@@ -99,6 +114,22 @@ async fn remove(
     Path(id): Path<UserId>,
 ) -> Result<StatusCode, ApiError> {
     state.services.users.delete(&auth.actor, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Permanently delete the caller's own account (password confirmation required).
+///
+/// Removes the account, all sessions and per-user data (watch state, preferences,
+/// downloads, tokens). Managed profiles get 403; the last admin gets 409.
+#[utoipa::path(delete, path = "/api/v1/users/me", tag = "users", operation_id = "delete_own_account",
+    request_body = DeleteOwnAccountRequest,
+    responses((status = 204), (status = 401), (status = 403), (status = 409)))]
+async fn delete_own_account(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Json(req): Json<DeleteOwnAccountRequest>,
+) -> Result<StatusCode, ApiError> {
+    state.services.users.delete_self(&auth.actor, &req.password).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

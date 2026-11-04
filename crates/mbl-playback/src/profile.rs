@@ -9,10 +9,11 @@ const FIREFOX_TOML: &str = include_str!("../profiles/firefox.toml");
 const SAFARI_TOML: &str = include_str!("../profiles/safari.toml");
 const EDGE_TOML: &str = include_str!("../profiles/edge.toml");
 const GENERIC_HLS_TOML: &str = include_str!("../profiles/generic-hls.toml");
+const ANDROID_EXOPLAYER_TOML: &str = include_str!("../profiles/android-exoplayer.toml");
 
 /// Names of all built-in device profiles.
 pub const BUILTIN_PROFILES: &[&str] =
-    &["chrome", "firefox", "safari", "edge", "generic-hls", "chromecast"];
+    &["chrome", "firefox", "safari", "edge", "generic-hls", "chromecast", "android-exoplayer"];
 
 /// Full capability description of a playback client (Appendix A.7).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -143,6 +144,7 @@ impl DeviceProfile {
             "safari" => SAFARI_TOML,
             "edge" => EDGE_TOML,
             "generic-hls" | "generic" => GENERIC_HLS_TOML,
+            "android-exoplayer" | "android" => ANDROID_EXOPLAYER_TOML,
             other => {
                 return Err(Error::Validation(format!(
                     "unknown built-in device profile '{other}' (expected one of: {})",
@@ -346,6 +348,13 @@ mod tests {
         let hevc = safari.codec_limit("hevc").unwrap();
         assert!(hevc.hdr);
         assert!(hevc.hdr_formats.iter().any(|f| f == "dv"));
+
+        let android = DeviceProfile::builtin("android-exoplayer").unwrap();
+        let hevc = android.codec_limit("hevc").unwrap();
+        assert_eq!(hevc.max_bit_depth, Some(10));
+        assert!(hevc.hdr_formats.iter().any(|f| f == "hdr10"));
+        assert!(android.codec_limit("av1").is_none());
+        assert_eq!(DeviceProfile::builtin("android").unwrap().name, "android-exoplayer");
 
         let generic = DeviceProfile::builtin("generic-hls").unwrap();
         assert_eq!(generic.max_audio_channels, 2);

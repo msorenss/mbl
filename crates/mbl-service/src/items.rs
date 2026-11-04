@@ -55,6 +55,11 @@ impl ItemService {
         items::detail(&self.db, &ItemFilter::for_user(actor), id).await?.ok_or(Error::NotFound)
     }
 
+    /// Synced or plain lyrics for a music track (`.lrc` sidecar or embedded tag).
+    pub async fn lyrics(&self, actor: &Actor, id: ItemId) -> Result<crate::lyrics::LyricsResponse> {
+        crate::lyrics::lyrics_for_item(&self.db, actor, id).await
+    }
+
     pub async fn children(&self, actor: &Actor, id: ItemId) -> Result<Vec<ItemSummary>> {
         let filter = ItemFilter::for_user(actor);
         let parent = mbl_db::repo::media::library_of_item(&self.db, id).await?;

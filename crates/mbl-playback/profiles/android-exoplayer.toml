@@ -1,0 +1,102 @@
+# Conservative fallback for the native Android client (Media3/ExoPlayer).
+# The app normally sends a dynamic overlay built from MediaCodecList; this
+# baseline only lists capabilities present on mainstream Android 8+ phones.
+name = "android-exoplayer"
+max_audio_channels = 6
+
+[[direct_play]]
+containers = ["mp4", "mov", "m4v", "matroska", "webm"]
+video_codecs = ["h264", "hevc", "vp9"]
+audio_codecs = ["aac", "mp3", "opus", "vorbis", "flac", "ac3", "eac3"]
+
+[[direct_play]]
+containers = ["mp3", "flac", "ogg", "wav", "aac", "m4a"]
+video_codecs = []
+audio_codecs = ["mp3", "flac", "opus", "vorbis", "pcm_s16le", "aac", "alac"]
+
+[[codec_limits]]
+codec = "h264"
+profiles = ["Baseline", "Constrained Baseline", "Main", "High"]
+max_level = 42
+max_width = 1920
+max_height = 1080
+max_bit_depth = 8
+hdr = false
+
+[[codec_limits]]
+codec = "hevc"
+profiles = ["Main", "Main 10"]
+max_level = 153
+max_width = 3840
+max_height = 2160
+max_bit_depth = 10
+hdr = true
+hdr_formats = ["hdr10", "hlg"]
+
+[[codec_limits]]
+codec = "vp9"
+profiles = ["Profile 0"]
+max_width = 1920
+max_height = 1080
+max_bit_depth = 8
+hdr = false
+
+[transcode_target]
+container = "fmp4"
+video_codecs = ["h264", "hevc"]
+audio_codecs = ["aac", "opus"]
+
+[[subtitles]]
+format = "webvtt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "vtt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "subrip"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "srt"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "ass"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "ssa"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "mov_text"
+method = "external"
+target_format = "vtt"
+
+[[subtitles]]
+format = "hdmv_pgs_subtitle"
+method = "burn"
+
+[[subtitles]]
+format = "pgs"
+method = "burn"
+
+[[subtitles]]
+format = "dvd_subtitle"
+method = "burn"
+
+[[subtitles]]
+format = "dvdsub"
+method = "burn"
+
+[[subtitles]]
+format = "dvb_subtitle"
+method = "burn"

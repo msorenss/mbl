@@ -69,6 +69,30 @@ export default function Account() {
       if (current) await logout();
       else await refreshSessions();
     });
+  const [deletePassword, setDeletePassword] = createSignal("");
+  const deleteAccount = () =>
+    run(async () => {
+      if (
+        !confirm(
+          "Permanently delete your account? Your watch history, preferences and devices are removed and cannot be restored.",
+        )
+      )
+        return;
+      const result = await client.DELETE("/api/v1/users/me", {
+        body: { password: deletePassword() },
+      });
+      if (result.error) {
+        const status = result.response.status;
+        if (status === 401) throw new Error("Incorrect password.");
+        if (status === 403)
+          throw new Error("Managed profiles cannot delete themselves. Ask an administrator.");
+        if (status === 409)
+          throw new Error("You are the last administrator. Promote another administrator first.");
+        throw new Error("Could not delete the account.");
+      }
+      setDeletePassword("");
+      await logout();
+    });
   return (
     <div style={{ "max-width": "800px", display: "grid", gap: "24px" }}>
       <h1>Account & security</h1>
@@ -146,6 +170,32 @@ export default function Account() {
         </Show>
       </section>
       <HistoryImport />
+      <section aria-labelledby="delete-account-heading">
+        <h2 id="delete-account-heading">Delete account</h2>
+        <p>
+          Permanently removes your account, watch history and signed-in devices from this server.
+          Media files are not affected.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void deleteAccount();
+          }}
+        >
+          <label for="delete-account-password">Confirm with your password</label>{" "}
+          <input
+            id="delete-account-password"
+            type="password"
+            autocomplete="current-password"
+            required
+            value={deletePassword()}
+            onInput={(e) => setDeletePassword(e.currentTarget.value)}
+          />{" "}
+          <Button type="submit" disabled={busy() || !deletePassword()}>
+            Delete my account
+          </Button>
+        </form>
+      </section>
     </div>
   );
 }

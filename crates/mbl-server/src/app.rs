@@ -116,6 +116,11 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         env!("MBL_GIT_COMMIT"),
         env!("MBL_BUILD_TIMESTAMP"),
         profile,
+    )
+    .with_network(
+        mbl_service::server_id::ensure_server_id(&db).await?,
+        config.server.port,
+        config.server.public_url.clone(),
     );
     let secure_cookies = config.server.public_url.starts_with("https://");
     let mut state =
@@ -132,6 +137,11 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     state.services.hw = mbl_service::HwService::new(db.clone(), state.services.stream.clone());
     state.services.intelligence =
         state.services.intelligence.with_stream(state.services.stream.clone());
+    state.services.downloads =
+        state.services.downloads.clone().with_stream(state.services.stream.clone());
+    runner.register(Arc::new(mbl_service::DownloadJobHandler {
+        downloads: state.services.downloads.clone(),
+    }));
     runner.register(Arc::new(mbl_service::OptimizeJobHandler {
         intelligence: state.services.intelligence.clone(),
     }));
@@ -215,6 +225,17 @@ impl Server {
         let mqtt =
             tokio::spawn(crate::mqtt::run(self.db.clone(), self.services.clone(), stop.clone()));
 
+        let mdns = if self.config.server.mdns {
+            Some(tokio::spawn(crate::mdns::run(
+                self.db.clone(),
+                self.config.server.bind.clone(),
+                self.config.server.port,
+                stop.clone(),
+            )))
+        } else {
+            None
+        };
+
         tracing::info!(%addr, version = env!("CARGO_PKG_VERSION"), commit = env!("MBL_GIT_COMMIT"), "listening");
         let stop_on_signal = stop.clone();
         let served =
@@ -230,6 +251,9 @@ impl Server {
         let _ = recordings.await;
         let _ = https.await;
         let _ = mqtt.await;
+        if let Some(mdns) = mdns {
+            let _ = mdns.await;
+        }
         let _ = jobs.await;
         self.db.close().await;
         tracing::info!("stopped");

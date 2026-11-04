@@ -82,6 +82,38 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-03 — Android-klient: serverförutsättningar S1–S7 (M11.1)
+- **Ej committat** (användaren godkänner commit). Bygger vidare på planen i [`docs/plans/android-client.md`](docs/plans/android-client.md) §3/§3.1, där S1–S7 nu är markerade klara.
+- **S1 mDNS:** `crates/mbl-server/src/mdns.rs` (`mdns-sd 0.21`, `if-addrs 0.15`) annonserar `_mbl._tcp.local.` med TXT `id`, `version`, `path`, samt `https_port` när TLS är på. Konfig `server.mdns` (standard `true`). Samexistens med avahi på Pi:n är inte körtestad; verifiera med `avahi-browse -rt _mbl._tcp`.
+- **S2:** `crates/mbl-service/src/server_id.rs` ger ett stabilt `serverId` (lagras i `settings`), som visas i `system/info`. Ny oautentiserad `GET /api/v1/system/endpoints` (`ServerEndpoints`) med LAN-, tailnet- och publika URL:er, HTTPS-port och CA-SHA-256. Den innehåller inga hemligheter.
+- **S3:** `crates/mbl-playback/profiles/android-exoplayer.toml` plus en snapshot i `mbl-playback/tests/decide.rs`.
+- **S4 nedladdningar:**
+  - Lagring och kod: migration `0014_downloads.sql`, `mbl-db::repo::downloads` (med `DownloadOutcome`), `mbl-service::downloads` och `mbl-api::routes::downloads`.
+  - Original blir `ready` direkt. `universal_1080p` och `universal_720p` köas som jobbet `download.transcode`, med en cachefil per part och kvalitet under `<cache>/downloads`.
+  - Hanteraren kör en egen FFmpeg-process (kill_on_drop/cancel), eftersom `transcode_optimized_mp4` inte dödar processen vid avbrott.
+  - Filvägen kontrollerar ACL på nytt och stöder Range/HEAD och `Content-Disposition`.
+- **S5:** `POST /api/v1/users/me/progress/sync` tar högst 500 poster. Senaste `updatedAt` vinner, och framtida tidsstämplar klampas. Logiken finns i `watch::sync_progress_if_newer`.
+- **S6:** `GET /api/v1/items/{id}/lyrics` i `mbl-service::lyrics`: LRC-sidofil först, annars inbäddad tagg.
+- **S7:** `DELETE /api/v1/users/me` kräver lösenord och nekar hanterade profiler och sista admin. Webben har sektionen *Delete account* i `web/src/pages/Account.tsx` med tester.
+- **MCP:** 8 nya undantag i `crates/mbl-mcp/EXCLUSIONS.toml`; antalet verktyg är oförändrat.
+- **OpenAPI:** `docs/openapi.json` och `web/src/api/schema.d.ts` är regenererade.
+- **Rättade fallgropar:**
+  - API:ets enum var `universal720p`, medan lagringen använde `universal_720p`. Explicit serde-rename löser det, och ett enhetstest håller namnen i synk.
+  - Clippy-fixar: för många argument, samt att `embedded_lyrics` låg efter testmodulen.
+- **Verifiering:**
+  - `crates/mbl-server/tests/android.rs`: 6/6 passerar.
+  - Lib-tester för mbl-db, -service, -api, -playback och -mcp: 68/68 passerar.
+  - Clippy `-D warnings` för de 6 berörda crates och fmt passerar.
+  - `just web-check`: 225 tester, budget 51,81 KB.
+  - Integrationssviterna android, mcp och playback samt mbl-mcp `tools_list`: 27/27 passerar.
+  - `cargo xtask openapi-check` passerar, och MCP-pariteten är 100 % (173/173, 71 undantagna paths).
+- **Nästa steg:** fas A0 (Android-projektets skelett och CI i `.github/workflows/android.yml`) på PC eller i CI.
+
+### 2026-11-03 — Android-klient: plan (M11.1)
+- Skapade [`docs/plans/android-client.md`](docs/plans/android-client.md): Kotlin/Compose/Media3-arkitektur i `clients/android/` (core/feature-moduler som återanvänds av M11.2 TV), faser A0–A8 med acceptanskriterier (MVP = A0–A3), serverförutsättningar S1–S6 (mDNS `_mbl._tcp` som servern saknar idag, server-ID/anslutningskandidater, `android-exoplayer`-basprofil, offline-nedladdnings-/synk-API, sångtexter), teststrategi och risker. Länkad från M11.1 i `IMPLEMENTATION.md`.
+- Pi:n (aarch64, 16K-sidor, ~4 GB ledigt) saknar JDK/Android SDK och Google levererar ingen linux-arm64 `aapt2`; Android-byggen ska köras i CI (`android.yml`) eller i Android Studio på PC, Pi:n används bara med `adb`. Ripgrep-/grep-verktyget kraschar med jemalloc på 16K-sidor; använd `grep` via bash.
+- Beslut 2026-11-03 (planens §9): CI + Android Studio på PC, Google Play-distribution (AAB, kontoradering S7, granskardemo), Google Cast ja, Android TV (M11.2) direkt efter MVP A0–A3, testenheter Galaxy S24, OnePlus Pad och Chromecast med Google TV, app-ID `se.mbl.android`. Nästa steg: fas A0. Ingen kod skriven ännu.
+
 ### 2026-11-03 — Hailo Model Zoo GenAI (`VLM`, `LLM`, `Whisper Speech2Text`) Direct C++ Driver & Interactive `.hef` File Picker UI
 - **Status / Git Note for Next Agent:**
   - All changes from the 2026-11-02 and 2026-11-03 Hailo NPU work are currently **uncommitted in the working tree** because the user explicitly requested to test their local build first (`"Vill testa först"` / `"Jepp ska bara uppdatera mitt bygge"`). **Do not revert or discard uncommitted changes**; once the user confirms testing is complete, commit and tag the next release following §4.

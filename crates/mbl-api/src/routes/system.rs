@@ -17,6 +17,7 @@ pub fn router() -> Router<AppState> {
         .route("/health", get(health))
         .route("/api/v1/system/health", get(system_health))
         .route("/api/v1/system/info", get(info))
+        .route("/api/v1/system/endpoints", get(endpoints))
         .route("/api/v1/system/setup", get(setup_status).post(setup))
         .route("/api/v1/system/settings", get(get_system_settings).patch(update_system_settings))
         .route("/api/v1/system/settings/test-tmdb", axum::routing::post(test_tmdb))
@@ -53,6 +54,122 @@ async fn system_health(State(state): State<AppState>) -> Json<mbl_service::Syste
     responses((status = 200, body = ServerInfo)))]
 async fn info(State(state): State<AppState>) -> Json<ServerInfo> {
     Json((*state.info).clone())
+}
+
+/// Addresses a client may use to reach this server, plus the local CA fingerprint for pinning.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerEndpoints {
+    pub server_id: String,
+    pub version: String,
+    /// Configured externally reachable URL, if any.
+    pub public_url: Option<String>,
+    /// `http://<lan-ip>:<port>` for every non-loopback interface address.
+    pub lan_urls: Vec<String>,
+    /// MagicDNS and tailnet IP URLs when Tailscale is running.
+    pub tailnet_urls: Vec<String>,
+    /// HTTPS listener port when TLS is enabled.
+    pub https_port: Option<u16>,
+    /// Lower-case hex SHA-256 of the MBL Local CA certificate (DER), if one exists.
+    pub ca_sha256: Option<String>,
+}
+
+/// Client discovery: LAN, public and tailnet URLs plus the local CA fingerprint. Contains no secrets.
+#[utoipa::path(get, path = "/api/v1/system/endpoints", tag = "system", security(),
+    responses((status = 200, body = ServerEndpoints)))]
+pub(crate) async fn endpoints(
+    State(state): State<AppState>,
+) -> Result<Json<ServerEndpoints>, ApiError> {
+    let port = state.info.listen.port;
+    let repo = SettingsRepo::new(state.db.clone());
+    let https_port = if repo.get("tls_enabled").await?.as_deref() == Some("true") {
+        Some(
+            repo.get("tls_port")
+                .await?
+                .and_then(|v| v.parse::<u16>().ok())
+                .unwrap_or(crate::routes::tls::DEFAULT_HTTPS_PORT),
+        )
+    } else {
+        None
+    };
+    let ca_sha256 = repo.get("tls_ca_cert_pem").await?.as_deref().and_then(pem_sha256_hex);
+
+    let lan_urls = tokio::task::spawn_blocking(move || lan_urls(port)).await.unwrap_or_default();
+
+    let tailscale = state.services.remote.tailscale().clone();
+    let tailnet_urls =
+        match tokio::time::timeout(std::time::Duration::from_secs(2), tailscale.get_status()).await
+        {
+            Ok(Ok(status)) if status.backend_state == "Running" => {
+                let mut urls = Vec::new();
+                if let Some(name) = status.magic_dns_name.filter(|n| !n.is_empty()) {
+                    urls.push(format!("http://{}:{port}", name.trim_end_matches('.')));
+                }
+                urls.extend(status.tailnet_ips.iter().map(|ip| url_for_ip(ip, port)));
+                urls
+            }
+            _ => Vec::new(),
+        };
+
+    let public_url = Some(state.info.listen.public_url.trim().trim_end_matches('/'))
+        .filter(|u| !u.is_empty())
+        .map(str::to_string);
+    Ok(Json(ServerEndpoints {
+        server_id: state.info.server_id.clone(),
+        version: state.info.version.to_string(),
+        public_url,
+        lan_urls,
+        tailnet_urls,
+        https_port,
+        ca_sha256,
+    }))
+}
+
+fn url_for_ip(ip: &str, port: u16) -> String {
+    if ip.contains(':') { format!("http://[{ip}]:{port}") } else { format!("http://{ip}:{port}") }
+}
+
+fn lan_urls(port: u16) -> Vec<String> {
+    let Ok(ifaces) = if_addrs::get_if_addrs() else {
+        return Vec::new();
+    };
+    let mut v4 = Vec::new();
+    for iface in ifaces {
+        let ip = iface.ip();
+        // Tailnet (100.64/10) addresses are reported separately; skip loopback and link-local.
+        let skip = match ip {
+            std::net::IpAddr::V4(a) => {
+                a.is_loopback()
+                    || a.is_link_local()
+                    || (a.octets()[0] == 100 && (a.octets()[1] & 0xc0) == 64)
+            }
+            std::net::IpAddr::V6(_) => true,
+        };
+        if !skip {
+            v4.push(url_for_ip(&ip.to_string(), port));
+        }
+    }
+    v4.sort();
+    v4.dedup();
+    v4
+}
+
+/// SHA-256 over the DER body of the first certificate in `pem`, as lower-case hex.
+fn pem_sha256_hex(pem: &str) -> Option<String> {
+    use base64::Engine as _;
+    use sha2::{Digest, Sha256};
+    let body: String = pem
+        .lines()
+        .skip_while(|l| !l.starts_with("-----BEGIN CERTIFICATE-----"))
+        .skip(1)
+        .take_while(|l| !l.starts_with("-----END"))
+        .map(str::trim)
+        .collect();
+    let der = base64::engine::general_purpose::STANDARD.decode(body).ok()?;
+    if der.is_empty() {
+        return None;
+    }
+    Some(Sha256::digest(&der).iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// Whether the first admin still has to be created.
@@ -576,4 +693,25 @@ async fn search_tmdb(
         .collect();
 
     Ok(Json(TmdbSearchResponse { configured: true, results: hits }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pem_sha256_hex;
+
+    #[test]
+    fn ca_fingerprint_hashes_the_first_certificate_der() {
+        // "YWJj" is base64 for the bytes "abc".
+        let pem = "junk\n-----BEGIN CERTIFICATE-----\nYW\nJj\n-----END CERTIFICATE-----\n\
+                   -----BEGIN CERTIFICATE-----\nZGVm\n-----END CERTIFICATE-----\n";
+        assert_eq!(
+            pem_sha256_hex(pem).as_deref(),
+            Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        );
+        assert_eq!(pem_sha256_hex("no certificate"), None);
+        assert_eq!(
+            pem_sha256_hex("-----BEGIN CERTIFICATE-----\n!!\n-----END CERTIFICATE-----"),
+            None
+        );
+    }
 }

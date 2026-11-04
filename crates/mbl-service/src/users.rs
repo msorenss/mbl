@@ -56,6 +56,13 @@ pub struct VerifyPinRequest {
     pub pin: String,
 }
 
+/// Self-service account deletion; the current password confirms intent.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteOwnAccountRequest {
+    pub password: String,
+}
+
 // A missing field means unchanged; explicit JSON null removes the limit.
 fn deserialize_rating_patch<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
@@ -370,6 +377,34 @@ impl UserService {
         self.sessions.delete_all_for_user(id).await?;
         self.users.delete(id).await?;
         tracing::info!(user_id = %id, by = %actor.user_id, "user deleted");
+        Ok(())
+    }
+
+    /// Permanently delete the caller's own account after password confirmation.
+    ///
+    /// Managed profiles are controlled by the household admin and cannot delete
+    /// themselves; the last admin must hand over administration first.
+    pub async fn delete_self(&self, actor: &Actor, password: &str) -> Result<()> {
+        if actor.is_managed {
+            return Err(Error::Forbidden);
+        }
+        let user = self.users.get(actor.user_id).await?.ok_or(Error::NotFound)?;
+        let (_, hash) =
+            self.users.get_credentials(&user.username).await?.ok_or(Error::Unauthorized)?;
+        let candidate = password.to_owned();
+        let ok = blocking(move || Ok(mbl_auth::verify_password(&candidate, &hash))).await?;
+        if !ok {
+            return Err(Error::Unauthorized);
+        }
+        if user.is_admin && self.users.count_admins().await? <= 1 {
+            return Err(Error::Conflict(
+                "the last admin cannot delete their own account; promote another admin first"
+                    .into(),
+            ));
+        }
+        self.sessions.delete_all_for_user(actor.user_id).await?;
+        self.users.delete(actor.user_id).await?;
+        tracing::info!(user_id = %actor.user_id, "user deleted own account");
         Ok(())
     }
 }

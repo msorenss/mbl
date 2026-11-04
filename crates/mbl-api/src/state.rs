@@ -48,6 +48,17 @@ pub struct ServerInfo {
     pub arch: &'static str,
     pub platform_profile: PlatformProfile,
     pub npu_profile: NpuProfile,
+    /// Stable random identifier of this server installation (persisted in settings).
+    pub server_id: String,
+    #[serde(skip)]
+    pub listen: ListenInfo,
+}
+
+/// Where the HTTP listener is reachable; used to advertise client endpoints.
+#[derive(Debug, Clone, Default)]
+pub struct ListenInfo {
+    pub port: u16,
+    pub public_url: String,
 }
 
 impl ServerInfo {
@@ -67,6 +78,16 @@ impl ServerInfo {
             arch: std::env::consts::ARCH,
             platform_profile,
             npu_profile,
+            server_id: String::new(),
+            listen: ListenInfo::default(),
         }
+    }
+
+    /// Attach the persisted server id and HTTP listener details.
+    #[must_use]
+    pub fn with_network(mut self, server_id: String, port: u16, public_url: String) -> Self {
+        self.server_id = server_id;
+        self.listen = ListenInfo { port, public_url };
+        self
     }
 }

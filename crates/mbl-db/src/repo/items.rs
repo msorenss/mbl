@@ -627,6 +627,16 @@ fn parse_palette(raw: &str) -> Vec<String> {
     Vec::new()
 }
 
+/// Raw lyrics stored from the track's tags at scan time (no ACL check; callers must authorize).
+pub async fn embedded_lyrics(db: &Db, id: ItemId) -> Result<Option<String>> {
+    let lyrics: Option<Option<String>> =
+        sqlx::query_scalar("SELECT lyrics FROM media_items WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&db.read)
+            .await?;
+    Ok(lyrics.flatten())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

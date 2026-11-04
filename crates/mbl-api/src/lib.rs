@@ -13,7 +13,7 @@ use axum::Router;
 use tower_http::trace::TraceLayer;
 
 pub use error::ApiError;
-pub use state::{AppState, ServerInfo};
+pub use state::{AppState, ListenInfo, ServerInfo};
 
 /// Build the full HTTP router.
 pub fn router(state: AppState) -> Router {
@@ -22,6 +22,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::tls::router())
         .merge(routes::auth::router())
         .merge(routes::users::router())
+        .merge(routes::downloads::router())
         .merge(routes::invites::router())
         .merge(routes::remote::router())
         .merge(routes::oauth::router())

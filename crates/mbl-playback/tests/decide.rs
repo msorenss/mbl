@@ -1050,3 +1050,37 @@ fn selecting_alternate_audio_remuxes_without_reencoding_video() {
     assert_eq!(decision.video, StreamAction::Copy);
     assert_eq!(decision.audio, StreamAction::Copy);
 }
+
+#[test]
+fn android_exoplayer_direct_plays_typical_phone_hevc_hdr10_mkv() {
+    let mut media = synthetic_video_media(
+        "matroska,webm",
+        "hevc",
+        Some("Main 10"),
+        Some(150),
+        3840,
+        2160,
+        10,
+        Some(HdrKind::Hdr10),
+        false,
+        "eac3",
+        6,
+        Some(20_000_000),
+    );
+    let mut subtitle = media.streams[1].clone();
+    subtitle.index = 2;
+    subtitle.kind = StreamKind::Subtitle;
+    subtitle.codec = "ass".into();
+    subtitle.channels = None;
+    media.streams.push(subtitle);
+
+    let profile = DeviceProfile::builtin("android-exoplayer").unwrap();
+    let ctx = DecisionContext { subtitle_index: Some(2), ..Default::default() };
+    let decision = decide(&media, &profile, &ctx);
+    assert_eq!(decision.method, PlayMethod::DirectPlay, "{:?}", decision.reasons);
+    assert_eq!(decision.subtitle, SubtitleDelivery::Sidecar { format: "vtt".into() });
+
+    // AV1 is not part of the conservative baseline; the server must convert it.
+    let av1 = probe_fixture("av1_opus_mkv");
+    assert_ne!(decide(&av1, &profile, &DecisionContext::default()).method, PlayMethod::DirectPlay);
+}

@@ -795,6 +795,8 @@ See PLAN.md §5. Create a crate **only when the first task that needs it starts*
 
 ### M11: Native Mobile, TV & Spatial VR Clients (Post-1.0)
 - [ ] **M11.1 Android Mobile & Tablet App:**
+  - Detailed phased plan (A0–A8, server prerequisites S1–S7, build/test strategy): [`docs/plans/android-client.md`](docs/plans/android-client.md).
+  - [x] Server prerequisites S1–S7 (mDNS `_mbl._tcp`, stable `serverId` + `GET /api/v1/system/endpoints`, `android-exoplayer` profile, offline downloads API, offline progress sync, synced lyrics, account self-deletion).
   - Modern touch-first client matching MBL Design tokens.
   - Native player via AndroidX Media3 / ExoPlayer with hardware decode, HDR/Dolby Vision, gesture controls (swipe brightness/volume, double-tap seek), and Picture-in-Picture (PiP).
   - Background audio playback for music with lock-screen media controls, synced lyrics, and Android Auto support.
@@ -1499,3 +1501,6 @@ Added local bounded Cast event timeline in Stats with copied JSON, localized UI,
 - Fixed `detect_hailo_co_tenants` (`crates/mbl-hwaccel/src/hailo.rs`) to detect truncated 15-char `/proc/<pid>/comm` (`frigate.detecto`) and `/proc/<pid>/cmdline`, added live telemetry (`firmware_version`, `temperature_c`, `nnc_utilization_percent`, `ram_used_mb`, `ram_total_mb`, `on_die_voltage_mv`), added Hailo NPU self-test to `POST /api/v1/hw/test`, and updated `MediaIntelligenceService::index_item_scenes` (`crates/mbl-service/src/intelligence.rs`) to extract real 640x640 video keyframes via `ffmpeg`.
 - Added `.hef` file filtering (`?ext=hef`) to `GET /api/v1/system/browse` (`crates/mbl-service/src/paths.rs`, `crates/mbl-api/src/routes/libraries.rs`), persisted `.hef` model path overrides in `GET`/`PATCH /api/v1/system/settings` (`crates/mbl-api/src/routes/system.rs`), and added `HefModelPickerDialog.tsx` + `📁 Välj .hef` buttons in `web/src/pages/admin/Hardware.tsx` with automatic in-memory hot-reload of the active NPU session.
 - Verification: 19/19 `mbl-hwaccel` & `mbl-hailo` tests passed (including live Hailo-10H NPU inference), 222/222 Vitest tests passed, Biome clean, `tsc -b` clean, initial JS bundle 51.81 KB gzip (<= 150 KB budget), Clippy `-D warnings` clean, OpenAPI and MCP parity 100.0% (165/165 endpoints). Uncommitted in working tree per user request while testing local build.
+
+### 2026-11-03 — Android client server prerequisites (M11.1 S1–S7)
+- mDNS `_mbl._tcp` announcement (`server.mdns`), stable `serverId` and public `GET /api/v1/system/endpoints`, built-in `android-exoplayer` profile, offline downloads (migration `0014_downloads.sql`, `/api/v1/items/{id}/downloads`, `/api/v1/downloads/*`, job `download.transcode`), `POST /api/v1/users/me/progress/sync`, `GET /api/v1/items/{id}/lyrics` and `DELETE /api/v1/users/me` (with web UI). Tests: `crates/mbl-server/tests/android.rs` (6). The Android app itself (A0–A8) is not started.

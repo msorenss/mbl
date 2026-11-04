@@ -30,6 +30,7 @@ pub mod kinds {
     pub const MEDIA_INTRO_DETECT: &str = "media.intro_detect";
     pub const MEDIA_CREDITS_DETECT: &str = "media.credits_detect";
     pub const MEDIA_SCENE_INDEX: &str = "media.scene_index";
+    pub const DOWNLOAD_TRANSCODE: &str = "download.transcode";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

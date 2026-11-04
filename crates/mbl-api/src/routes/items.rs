@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/libraries/{id}/items", get(list))
         .route("/api/v1/items/{id}", get(detail))
         .route("/api/v1/items/{id}/children", get(children))
+        .route("/api/v1/items/{id}/lyrics", get(lyrics))
         .route(
             "/api/v1/items/{id}/playback-preview",
             get(playback_preview_get).post(playback_preview_post),
@@ -93,6 +94,18 @@ async fn children(
     Path(id): Path<ItemId>,
 ) -> Result<Json<Vec<ItemSummary>>, ApiError> {
     Ok(Json(state.services.items.children(&auth.actor, id).await?))
+}
+
+/// Lyrics for a music track: a sidecar `.lrc` (synced) or the embedded lyrics tag.
+#[utoipa::path(get, path = "/api/v1/items/{id}/lyrics", tag = "browse",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = mbl_service::LyricsResponse), (status = 404)))]
+pub(crate) async fn lyrics(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+) -> Result<Json<mbl_service::LyricsResponse>, ApiError> {
+    Ok(Json(state.services.items.lyrics(&auth.actor, id).await?))
 }
 
 /// Title search grouped by kind, at most 10 per group.

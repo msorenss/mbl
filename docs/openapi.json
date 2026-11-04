@@ -994,6 +994,122 @@
         ]
       }
     },
+    "/api/v1/downloads": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "The caller's download tickets, newest first.",
+        "operationId": "list_downloads",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DownloadDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/downloads/{id}": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "One of the caller's download tickets.",
+        "operationId": "get_download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadDto"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      },
+      "delete": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Delete a download ticket. The cached transcode is removed when unused.",
+        "operationId": "delete_download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/downloads/{id}/file": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Fetch the file of a ready download (supports `Range` and `HEAD` for resumable transfers).",
+        "operationId": "download_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File body"
+          },
+          "206": {
+            "description": "Partial content"
+          },
+          "401": {},
+          "404": {},
+          "409": {
+            "description": "Download not ready"
+          },
+          "416": {
+            "description": "Range not satisfiable"
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -1423,6 +1539,52 @@
         }
       }
     },
+    "/api/v1/items/{id}/downloads": {
+      "post": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Request an offline copy of an item. Idempotent per part and quality; optimized\nqualities are transcoded in the background (poll the ticket until `ready`).",
+        "operationId": "create_download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadDto"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {},
+          "503": {
+            "description": "Transcoded downloads need a cache directory"
+          }
+        }
+      }
+    },
     "/api/v1/items/{id}/index-scenes": {
       "post": {
         "tags": [
@@ -1466,6 +1628,38 @@
             }
           },
           "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/lyrics": {
+      "get": {
+        "tags": [
+          "browse"
+        ],
+        "summary": "Lyrics for a music track: a sidecar `.lrc` (synced) or the embedded lyrics tag.",
+        "operationId": "lyrics",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LyricsResponse"
+                }
+              }
+            }
+          },
           "404": {}
         }
       }
@@ -6081,6 +6275,27 @@
         }
       }
     },
+    "/api/v1/system/endpoints": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Client discovery: LAN, public and tailnet URLs plus the local CA fingerprint. Contains no secrets.",
+        "operationId": "endpoints",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerEndpoints"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
     "/api/v1/system/health": {
       "get": {
         "tags": [
@@ -6694,6 +6909,32 @@
         }
       }
     },
+    "/api/v1/users/me": {
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Permanently delete the caller's own account (password confirmation required).",
+        "description": "Removes the account, all sessions and per-user data (watch state, preferences,\ndownloads, tokens). Managed profiles get 403; the last admin gets 409.",
+        "operationId": "delete_own_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteOwnAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "401": {},
+          "403": {},
+          "409": {}
+        }
+      }
+    },
     "/api/v1/users/me/home-layout": {
       "put": {
         "tags": [
@@ -6768,6 +7009,38 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {}
+        }
+      }
+    },
+    "/api/v1/users/me/progress/sync": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Upload offline playback progress; each entry applies only if newer than the server state.",
+        "operationId": "sync_progress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressSyncResponse"
                 }
               }
             }
@@ -8228,6 +8501,28 @@
           }
         }
       },
+      "CreateDownloadRequest": {
+        "type": "object",
+        "required": [
+          "quality"
+        ],
+        "properties": {
+          "partId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PartId",
+                "description": "Part to download; defaults to the item's first part."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "$ref": "#/components/schemas/DownloadQuality"
+          }
+        }
+      },
       "CreateInviteRequest": {
         "type": "object",
         "properties": {
@@ -8659,6 +8954,18 @@
         "type": "string",
         "description": "Opaque pagination cursor. Its encoding is owned by the repository that issues it."
       },
+      "DeleteOwnAccountRequest": {
+        "type": "object",
+        "description": "Self-service account deletion; the current password confirms intent.",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "DirEntry": {
         "type": "object",
         "required": [
@@ -8711,6 +9018,87 @@
             "description": "`None` for the virtual top level (filesystem root list)."
           }
         }
+      },
+      "DownloadDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "itemId",
+          "partId",
+          "quality",
+          "status",
+          "fileName",
+          "mimeType",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Suggested file name for the client's local copy."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the downloaded file."
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/DownloadQuality"
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "File size in bytes once known."
+          },
+          "status": {
+            "$ref": "#/components/schemas/DownloadStatus"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds."
+          }
+        }
+      },
+      "DownloadQuality": {
+        "type": "string",
+        "enum": [
+          "original",
+          "universal_1080p",
+          "universal_720p"
+        ]
+      },
+      "DownloadStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "transcoding",
+          "ready",
+          "failed"
+        ]
       },
       "DrmDevice": {
         "type": "object",
@@ -10224,6 +10612,60 @@
             "$ref": "#/components/schemas/UserDto"
           }
         }
+      },
+      "LyricLine": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "startMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Start time in milliseconds; absent for unsynced lyrics.",
+            "minimum": 0
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "LyricsResponse": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "synced",
+          "source",
+          "lines"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LyricLine"
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/LyricsSource"
+          },
+          "synced": {
+            "type": "boolean",
+            "description": "True when every line has a `startMs` (LRC timestamps were present)."
+          }
+        }
+      },
+      "LyricsSource": {
+        "type": "string",
+        "enum": [
+          "sidecar",
+          "embedded"
+        ]
       },
       "MarkerRow": {
         "type": "object",
@@ -12764,6 +13206,88 @@
         "type": "integer",
         "format": "int64"
       },
+      "ProgressSyncEntry": {
+        "type": "object",
+        "description": "One offline progress entry recorded by a client while disconnected.",
+        "required": [
+          "itemId",
+          "updatedAt"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "played": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` = watched, `false` = explicitly unwatched, absent = resume position."
+          },
+          "positionMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Playback position in milliseconds; ignored when `played` is set.",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Client wall-clock time of the change (Unix epoch milliseconds)."
+          }
+        }
+      },
+      "ProgressSyncOutcome": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "stale",
+          "not_found"
+        ]
+      },
+      "ProgressSyncRequest": {
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressSyncEntry"
+            }
+          }
+        }
+      },
+      "ProgressSyncResponse": {
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressSyncResult"
+            }
+          }
+        }
+      },
+      "ProgressSyncResult": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "outcome"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ProgressSyncOutcome"
+          }
+        }
+      },
       "QuickConnectAuthorizeRequest": {
         "type": "object",
         "description": "Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8).",
@@ -13741,6 +14265,61 @@
           }
         }
       },
+      "ServerEndpoints": {
+        "type": "object",
+        "description": "Addresses a client may use to reach this server, plus the local CA fingerprint for pinning.",
+        "required": [
+          "serverId",
+          "version",
+          "lanUrls",
+          "tailnetUrls"
+        ],
+        "properties": {
+          "caSha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Lower-case hex SHA-256 of the MBL Local CA certificate (DER), if one exists."
+          },
+          "httpsPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "HTTPS listener port when TLS is enabled.",
+            "minimum": 0
+          },
+          "lanUrls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`http://<lan-ip>:<port>` for every non-loopback interface address."
+          },
+          "publicUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Configured externally reachable URL, if any."
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "tailnetUrls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MagicDNS and tailnet IP URLs when Tailscale is running."
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "ServerInfo": {
         "type": "object",
         "required": [
@@ -13751,7 +14330,8 @@
           "os",
           "arch",
           "platformProfile",
-          "npuProfile"
+          "npuProfile",
+          "serverId"
         ],
         "properties": {
           "arch": {
@@ -13774,6 +14354,10 @@
           },
           "platformProfile": {
             "$ref": "#/components/schemas/PlatformProfile"
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Stable random identifier of this server installation (persisted in settings)."
           },
           "version": {
             "type": "string"

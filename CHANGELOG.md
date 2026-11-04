@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- Android client server prerequisites (M11.1 S1–S7):
+  - mDNS/DNS-SD announcement as `_mbl._tcp.local.` (disable with `server.mdns = false`).
+  - Stable `serverId` in `GET /api/v1/system/info` and a public `GET /api/v1/system/endpoints` listing LAN, tailnet and public URLs plus the HTTPS CA fingerprint.
+  - Built-in `android-exoplayer` client profile.
+  - Offline downloads: `POST /api/v1/items/{id}/downloads` (`original`, `universal_1080p`, `universal_720p`), `GET /api/v1/downloads`, `GET`/`DELETE /api/v1/downloads/{id}` and a resumable `GET /api/v1/downloads/{id}/file`.
+  - Offline progress sync with last-write-wins timestamps: `POST /api/v1/users/me/progress/sync`.
+  - Synced lyrics from `.lrc` sidecars or embedded tags: `GET /api/v1/items/{id}/lyrics`.
+  - Account self-deletion (`DELETE /api/v1/users/me`, password required) with a *Delete account* section on the account page.
+
 ## [1.2.2] - 2026-11-02
 
 ### Added
