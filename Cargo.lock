@@ -1791,7 +1791,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "mbl-analysis"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "camino",
  "image",
@@ -1808,7 +1808,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-api"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -1841,7 +1841,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-auth"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -1857,7 +1857,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-cli"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1867,7 +1867,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-core"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -1880,7 +1880,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-db"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "camino",
  "mbl-core",
@@ -1895,7 +1895,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-hailo"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "image",
  "mbl-core",
@@ -1910,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-hwaccel"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "camino",
  "insta",
@@ -1930,7 +1930,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-images"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "blurhash",
  "image",
@@ -1947,7 +1947,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-jobs"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "async-trait",
  "camino",
@@ -1965,7 +1965,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-mcp"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "async-trait",
  "axum",
@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-metadata"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "async-trait",
  "camino",
@@ -2023,7 +2023,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-node"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -2038,7 +2038,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-parser"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "proptest",
  "regex",
@@ -2050,7 +2050,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-platform"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "camino",
  "rustix",
@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-playback"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "insta",
  "mbl-core",
@@ -2076,7 +2076,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-probe"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "insta",
  "mbl-core",
@@ -2088,7 +2088,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-remote"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "async-trait",
  "mbl-core",
@@ -2105,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-scanner"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "async-trait",
  "camino",
@@ -2129,7 +2129,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-server"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2181,7 +2181,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-service"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "async-trait",
  "camino",
@@ -2219,7 +2219,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-stream"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "axum",
  "http-body-util",
@@ -2232,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-transcode"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "camino",
  "getrandom 0.4.3",
@@ -2249,7 +2249,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-tv"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "clap",
  "mbl-core",
@@ -2265,7 +2265,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-ui-kit"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -2273,7 +2273,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-worker"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -4755,7 +4755,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "anyhow",
  "camino",

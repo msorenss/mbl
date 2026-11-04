@@ -5,8 +5,8 @@ This document lives at the repository root so every AI agent, contributor, and a
 ## 1. Current status (quick overview)
 - Current work:
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
-  - Note: These Hailo NPU + `.hef` file picker changes are **uncommitted in the working tree** by explicit user request (`"Vill testa först"`) so the user can test their local build before committing/tagging.
-- Latest release tag: `v1.2.2` (prepared 2026-11-02)
+  - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`. Next: Android app phase A0 (`docs/plans/android-client.md`).
+- Latest release tag: `v1.2.3` (prepared 2026-11-04; Hailo NPU/GenAI + Android server prerequisites S1–S7)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -83,7 +83,7 @@ When a milestone is complete and the relevant checks are green:
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
 ### 2026-11-03 — Android-klient: serverförutsättningar S1–S7 (M11.1)
-- **Ej committat** (användaren godkänner commit). Bygger vidare på planen i [`docs/plans/android-client.md`](docs/plans/android-client.md) §3/§3.1, där S1–S7 nu är markerade klara.
+- Committat (`6c0526a`) och släppt i `v1.2.3`. Bygger vidare på planen i [`docs/plans/android-client.md`](docs/plans/android-client.md) §3/§3.1, där S1–S7 nu är markerade klara.
 - **S1 mDNS:** `crates/mbl-server/src/mdns.rs` (`mdns-sd 0.21`, `if-addrs 0.15`) annonserar `_mbl._tcp.local.` med TXT `id`, `version`, `path`, samt `https_port` när TLS är på. Konfig `server.mdns` (standard `true`). Samexistens med avahi på Pi:n är inte körtestad; verifiera med `avahi-browse -rt _mbl._tcp`.
 - **S2:** `crates/mbl-service/src/server_id.rs` ger ett stabilt `serverId` (lagras i `settings`), som visas i `system/info`. Ny oautentiserad `GET /api/v1/system/endpoints` (`ServerEndpoints`) med LAN-, tailnet- och publika URL:er, HTTPS-port och CA-SHA-256. Den innehåller inga hemligheter.
 - **S3:** `crates/mbl-playback/profiles/android-exoplayer.toml` plus en snapshot i `mbl-playback/tests/decide.rs`.

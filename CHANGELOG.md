@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-04
+
 ### Added
+- Native Hailo-8 / Hailo-8L / Hailo-10H NPU runtime (`HailoNativeRuntime`) with cooperative `VDevice` sharing (Frigate-safe low priority), COCO NMS parsing, and real FFmpeg keyframe extraction for scene indexing.
+- Direct HailoRT GenAI support: `VLM` scene descriptions, on-device `LLM` recap fallback and `Speech2Text` (Whisper) transcription, plus discovery of Hailo Model Zoo GenAI v5.5.0 models.
+- Live Hailo telemetry (firmware, temperature, NNC utilization, RAM, voltage), NPU self-test, and Frigate co-tenant detection fix.
+- Interactive `.hef` model picker in *Admin → Hardware* with hot-reload of NPU sessions; `GET /api/v1/system/browse?ext=` file filtering and `hailo_*_hef_path` system settings.
 - Android client server prerequisites (M11.1 S1–S7):
   - mDNS/DNS-SD announcement as `_mbl._tcp.local.` (disable with `server.mdns = false`).
   - Stable `serverId` in `GET /api/v1/system/info` and a public `GET /api/v1/system/endpoints` listing LAN, tailnet and public URLs plus the HTTPS CA fingerprint.
