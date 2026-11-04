@@ -82,6 +82,11 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-04 — v1.2.3: Windows CI-fix för mbl-hailo
+- CI #55 (`release: v1.2.3`) föll på `test-windows`: Unix-only imports och fältet `priority` i `crates/mbl-hailo/src/runtime.rs` var oanvända på Windows under `-D warnings`. Importerna är nu `#[cfg(unix)]` och fältet har `#[cfg_attr(not(unix), allow(dead_code))]`.
+- Verifierat på Pi: `cargo check --target x86_64-pc-windows-gnu --workspace --all-targets` med `RUSTFLAGS="-D warnings"` (MinGW gcc/ar-shims i `/tmp/wshim` för check-only, ~30 min), plus Linux clippy `-p mbl-hailo --all-targets -D warnings` och fmt.
+- Release: pusha main, invänta grön CI, därefter `git push -f origin main:codex/release-v1.2.3`. Taggen `v1.2.3` skapas av release-workflowen.
+
 ### 2026-11-03 — Android-klient: serverförutsättningar S1–S7 (M11.1)
 - Committat (`6c0526a`) och släppt i `v1.2.3`. Bygger vidare på planen i [`docs/plans/android-client.md`](docs/plans/android-client.md) §3/§3.1, där S1–S7 nu är markerade klara.
 - **S1 mDNS:** `crates/mbl-server/src/mdns.rs` (`mdns-sd 0.21`, `if-addrs 0.15`) annonserar `_mbl._tcp.local.` med TXT `id`, `version`, `path`, samt `https_port` när TLS är på. Konfig `server.mdns` (standard `true`). Samexistens med avahi på Pi:n är inte körtestad; verifiera med `avahi-browse -rt _mbl._tcp`.

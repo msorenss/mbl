@@ -12,15 +12,23 @@
 //! 3. **Tier 3 (`hailortcli` CLI Runner):** Subprocess fallback when only `/usr/bin/hailortcli`
 //!    is present.
 
+#[cfg(unix)]
 use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_uint, c_void};
+#[cfg(unix)]
 use std::path::Path;
+#[cfg(unix)]
 use std::process::Command;
+#[cfg(unix)]
 use std::sync::{Arc, Mutex, OnceLock};
 
 use image::DynamicImage;
+#[cfg(unix)]
 use image::imageops::FilterType;
+#[cfg(unix)]
 use mbl_hwaccel::fingerprint::detect_fingerprint_from_root;
-use mbl_hwaccel::hailo::{HailoConfig, HailoSharingMode, discover_hef_model_for_profile};
+#[cfg(unix)]
+use mbl_hwaccel::hailo::discover_hef_model_for_profile;
+use mbl_hwaccel::hailo::{HailoConfig, HailoSharingMode};
 
 /// Standard 80 COCO object detection classes used by Hailo Model Zoo YOLOv6/v8/v11 `.hef` models.
 pub const COCO_CLASSES: [&str; 80] = [
@@ -1501,6 +1509,7 @@ pub fn map_detections_to_tags_and_faces(detections: &[CocoDetection]) -> (Vec<St
 #[derive(Clone, Default)]
 pub struct HailoNativeRuntime {
     group_id: String,
+    #[cfg_attr(not(unix), allow(dead_code))]
     priority: u8,
     #[cfg(unix)]
     session: Arc<Mutex<Option<(std::path::PathBuf, unix_ffi::UnixHailoSession)>>>,
