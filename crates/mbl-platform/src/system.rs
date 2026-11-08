@@ -202,32 +202,24 @@ pub fn detect_profile_from_root(root: &Path, arch: &str) -> PlatformProfile {
     PlatformProfile::Generic
 }
 
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn windows_total_memory_bytes() -> Option<u64> {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut status = MEMORYSTATUSEX {
+        dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: status is properly sized and initialized stack buffer.
+    let ok = unsafe { GlobalMemoryStatusEx(&mut status) };
+    if ok != 0 { Some(status.ullTotalPhys) } else { None }
+}
+
 /// Total physical memory in bytes, when it can be determined cheaply.
 pub fn total_memory_bytes() -> Option<u64> {
     #[cfg(windows)]
-    {
-        #[repr(C)]
-        struct MemoryStatusEx {
-            length: u32,
-            memory_load: u32,
-            total_phys: u64,
-            avail_phys: u64,
-            total_page_file: u64,
-            avail_page_file: u64,
-            total_virtual: u64,
-            avail_virtual: u64,
-            avail_extended_virtual: u64,
-        }
-        extern "system" {
-            fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
-        }
-        unsafe {
-            let mut status = std::mem::zeroed::<MemoryStatusEx>();
-            status.length = std::mem::size_of::<MemoryStatusEx>() as u32;
-            if GlobalMemoryStatusEx(&mut status) != 0 {
-                return Some(status.total_phys);
-            }
-        }
+    if let Some(total) = windows_total_memory_bytes() {
+        return Some(total);
     }
     total_memory_bytes_from_root(Path::new("/"))
 }
