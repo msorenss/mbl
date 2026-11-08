@@ -56,7 +56,6 @@ export function Badge(props: BadgeProps) {
           text: "var(--info)",
           border: "1px solid var(--info)",
         };
-      case "default":
       default:
         return {
           bg: "var(--bg-overlay)",

@@ -41,7 +41,6 @@ export function Button(props: ButtonProps) {
           color: "#ffffff",
           border: "none",
         };
-      case "primary":
       default:
         return {
           "background-color": "var(--accent)",
@@ -65,7 +64,6 @@ export function Button(props: ButtonProps) {
           "font-size": "var(--font-size-lg)",
           "border-radius": "var(--radius-md)",
         };
-      case "md":
       default:
         return {
           padding: "8px 16px",

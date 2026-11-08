@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.3.0
+Current release: v1.3.1
 
-This release improves HLS startup and resume, negotiates codecs with the browser, and introduces a refreshed web interface that can be installed as a PWA. The interface supports 23 languages. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release bundles FFmpeg essentials directly in the Windows installer, adds an in-app GitHub release update checker with platform-specific download links, and enhances hardware and memory reporting on Windows. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 

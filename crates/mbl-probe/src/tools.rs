@@ -93,6 +93,12 @@ async fn find_binary(name: &str, configured: &str) -> Result<PathBuf> {
             std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf))
         {
             candidates.push(dir.join(&exe_name));
+            candidates.push(dir.join("ffmpeg").join(&exe_name));
+            candidates.push(dir.join("ffmpeg").join("bin").join(&exe_name));
+            if let Some(parent) = dir.parent() {
+                candidates.push(parent.join("ffmpeg").join(&exe_name));
+                candidates.push(parent.join("ffmpeg").join("bin").join(&exe_name));
+            }
         }
         candidates.push(PathBuf::from(&exe_name));
     }

@@ -8,7 +8,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Latest release tag: `v1.2.3` (prepared 2026-11-04; Hailo NPU/GenAI + Android server prerequisites S1–S7)
+- Latest release tag: `v1.3.1` (prepared 2026-11-08; bundled Windows FFmpeg, in-app GitHub update checker, Windows hardware/RAM detection)
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -83,6 +83,30 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-08 — Windows FFmpeg-bundling, GitHub Release Update Checker & Release v1.3.1
+- **Live Windows Server Audit (`http://192.168.68.135:8420`):**
+  - Identifierade orsaken till att biblioteksskanningen fallerade: `ffmpeg.exe` och `ffprobe.exe` saknades på Windows-värden, vilket gjorde att `mbl-scanner` avbröt omedelbart med *"ffprobe is not available; install FFmpeg"*. Alla diskar (`C:`, `D:`, `E:`, `F:`, `H:`) och mappar var fullt läsbara och intakta.
+  - Verifierade MQTT: port 1883 mot `mqtt://192.168.68.147:1883` svarar och bakgrundsklienten startar normalt.
+  - Verifierade TLS/cert: körs i rent HTTP-läge på port 8420 (`mode: "none"`).
+  - Identifierade hårdvaruprofilering: NVIDIA RTX 4060 och RAM rapporterades som generiskt med `null` minne på grund av Linux-specifik `sysfs`-logik.
+- **FFmpeg & FFprobe bundlat för Windows:**
+  - `packaging/windows/build-msi.ps1` laddar automatiskt ned Gyan.FFmpeg essentials release och placerar `ffmpeg.exe` och `ffprobe.exe` i `staging/`.
+  - `packaging/windows/mbl.wxs` installerar båda binärerna direkt i `C:\Program Files\MBL\bin\` tillsammans med `mbl-server.exe`.
+  - `.github/workflows/release.yml` inkluderar `ffmpeg.exe` och `ffprobe.exe` i både MSI och ZIP-distributionerna (`dist-windows.zip` och `dist-worker-windows.zip`).
+  - `crates/mbl-probe/src/tools.rs` hittar binärerna direkt intill servern eller i underkataloger utan manuella `PATH`-inställningar.
+- **Windows hårdvaruprofil & RAM:**
+  - `crates/mbl-platform/src/system.rs`: lade till `detect_windows_profile()` med `nvidia-smi`-kontroll för att klassificera NVIDIA-grafikkort som `PlatformProfile::X86Nvidia`.
+  - Lade till fysisk minnesdetektering via Win32 `GlobalMemoryStatusEx` från `kernel32` så att `totalMemoryBytes` rapporteras korrekt på Windows.
+- **In-app GitHub Release Update Checker:**
+  - `crates/mbl-api/src/routes/system.rs`: lade till `GET /api/v1/system/update` (`check_update`) med SemVer-jämförelse, val av rekommenderad nedladdningsfil (.msi/.zip för Windows, _arm64.deb för Pi 5, _amd64.deb för Linux) och 15-minuters in-memory cache med `?force=true` förbikoppling.
+  - `web/src/pages/admin/Settings.tsx`: lade till kortet "Programvaruuppdateringar" i serverinställningarna med statusbricka, direkt nedladdningsknapp, länk till releaseanteckningar och manuell kontrollknapp.
+  - Översatt till alla 23 språk i `web/src/i18n/allUiStrings.ts`.
+- **Kvalitets- och paritetskontroller:**
+  - `web-check` passerar 100 % (44 testfiler, 232 tester, 141,09 KB gzip bundle-budget <= 150 KB).
+  - `cargo xtask openapi-check` bekräftar 0 drift.
+  - `cargo xtask mcp-parity` bekräftar 100,0 % paritet (174/174 endpoints).
+  - Version bumpad till `v1.3.1` över arbetsytan.
 
 ### 2026-11-08 — CI-fixar inför v1.3.0
 - CI #57 stoppade på Clippy eftersom `generated_segment_at` låg efter testmodulen. Hjälpfunktionen ligger nu före testmodulen.

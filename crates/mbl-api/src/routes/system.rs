@@ -22,6 +22,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/system/settings", get(get_system_settings).patch(update_system_settings))
         .route("/api/v1/system/settings/test-tmdb", axum::routing::post(test_tmdb))
         .route("/api/v1/system/tmdb/search", get(search_tmdb))
+        .route("/api/v1/system/update", get(check_update))
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -695,9 +696,245 @@ async fn search_tmdb(
     Ok(Json(TmdbSearchResponse { configured: true, results: hits }))
 }
 
+/// GitHub Release API DTOs
+#[derive(Debug, Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    name: Option<String>,
+    body: Option<String>,
+    published_at: Option<String>,
+    html_url: String,
+    assets: Option<Vec<GithubAsset>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GithubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+/// Query parameters for software update checking.
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct UpdateCheckQuery {
+    /// When true, bypass the 15-minute in-memory cache and query GitHub directly.
+    pub force: Option<bool>,
+}
+
+/// Information about the latest available MBL server release on GitHub.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResponse {
+    /// Currently running server version.
+    pub current_version: String,
+    /// Latest release version tag on GitHub.
+    pub latest_version: String,
+    /// True if GitHub has a newer version than currently running.
+    pub update_available: bool,
+    /// Release title from GitHub.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_name: Option<String>,
+    /// Release notes / changelog in markdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_notes: Option<String>,
+    /// Timestamp when this release was published on GitHub.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
+    /// Link to the release page on GitHub.
+    pub html_url: String,
+    /// Direct download URL for the recommended binary/installer for this platform.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    /// Filename of the recommended asset (e.g. .msi on Windows, .deb on Debian/Pi).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_name: Option<String>,
+    /// ISO 8601 timestamp of when the check was performed.
+    pub checked_at: String,
+    /// Error message if reaching GitHub or checking updates failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+static UPDATE_CACHE: tokio::sync::Mutex<Option<(std::time::Instant, UpdateCheckResponse)>> =
+    tokio::sync::Mutex::const_new(None);
+
+fn parse_semver(s: &str) -> Option<(u32, u32, u32)> {
+    let s = s.trim().trim_start_matches('v');
+    let mut parts = s.split('.');
+    let maj: u32 = parts.next()?.parse().ok()?;
+    let min: u32 = parts.next()?.parse().ok()?;
+    let patch_str = parts.next().unwrap_or("0");
+    let patch_num = patch_str.split('-').next().unwrap_or(patch_str);
+    let patch: u32 = patch_num.parse().ok()?;
+    Some((maj, min, patch))
+}
+
+fn is_newer_version(latest: &str, current: &str) -> bool {
+    match (parse_semver(latest), parse_semver(current)) {
+        (Some(l), Some(c)) => l > c,
+        _ => latest.trim_start_matches('v') != current.trim_start_matches('v'),
+    }
+}
+
+fn find_recommended_asset<'a>(
+    assets: &'a [GithubAsset],
+    os: &str,
+    arch: &str,
+) -> Option<(&'a str, &'a str)> {
+    if os == "windows" {
+        if let Some(a) = assets.iter().find(|a| a.name.ends_with(".msi")) {
+            return Some((&a.name, &a.browser_download_url));
+        }
+        if let Some(a) = assets.iter().find(|a| a.name.ends_with("-windows-x86_64.zip")) {
+            return Some((&a.name, &a.browser_download_url));
+        }
+    } else if os == "linux" {
+        if arch == "aarch64" || arch == "arm64" {
+            if let Some(a) =
+                assets.iter().find(|a| a.name.starts_with("mbl_") && a.name.ends_with("_arm64.deb"))
+            {
+                return Some((&a.name, &a.browser_download_url));
+            }
+            if let Some(a) = assets
+                .iter()
+                .find(|a| a.name.starts_with("mbl-v") && a.name.ends_with("-linux-arm64.tar.gz"))
+            {
+                return Some((&a.name, &a.browser_download_url));
+            }
+        } else {
+            if let Some(a) =
+                assets.iter().find(|a| a.name.starts_with("mbl_") && a.name.ends_with("_amd64.deb"))
+            {
+                return Some((&a.name, &a.browser_download_url));
+            }
+            if let Some(a) = assets
+                .iter()
+                .find(|a| a.name.starts_with("mbl-v") && a.name.ends_with("-linux-x86_64.tar.gz"))
+            {
+                return Some((&a.name, &a.browser_download_url));
+            }
+        }
+    }
+    None
+}
+
+/// Check for available MBL server updates from GitHub Releases.
+#[utoipa::path(get, path = "/api/v1/system/update", tag = "system",
+    params(UpdateCheckQuery),
+    responses((status = 200, body = UpdateCheckResponse)))]
+pub async fn check_update(
+    State(state): State<AppState>,
+    Query(query): Query<UpdateCheckQuery>,
+) -> Result<Json<UpdateCheckResponse>, ApiError> {
+    let current_version = state.info.version.to_string();
+    let force = query.force.unwrap_or(false);
+
+    if !force {
+        let cache = UPDATE_CACHE.lock().await;
+        if let Some((instant, ref res)) = *cache
+            && instant.elapsed() < std::time::Duration::from_secs(15 * 60)
+        {
+            return Ok(Json(res.clone()));
+        }
+    }
+
+    let checked_at = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into());
+    let url = "https://api.github.com/repos/msorenss/mbl/releases/latest";
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| Error::Internal(format!("Failed to build HTTP client: {e}").into()))?;
+
+    let user_agent = format!("mbl-server/{current_version}");
+    let response = client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, user_agent)
+        .header(reqwest::header::ACCEPT, "application/vnd.github.v3+json")
+        .send()
+        .await;
+
+    let res = match response {
+        Ok(resp) if resp.status().is_success() => match resp.json::<GithubRelease>().await {
+            Ok(rel) => {
+                let latest_raw = rel.tag_name.trim_start_matches('v').to_string();
+                let update_available = is_newer_version(&latest_raw, &current_version);
+                let (asset_name, download_url) = rel
+                    .assets
+                    .as_deref()
+                    .and_then(|assets| {
+                        find_recommended_asset(assets, state.info.os, state.info.arch)
+                    })
+                    .map(|(n, u)| (Some(n.to_string()), Some(u.to_string())))
+                    .unwrap_or((None, None));
+
+                UpdateCheckResponse {
+                    current_version,
+                    latest_version: latest_raw,
+                    update_available,
+                    release_name: rel.name,
+                    release_notes: rel.body,
+                    published_at: rel.published_at,
+                    html_url: rel.html_url,
+                    download_url,
+                    asset_name,
+                    checked_at,
+                    error: None,
+                }
+            }
+            Err(err) => UpdateCheckResponse {
+                latest_version: current_version.clone(),
+                current_version,
+                update_available: false,
+                release_name: None,
+                release_notes: None,
+                published_at: None,
+                html_url: "https://github.com/msorenss/mbl/releases".into(),
+                download_url: None,
+                asset_name: None,
+                checked_at,
+                error: Some(format!("Failed to parse GitHub response: {err}")),
+            },
+        },
+        Ok(resp) => UpdateCheckResponse {
+            latest_version: current_version.clone(),
+            current_version,
+            update_available: false,
+            release_name: None,
+            release_notes: None,
+            published_at: None,
+            html_url: "https://github.com/msorenss/mbl/releases".into(),
+            download_url: None,
+            asset_name: None,
+            checked_at,
+            error: Some(format!("GitHub API returned HTTP {}", resp.status())),
+        },
+        Err(err) => UpdateCheckResponse {
+            latest_version: current_version.clone(),
+            current_version,
+            update_available: false,
+            release_name: None,
+            release_notes: None,
+            published_at: None,
+            html_url: "https://github.com/msorenss/mbl/releases".into(),
+            download_url: None,
+            asset_name: None,
+            checked_at,
+            error: Some(format!("Could not reach GitHub: {err}")),
+        },
+    };
+
+    let mut cache = UPDATE_CACHE.lock().await;
+    *cache = Some((std::time::Instant::now(), res.clone()));
+
+    Ok(Json(res))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::pem_sha256_hex;
+    use super::*;
 
     #[test]
     fn ca_fingerprint_hashes_the_first_certificate_der() {
@@ -713,5 +950,52 @@ mod tests {
             pem_sha256_hex("-----BEGIN CERTIFICATE-----\n!!\n-----END CERTIFICATE-----"),
             None
         );
+    }
+
+    #[test]
+    fn semver_comparison() {
+        assert_eq!(parse_semver("v1.3.1"), Some((1, 3, 1)));
+        assert_eq!(parse_semver("1.3.0"), Some((1, 3, 0)));
+        assert_eq!(parse_semver("v2.0.0-beta"), Some((2, 0, 0)));
+
+        assert!(is_newer_version("1.3.1", "1.3.0"));
+        assert!(is_newer_version("v1.3.1", "1.3.0"));
+        assert!(is_newer_version("2.0.0", "1.3.1"));
+        assert!(!is_newer_version("1.3.0", "1.3.0"));
+        assert!(!is_newer_version("1.2.9", "1.3.0"));
+    }
+
+    #[test]
+    fn recommended_asset_selection() {
+        let assets = vec![
+            GithubAsset {
+                name: "mbl-1.3.1-windows-x86_64.msi".into(),
+                browser_download_url: "https://example.com/mbl.msi".into(),
+            },
+            GithubAsset {
+                name: "mbl-v1.3.1-windows-x86_64.zip".into(),
+                browser_download_url: "https://example.com/mbl.zip".into(),
+            },
+            GithubAsset {
+                name: "mbl_1.3.1-1_arm64.deb".into(),
+                browser_download_url: "https://example.com/mbl_arm64.deb".into(),
+            },
+            GithubAsset {
+                name: "mbl_1.3.1-1_amd64.deb".into(),
+                browser_download_url: "https://example.com/mbl_amd64.deb".into(),
+            },
+        ];
+
+        // Windows prefers MSI
+        let win = find_recommended_asset(&assets, "windows", "x86_64");
+        assert_eq!(win, Some(("mbl-1.3.1-windows-x86_64.msi", "https://example.com/mbl.msi")));
+
+        // Linux ARM64 (Raspberry Pi) prefers arm64.deb
+        let arm = find_recommended_asset(&assets, "linux", "aarch64");
+        assert_eq!(arm, Some(("mbl_1.3.1-1_arm64.deb", "https://example.com/mbl_arm64.deb")));
+
+        // Linux x86_64 prefers amd64.deb
+        let x86 = find_recommended_asset(&assets, "linux", "x86_64");
+        assert_eq!(x86, Some(("mbl_1.3.1-1_amd64.deb", "https://example.com/mbl_amd64.deb")));
     }
 }

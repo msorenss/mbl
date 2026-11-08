@@ -228,6 +228,8 @@ jobs:
             "staging\mbl-tv.exe",
             "staging\mbl-worker.exe",
             "staging\mbl-node.exe",
+            "staging\ffmpeg.exe",
+            "staging\ffprobe.exe",
             "staging\README.txt",
             "staging\LICENSE.txt"
           )
@@ -237,6 +239,8 @@ jobs:
           # Package Standalone Worker ZIP
           $workerFiles = @(
             "staging\mbl-worker.exe",
+            "staging\ffmpeg.exe",
+            "staging\ffprobe.exe",
             "packaging\windows\README-worker.txt",
             "staging\LICENSE.txt"
           )

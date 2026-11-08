@@ -97,7 +97,38 @@ pub struct PlatformDefaults {
 
 /// Detect the [`PlatformProfile`] of the current host.
 pub fn detect_profile() -> PlatformProfile {
+    #[cfg(windows)]
+    {
+        if let Some(prof) = detect_windows_profile() {
+            return prof;
+        }
+    }
     detect_profile_from_root(Path::new("/"), std::env::consts::ARCH)
+}
+
+#[cfg(windows)]
+fn detect_windows_profile() -> Option<PlatformProfile> {
+    use std::process::Command;
+
+    // Check NVIDIA GPU via nvidia-smi
+    let smi_candidates = [
+        "nvidia-smi",
+        r"C:\Windows\System32\nvidia-smi.exe",
+        r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
+    ];
+    for cand in smi_candidates {
+        if let Ok(output) = Command::new(cand).arg("-L").output() {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if stdout.contains("GPU") || stdout.contains("NVIDIA") || stdout.contains("GeForce")
+                {
+                    return Some(PlatformProfile::X86Nvidia);
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Detect [`PlatformProfile`] from a root directory (e.g. `/` or a test fixture sysfs tree) and CPU architecture string.
@@ -173,6 +204,31 @@ pub fn detect_profile_from_root(root: &Path, arch: &str) -> PlatformProfile {
 
 /// Total physical memory in bytes, when it can be determined cheaply.
 pub fn total_memory_bytes() -> Option<u64> {
+    #[cfg(windows)]
+    {
+        #[repr(C)]
+        struct MemoryStatusEx {
+            length: u32,
+            memory_load: u32,
+            total_phys: u64,
+            avail_phys: u64,
+            total_page_file: u64,
+            avail_page_file: u64,
+            total_virtual: u64,
+            avail_virtual: u64,
+            avail_extended_virtual: u64,
+        }
+        extern "system" {
+            fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
+        }
+        unsafe {
+            let mut status = std::mem::zeroed::<MemoryStatusEx>();
+            status.length = std::mem::size_of::<MemoryStatusEx>() as u32;
+            if GlobalMemoryStatusEx(&mut status) != 0 {
+                return Some(status.total_phys);
+            }
+        }
+    }
     total_memory_bytes_from_root(Path::new("/"))
 }
 

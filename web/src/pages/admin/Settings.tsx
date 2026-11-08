@@ -47,6 +47,49 @@ export default function Settings() {
     }
   });
 
+  const [updateInfo, { refetch: refetchUpdate }] = createResource(async () => {
+    try {
+      const res = await client.GET("/api/v1/system/update");
+      return res.data;
+    } catch {
+      return undefined;
+    }
+  });
+  const [checkingUpdate, setCheckingUpdate] = createSignal(false);
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    try {
+      const res = await client.GET("/api/v1/system/update", {
+        params: { query: { force: true } },
+      });
+      if (res.data) {
+        await refetchUpdate();
+        if (res.data.updateAvailable) {
+          showToast({
+            title: "Update Available",
+            message: `MBL v${res.data.latestVersion} is available to install!`,
+            type: "info",
+          });
+        } else {
+          showToast({
+            title: "Up to Date",
+            message: `MBL v${res.data.currentVersion} is the latest release.`,
+            type: "success",
+          });
+        }
+      }
+    } catch {
+      showToast({
+        title: "Update Check Failed",
+        message: "Could not reach GitHub to check for updates.",
+        type: "error",
+      });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
   const [settings, { refetch }] = createResource(async () => {
     const res = await client.GET("/api/v1/system/settings");
     if (res.data) {
@@ -254,6 +297,111 @@ export default function Settings() {
                 ? ` • ${serverInfo()?.npuProfile}`
                 : ""}
             </div>
+          </div>
+        </div>
+
+        {/* Software Update Checker */}
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            "flex-wrap": "wrap",
+            gap: "12px",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            padding: "12px 16px",
+            "border-radius": "var(--radius-md)",
+            "margin-top": "4px",
+          }}
+        >
+          <div style={{ display: "flex", "align-items": "center", gap: "12px" }}>
+            <span style={{ "font-size": "20px" }}>
+              {updateInfo()?.updateAvailable ? "🚀" : "✨"}
+            </span>
+            <div>
+              <div style={{ "font-weight": "600", "font-size": "14px" }}>
+                <Show
+                  when={updateInfo()?.updateAvailable}
+                  fallback={
+                    <span>MBL is up to date (v{serverInfo()?.version || __MBL_VERSION__})</span>
+                  }
+                >
+                  <span style={{ color: "var(--accent)" }}>
+                    Update Available: v{updateInfo()?.latestVersion}
+                  </span>
+                </Show>
+              </div>
+              <div style={{ color: "var(--text-muted)", "font-size": "12px" }}>
+                <Show
+                  when={updateInfo()?.updateAvailable}
+                  fallback={
+                    <span>
+                      {updateInfo()?.checkedAt
+                        ? `Last checked: ${new Date(updateInfo()!.checkedAt).toLocaleTimeString()}`
+                        : "Checking GitHub for releases..."}
+                    </span>
+                  }
+                >
+                  <span>
+                    {updateInfo()?.releaseName || `Release v${updateInfo()?.latestVersion}`}
+                    {updateInfo()?.publishedAt
+                      ? ` • ${new Date(updateInfo()!.publishedAt!).toLocaleDateString()}`
+                      : ""}
+                  </span>
+                </Show>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+            <Show when={updateInfo()?.updateAvailable}>
+              <a
+                href={updateInfo()?.downloadUrl || updateInfo()?.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "inline-flex",
+                  "align-items": "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  background: "var(--accent)",
+                  color: "#fff",
+                  "border-radius": "var(--radius-md)",
+                  "text-decoration": "none",
+                  "font-size": "13px",
+                  "font-weight": "600",
+                }}
+              >
+                <span>📥</span>
+                <span>
+                  {updateInfo()?.downloadUrl
+                    ? `Download ${updateInfo()?.assetName || "Update"}`
+                    : "View Release"}
+                </span>
+              </a>
+            </Show>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCheckUpdate}
+              disabled={checkingUpdate()}
+            >
+              {checkingUpdate() ? "Checking..." : "Check for Updates"}
+            </Button>
+            <a
+              href="https://github.com/msorenss/mbl/releases"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                color: "var(--text-muted)",
+                "font-size": "12px",
+                "text-decoration": "none",
+                padding: "4px 8px",
+              }}
+            >
+              GitHub ↗
+            </a>
           </div>
         </div>
       </div>

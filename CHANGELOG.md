@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-08
+
+### Added
+- Bundled static Gyan.FFmpeg essentials (`ffmpeg.exe` and `ffprobe.exe`) directly in the Windows MSI installer and standalone Windows ZIP packages, eliminating manual FFmpeg installation for library scanning, audio probing, and video transcoding.
+- Automated GitHub release update checker:
+  - New backend endpoint `GET /api/v1/system/update` querying GitHub releases with a 15-minute in-memory cache and recommended download asset matching the running OS and architecture.
+  - Interactive "Software Updates" status card in *Admin → Settings* displaying current version, update notifications, direct platform download button, and a manual "Check for Updates" button.
+- Windows platform profile and memory detection:
+  - Host platform detection identifies NVIDIA GPUs (e.g. GeForce RTX 4060) via driver tools.
+  - System health report reads total physical RAM on Windows using `GlobalMemoryStatusEx`.
+
+### Fixed
+- Library scanner error on fresh Windows installations caused by missing FFmpeg binaries in PATH.
+
 ## [1.3.0] - 2026-11-08
 
 ### Added

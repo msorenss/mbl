@@ -1,13 +1,14 @@
-MBL Media Server for Windows (v1.3.0)
+MBL Media Server for Windows (v1.3.1)
 =====================================
 
 Welcome to MBL! MBL is a high-performance, lightweight personal media server.
 
 Quick Start
 -----------
-1. Install FFmpeg:
-   MBL requires FFmpeg for media probing and on-the-fly transcoding.
-   - Option A (Recommended): Install via Windows Package Manager:
+1. Built-in FFmpeg:
+   FFmpeg and FFprobe static binaries are bundled directly in the MBL installer
+   and placed into the bin\ folder alongside mbl-server.exe. No separate FFmpeg
+   installation is required for library scanning, audio probing, or video transcoding!
        winget install Gyan.FFmpeg
    - Option B: Download from https://ffmpeg.org/download.html and add ffmpeg.exe
      and ffprobe.exe to your system PATH.

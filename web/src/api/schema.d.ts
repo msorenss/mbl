@@ -2508,6 +2508,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check for available MBL server updates from GitHub Releases. */
+        get: operations["check_update"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -5042,6 +5059,31 @@ export interface components {
             isFavorite?: boolean | null;
             isHidden?: boolean | null;
             name?: string | null;
+        };
+        /** @description Information about the latest available MBL server release on GitHub. */
+        UpdateCheckResponse: {
+            /** @description Filename of the recommended asset (e.g. .msi on Windows, .deb on Debian/Pi). */
+            assetName?: string | null;
+            /** @description ISO 8601 timestamp of when the check was performed. */
+            checkedAt: string;
+            /** @description Currently running server version. */
+            currentVersion: string;
+            /** @description Direct download URL for the recommended binary/installer for this platform. */
+            downloadUrl?: string | null;
+            /** @description Error message if reaching GitHub or checking updates failed. */
+            error?: string | null;
+            /** @description Link to the release page on GitHub. */
+            htmlUrl: string;
+            /** @description Latest release version tag on GitHub. */
+            latestVersion: string;
+            /** @description Timestamp when this release was published on GitHub. */
+            publishedAt?: string | null;
+            /** @description Release title from GitHub. */
+            releaseName?: string | null;
+            /** @description Release notes / changelog in markdown. */
+            releaseNotes?: string | null;
+            /** @description True if GitHub has a newer version than currently running. */
+            updateAvailable: boolean;
         };
         UpdateCollectionRequest: {
             name: string;
@@ -11346,6 +11388,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    check_update: {
+        parameters: {
+            query?: {
+                /** @description When true, bypass the 15-minute in-memory cache and query GitHub directly. */
+                force?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCheckResponse"];
+                };
             };
         };
     };

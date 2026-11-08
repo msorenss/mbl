@@ -1,6 +1,6 @@
 # PowerShell script to build MBL Media Server WiX MSI installer
 param(
-    [string]$Version = "1.2.1",
+    [string]$Version = "1.3.1",
     [string]$OutputDir = "staging",
     [string]$BinDir = "target\release"
 )
@@ -37,6 +37,35 @@ foreach ($binary in @("mbl-server.exe", "mbl-tv.exe", "mbl-worker.exe", "mbl-nod
         throw "Required release binary not found: $source"
     }
     Copy-Item -Path $source -Destination $OutputDir -Force
+}
+
+# Ensure FFmpeg and FFprobe binaries are present in staging for out-of-the-box scanning & transcoding
+$ffmpegExe = Join-Path $OutputDir "ffmpeg.exe"
+$ffprobeExe = Join-Path $OutputDir "ffprobe.exe"
+if (-not (Test-Path $ffmpegExe) -or -not (Test-Path $ffprobeExe)) {
+    $binFfmpeg = Join-Path $BinDir "ffmpeg.exe"
+    $binFfprobe = Join-Path $BinDir "ffprobe.exe"
+    if ((Test-Path $binFfmpeg) -and (Test-Path $binFfprobe)) {
+        Copy-Item -Path $binFfmpeg -Destination $OutputDir -Force
+        Copy-Item -Path $binFfprobe -Destination $OutputDir -Force
+    } else {
+        Write-Host "Downloading Gyan.FFmpeg release essentials for Windows..."
+        $zipPath = Join-Path $OutputDir "ffmpeg-essentials.zip"
+        $extractDir = Join-Path $OutputDir "ffmpeg_tmp"
+        Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+        $foundFfmpeg = Get-ChildItem -Path $extractDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+        if ($foundFfmpeg) {
+            $srcDir = $foundFfmpeg.DirectoryName
+            Copy-Item -Path (Join-Path $srcDir "ffmpeg.exe") -Destination $OutputDir -Force
+            Copy-Item -Path (Join-Path $srcDir "ffprobe.exe") -Destination $OutputDir -Force
+            Write-Host "Staged ffmpeg.exe and ffprobe.exe into $OutputDir"
+        } else {
+            throw "Failed to extract ffmpeg.exe from downloaded Gyan.FFmpeg archive"
+        }
+        Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Compile with candle.exe

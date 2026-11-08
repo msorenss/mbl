@@ -286,3 +286,7 @@ reason = "Offline download ticket status and removal for client devices."
 [[exclusions]]
 path = "/api/v1/downloads/{id}/file"
 reason = "Binary media download (Range/HEAD) for client devices."
+
+[[exclusions]]
+path = "/api/v1/system/update"
+reason = "Checks GitHub releases for server software updates and downloads; human administrator operation."

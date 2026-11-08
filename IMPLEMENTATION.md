@@ -1508,3 +1508,14 @@ Added local bounded Cast event timeline in Stats with copied JSON, localized UI,
 
 ### 2026-11-03 — Android client server prerequisites (M11.1 S1–S7)
 - mDNS `_mbl._tcp` announcement (`server.mdns`), stable `serverId` and public `GET /api/v1/system/endpoints`, built-in `android-exoplayer` profile, offline downloads (migration `0014_downloads.sql`, `/api/v1/items/{id}/downloads`, `/api/v1/downloads/*`, job `download.transcode`), `POST /api/v1/users/me/progress/sync`, `GET /api/v1/items/{id}/lyrics` and `DELETE /api/v1/users/me` (with web UI). Tests: `crates/mbl-server/tests/android.rs` (6). The Android app itself (A0–A8) is not started.
+
+### 2026-11-08 — Playback Performance Phases 1–4, Physical Cast Verification & v1.3.0
+- Implemented fast-start HLS player prefetching, 128 KiB I/O chunking, dynamic browser codec overlay negotiation, in-memory segment tracking, and resume fragment optimization.
+- Generated three synthetic 60-second test clips and verified flawless physical Chromecast playback on Bedroom TV across Direct Play, stereo HLS, and multi-channel HLS remuxing.
+- Packaged and released `v1.3.0`.
+
+### 2026-11-08 — Windows FFmpeg Bundling, Update Checker & v1.3.1
+- Diagnosed Windows library scanner failure caused by missing `ffmpeg.exe` and `ffprobe.exe` binaries; bundled Gyan.FFmpeg essentials release into MSI installer, ZIP distributions, and runtime tool lookup paths.
+- Added platform profile detection for Windows NVIDIA GPUs and RAM detection via `GlobalMemoryStatusEx`.
+- Implemented in-app GitHub Release Update Checker (`GET /api/v1/system/update`) with recommended asset selector and admin Settings UI across 23 languages.
+- Verified 100.0% MCP parity (174/174 endpoints) and released `v1.3.1`.
