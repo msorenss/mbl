@@ -117,13 +117,12 @@ fn detect_windows_profile() -> Option<PlatformProfile> {
         r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
     ];
     for cand in smi_candidates {
-        if let Ok(output) = Command::new(cand).arg("-L").output() {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                if stdout.contains("GPU") || stdout.contains("NVIDIA") || stdout.contains("GeForce")
-                {
-                    return Some(PlatformProfile::X86Nvidia);
-                }
+        if let Ok(output) = Command::new(cand).arg("-L").output()
+            && output.status.success()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if stdout.contains("GPU") || stdout.contains("NVIDIA") || stdout.contains("GeForce") {
+                return Some(PlatformProfile::X86Nvidia);
             }
         }
     }

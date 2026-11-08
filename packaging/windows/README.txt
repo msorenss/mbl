@@ -1,4 +1,4 @@
-MBL Media Server for Windows (v1.3.3)
+MBL Media Server for Windows (v1.3.4)
 =====================================
 
 Welcome to MBL! MBL is a high-performance, lightweight personal media server.
@@ -17,6 +17,12 @@ Quick Start
        [transcode]
        ffmpeg_path = "C:\\path\\to\\ffmpeg.exe"
        ffprobe_path = "C:\\path\\to\\ffprobe.exe"
+
+   NVIDIA encoding: Run the Hardware self-test in MBL after updating the
+   driver or changing FFmpeg. If FFmpeg reports an NVENC API version mismatch,
+   use a driver that meets the minimum in the error or configure a compatible
+   FFmpeg build using the paths above. MBL uses software encoding when no
+   compatible hardware encoder passes the test.
 
 2. Run MBL Server (Console or Windows Service):
    - Option A (Windows Background Service — Recommended):

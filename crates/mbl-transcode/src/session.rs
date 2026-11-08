@@ -1,5 +1,5 @@
 //! HLS transcode/remux session manager: upfront playlist persistence, segment wait vs. seek
-//! restart (`-ss`, `-start_number`), SIGSTOP/SIGCONT ahead-throttling, 60 s inactivity cleanup,
+//! restart (`-ss`, `-start_number`), ahead-throttling, 60 s inactivity cleanup,
 //! disk quota enforcement, and concurrency caps (M2.5).
 
 use std::collections::{HashMap, HashSet};
@@ -102,6 +102,8 @@ struct SessionState {
     active_backend: Backend,
     fallback_backends: Vec<Backend>,
     paused: bool,
+    #[cfg(windows)]
+    suspended_threads: Option<crate::windows_throttle::SuspendedThreads>,
     current_start_segment: u32,
     renditions: HashMap<String, RenditionProgress>,
     last_requested_segment: u32,
@@ -159,6 +161,39 @@ impl RenditionProgress {
 impl SessionState {
     fn ensure_open(&self) -> Result<()> {
         if self.closed { Err(Error::NotFound) } else { Ok(()) }
+    }
+
+    fn pause_child(&mut self) -> bool {
+        let Some(pid) = self.child.as_ref().and_then(Child::id) else {
+            return false;
+        };
+        #[cfg(unix)]
+        {
+            self.paused = send_unix_signal(pid, "-STOP");
+        }
+        #[cfg(windows)]
+        match crate::windows_throttle::SuspendedThreads::suspend(pid) {
+            Ok(threads) => {
+                self.suspended_threads = Some(threads);
+                self.paused = true;
+            }
+            Err(error) => tracing::debug!(pid, %error, "could not throttle FFmpeg"),
+        }
+        #[cfg(not(any(unix, windows)))]
+        let _ = pid;
+        self.paused
+    }
+
+    fn resume_child(&mut self) {
+        #[cfg(unix)]
+        if self.paused
+            && let Some(pid) = self.child.as_ref().and_then(Child::id)
+        {
+            send_unix_signal(pid, "-CONT");
+        }
+        #[cfg(windows)]
+        drop(self.suspended_threads.take());
+        self.paused = false;
     }
 
     fn rendition(&mut self, name: &str) -> Result<&mut RenditionProgress> {
@@ -266,8 +301,7 @@ impl HlsSession {
                 state.ensure_open()?;
                 state.last_requested_segment = u32::MAX;
                 if state.paused {
-                    resume_child(&state.child);
-                    state.paused = false;
+                    state.resume_child();
                 }
             }
             loop {
@@ -366,8 +400,7 @@ impl HlsSession {
             }
             if running {
                 if st.paused {
-                    resume_child(&st.child);
-                    st.paused = false;
+                    st.resume_child();
                 }
             } else {
                 if self.generated_playlist_start_ms.is_some() {
@@ -448,8 +481,7 @@ impl HlsSession {
 
             // Resume FFmpeg if it was paused and the client has caught up within `ahead_segments`.
             if st.paused && head.saturating_sub(segment_num) <= self.ahead_segments {
-                resume_child(&st.child);
-                st.paused = false;
+                st.resume_child();
             }
 
             if complete && file_has_data(&seg_path).await {
@@ -468,8 +500,7 @@ impl HlsSession {
                     ));
                 }
                 if st.paused {
-                    resume_child(&st.child);
-                    st.paused = false;
+                    st.resume_child();
                 }
             } else {
                 if !running
@@ -525,7 +556,7 @@ impl HlsSession {
         let mut st = self.state.lock().await;
         let running = poll_child_state(&mut st);
         if !running {
-            st.paused = false;
+            st.resume_child();
             return;
         }
         let primary = self.base_pipeline.output.renditions.first().map_or("0", |r| r.name.as_str());
@@ -538,9 +569,7 @@ impl HlsSession {
         let head = progress.head.unwrap_or(start);
 
         let ahead = head.saturating_sub(st.last_requested_segment);
-        if ahead > self.ahead_segments && !st.paused {
-            pause_child(&st.child);
-            st.paused = true;
+        if ahead > self.ahead_segments && !st.paused && st.pause_child() {
             tracing::debug!(
                 session_id = %self.id,
                 head,
@@ -549,8 +578,7 @@ impl HlsSession {
                 "paused FFmpeg process (ahead of client)"
             );
         } else if ahead <= self.ahead_segments && st.paused {
-            resume_child(&st.child);
-            st.paused = false;
+            st.resume_child();
             tracing::debug!(
                 session_id = %self.id,
                 head,
@@ -961,6 +989,8 @@ impl SessionManager {
                 active_backend,
                 fallback_backends,
                 paused: false,
+                #[cfg(windows)]
+                suspended_threads: None,
                 current_start_segment: initial_segment,
                 renditions: HashMap::new(),
                 last_requested_segment: initial_segment,
@@ -1021,7 +1051,7 @@ impl SessionManager {
 
     /// Run one maintenance pass:
     /// 1. Reap sessions that have exceeded `inactivity_timeout` (default 60 s).
-    /// 2. Tick ahead-segment throttling (`SIGSTOP` / `SIGCONT`) on active sessions.
+    /// 2. Tick ahead-segment throttling on active sessions.
     /// 3. Enforce global disk quota on `transcode_dir`.
     pub async fn run_maintenance_once(&self) {
         let snapshot: Vec<Arc<HlsSession>> =
@@ -1064,8 +1094,10 @@ impl SessionManager {
         sessions.sort_by_key(|(last, _, _)| *last);
 
         // Pass 1: delete segments strictly older than `last_requested_segment.saturating_sub(1)`.
+        // The generated playlist uses MAX as a sentinel while preparing; no
+        // segment has been consumed in that state.
         for (_, last_req, session) in &sessions {
-            if last_req > &1 {
+            if *last_req > 1 && *last_req != u32::MAX {
                 let r_dir = session.base_pipeline.output.rendition_dir(0);
                 for seg in 0..(last_req - 1) {
                     let _ = std::fs::remove_file(r_dir.join(format!("{seg}.m4s")).as_std_path());
@@ -1126,43 +1158,24 @@ fn poll_child_state(st: &mut SessionState) -> bool {
 }
 
 async fn kill_existing_child(st: &mut SessionState) {
+    st.resume_child();
     if let Some(child) = st.child.as_mut() {
-        if st.paused
-            && let Some(pid) = child.id()
-        {
-            send_unix_signal(pid, "-CONT");
-        }
         let _ = child.kill().await;
         let _ = child.wait().await;
         st.child = None;
     }
-    st.paused = false;
-}
-
-fn pause_child(child_slot: &Option<Child>) {
-    if let Some(pid) = child_slot.as_ref().and_then(Child::id) {
-        send_unix_signal(pid, "-STOP");
-    }
-}
-
-fn resume_child(child_slot: &Option<Child>) {
-    if let Some(pid) = child_slot.as_ref().and_then(Child::id) {
-        send_unix_signal(pid, "-CONT");
-    }
 }
 
 #[cfg(unix)]
-fn send_unix_signal(pid: u32, sig_flag: &str) {
-    let _ = std::process::Command::new("kill")
+fn send_unix_signal(pid: u32, sig_flag: &str) -> bool {
+    std::process::Command::new("kill")
         .args([sig_flag, &pid.to_string()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status();
+        .status()
+        .is_ok_and(|status| status.success())
 }
-
-#[cfg(not(unix))]
-fn send_unix_signal(_pid: u32, _sig_flag: &str) {}
 
 async fn file_has_data(path: &Path) -> bool {
     tokio::fs::metadata(path).await.is_ok_and(|meta| meta.is_file() && meta.len() > 0)

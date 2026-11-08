@@ -335,6 +335,9 @@ export function Player(props: PlayerProps) {
         itemId: body.itemId,
         profile: typeof body.profile === "string" ? body.profile : body.profile?.name,
         startMs,
+        audioStreamIndex: body.audioStreamIndex,
+        audioOffsetMs: body.audioOffsetMs,
+        subtitleStreamIndex: body.subtitleStreamIndex,
       });
       const result = await client.POST("/api/v1/playback", {
         body: { ...body, startMs, waitForReady: true },
@@ -345,6 +348,7 @@ export function Player(props: PlayerProps) {
         generatedTimeline: result.data?.hlsGeneratedTimeline,
         method: result.data?.method,
         startMs: result.data?.startMs,
+        burnedSubtitleStreamIndex: result.data?.burnedSubtitleStreamIndex,
         url: result.data?.url,
       });
       return result;
@@ -497,7 +501,8 @@ export function Player(props: PlayerProps) {
     if (!data || !vid || disposed || ended() || error() || sessionExpired() || reportingProgress)
       return;
 
-    const positionMs = Math.floor((isCasting() ? currentTime() : vid.currentTime) * 1000);
+    const casting = isCasting();
+    const positionMs = Math.floor((casting ? currentTime() : vid.currentTime) * 1000);
     reportingProgress = true;
     const abort = new AbortController();
     progressAbort = abort;
@@ -509,6 +514,12 @@ export function Player(props: PlayerProps) {
         params: { path: { session: data.sessionId } },
         body: { positionMs, state },
       });
+      if (casting && (state === "paused" || !result.response.ok))
+        castDiagnostics.record("server.progress", {
+          state,
+          positionMs,
+          status: result.response.status,
+        });
       if (
         !disposed &&
         playbackData()?.sessionId === data.sessionId &&
@@ -516,6 +527,12 @@ export function Player(props: PlayerProps) {
       )
         expirePlayback();
     } catch {
+      if (casting)
+        castDiagnostics.record("server.progress_failed", {
+          state,
+          positionMs,
+          timedOut: abort.signal.aborted,
+        });
     } finally {
       window.clearTimeout(timeout);
       if (progressAbort === abort) progressAbort = null;
@@ -876,6 +893,8 @@ export function Player(props: PlayerProps) {
       setReceiverAutoplaySupported(cState.supportsAutoplayNext === true);
       if (!cState.isCasting || !cState.playbackEnded) setReceiverFinish(null);
       if (wasCasting && !cState.isCasting && !disposed && videoRef) {
+        const receiverError = castManager.getLastError();
+        if (receiverError) setCastStatus(receiverError);
         const data = playbackData();
         if (data)
           initPlayer(
@@ -1016,13 +1035,17 @@ export function Player(props: PlayerProps) {
             /* Optional title lookup must not reject valid receiver playback. */
           }
           oldPosition = isCasting() ? currentTime() : (videoRef?.currentTime ?? currentTime());
-          negotiatedStartMs = preservePosition
-            ? Math.floor(oldPosition * 1000)
-            : result.data.startMs;
+          const hlsFmp4 = new URL(result.data.url, window.location.href).pathname.endsWith(".m3u8");
+          // A replacement HLS stream was prepared for the requested position.
+          // The previous receiver stream can advance far past it during preparation.
+          negotiatedStartMs =
+            preservePosition && !(isCasting() && hlsFmp4)
+              ? Math.floor(oldPosition * 1000)
+              : result.data.startMs;
           const title = negotiatedTitle;
           return {
             contentId: result.data.url,
-            hlsFmp4: new URL(result.data.url, window.location.href).pathname.endsWith(".m3u8"),
+            hlsFmp4,
             contentType: result.data.contentType,
             title,
             currentTime: negotiatedStartMs / 1000,

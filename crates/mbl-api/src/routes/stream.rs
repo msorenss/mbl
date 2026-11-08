@@ -280,22 +280,25 @@ pub async fn hls_rendition_file(
         ?range,
         "HLS rendition file requested"
     );
-    let res = match file.as_str() {
-        "index.m3u8" => {
-            let m3u8 = state.services.stream.hls_media_playlist(&session, &rendition).await?;
-            Ok(serve_playlist(m3u8))
+    let res: Result<Response, ApiError> = async {
+        match file.as_str() {
+            "index.m3u8" => {
+                let m3u8 = state.services.stream.hls_media_playlist(&session, &rendition).await?;
+                Ok(serve_playlist(m3u8))
+            }
+            "init.mp4" => {
+                let path = state.services.stream.hls_init_segment(&session, &rendition).await?;
+                Ok(serve_segment_file(&path, MIME_MP4).await?)
+            }
+            other => {
+                let seg_num = parse_segment_filename(other)?;
+                let path =
+                    state.services.stream.hls_media_segment(&session, &rendition, seg_num).await?;
+                Ok(serve_segment_file(&path, MIME_M4S).await?)
+            }
         }
-        "init.mp4" => {
-            let path = state.services.stream.hls_init_segment(&session, &rendition).await?;
-            Ok(serve_segment_file(&path, MIME_MP4).await?)
-        }
-        other => {
-            let seg_num = parse_segment_filename(other)?;
-            let path =
-                state.services.stream.hls_media_segment(&session, &rendition, seg_num).await?;
-            Ok(serve_segment_file(&path, MIME_M4S).await?)
-        }
-    };
+    }
+    .await;
     let elapsed_ms = start_time.elapsed().as_millis();
     match &res {
         Ok(response) => {

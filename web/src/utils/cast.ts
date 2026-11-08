@@ -282,17 +282,16 @@ class CastManager {
     const activeTrackIds = index === null ? [] : [index + 1];
     const request = new Request(activeTrackIds) as Record<string, unknown>;
     request.activeTrackIds = activeTrackIds;
-    castDiagnostics.record("subtitles.edit", { index, activeTrackIds });
+    castDiagnostics.record("subtitles.edit", { index });
     return new Promise((resolve) =>
       media.editTracksInfo(
         request,
         () => {
-          castDiagnostics.record("subtitles.success", { index, activeTrackIds });
+          castDiagnostics.record("subtitles.success", { index });
           resolve(true);
         },
-        () => {
-          castDiagnostics.record("subtitles.error", { index, activeTrackIds });
-          console.error("[MBL Cast] editTracksInfo error for track:", index);
+        (error?: unknown) => {
+          castDiagnostics.error("subtitles.error", error);
           resolve(false);
         },
       ),
@@ -492,6 +491,13 @@ class CastManager {
       )
         return;
       if (media.playerState === "PLAYING") this.mediaHasPlayed = true;
+      if (media.playerState === "IDLE" && media.idleReason === "ERROR") {
+        this.lastError = "The Cast receiver could not continue playback.";
+        castDiagnostics.record("receiver.playback_error", {
+          position: this.currentTime,
+          previousState: this.playerState,
+        });
+      }
       if (this.mediaHasPlayed && media.playerState === "IDLE" && media.idleReason === "FINISHED") {
         this.playbackEnded = true;
         this.playerState = "idle";
@@ -543,6 +549,7 @@ class CastManager {
     const volume = this.remotePlayer.volumeLevel;
     if (
       !this.playbackEnded &&
+      this.remotePlayer.isMediaLoaded !== false &&
       typeof position === "number" &&
       Number.isFinite(position) &&
       position >= 0
@@ -795,7 +802,7 @@ class CastManager {
             autoplay: request.autoplay,
             position: request.currentTime,
             tracks: mediaInfo.tracks?.length ?? 0,
-            activeTrackIds: request.activeTrackIds,
+            subtitleIndex: hasSelectedTrack ? selected : null,
           });
           const loadResult = await session.loadMedia(request);
           castDiagnostics.record("load.accepted", { result: loadResult ?? null });

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-11-08
+
+### Added
+- The hardware page warns when the NVIDIA driver is too old for FFmpeg's NVENC API and shows the installed and required driver versions when available.
+- Cast diagnostics include subtitle selection, paused progress reports, and receiver playback errors. Failed HLS rendition requests are logged on the server.
+
+### Fixed
+- Windows now throttles FFmpeg when it runs ahead of the HLS client, reducing cache usage during playback and while paused.
+- Switching Cast subtitles or audio tracks reloads replacement HLS streams at the position the server prepared. If the receiver unloads the media after an error, MBL keeps the last playback position.
+- Hardware self-tests replace old results so checks for backends that are no longer tested disappear from the report.
+
 ## [1.3.3] - 2026-11-08
 
 ### Changed

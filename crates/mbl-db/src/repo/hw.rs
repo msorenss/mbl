@@ -22,9 +22,10 @@ pub struct HwCapabilityRow {
     pub tested_at: i64,
 }
 
-/// Upsert a batch of self-test capability entries into `hw_capabilities`.
-pub async fn upsert_all(db: &Db, entries: &[HwCapabilityRow]) -> Result<()> {
+/// Store the latest complete self-test, removing rows for backends no longer tested.
+pub async fn replace_all(db: &Db, entries: &[HwCapabilityRow]) -> Result<()> {
     let mut tx = db.write.begin().await?;
+    sqlx::query("DELETE FROM hw_capabilities").execute(&mut *tx).await?;
     for entry in entries {
         sqlx::query(
             r#"
@@ -32,13 +33,6 @@ pub async fn upsert_all(db: &Db, entries: &[HwCapabilityRow]) -> Result<()> {
                 backend, codec, operation, ok, fps, error, ffmpeg_hash, driver_fingerprint, tested_at
             )
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-            ON CONFLICT(backend, codec, operation) DO UPDATE SET
-                ok = excluded.ok,
-                fps = excluded.fps,
-                error = excluded.error,
-                ffmpeg_hash = excluded.ffmpeg_hash,
-                driver_fingerprint = excluded.driver_fingerprint,
-                tested_at = excluded.tested_at
             "#,
         )
         .bind(&entry.backend)

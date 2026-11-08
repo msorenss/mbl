@@ -156,6 +156,24 @@ six-channel E-AC-3. A subsequent local playback on that server advanced to
 local playback in that session. The physical Cast attempt still needs its own
 receiver trace.
 
+## 2026-11-08 Cast plays, then loses its HLS session on Windows
+
+The combined diagnostics for item 192 show that the receiver was playing when
+the server evicted an HLS session for exceeding the cache quota at 19:12:20 UTC.
+Segment requests began returning 404 at 19:12:26 and a progress request returned
+404 at 19:12:28. The receiver still played from its buffer and entered PAUSED
+at 19:12:31. It reported `IDLE / ERROR` at 19:12:36.
+
+Windows had no implementation for suspending the FFmpeg child when it ran ahead
+of the receiver. The session manager now suspends and resumes the child's
+threads on Windows. The receiver error also preserves the last loaded position.
+
+Earlier in the attempt, switching subtitles reloaded HLS at 141.759 s after the
+server prepared playback at 124.706 s. The replacement stream now starts at
+the prepared position. The exported log also records the selected subtitle
+index and the result of paused progress requests. Repeat the same subtitle
+and pause sequence on Bedroom TV to verify A/V sync and resume.
+
 ## Broader diagnostic trail — follow-up after Cast
 
 User proposed a shared trail for all functions after Cast works. This is a

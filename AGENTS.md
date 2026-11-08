@@ -8,7 +8,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Latest release tag: `v1.3.1` (prepared 2026-11-08; bundled Windows FFmpeg, in-app GitHub update checker, Windows hardware/RAM detection)
+- Release prepared: `v1.3.4` (2026-11-08; Windows HLS cache throttling, Cast recovery and NVENC driver warning).
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -83,6 +83,14 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-08 — Cast-avbrott vid cachegränsen på Windows
+- Den kombinerade loggen visar att en HLS-session togs bort vid cachegränsen 20:12:20 CET. Segment och progress började ge 404 före pausen 20:12:31. Chromecast rapporterade sedan `IDLE / ERROR`. Windows rapporterade tidigare strypt FFmpeg trots att signalerna för paus och återupptagning saknade effekt på plattformen.
+- Windows kan nu strypa FFmpeg när bufferten ligger för långt före spelaren. Ett ersättande Cast-HLS-flöde laddas vid den position servern förberett. Vid mottagarfel behåller spelaren den senaste positionen. Diagnostiken visar valt undertextspår och fel från HLS-anrop.
+- NVENC-testet på användarens Windows-server visar API 13.1 krävs, 13.0 finns. FFmpeg anger NVIDIA-drivrutin 610.00 som minimum. Ett nytt självtest ersätter gamla rader i matrisen så att gamla VAAPI- och AMF-resultat inte ligger kvar.
+- Hårdvaruvyn visar en NVENC-varning när den aktuella kombinationen av FFmpeg och drivrutin ger ett versionsfel. Vyn visar installerad och lägsta version när rapporten innehåller dem.
+- Verifierat med 236 webbtester, 10 riktade HLS-tester på Linux samt Clippy för de berörda Rust-delarna och Windows-målet för `mbl-transcode`. Windows-testet kompilerades men kördes inte på Pi.
+- Kör om samma avsnitt med undertexter på Windows och pausa från mottagaren. Ljud- och bildsynk, cachebeteende och återupptagning behöver bekräftas på Bedroom TV.
 
 ### 2026-11-08 — v1.3.3 med Windows MSI och bibliotekets mediavy
 - MSI:s tjänståtgärder körs med den behörighet som ges via UAC. MSI väntar vid stopp och undviker dubbla avinstallationsåtgärder. CLI väntar på SCM:s tillstånd och rapporterar riktiga felkoder. ZIP-paketet kan köras som vanlig användare. En riktig MSI-uppgradering behöver verifieras på Windows.

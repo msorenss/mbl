@@ -38,6 +38,7 @@ async function google() {
   const listeners = new Map<string, () => void>();
   const player = {
     isConnected: false,
+    isMediaLoaded: true,
     isPaused: false,
     currentTime: 0,
     duration: 0,
@@ -251,6 +252,28 @@ it("does not treat a stale finished state on initial load as a new completion", 
 });
 
 describe("Google Cast lifecycle", () => {
+  it("keeps the paused position when the receiver unloads media with an error", async () => {
+    const sdk = await google();
+    await manager?.requestCastSession(media);
+    sdk.player.currentTime = 192;
+    sdk.player.isPaused = true;
+    sdk.player.playerState = "PAUSED";
+    sdk.emit();
+    sdk.player.isMediaLoaded = false;
+    sdk.player.currentTime = 0;
+    sdk.emit();
+    sdk.mediaSession.playerState = "IDLE";
+    sdk.mediaSession.idleReason = "ERROR";
+    sdk.emitMedia();
+    expect(manager?.getState()).toMatchObject({
+      isCasting: true,
+      currentTime: 192,
+      playbackEnded: false,
+    });
+    sdk.context.endCurrentSession();
+    expect(manager?.getLastError()).toBe("The Cast receiver could not continue playback.");
+  });
+
   it("loads media with the SDK image constructor and preserves zero receiver volume", async () => {
     const sdk = await google();
     expect(await manager?.requestCastSession({ ...media, imageUrl: "/poster.jpg" })).toBe(true);

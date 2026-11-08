@@ -3,9 +3,29 @@ import client from "../../api/client";
 import type { components } from "../../api/schema";
 import { HefModelPickerDialog, type HefModelSlot } from "../../components/HefModelPickerDialog";
 import { useToast } from "../../context/ToastContext";
+import { useI18n } from "../../i18n";
 
 type HwReport = components["schemas"]["HwReport"];
 type SystemHealthReport = components["schemas"]["SystemHealthReport"];
+
+function nvencDriverWarning(report: HwReport) {
+  const failure = report.capabilities.find(
+    (cap) =>
+      cap.backend === "nvenc" &&
+      cap.operation === "encode" &&
+      !cap.ok &&
+      cap.ffmpegHash === report.ffmpeg.binaryHash &&
+      cap.driverFingerprint === report.fingerprint.driverFingerprint &&
+      /driver does not support the required nvenc api version/i.test(cap.error ?? ""),
+  );
+  if (!failure?.error) return null;
+  return {
+    installed: report.fingerprint.nvidiaGpus.find((gpu) => gpu.driverVersion)?.driverVersion,
+    minimum: failure.error.match(
+      /minimum required nvidia driver for nvenc is (\d+(?:\.\d+)*)/i,
+    )?.[1],
+  };
+}
 
 const SLOT_METADATA: Record<HefModelSlot, { label: string; description: string }> = {
   vision: {
@@ -32,6 +52,7 @@ const SLOT_METADATA: Record<HefModelSlot, { label: string; description: string }
 
 export function Hardware() {
   const { showToast } = useToast();
+  const { t } = useI18n();
   const [report, setReport] = createSignal<HwReport | null>(null);
   const [sysHealth, setSysHealth] = createSignal<SystemHealthReport | null>(null);
   const [loading, setLoading] = createSignal(true);
@@ -199,6 +220,35 @@ export function Hardware() {
       >
         {(rep) => (
           <div style={{ display: "flex", "flex-direction": "column", gap: "24px" }}>
+            <Show when={nvencDriverWarning(rep())}>
+              {(warning) => (
+                <div
+                  role="alert"
+                  style={{
+                    padding: "14px 18px",
+                    background: "var(--bg-surface)",
+                    "border-inline-start": "4px solid var(--danger)",
+                    "border-radius": "var(--radius-md)",
+                  }}
+                >
+                  <strong>{t("NVIDIA driver is too old for NVENC")}</strong>
+                  <p>{t("Update the NVIDIA driver, then run the hardware self-test again.")}</p>
+                  <Show when={warning().installed}>
+                    <div>
+                      {t("Installed driver")} {warning().installed}
+                    </div>
+                  </Show>
+                  <Show when={warning().minimum}>
+                    <div>
+                      {t("Minimum driver required by FFmpeg")} {warning().minimum}
+                    </div>
+                  </Show>
+                  <Show when={rep().capacity.preferredBackend === "software"}>
+                    <p>{t("MBL is currently using software encoding.")}</p>
+                  </Show>
+                </div>
+              )}
+            </Show>
             {/* Thermal & Under-Voltage Warning Banner (M5.1) */}
             <Show
               when={

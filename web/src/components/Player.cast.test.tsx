@@ -409,6 +409,72 @@ it("preserves current audio on Cast changes and ignores an unavailable optional 
     expect.anything(),
   );
 });
+it("reloads Cast HLS at the prepared position when a subtitle requires a new stream", async () => {
+  cast.selectSubtitle.mockResolvedValueOnce(false);
+  let resolveStart!: (response: unknown) => void;
+  vi.mocked(client.POST).mockImplementation(async (path) => {
+    if (path === "/api/v1/playback" && state.isCasting)
+      return new Promise((resolve) => {
+        resolveStart = resolve;
+      }) as never;
+    return (
+      path === "/api/v1/playback"
+        ? {
+            data: {
+              sessionId: "original",
+              url: "/movie.mp4",
+              startMs: 0,
+              durationMs: 600000,
+              subtitleOptions: [{ index: 38, title: "Swedish" }],
+              subtitles: [{ index: 38, title: "Swedish", url: "/swedish.vtt" }],
+            },
+            response: new Response(),
+          }
+        : { response: new Response(null, { status: 204 }) }
+    ) as never;
+  });
+  let loadedAt: number | undefined;
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    loadedAt = (await prepare()).currentTime;
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    currentTime: 124.706,
+    playerState: "playing",
+  };
+  emit(state);
+  document.querySelector<HTMLButtonElement>('[aria-label="Subtitle tracks"]')?.click();
+  [...document.querySelectorAll("button")]
+    .find((button) => button.textContent === "Swedish")
+    ?.click();
+  await tick();
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({
+      body: expect.objectContaining({ subtitleStreamIndex: 38, startMs: 124706 }),
+    }),
+  );
+  state = { ...state, currentTime: 141.759 };
+  emit(state);
+  resolveStart({
+    data: {
+      sessionId: "replacement",
+      url: "/api/v1/stream/hls/replacement/master.m3u8",
+      startMs: 124706,
+      durationMs: 600000,
+      subtitles: [],
+    },
+    response: new Response(),
+  });
+  await tick();
+  expect(loadedAt).toBe(124.706);
+});
+
 it("does not send a burned subtitle as a nonexistent Cast caption track", async () => {
   vi.spyOn(client, "GET").mockResolvedValue({
     data: { title: "Movie" },

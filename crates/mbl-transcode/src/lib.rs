@@ -4,6 +4,8 @@ pub mod args;
 pub mod escape;
 pub mod pipeline;
 pub mod session;
+#[cfg(windows)]
+mod windows_throttle;
 
 pub use args::build_args;
 pub use escape::{escape_filter_path, unescape_filter_value, validate_filter_graph};

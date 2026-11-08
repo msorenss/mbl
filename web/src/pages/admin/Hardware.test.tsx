@@ -5,6 +5,89 @@ import { ToastProvider } from "../../context/ToastContext";
 import { Hardware } from "./Hardware";
 
 describe("Admin Hardware Acceleration UI (M4.15)", () => {
+  it.each([
+    [
+      "Driver does not support the required nvenc API version. Required: 13.1 Found: 13.0. The minimum required Nvidia driver for nvenc is 610.00 or newer",
+      "hash123",
+      "current-driver",
+      true,
+    ],
+    [
+      "Driver does not support the required nvenc API version.",
+      "old-build",
+      "current-driver",
+      false,
+    ],
+    ["Driver does not support the required nvenc API version.", "hash123", "old-driver", false],
+    ["Error opening encoder: no capable device found", "hash123", "current-driver", false],
+  ])(
+    "shows the NVENC driver alert only for a current version mismatch",
+    async (error, hash, driver, show) => {
+      const get = vi.spyOn(client, "GET").mockImplementation(
+        async (path) =>
+          ({
+            data:
+              path === "/api/v1/hw/report"
+                ? {
+                    fingerprint: {
+                      profile: "x86Nvidia",
+                      driverFingerprint: "current-driver",
+                      nvidiaGpus: [{ driverVersion: "595.12" }],
+                      drmDevices: [],
+                      v4l2Devices: [],
+                      hailoDevices: [],
+                    },
+                    ffmpeg: { binaryHash: "hash123" },
+                    capabilities: [
+                      {
+                        backend: "nvenc",
+                        operation: "encode",
+                        codec: "h264",
+                        ok: false,
+                        ffmpegHash: hash,
+                        driverFingerprint: driver,
+                        error,
+                      },
+                    ],
+                    capacity: {
+                      preferredBackend: "software",
+                      encodeCodecs: ["h264"],
+                      fallbackBackends: [],
+                    },
+                    recentFailures: [],
+                    hailo: { activeCoTenants: [], supportedPipelines: [] },
+                  }
+                : undefined,
+            response: new Response(),
+          }) as never,
+      );
+      const container = document.createElement("div");
+      const dispose = render(
+        () => (
+          <ToastProvider>
+            <Hardware />
+          </ToastProvider>
+        ),
+        container,
+      );
+      try {
+        await vi.waitFor(() => expect(container.querySelector("table")).toBeTruthy());
+        const alert = container.querySelector('[role="alert"]');
+        if (show) {
+          expect(alert?.textContent).toContain("NVIDIA driver is too old for NVENC");
+          expect(alert?.textContent).toContain("Installed driver 595.12");
+          expect(alert?.textContent).toContain("Minimum driver required by FFmpeg 610.00");
+          expect(alert?.textContent).toContain("using software encoding");
+        } else {
+          expect(alert).toBeNull();
+        }
+      } finally {
+        dispose();
+        get.mockRestore();
+      }
+    },
+  );
+
   it("renders detected hardware, Hailo NPU status, self-test results, capacity, and recent failures", async () => {
     vi.spyOn(client, "GET").mockImplementation(async (path: string) => {
       if (path === "/api/v1/hw/report") {

@@ -200,7 +200,7 @@ impl HwService {
             })
             .collect();
 
-        hw::upsert_all(&self.db, &db_rows).await?;
+        hw::replace_all(&self.db, &db_rows).await?;
         self.tracker.clear();
         jobs_repo.finish(job_id, DONE, None, now_ms()).await?;
 
