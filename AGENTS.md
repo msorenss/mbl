@@ -84,6 +84,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-08 — v1.3.3 med Windows MSI och bibliotekets mediavy
+- MSI:s tjänståtgärder körs med den behörighet som ges via UAC. MSI väntar vid stopp och undviker dubbla avinstallationsåtgärder. CLI väntar på SCM:s tillstånd och rapporterar riktiga felkoder. ZIP-paketet kan köras som vanlig användare. En riktig MSI-uppgradering behöver verifieras på Windows.
+- Bibliotek visar nyligen tillagda titlar per bibliotek. Browse och sökning döljer tomma serier, säsonger och avsnitt och räknar även delade avsnittsfiler. Nästa avsnitt utgår från det avsnitt längst fram i serien som användaren har sett klart.
+
 ### 2026-11-08 — v1.3.2 med skanningsstatus, omstart och Media Box Lounge
 - Windows v1.3.1 accepterade Movies-skanningen som jobb 16, men biblioteket visade fortfarande `Never scanned` efter omladdning. Den gamla versionen visar inte jobbets fel. `GET /api/v1/libraries/{id}/scan` och den delade skanningskontrollen visar nu kö, körning, procent och fel. En skanning som inte kommer åt någon rot registreras inte längre som slutförd.
 - Administration → Serverinställningar kan starta om MBL:s serverruntime. HTTP, HTTPS och bakgrundsjobb stängs ned före återstart. Windows SCM-tjänsten behåller sin process. REST och det befintliga MCP-verktyget använder samma omstartssignal.

@@ -37,6 +37,23 @@ async fn seed(app: &TestApp, admin: &str) -> (i64, i64, i64) {
     .fetch_one(&pool)
     .await
     .unwrap();
+    let episode: i64 = sqlx::query_scalar(
+        "INSERT INTO media_items (library_id, kind, parent_id, title, sort_title, idx, added_at, updated_at)
+         VALUES (?, 'episode', ?, 'Special Feature', 'special feature', 1, 1, 1) RETURNING id",
+    )
+    .bind(lib_id)
+    .bind(season)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let version: i64 =
+        sqlx::query_scalar("INSERT INTO media_versions (item_id) VALUES (?) RETURNING id")
+            .bind(episode)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    sqlx::query("INSERT INTO media_parts (version_id, path, size, mtime, probe) VALUES (?, 'special.mkv', 100, 0, '{}')")
+        .bind(version).execute(&pool).await.unwrap();
     pool.close().await;
     (lib_id, movie, season)
 }

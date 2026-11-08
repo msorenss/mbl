@@ -1,4 +1,4 @@
-MBL Media Server for Windows (v1.3.2)
+MBL Media Server for Windows (v1.3.3)
 =====================================
 
 Welcome to MBL! MBL is a high-performance, lightweight personal media server.
@@ -21,7 +21,8 @@ Quick Start
 2. Run MBL Server (Console or Windows Service):
    - Option A (Windows Background Service — Recommended):
      During the MSI installation wizard, keep "Windows Background Service (Auto-Start)"
-     enabled, or run from an elevated PowerShell prompt:
+     enabled and accept the Windows UAC prompt. If you manage the service from
+     PowerShell instead, open it as administrator:
        .\mbl-server.exe service install
      To stop or remove the background service later:
        .\mbl-server.exe service stop
@@ -29,6 +30,9 @@ Quick Start
    - Option B (Manual / Console Mode):
      Run mbl-server.exe from PowerShell, Command Prompt, or the Start Menu shortcut:
        .\mbl-server.exe
+     To run without administrator access, extract the standalone ZIP into a folder
+     you own and run it with a data directory under your user profile:
+       .\mbl-server.exe --data-dir "$env:LOCALAPPDATA\MBL\data"
    - By default, MBL listens on http://localhost:8420
    - Open http://localhost:8420 in your browser to complete the setup wizard.
 

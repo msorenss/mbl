@@ -59,6 +59,12 @@ async fn fixture() -> Fixture {
     let mut ep = Vec::new();
     for n in 1..=3 {
         ep.push(ItemId(exec(&db, &format!("INSERT INTO media_items (library_id, kind, parent_id, title, sort_title, idx, parent_idx, added_at, updated_at) VALUES ({shows}, 'episode', {season}, 'Episode {n}', 'episode {n}', {n}, 1, 40, 0)")).await));
+        let version = exec(
+            &db,
+            &format!("INSERT INTO media_versions (item_id) VALUES ({})", ep.last().unwrap().0),
+        )
+        .await;
+        exec(&db, &format!("INSERT INTO media_parts (version_id, path, size, mtime, probe) VALUES ({version}, '/s/episode{n}.mkv', 100, 0, '{{}}')")).await;
     }
     // Episode 1 watched, Heat half-way.
     exec(&db, &format!("INSERT INTO watch_state (user_id, item_id, view_count, last_viewed_at) VALUES (1, {}, 1, 100)", ep[0].0)).await;
@@ -168,5 +174,29 @@ async fn search_and_hubs() {
     assert_eq!(
         titles(&items::recently_added(&f.db, &all, f.movies, 2).await.unwrap()),
         ["Heat", "The Matrix"]
+    );
+}
+
+#[tokio::test]
+async fn series_browse_and_up_next_require_available_video() {
+    let f = fixture().await;
+    let all = user(LibraryAccess::All);
+    // Episode 3 shares episode 2's file, as with an S01E02E03 release.
+    exec(&f.db, &format!("DELETE FROM media_versions WHERE item_id = {}", f.ep[2].0)).await;
+    exec(&f.db, &format!("INSERT INTO item_versions (item_id, version_id) SELECT {}, id FROM media_versions WHERE item_id = {}", f.ep[2].0, f.ep[1].0)).await;
+    exec(
+        &f.db,
+        &format!("UPDATE watch_state SET item_id = {} WHERE item_id = {}", f.ep[1].0, f.ep[0].0),
+    )
+    .await;
+    let next = items::up_next(&f.db, &all, 20).await.unwrap();
+    assert_eq!(next.iter().map(|i| i.id).collect::<Vec<_>>(), [f.ep[2]]);
+
+    exec(&f.db, "UPDATE media_parts SET missing_since = 300 WHERE path LIKE '/s/%'").await;
+    assert!(items::up_next(&f.db, &all, 20).await.unwrap().is_empty());
+    assert!(items::recently_added(&f.db, &all, f.shows, 20).await.unwrap().is_empty());
+    assert!(items::search(&f.db, &all, "severance", 10).await.unwrap().is_empty());
+    assert!(
+        items::list(&f.db, &all, f.shows, &ListQuery::default()).await.unwrap().items.is_empty()
     );
 }

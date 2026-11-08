@@ -123,32 +123,34 @@ export function PosterCard(props: PosterCardProps) {
           </Show>
 
           {/* Quick Play Hover Button */}
-          <button
-            type="button"
-            onClick={handleQuickPlay}
-            title={`Play ${item().title}`}
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              width: "48px",
-              height: "48px",
-              "border-radius": "50%",
-              background: "var(--accent)",
-              border: "none",
-              color: "#fff",
-              display: "flex",
-              "align-items": "center",
-              "justify-content": "center",
-              "font-size": "20px",
-              cursor: "pointer",
-              "box-shadow": "0 8px 16px rgba(0,0,0,0.5)",
-              "z-index": 2,
-            }}
-            class="poster-play-btn"
-          >
-            ▶
-          </button>
+          <Show when={["movie", "episode", "track", "extra"].includes(item().kind)}>
+            <button
+              type="button"
+              onClick={handleQuickPlay}
+              title={`Play ${item().title}`}
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: "48px",
+                height: "48px",
+                "border-radius": "50%",
+                background: "var(--accent)",
+                border: "none",
+                color: "#fff",
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "center",
+                "font-size": "20px",
+                cursor: "pointer",
+                "box-shadow": "0 8px 16px rgba(0,0,0,0.5)",
+                "z-index": 2,
+              }}
+              class="poster-play-btn"
+            >
+              ▶
+            </button>
+          </Show>
 
           {/* Watched Badge */}
           <Show when={isWatched()}>

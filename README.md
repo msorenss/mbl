@@ -24,7 +24,7 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.3.2
+Current release: v1.3.3
 
 This release bundles FFmpeg essentials directly in the Windows installer, adds an in-app GitHub release update checker with platform-specific download links, and enhances hardware and memory reporting on Windows. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 

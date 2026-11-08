@@ -29,6 +29,7 @@ pub async fn visible_ids(db: &Db, actor: &Actor, ids: &[ItemId]) -> Result<Vec<I
         }
         qb.push(")");
         filter.push_acl(&mut qb);
+        push_available_series(&mut qb);
         visible.extend(qb.build_query_scalar::<i64>().fetch_all(&db.read).await?);
     }
     Ok(ids.iter().copied().filter(|id| visible.contains(&id.0)).collect())
@@ -138,7 +139,37 @@ fn summary_query(filter: &ItemFilter) -> QueryBuilder<Sqlite> {
     qb.push_bind(filter.user_id.0);
     qb.push(" WHERE 1 = 1");
     filter.push_acl(&mut qb);
+    push_available_series(&mut qb);
     qb
+}
+
+fn push_episode_has_file(qb: &mut QueryBuilder<Sqlite>, item_id: &'static str) {
+    qb.push(
+        "EXISTS (SELECT 1 FROM media_parts p WHERE p.missing_since IS NULL
+        AND p.version_id IN (SELECT v.id FROM media_versions v WHERE v.item_id = ",
+    )
+    .push(item_id)
+    .push(" UNION ALL SELECT iv.version_id FROM item_versions iv WHERE iv.item_id = ")
+    .push(item_id)
+    .push("))");
+}
+
+fn push_available_series(qb: &mut QueryBuilder<Sqlite>) {
+    qb.push(" AND (i.kind != 'episode' OR ");
+    push_episode_has_file(qb, "i.id");
+    qb.push(
+        ") AND (i.kind != 'season' OR EXISTS (
+            SELECT 1 FROM media_items e
+            WHERE e.parent_id = i.id AND e.kind = 'episode' AND ",
+    );
+    push_episode_has_file(qb, "e.id");
+    qb.push(
+        ")) AND (i.kind != 'show' OR EXISTS (
+            SELECT 1 FROM media_items s JOIN media_items e ON e.parent_id = s.id
+            WHERE s.parent_id = i.id AND s.kind = 'season' AND e.kind = 'episode' AND ",
+    );
+    push_episode_has_file(qb, "e.id");
+    qb.push("))");
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, ToSchema)]
@@ -303,34 +334,43 @@ pub async fn continue_watching(
 
 /// The first unwatched episode of every show the user has watched something of.
 pub async fn up_next(db: &Db, filter: &ItemFilter, limit: u32) -> Result<Vec<ItemSummary>> {
-    let mut qb = summary_query(filter);
-    qb.push(
-        " AND i.id IN (
-            SELECT id FROM (
-                SELECT e.id, s.parent_id AS show_id, MAX(COALESCE(ws.last_viewed_at, 0))
-                    OVER (PARTITION BY s.parent_id) AS show_last,
-                    ROW_NUMBER() OVER (PARTITION BY s.parent_id ORDER BY s.idx, e.idx, e.id) AS rn
-                FROM media_items e
-                JOIN media_items s ON s.id = e.parent_id
-                LEFT JOIN watch_state ws ON ws.item_id = e.id AND ws.user_id = ",
-    )
-    .push_bind(filter.user_id.0)
-    .push(
-        " WHERE e.kind = 'episode'
-                  AND s.parent_id IN (
-                      SELECT s2.parent_id FROM watch_state w2
-                      JOIN media_items e2 ON e2.id = w2.item_id
-                      JOIN media_items s2 ON s2.id = e2.parent_id
-                      WHERE w2.user_id = ",
-    )
-    .push_bind(filter.user_id.0)
-    .push(
-        " AND w2.view_count > 0)
-                  AND COALESCE(ws.view_count, 0) = 0 AND COALESCE(ws.view_offset_ms, 0) = 0
-            ) WHERE rn = 1
-        )",
+    let mut qb = QueryBuilder::new(
+        "WITH completed AS (
+            SELECT s.parent_id AS show_id, COALESCE(s.idx, 0) AS season_idx,
+                   COALESCE(e.idx, 0) AS episode_idx, e.id,
+                   MAX(COALESCE(w.last_viewed_at, 0)) OVER (PARTITION BY s.parent_id) AS show_last,
+                   ROW_NUMBER() OVER (PARTITION BY s.parent_id
+                       ORDER BY COALESCE(s.idx, 0) DESC, COALESCE(e.idx, 0) DESC, e.id DESC) AS rn
+            FROM watch_state w
+            JOIN media_items e ON e.id = w.item_id AND e.kind = 'episode'
+            JOIN media_items s ON s.id = e.parent_id AND s.kind = 'season'
+            WHERE w.view_count > 0 AND w.user_id = ",
     );
-    qb.push(" ORDER BY i.id DESC LIMIT ").push_bind(i64::from(limit));
+    qb.push_bind(filter.user_id.0).push(
+        "), candidates AS (
+            SELECT i.id, c.show_last, COALESCE(w.view_offset_ms, 0) AS offset_ms,
+                   ROW_NUMBER() OVER (PARTITION BY c.show_id
+                       ORDER BY COALESCE(s.idx, 0), COALESCE(i.idx, 0), i.id) AS rn
+            FROM completed c
+            JOIN media_items s ON s.parent_id = c.show_id AND s.kind = 'season'
+            JOIN media_items i ON i.parent_id = s.id AND i.kind = 'episode'
+            LEFT JOIN watch_state w ON w.item_id = i.id AND w.user_id = ",
+    );
+    qb.push_bind(filter.user_id.0).push(
+        " WHERE c.rn = 1 AND COALESCE(w.view_count, 0) = 0
+          AND (COALESCE(s.idx, 0), COALESCE(i.idx, 0), i.id) > (c.season_idx, c.episode_idx, c.id)",
+    );
+    filter.push_acl(&mut qb);
+    qb.push(" AND ");
+    push_episode_has_file(&mut qb, "i.id");
+    qb.push(") ")
+        .push(SUMMARY)
+        .push_bind(filter.user_id.0)
+        .push(
+            " JOIN candidates n ON n.id = i.id AND n.rn = 1 AND n.offset_ms = 0
+          ORDER BY n.show_last DESC, i.id DESC LIMIT ",
+        )
+        .push_bind(i64::from(limit));
     Ok(qb.build_query_as().fetch_all(&db.read).await?)
 }
 

@@ -197,7 +197,12 @@ export function Home() {
                         return (
                           <LandscapeCard
                             item={item}
-                            badge={isContinue() ? "Resume" : isUpNext() ? "Up Next" : undefined}
+                            badge={isContinue() ? t("Resume") : t("upNext")}
+                            subtitle={
+                              item.kind === "episode" && item.idx != null && item.parentIdx != null
+                                ? `S${item.parentIdx} · E${item.idx}`
+                                : undefined
+                            }
                           />
                         );
                       }

@@ -188,10 +188,7 @@ fn install_service(overrides: &CliOverrides) -> anyhow::Result<()> {
     }
 
     // Stop and remove any previous service registration so upgrades succeed cleanly.
-    let _ = Command::new("sc.exe").args(["stop", SERVICE_NAME]).output();
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    let _ = Command::new("sc.exe").args(["delete", SERVICE_NAME]).output();
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    win_scm::remove_registration(true)?;
 
     let create_out = Command::new("sc.exe").args(sc_create_args(&bin_path)).output()?;
     if !create_out.status.success() {
@@ -230,18 +227,8 @@ fn install_service(_overrides: &CliOverrides) -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn uninstall_service() -> anyhow::Result<()> {
-    use std::process::Command;
-
-    let _ = Command::new("sc.exe").args(["stop", SERVICE_NAME]).output();
-    std::thread::sleep(std::time::Duration::from_millis(800));
-    let del_out = Command::new("sc.exe").args(["delete", SERVICE_NAME]).output()?;
-    if del_out.status.success() {
-        write_line(&format!("Removed Windows service '{SERVICE_DISPLAY_NAME}' ({SERVICE_NAME})."));
-    } else {
-        write_line(&format!(
-            "Windows service '{SERVICE_NAME}' was not installed or is already removed."
-        ));
-    }
+    win_scm::remove_registration(false)?;
+    write_line(&format!("Windows service '{SERVICE_NAME}' is removed or pending deletion."));
     Ok(())
 }
 
@@ -294,10 +281,114 @@ mod win_scm {
     use std::ffi::c_void;
     use std::sync::OnceLock;
     use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+    use std::time::{Duration, Instant};
+
+    use anyhow::Context;
+    use windows_sys::Win32::Foundation::{
+        ERROR_SERVICE_CANNOT_ACCEPT_CTRL, ERROR_SERVICE_DOES_NOT_EXIST,
+        ERROR_SERVICE_MARKED_FOR_DELETE, ERROR_SERVICE_NOT_ACTIVE,
+    };
+    use windows_sys::Win32::System::Services::{
+        CloseServiceHandle, ControlService, DeleteService, OpenSCManagerW, OpenServiceW,
+        QueryServiceStatus, SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_STATUS, SERVICE_STATUS,
+        SERVICE_STOP,
+    };
 
     use crate::CliOverrides;
 
     use super::{SERVICE_NAME, encode_utf16_null, run_server_blocking};
+
+    const DELETE_ACCESS: u32 = 0x0001_0000;
+    const SERVICE_TRANSITION_TIMEOUT: Duration = Duration::from_secs(45);
+
+    struct ScHandle(SC_HANDLE);
+
+    impl Drop for ScHandle {
+        fn drop(&mut self) {
+            // SAFETY: The wrapper is only constructed from a successful SCM open call.
+            unsafe { CloseServiceHandle(self.0) };
+        }
+    }
+
+    fn open_service(manager: &ScHandle, name: &[u16], access: u32) -> std::io::Result<ScHandle> {
+        // SAFETY: The manager is live and `name` is the NUL-terminated service name.
+        let handle = unsafe { OpenServiceW(manager.0, name.as_ptr(), access) };
+        if handle.is_null() { Err(std::io::Error::last_os_error()) } else { Ok(ScHandle(handle)) }
+    }
+
+    fn is_service_error(error: &std::io::Error, code: u32) -> bool {
+        error.raw_os_error() == Some(code as i32)
+    }
+
+    fn stop_before_delete(service: &ScHandle, deadline: Instant) -> anyhow::Result<()> {
+        loop {
+            let mut status = SERVICE_STATUS::default();
+            // SAFETY: The service handle and writable output buffer are valid for both calls.
+            if unsafe { QueryServiceStatus(service.0, &mut status) } == 0 {
+                return Err(std::io::Error::last_os_error()).context("Could not query MblServer");
+            }
+            if status.dwCurrentState == SERVICE_STOPPED {
+                return Ok(());
+            }
+            if status.dwCurrentState != SERVICE_STOP_PENDING
+                && unsafe { ControlService(service.0, SERVICE_CONTROL_STOP, &mut status) } == 0
+            {
+                let error = std::io::Error::last_os_error();
+                if !is_service_error(&error, ERROR_SERVICE_NOT_ACTIVE)
+                    && !is_service_error(&error, ERROR_SERVICE_CANNOT_ACCEPT_CTRL)
+                {
+                    return Err(error).context("Could not stop MblServer");
+                }
+            }
+            anyhow::ensure!(Instant::now() < deadline, "Timed out waiting for MblServer to stop");
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+
+    pub(super) fn remove_registration(wait_for_removal: bool) -> anyhow::Result<()> {
+        // SAFETY: Null machine and database names select the local default SCM database.
+        let manager =
+            unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), SC_MANAGER_CONNECT) };
+        if manager.is_null() {
+            return Err(std::io::Error::last_os_error())
+                .context("Could not open Windows Service Control Manager");
+        }
+        let manager = ScHandle(manager);
+        let name = encode_utf16_null(SERVICE_NAME);
+        let deadline = Instant::now() + SERVICE_TRANSITION_TIMEOUT;
+        match open_service(&manager, &name, SERVICE_QUERY_STATUS | SERVICE_STOP | DELETE_ACCESS) {
+            Ok(service) => {
+                stop_before_delete(&service, deadline)?;
+                // SAFETY: The live handle was opened with DELETE access.
+                if unsafe { DeleteService(service.0) } == 0 {
+                    let error = std::io::Error::last_os_error();
+                    if !is_service_error(&error, ERROR_SERVICE_MARKED_FOR_DELETE) {
+                        return Err(error).context("Could not delete MblServer");
+                    }
+                }
+            }
+            Err(error) if is_service_error(&error, ERROR_SERVICE_DOES_NOT_EXIST) => return Ok(()),
+            Err(error) if is_service_error(&error, ERROR_SERVICE_MARKED_FOR_DELETE) => {}
+            Err(error) => return Err(error).context("Could not open MblServer for removal"),
+        }
+        if wait_for_removal {
+            loop {
+                match open_service(&manager, &name, SERVICE_QUERY_STATUS) {
+                    Err(error) if is_service_error(&error, ERROR_SERVICE_DOES_NOT_EXIST) => break,
+                    Err(error) if !is_service_error(&error, ERROR_SERVICE_MARKED_FOR_DELETE) => {
+                        return Err(error).context("Could not verify MblServer was removed");
+                    }
+                    _ => {}
+                }
+                anyhow::ensure!(
+                    Instant::now() < deadline,
+                    "Timed out waiting for MblServer to be removed"
+                );
+                std::thread::sleep(Duration::from_millis(250));
+            }
+        }
+        Ok(())
+    }
 
     const SERVICE_WIN32_OWN_PROCESS: u32 = 0x0000_0010;
     const SERVICE_STOPPED: u32 = 0x0000_0001;
@@ -552,9 +643,9 @@ mod tests {
         assert!(wxs.contains(r#"CustomAction Id="UninstallMblService""#));
         assert!(wxs.contains(r#"ExeCommand="service uninstall""#));
 
-        // 4. Never block MSI on synchronous ServiceControl start
+        // 4. Wait for the old process before replacing files, but never wait for service startup.
         assert!(!wxs.contains(r#"Start="install""#));
-        assert!(wxs.contains(r#"Wait="no""#));
+        assert!(wxs.contains(r#"Wait="yes""#));
 
         // 5. build-msi.ps1 must link WixUIExtension
         assert!(ps1.contains("-ext WixUIExtension"));

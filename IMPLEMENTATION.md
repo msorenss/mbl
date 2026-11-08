@@ -892,6 +892,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-11-08 | Playback performance phase 2 | Per-rendition HLS readiness tracking, async EVENT playlist checks, and seek, fallback and Cast regression coverage | perf(transcode): track published HLS segments in memory
 2026-11-08 | Playback performance phase 3 | Browser codec probes for direct files and HLS, shared negotiation and preview overlays, typed OpenAPI profile input | feat(playback): negotiate detected browser codecs
 2026-11-08 | Playback performance phase 4 | Prepare the local HLS remux resume fragment immediately, retain Cast head startup, measure loopback and provide synthetic Cast clips | perf(playback): prepare the HLS remux resume fragment
+2026-11-08 | v1.3.3 | Windows service cleanup, library media previews, and available episodes in Up Next | release: v1.3.3
 ```
 
 ---

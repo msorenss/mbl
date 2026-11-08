@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-08
+
+### Changed
+- Libraries shows a row of recently added media for each library, with folder paths tucked into administrator details.
+- Up Next advances past the furthest completed episode and leaves an in-progress episode in Continue Watching.
+
+### Fixed
+- Browse, search and playback suggestions skip series, seasons and episodes without an available video file. Episodes can share a file.
+- Windows MSI waits for the service to stop before replacing files and reports service management failures. The CLI waits for service transitions and distinguishes access denied from an already removed service.
+
 ## [1.3.2] - 2026-11-08
 
 ### Added

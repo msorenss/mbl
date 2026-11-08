@@ -5,6 +5,7 @@ import { apiErrorMessage } from "../api/errors";
 import type { components } from "../api/schema";
 import { LibraryFolderPicker } from "../components/LibraryFolderPicker";
 import { LibraryScanControl } from "../components/LibraryScanControl";
+import { PosterCard } from "../components/PosterCard";
 import { Dialog } from "../components/ui/Dialog";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -13,6 +14,49 @@ import { formatRelativeTime } from "../utils/time";
 
 type LibraryDto = components["schemas"]["LibraryDto"];
 type LibraryKind = components["schemas"]["LibraryKind"];
+
+function LibraryMediaPreview(props: { libraryId: number }) {
+  const { t } = useI18n();
+  const [items] = createResource(
+    () => props.libraryId,
+    async (id) => {
+      try {
+        const { data } = await client.GET("/api/v1/libraries/{id}/items", {
+          params: { path: { id }, query: { sort: "added", order: "desc", limit: 8 } },
+        });
+        return data?.items ?? null;
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  return (
+    <section style={{ "margin-top": "16px", "min-width": 0 }} aria-label={t("recentlyAdded")}>
+      <h3 style={{ margin: "0 0 10px", "font-size": "var(--font-size-sm)" }}>
+        {t("recentlyAdded")}
+      </h3>
+      <Show when={!items.loading} fallback={<p>{t("Loading media…")}</p>}>
+        <Show
+          when={items()?.length}
+          fallback={<p>{t(items() === null ? "Could not load media." : "No media added yet.")}</p>}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              "overflow-x": "auto",
+              padding: "4px 4px 10px",
+              "scroll-snap-type": "x proximity",
+            }}
+          >
+            <For each={items()}>{(item) => <PosterCard item={item} />}</For>
+          </div>
+        </Show>
+      </Show>
+    </section>
+  );
+}
 
 export function Libraries() {
   const { user } = useAuth();
@@ -202,7 +246,7 @@ export function Libraries() {
   onMount(loadLibraries);
 
   return (
-    <div>
+    <div class="mbl-page">
       {/* Header */}
       <div
         style={{
@@ -303,7 +347,7 @@ export function Libraries() {
           <div
             style={{
               display: "grid",
-              "grid-template-columns": "repeat(auto-fill, minmax(300px, 1fr))",
+              "grid-template-columns": "minmax(0, 1fr)",
               gap: "16px",
             }}
           >
@@ -353,27 +397,13 @@ export function Libraries() {
                       </span>
                     </div>
 
-                    <div
-                      style={{
-                        "margin-top": "12px",
-                        "font-size": "12px",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      <For each={lib.paths}>
-                        {(p) => (
-                          <div
-                            style={{
-                              "white-space": "nowrap",
-                              overflow: "hidden",
-                              "text-overflow": "ellipsis",
-                            }}
-                          >
-                            📁 {p}
-                          </div>
-                        )}
-                      </For>
-                    </div>
+                    <LibraryMediaPreview libraryId={lib.id} />
+                    <Show when={user()?.isAdmin && lib.paths.length}>
+                      <details style={{ "margin-top": "12px", "overflow-wrap": "anywhere" }}>
+                        <summary>{t("Library folders")}</summary>
+                        <For each={lib.paths}>{(path) => <div>{path}</div>}</For>
+                      </details>
+                    </Show>
 
                     <div
                       style={{
@@ -398,6 +428,8 @@ export function Libraries() {
                       display: "flex",
                       "align-items": "center",
                       "justify-content": "space-between",
+                      "flex-wrap": "wrap",
+                      gap: "12px",
                       "margin-top": "20px",
                       "padding-top": "16px",
                       "border-top": "1px solid var(--border)",
