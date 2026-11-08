@@ -32,7 +32,12 @@ vi.mock("../context/ThemeContext", () => ({
     setAudioOffsetMs: preferences.saveOffset,
   }),
 }));
-vi.mock("../api/deviceProfile", () => ({ getPreferredProfile: () => "chrome" }));
+vi.mock("../api/deviceProfile", () => ({
+  getDeviceProfileInput: () => ({
+    name: "chrome",
+    browserCodecs: { mp4: ["ac3"], webm: [], hls: [] },
+  }),
+}));
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let dispose: (() => void) | undefined;
 let emit: (value: unknown) => void;

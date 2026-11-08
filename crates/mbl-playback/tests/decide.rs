@@ -1110,3 +1110,30 @@ fn android_exoplayer_direct_plays_av1_when_client_advertises_support() {
     let decision = decide(&av1, &profile, &ctx);
     assert_eq!(decision.method, PlayMethod::DirectPlay, "{:?}", decision.reasons);
 }
+
+#[test]
+fn browser_overlay_keeps_hls_codec_support_separate_from_direct_play() {
+    let media = synthetic_video_media(
+        "mp4",
+        "hevc",
+        Some("Main"),
+        Some(120),
+        1920,
+        1080,
+        8,
+        None,
+        false,
+        "eac3",
+        2,
+        Some(4_000_000),
+    );
+    let overlay: DeviceProfileOverlay = serde_json::from_str(
+        r#"{"name":"firefox","browserCodecs":{"mp4":[],"webm":[],"hls":["hevc","eac3"]}}"#,
+    )
+    .unwrap();
+    let profile = overlay.resolve().unwrap();
+    let decision = decide(&media, &profile, &DecisionContext::default());
+    assert_eq!(decision.method, PlayMethod::DirectStream, "{:?}", decision.reasons);
+    assert_eq!(decision.video, StreamAction::Copy);
+    assert_eq!(decision.audio, StreamAction::Copy);
+}

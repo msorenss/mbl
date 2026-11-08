@@ -4,7 +4,7 @@ This document lives at the repository root so every AI agent, contributor, and a
 ---
 ## 1. Current status (quick overview)
 - Current work:
-  - Playback performance phases 1–2 are implemented. Next in the playback plan is phase 3, sending detected browser capabilities with the playback request.
+  - Playback performance phases 1–3 are implemented. Next in the playback plan is phase 4, starting non-Cast video-copy sessions near the resume position.
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
@@ -83,6 +83,13 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-08 — Uppspelningsprestanda, fas 3
+- Webbklienten skickar `DeviceProfileOverlay.browserCodecs` med separata MIME-prober för direkt MP4, direkt WebM och HLS. Lokal start, omförhandling och förhandsbesked använder samma profil. Cast använder mottagarens profil.
+- `mbl-playback` justerar HEVC, AV1, AC-3 och E-AC-3 i basprofilens regler. Servern behåller basprofilens gränser för codecs den känner till och använder försiktiga gränser när ett nytt videoformat behöver en post. OpenAPI och de genererade TypeScript-typerna beskriver nu profilens sträng- och objektformer.
+- Chromium på Pi:n rapporterade AV1 i alla tre grupperna. API-testet täcker Direct Play med rapporterat AC-3-stöd samt H.264/AAC med negativt HEVC/Dolby-besked. Fysisk AC-3-uppspelning behöver en webbläsare med stöd.
+- Verifierat med 232 webbtester, produktionsbygge och bundle-budget på 141,09 KB gzip, samt 30 riktade Rust-tester i `mbl-playback` och `mbl-server`. MCP-pariteten är 100 % (173/173).
+- Nästa steg är fas 4 i [uppspelningsplanen](docs/plans/playback-performance.md). Casts FFmpeg-genererade tidslinje behöver fortsatt börja vid källans nollpunkt.
 
 ### 2026-11-08 — Uppspelningsprestanda, fas 2
 - `mbl-transcode/src/session.rs` håller reda på publicerade fragment och init-data per bildvariant. Väntan och strypning använder asynkron filmetadata för FFmpegs växande EVENT-spellista. Vid tillväxt läses spellistan en gång och nya segment registreras från slutet.

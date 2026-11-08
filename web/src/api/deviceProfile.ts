@@ -1,119 +1,74 @@
-/**
- * Dynamic browser capability detection for MBL playback negotiation.
- * Queries MediaSource and HTMLVideoElement to determine supported codecs and formats.
- */
+import type { components } from "./schema";
 
-export interface DetectedCapabilities {
-  profileName: "chrome" | "firefox" | "safari" | "edge" | "generic-hls";
-  canPlayHevc: boolean;
-  canPlayAv1: boolean;
-  canPlayVp9: boolean;
-  canPlayH264: boolean;
-  canPlayAc3: boolean;
-  canPlayEac3: boolean;
-  canPlayOpus: boolean;
-  canPlayFlac: boolean;
-  isHlsSupported: boolean;
-  isNativeHlsSupported: boolean;
+type BrowserCodec = components["schemas"]["BrowserCodec"];
+type DeviceProfileOverlay = components["schemas"]["DeviceProfileOverlay"];
+
+const mp4Codecs: ReadonlyArray<readonly [BrowserCodec, ...string[]]> = [
+  ["hevc", 'video/mp4; codecs="hvc1.1.6.L120.90"', 'video/mp4; codecs="hev1.1.6.L120.90"'],
+  ["av1", 'video/mp4; codecs="av01.0.05M.08"'],
+  ["ac3", 'audio/mp4; codecs="ac-3"'],
+  ["eac3", 'audio/mp4; codecs="ec-3"'],
+];
+
+// Baseline types used by hls.js to decide whether it can use MSE at all.
+const hlsMseTypes = [
+  'video/mp4; codecs="avc1.42E01E,mp4a.40.2"',
+  'video/mp4; codecs="av01.0.01M.08"',
+  'video/mp4; codecs="vp09.00.50.08"',
+  'audio/mp4; codecs="mp4a.40.2"',
+  'audio/mp4; codecs="fLaC"',
+];
+
+function browserProfile(ua: string): string {
+  if (ua.includes("edg/")) return "edge";
+  if (ua.includes("firefox/")) return "firefox";
+  if (ua.includes("chrome/")) return "chrome";
+  if (ua.includes("safari/")) return "safari";
+  return "generic-hls";
 }
 
-export function detectBrowserCapabilities(): DetectedCapabilities {
-  if (typeof window === "undefined") {
-    return {
-      profileName: "generic-hls",
-      canPlayHevc: false,
-      canPlayAv1: false,
-      canPlayVp9: false,
-      canPlayH264: true,
-      canPlayAc3: false,
-      canPlayEac3: false,
-      canPlayOpus: true,
-      canPlayFlac: true,
-      isHlsSupported: false,
-      isNativeHlsSupported: false,
-    };
-  }
+export function getDeviceProfileInput(): DeviceProfileOverlay {
+  if (typeof window === "undefined") return { name: "generic-hls" };
 
-  const ua = navigator.userAgent.toLowerCase();
-  let profileName: "chrome" | "firefox" | "safari" | "edge" | "generic-hls" = "chrome";
-
-  if (ua.includes("edg/")) {
-    profileName = "edge";
-  } else if (ua.includes("firefox/")) {
-    profileName = "firefox";
-  } else if (ua.includes("safari/") && !ua.includes("chrome/")) {
-    profileName = "safari";
-  } else if (ua.includes("chrome/")) {
-    profileName = "chrome";
-  } else {
-    profileName = "generic-hls";
-  }
-
+  const name = browserProfile(navigator.userAgent.toLowerCase());
   const video = document.createElement("video");
-  const isNativeHlsSupported =
-    video.canPlayType("application/vnd.apple.mpegurl") !== "" ||
-    video.canPlayType("application/x-mpegURL") !== "";
-
-  const hasMediaSource = typeof window.MediaSource !== "undefined";
-  const checkMse = (mime: string): boolean => {
-    if (!hasMediaSource) return false;
-    try {
-      return MediaSource.isTypeSupported(mime);
-    } catch {
-      return false;
-    }
-  };
-
-  const checkVideo = (mime: string): boolean => {
+  const canPlay = (mime: string) => {
     try {
       return video.canPlayType(mime) !== "";
     } catch {
       return false;
     }
   };
+  const mp4 = mp4Codecs.filter(([, ...mimes]) => mimes.some(canPlay)).map(([codec]) => codec);
+  const webm: BrowserCodec[] = canPlay('video/webm; codecs="av01.0.05M.08"') ? ["av1"] : [];
 
-  const canPlayH264 =
-    checkMse('video/mp4; codecs="avc1.640028,mp4a.40.2"') ||
-    checkVideo('video/mp4; codecs="avc1.640028"');
-
-  const canPlayHevc =
-    checkMse('video/mp4; codecs="hvc1.1.6.L120.90"') ||
-    checkMse('video/mp4; codecs="hev1.1.6.L120.90"') ||
-    checkVideo('video/mp4; codecs="hvc1.1.6.L120.90"');
-
-  const canPlayAv1 =
-    checkMse('video/mp4; codecs="av01.0.05M.08"') ||
-    checkVideo('video/mp4; codecs="av01.0.05M.08"');
-
-  const canPlayVp9 =
-    checkMse('video/webm; codecs="vp9,opus"') || checkVideo('video/webm; codecs="vp9"');
-
-  const canPlayAc3 = checkMse('audio/mp4; codecs="ac-3"') || checkVideo('audio/mp4; codecs="ac-3"');
-
-  const canPlayEac3 =
-    checkMse('audio/mp4; codecs="ec-3"') || checkVideo('audio/mp4; codecs="ec-3"');
-
-  const canPlayOpus =
-    checkMse('audio/webm; codecs="opus"') || checkVideo('audio/webm; codecs="opus"');
-
-  const canPlayFlac = checkMse('audio/mp4; codecs="flac"') || checkVideo("audio/flac");
-
-  return {
-    profileName,
-    canPlayHevc,
-    canPlayAv1,
-    canPlayVp9,
-    canPlayH264,
-    canPlayAc3,
-    canPlayEac3,
-    canPlayOpus,
-    canPlayFlac,
-    isHlsSupported: hasMediaSource || isNativeHlsSupported,
-    isNativeHlsSupported,
+  // Match hls.js's preference for Managed Media Source, then standard and prefixed MSE.
+  const mediaWindow = window as Window & {
+    ManagedMediaSource?: typeof MediaSource;
+    WebKitMediaSource?: typeof MediaSource;
+    WebKitSourceBuffer?: typeof SourceBuffer;
   };
-}
+  const mediaSource =
+    mediaWindow.ManagedMediaSource ?? window.MediaSource ?? mediaWindow.WebKitMediaSource;
+  const canAppend = (mime: string) => {
+    try {
+      return mediaSource?.isTypeSupported?.(mime) ?? false;
+    } catch {
+      return false;
+    }
+  };
+  const sourceBuffer = (window.SourceBuffer ?? mediaWindow.WebKitSourceBuffer)?.prototype;
+  const mseHls =
+    (!sourceBuffer ||
+      (typeof sourceBuffer.appendBuffer === "function" &&
+        typeof sourceBuffer.remove === "function")) &&
+    hlsMseTypes.some(canAppend);
+  const nativeHls = canPlay("application/vnd.apple.mpegurl") || canPlay("application/x-mpegURL");
+  const hls = mseHls
+    ? mp4Codecs.filter(([, ...mimes]) => mimes.some(canAppend)).map(([codec]) => codec)
+    : nativeHls
+      ? mp4
+      : [];
 
-export function getPreferredProfile(): string {
-  const caps = detectBrowserCapabilities();
-  return caps.profileName;
+  return { name, browserCodecs: { mp4, webm, hls } };
 }

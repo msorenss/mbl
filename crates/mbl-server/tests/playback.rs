@@ -15,6 +15,51 @@ use mbl_jobs::ActivityProbe;
 use serde_json::json;
 
 #[tokio::test]
+async fn browser_codec_overlay_negotiates_direct_ac3_and_falls_back_from_hevc() {
+    let (app, db, _) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let seeded = seed_playback_fixtures(&app, &db, &admin).await;
+    let preview_uri = format!("/api/v1/items/{}/playback-preview", seeded.movie_id);
+    sqlx::query(
+        "UPDATE media_parts SET probe = json_set(probe, '$.streams[1].codec', 'ac3') WHERE id = ?",
+    )
+    .bind(seeded.movie_part_id)
+    .execute(&db.write)
+    .await
+    .unwrap();
+    let profile =
+        json!({"name": "chrome", "browserCodecs": {"mp4": ["ac3"], "webm": [], "hls": []}});
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin),
+            Some(json!({"itemId": seeded.movie_id, "profile": profile})),
+        )
+        .await;
+    assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+    assert_eq!(start.body["method"], "directPlay");
+    let session = start.body["sessionId"].as_str().unwrap();
+    app.call(Method::POST, &format!("/api/v1/playback/{session}/stop"), Some(&admin), None).await;
+
+    sqlx::query(
+        "UPDATE media_parts SET probe = json_set(probe, '$.streams[0].codec', 'hevc',
+         '$.streams[0].profile', 'Main', '$.streams[0].level', 120) WHERE id = ?",
+    )
+    .bind(seeded.movie_part_id)
+    .execute(&db.write)
+    .await
+    .unwrap();
+    let preview =
+        app.call(Method::POST, &preview_uri, Some(&admin), Some(json!({"profile": profile}))).await;
+    assert_eq!(preview.status, StatusCode::OK, "{}", preview.body);
+    assert_eq!(preview.body["method"], "transcode");
+    assert_eq!(preview.body["video"]["codec"], "h264");
+    assert_eq!(preview.body["audio"]["codec"], "aac");
+    assert!(preview.body["reasons"].to_string().contains("Video codec 'hevc'"));
+}
+
+#[tokio::test]
 async fn playback_decision_to_url_flow_direct_and_hls_transcode() {
     let (app, db, services) = TestApp::new_with_services().await;
     let admin = app.setup_admin().await;

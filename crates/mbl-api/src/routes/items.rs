@@ -171,7 +171,6 @@ pub struct PlaybackPreviewQuery {
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackPreviewRequestBody {
     pub part_id: Option<PartId>,
-    #[schema(value_type = Option<Object>)]
     pub profile: Option<PlaybackProfileInput>,
     pub max_bitrate: Option<u64>,
     pub audio_stream_index: Option<u32>,

@@ -1,7 +1,7 @@
 import Hls from "hls.js";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
-import { getPreferredProfile } from "../api/deviceProfile";
+import { getDeviceProfileInput } from "../api/deviceProfile";
 import { findNextEpisode } from "../api/nextEpisode";
 import type { components } from "../api/schema";
 import type { PlayRequest } from "../context/PlayerContext";
@@ -332,7 +332,7 @@ export function Player(props: PlayerProps) {
     try {
       castDiagnostics.record("server.negotiate", {
         itemId: body.itemId,
-        profile: typeof body.profile === "string" ? body.profile : "custom",
+        profile: typeof body.profile === "string" ? body.profile : body.profile?.name,
         startMs,
       });
       const result = await client.POST("/api/v1/playback", {
@@ -395,7 +395,7 @@ export function Player(props: PlayerProps) {
       const result = await negotiatePlayback({
         itemId: mediaItemId(),
         partId: mediaPartId(),
-        profile: getPreferredProfile() as unknown as Record<string, never>,
+        profile: getDeviceProfileInput(),
         startMs: position,
         maxBitrate: maxBitrate || undefined,
         audioOffsetMs: offset,
@@ -620,7 +620,7 @@ export function Player(props: PlayerProps) {
       const { data, error: err } = await negotiatePlayback({
         itemId: mediaItemId(),
         partId: mediaPartId(),
-        profile: getPreferredProfile() as unknown as Record<string, never>,
+        profile: getDeviceProfileInput(),
         startMs,
         audioOffsetMs: offset,
         audioStreamIndex: selectedAudioIndex(),
@@ -983,7 +983,7 @@ export function Player(props: PlayerProps) {
           const result = await negotiatePlayback({
             itemId,
             partId: itemId === mediaItemId() ? mediaPartId() : undefined,
-            profile: "chromecast" as unknown as Record<string, never>,
+            profile: "chromecast",
             startMs,
             audioOffsetMs: offset,
             audioStreamIndex: audioIndex,

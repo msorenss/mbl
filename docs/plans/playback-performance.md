@@ -141,12 +141,12 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
 - [x] Återställ spellistans status vid varje omstart. Behåll tidigare bekräftade fragment före ett vanligt spolmål. Vid kodarbyte behövs fragment som hör till den nya kodarens init-data.
 - [x] Använd samma spårning för Cast-förberedelsen och fortsätt leverera FFmpegs faktiska spellista med dess tidsstämplar.
 
-### Fas 3: Dynamisk `DeviceProfileOverlay` från klienten — Estimat: 2–3 timmar
-1. I [`web/src/api/deviceProfile.ts`](file:///home/marcus/mbl/web/src/api/deviceProfile.ts):
-   - Bygg en funktion `getDeviceProfileInput()` som returnerar `DeviceProfileOverlay` med de exakt detekterade flaggorna (`canPlayHevc`, `canPlayAv1`, `canPlayAc3`, `canPlayEac3`).
-2. I [`web/src/components/Player.tsx`](file:///home/marcus/mbl/web/src/components/Player.tsx):
-   - Skicka overlay-objektet till `/api/v1/playback`.
-3. **Verifiering:** Verifiera att Chrome på en maskin med AC-3 spelar Direct Play, och att maskiner utan HEVC automatiskt begär H.264 utan krasch.
+### Fas 3: Dynamisk `DeviceProfileOverlay` från klienten
+
+- [x] Detektera HEVC, AV1, AC-3 och E-AC-3 separat för direkt MP4, direkt WebM och fMP4 via HLS. Använd MSE-prober för hls.js och filprober när webbläsaren väljer inbyggd HLS.
+- [x] Skicka samma `browserCodecs` i förhandsbesked, lokal start, kvalitets- och spårbyten. Cast väljer mottagarens egen profil.
+- [x] Verifiera med API-test att rapporterat AC-3-stöd ger Direct Play och att en profil utan HEVC-stöd väljer H.264 i testfallet.
+- [ ] Verifiera faktisk uppspelning på en Chrome-installation med AC-3-stöd.
 
 ### Fas 4: Smart resume (`start_ms > 0`) vid videokopiering — Estimat: 2 timmar
 1. I [`crates/mbl-service/src/playback.rs`](file:///home/marcus/mbl/crates/mbl-service/src/playback.rs#L1264):

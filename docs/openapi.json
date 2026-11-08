@@ -8232,6 +8232,45 @@
           }
         }
       },
+      "BrowserCodec": {
+        "type": "string",
+        "enum": [
+          "hevc",
+          "av1",
+          "ac3",
+          "eac3"
+        ]
+      },
+      "BrowserCodecs": {
+        "type": "object",
+        "description": "Optional browser codecs probed separately for file playback and HLS.",
+        "required": [
+          "mp4",
+          "webm",
+          "hls"
+        ],
+        "properties": {
+          "hls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserCodec"
+            }
+          },
+          "mp4": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserCodec"
+            }
+          },
+          "webm": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserCodec"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "Channel": {
         "type": "object",
         "required": [
@@ -8332,6 +8371,65 @@
       "ChannelId": {
         "type": "integer",
         "format": "int64"
+      },
+      "CodecLimit": {
+        "type": "object",
+        "description": "Per-video-codec capability limits enforced before direct play or direct stream (remux).",
+        "required": [
+          "codec"
+        ],
+        "properties": {
+          "codec": {
+            "type": "string"
+          },
+          "hdr": {
+            "type": "boolean"
+          },
+          "hdrFormats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxBitDepth": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxHeight": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxLevel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "maxWidth": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "CollectionId": {
         "type": "integer",
@@ -8966,6 +9064,141 @@
           }
         }
       },
+      "DeviceProfile": {
+        "type": "object",
+        "description": "Full capability description of a playback client (Appendix A.7).",
+        "required": [
+          "name",
+          "directPlay",
+          "transcodeTarget",
+          "maxAudioChannels"
+        ],
+        "properties": {
+          "codecLimits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CodecLimit"
+            }
+          },
+          "directPlay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectPlayRule"
+            }
+          },
+          "maxAudioChannels": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxBitrate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "subtitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtitleRule"
+            }
+          },
+          "transcodeTarget": {
+            "$ref": "#/components/schemas/TranscodeTarget"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceProfileOverlay": {
+        "type": "object",
+        "description": "Dynamic profile sent by a client in a playback request, merged over a built-in profile.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "base": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional explicit built-in base profile name if `name` is custom."
+          },
+          "browserCodecs": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BrowserCodecs",
+                "description": "Overrides HEVC, AV1 and Dolby audio support while keeping the base profile's other rules."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "codecLimits": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CodecLimit"
+            }
+          },
+          "directPlay": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DirectPlayRule"
+            }
+          },
+          "maxAudioChannels": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "maxBitrate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "description": "Built-in profile name to use as the base (or custom name when `base` is set)."
+          },
+          "subtitles": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SubtitleRule"
+            }
+          },
+          "transcodeTarget": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TranscodeTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "DirEntry": {
         "type": "object",
         "required": [
@@ -9018,6 +9251,34 @@
             "description": "`None` for the virtual top level (filesystem root list)."
           }
         }
+      },
+      "DirectPlayRule": {
+        "type": "object",
+        "description": "Container and codec combinations that the client can play directly over HTTP range requests.",
+        "required": [
+          "containers"
+        ],
+        "properties": {
+          "audioCodecs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "containers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "videoCodecs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "DownloadDto": {
         "type": "object",
@@ -12315,9 +12576,13 @@
             ]
           },
           "profile": {
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlaybackProfileInput"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "subtitleStreamIndex": {
@@ -12329,6 +12594,20 @@
             "minimum": 0
           }
         }
+      },
+      "PlaybackProfileInput": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/components/schemas/DeviceProfile"
+          },
+          {
+            "$ref": "#/components/schemas/DeviceProfileOverlay"
+          }
+        ],
+        "description": "Flexible device profile input accepted by `POST /api/v1/playback`:\n- a built-in profile name (`\"chrome\"`, `\"firefox\"`, `\"safari\"`, `\"edge\"`, `\"generic-hls\"`),\n- a full [`DeviceProfile`] object, or\n- a [`DeviceProfileOverlay`] merged onto a named built-in profile."
       },
       "PlaybackProgressRequest": {
         "type": "object",
@@ -12389,9 +12668,13 @@
             ]
           },
           "profile": {
-            "type": [
-              "object",
-              "null"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlaybackProfileInput"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "startMs": {
@@ -14751,6 +15034,38 @@
         ],
         "description": "How subtitles will be delivered for the session."
       },
+      "SubtitleMethod": {
+        "type": "string",
+        "description": "How a subtitle format can be delivered to the client.",
+        "enum": [
+          "external",
+          "embed",
+          "burn"
+        ]
+      },
+      "SubtitleRule": {
+        "type": "object",
+        "description": "Delivery rule for one subtitle codec/format.",
+        "required": [
+          "format",
+          "method"
+        ],
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "method": {
+            "$ref": "#/components/schemas/SubtitleMethod"
+          },
+          "targetFormat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "SubtitleStylePreferences": {
         "type": "object",
         "required": [
@@ -15379,6 +15694,33 @@
             "type": "boolean"
           }
         }
+      },
+      "TranscodeTarget": {
+        "type": "object",
+        "description": "Target HLS container and ordered codec preferences used for remux and transcoding.",
+        "required": [
+          "container",
+          "videoCodecs",
+          "audioCodecs"
+        ],
+        "properties": {
+          "audioCodecs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "container": {
+            "type": "string"
+          },
+          "videoCodecs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "TrickplayManifest": {
         "type": "object",

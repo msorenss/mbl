@@ -49,7 +49,7 @@ describe("Player flow and playback negotiation", () => {
     });
 
     const playRes = await client.POST("/api/v1/playback", {
-      body: { itemId: 12, profile: "chrome" as unknown as Record<string, never> },
+      body: { itemId: 12, profile: "chrome" },
     });
 
     expect(postSpy).toHaveBeenCalled();

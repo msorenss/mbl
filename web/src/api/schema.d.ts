@@ -2996,6 +2996,14 @@ export interface components {
             /** Format: int64 */
             perStreamFairShareKbps: number;
         };
+        /** @enum {string} */
+        BrowserCodec: "hevc" | "av1" | "ac3" | "eac3";
+        /** @description Optional browser codecs probed separately for file playback and HLS. */
+        BrowserCodecs: {
+            hls: components["schemas"]["BrowserCodec"][];
+            mp4: components["schemas"]["BrowserCodec"][];
+            webm: components["schemas"]["BrowserCodec"][];
+        };
         Channel: {
             callsign?: string | null;
             /** @description Whether the current programme can be played by this caller. */
@@ -3019,6 +3027,21 @@ export interface components {
         };
         /** Format: int64 */
         ChannelId: number;
+        /** @description Per-video-codec capability limits enforced before direct play or direct stream (remux). */
+        CodecLimit: {
+            codec: string;
+            hdr?: boolean;
+            hdrFormats?: string[];
+            /** Format: int32 */
+            maxBitDepth?: number | null;
+            /** Format: int32 */
+            maxHeight?: number | null;
+            /** Format: int32 */
+            maxLevel?: number | null;
+            /** Format: int32 */
+            maxWidth?: number | null;
+            profiles?: string[];
+        };
         /** Format: int64 */
         CollectionId: number;
         CollectionRow: {
@@ -3171,6 +3194,34 @@ export interface components {
         DeleteOwnAccountRequest: {
             password: string;
         };
+        /** @description Full capability description of a playback client (Appendix A.7). */
+        DeviceProfile: {
+            codecLimits?: components["schemas"]["CodecLimit"][];
+            directPlay: components["schemas"]["DirectPlayRule"][];
+            /** Format: int32 */
+            maxAudioChannels: number;
+            /** Format: int64 */
+            maxBitrate?: number | null;
+            name: string;
+            subtitles?: components["schemas"]["SubtitleRule"][];
+            transcodeTarget: components["schemas"]["TranscodeTarget"];
+        };
+        /** @description Dynamic profile sent by a client in a playback request, merged over a built-in profile. */
+        DeviceProfileOverlay: {
+            /** @description Optional explicit built-in base profile name if `name` is custom. */
+            base?: string | null;
+            browserCodecs?: components["schemas"]["BrowserCodecs"] | null;
+            codecLimits?: components["schemas"]["CodecLimit"][] | null;
+            directPlay?: components["schemas"]["DirectPlayRule"][] | null;
+            /** Format: int32 */
+            maxAudioChannels?: number | null;
+            /** Format: int64 */
+            maxBitrate?: number | null;
+            /** @description Built-in profile name to use as the base (or custom name when `base` is set). */
+            name: string;
+            subtitles?: components["schemas"]["SubtitleRule"][] | null;
+            transcodeTarget?: components["schemas"]["TranscodeTarget"] | null;
+        };
         DirEntry: {
             isFile?: boolean;
             name: string;
@@ -3183,6 +3234,12 @@ export interface components {
             parent?: string | null;
             /** @description `None` for the virtual top level (filesystem root list). */
             path?: string | null;
+        };
+        /** @description Container and codec combinations that the client can play directly over HTTP range requests. */
+        DirectPlayRule: {
+            audioCodecs?: string[];
+            containers: string[];
+            videoCodecs?: string[];
         };
         DownloadDto: {
             /**
@@ -4064,10 +4121,17 @@ export interface components {
             /** Format: int64 */
             maxBitrate?: number | null;
             partId?: components["schemas"]["PartId"] | null;
-            profile?: Record<string, never> | null;
+            profile?: components["schemas"]["PlaybackProfileInput"] | null;
             /** Format: int32 */
             subtitleStreamIndex?: number | null;
         };
+        /**
+         * @description Flexible device profile input accepted by `POST /api/v1/playback`:
+         *     - a built-in profile name (`"chrome"`, `"firefox"`, `"safari"`, `"edge"`, `"generic-hls"`),
+         *     - a full [`DeviceProfile`] object, or
+         *     - a [`DeviceProfileOverlay`] merged onto a named built-in profile.
+         */
+        PlaybackProfileInput: string | components["schemas"]["DeviceProfile"] | components["schemas"]["DeviceProfileOverlay"];
         /** @description Request body for `POST /api/v1/playback/{session}/progress`. */
         PlaybackProgressRequest: {
             /** Format: int64 */
@@ -4088,7 +4152,7 @@ export interface components {
             /** Format: int64 */
             maxBitrate?: number | null;
             partId?: components["schemas"]["PartId"] | null;
-            profile?: Record<string, never> | null;
+            profile?: components["schemas"]["PlaybackProfileInput"] | null;
             /** Format: int64 */
             startMs?: number | null;
             /** Format: int32 */
@@ -4711,6 +4775,17 @@ export interface components {
             /** @enum {string} */
             delivery: "burnIn";
         };
+        /**
+         * @description How a subtitle format can be delivered to the client.
+         * @enum {string}
+         */
+        SubtitleMethod: "external" | "embed" | "burn";
+        /** @description Delivery rule for one subtitle codec/format. */
+        SubtitleRule: {
+            format: string;
+            method: components["schemas"]["SubtitleMethod"];
+            targetFormat?: string | null;
+        };
         SubtitleStylePreferences: {
             /** @description `"none" | "dim" | "solid"`, default `"dim"`. */
             background: string;
@@ -4884,6 +4959,12 @@ export interface components {
             /** Format: int32 */
             restarts: number;
             throttled: boolean;
+        };
+        /** @description Target HLS container and ordered codec preferences used for remux and transcoding. */
+        TranscodeTarget: {
+            audioCodecs: string[];
+            container: string;
+            videoCodecs: string[];
         };
         TrickplayManifest: {
             /** Format: int32 */

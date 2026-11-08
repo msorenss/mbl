@@ -15,7 +15,9 @@ vi.mock("../context/ThemeContext", () => ({
     setAudioOffsetMs: preferences.saveOffset,
   }),
 }));
-vi.mock("../api/deviceProfile", () => ({ getPreferredProfile: () => "firefox" }));
+vi.mock("../api/deviceProfile", () => ({
+  getDeviceProfileInput: () => ({ name: "firefox", browserCodecs: { mp4: [], webm: [], hls: [] } }),
+}));
 const playback = {
   sessionId: "session",
   method: "directPlay",
@@ -63,7 +65,7 @@ describe("rendered player lifecycle", () => {
           itemId: 7,
           startMs: 0,
           audioStreamIndex: 2,
-          profile: "firefox",
+          profile: { name: "firefox", browserCodecs: { mp4: [], webm: [], hls: [] } },
         }),
       }),
     );

@@ -99,6 +99,38 @@ pub struct SubtitleRule {
     pub target_format: Option<String>,
 }
 
+/// Optional browser codecs probed separately for file playback and HLS.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BrowserCodecs {
+    pub mp4: Vec<BrowserCodec>,
+    pub webm: Vec<BrowserCodec>,
+    pub hls: Vec<BrowserCodec>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum BrowserCodec {
+    Hevc,
+    Av1,
+    Ac3,
+    Eac3,
+}
+
+impl BrowserCodec {
+    const VIDEO: [Self; 2] = [Self::Hevc, Self::Av1];
+    const AUDIO: [Self; 2] = [Self::Ac3, Self::Eac3];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Hevc => "hevc",
+            Self::Av1 => "av1",
+            Self::Ac3 => "ac3",
+            Self::Eac3 => "eac3",
+        }
+    }
+}
+
 /// Dynamic profile sent by a client in a playback request, merged over a built-in profile.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -108,6 +140,9 @@ pub struct DeviceProfileOverlay {
     /// Optional explicit built-in base profile name if `name` is custom.
     #[serde(default)]
     pub base: Option<String>,
+    /// Overrides HEVC, AV1 and Dolby audio support while keeping the base profile's other rules.
+    #[serde(default)]
+    pub browser_codecs: Option<BrowserCodecs>,
     #[serde(default, alias = "direct_play")]
     pub direct_play: Option<Vec<DirectPlayRule>>,
     #[serde(default, alias = "codec_limits")]
@@ -289,6 +324,9 @@ impl DeviceProfile {
         if let Some(br) = overlay.max_bitrate {
             merged.max_bitrate = Some(br);
         }
+        if let Some(codecs) = overlay.browser_codecs {
+            codecs.apply(&mut merged);
+        }
         merged.validate()?;
         Ok(merged)
     }
@@ -301,6 +339,63 @@ impl DeviceProfile {
     /// Find the `SubtitleRule` for a subtitle codec/format (case-insensitive).
     pub fn subtitle_rule(&self, format: &str) -> Option<&SubtitleRule> {
         self.subtitles.iter().find(|s| s.format.eq_ignore_ascii_case(format))
+    }
+}
+
+impl BrowserCodecs {
+    fn apply(self, profile: &mut DeviceProfile) {
+        let webm =
+            if self.webm.contains(&BrowserCodec::Av1) { &[BrowserCodec::Av1][..] } else { &[] };
+        for rule in &mut profile.direct_play {
+            let supported = if rule.containers.iter().any(|c| c.eq_ignore_ascii_case("mp4")) {
+                &self.mp4
+            } else if rule.containers.iter().any(|c| c.eq_ignore_ascii_case("webm")) {
+                webm
+            } else {
+                continue;
+            };
+            Self::update(&mut rule.video_codecs, &BrowserCodec::VIDEO, supported);
+            Self::update(&mut rule.audio_codecs, &BrowserCodec::AUDIO, supported);
+        }
+        Self::update(&mut profile.transcode_target.video_codecs, &BrowserCodec::VIDEO, &self.hls);
+        Self::update(&mut profile.transcode_target.audio_codecs, &BrowserCodec::AUDIO, &self.hls);
+
+        for codec in BrowserCodec::VIDEO {
+            let supported =
+                self.mp4.contains(&codec) || webm.contains(&codec) || self.hls.contains(&codec);
+            if !supported {
+                profile
+                    .codec_limits
+                    .retain(|limit| !limit.codec.eq_ignore_ascii_case(codec.name()));
+            } else if profile.codec_limit(codec.name()).is_none() {
+                // Supply conservative limits when the base has no entry for this codec.
+                profile.codec_limits.push(CodecLimit {
+                    codec: codec.name().into(),
+                    profiles: vec!["Main".into()],
+                    max_level: Some(if codec == BrowserCodec::Hevc { 120 } else { 5 }),
+                    max_width: Some(1920),
+                    max_height: Some(1080),
+                    max_bit_depth: Some(8),
+                    hdr: false,
+                    hdr_formats: vec![],
+                });
+            }
+        }
+    }
+
+    fn update(codecs: &mut Vec<String>, optional: &[BrowserCodec], supported: &[BrowserCodec]) {
+        codecs.retain(|name| {
+            !optional
+                .iter()
+                .any(|codec| name.eq_ignore_ascii_case(codec.name()) && !supported.contains(codec))
+        });
+        for codec in optional {
+            if supported.contains(codec)
+                && !codecs.iter().any(|name| name.eq_ignore_ascii_case(codec.name()))
+            {
+                codecs.push(codec.name().into());
+            }
+        }
     }
 }
 

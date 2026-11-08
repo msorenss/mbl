@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from "@solidjs/router";
 import { createEffect, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
-import { getPreferredProfile } from "../api/deviceProfile";
+import { getDeviceProfileInput } from "../api/deviceProfile";
 import type { components } from "../api/schema";
 import { Badge, Button, Chip } from "../components/ui";
 import { usePlayer } from "../context/PlayerContext";
@@ -84,7 +84,7 @@ export function ItemDetail() {
         params: {
           path: { id },
           query: {
-            profile: getPreferredProfile(),
+            profile: JSON.stringify(getDeviceProfileInput()),
             part_id: part ?? undefined,
             audio_stream_index: audio ?? undefined,
             subtitle_stream_index: subtitle !== null && subtitle >= 0 ? subtitle : undefined,

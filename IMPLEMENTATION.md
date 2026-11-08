@@ -890,6 +890,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-11-01 | v1.2.1 | Home Assistant MQTT bridge (auto-discovery, live player telemetry, remote controls), built-in HTTPS/TLS certificate manager (Local CA, Tailscale, Let's Encrypt), Chromecast HTTPS URL rewrite, and permissions documentation | release: v1.2.1
 2026-11-08 | Playback performance phase 1 | HLS prefetch and progressive loading, bounded player buffers, 128 KiB Direct Play and HLS file reads, Android AV1 capability regression coverage | perf(playback): prefetch HLS and stream media in larger chunks
 2026-11-08 | Playback performance phase 2 | Per-rendition HLS readiness tracking, async EVENT playlist checks, and seek, fallback and Cast regression coverage | perf(transcode): track published HLS segments in memory
+2026-11-08 | Playback performance phase 3 | Browser codec probes for direct files and HLS, shared negotiation and preview overlays, typed OpenAPI profile input | feat(playback): negotiate detected browser codecs
 ```
 
 ---

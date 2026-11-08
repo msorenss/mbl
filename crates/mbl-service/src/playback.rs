@@ -36,13 +36,13 @@ const DEFAULT_SEGMENT_SECS: u32 = 6;
 /// Flexible device profile input accepted by `POST /api/v1/playback`:
 /// - a built-in profile name (`"chrome"`, `"firefox"`, `"safari"`, `"edge"`, `"generic-hls"`),
 /// - a full [`DeviceProfile`] object, or
-/// - a [`DeviceProfileOverlay`] merged onto `"chrome"`.
+/// - a [`DeviceProfileOverlay`] merged onto a named built-in profile.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(untagged)]
 pub enum PlaybackProfileInput {
     Named(String),
     Full(Box<DeviceProfile>),
-    Overlay(DeviceProfileOverlay),
+    Overlay(Box<DeviceProfileOverlay>),
 }
 
 impl PlaybackProfileInput {
@@ -53,7 +53,7 @@ impl PlaybackProfileInput {
                 profile.validate()?;
                 Ok((**profile).clone())
             }
-            Self::Overlay(overlay) => overlay.clone().resolve(),
+            Self::Overlay(overlay) => (**overlay).clone().resolve(),
         }
     }
 }
@@ -64,7 +64,6 @@ impl PlaybackProfileInput {
 pub struct PlaybackRequest {
     pub item_id: ItemId,
     pub part_id: Option<PartId>,
-    #[schema(value_type = Option<Object>)]
     pub profile: Option<PlaybackProfileInput>,
     pub max_bitrate: Option<u64>,
     pub audio_stream_index: Option<u32>,

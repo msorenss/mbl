@@ -52,7 +52,9 @@ vi.mock("../context/ThemeContext", () => ({
     setAudioOffsetMs: vi.fn(),
   }),
 }));
-vi.mock("../api/deviceProfile", () => ({ getPreferredProfile: () => "firefox" }));
+vi.mock("../api/deviceProfile", () => ({
+  getDeviceProfileInput: () => ({ name: "firefox", browserCodecs: { mp4: [], webm: [], hls: [] } }),
+}));
 vi.mock("../utils/cast", () => ({
   castManager: {
     setCommandHandler: () => vi.fn(),
