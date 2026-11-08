@@ -135,11 +135,11 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
 - [x] Verifiera att servern väljer Direct Play för AV1 när en Android-klient annonserar stöd. Enhetsdetekteringen tillhör Android-klienten.
 - [ ] Mät starttid och minnesanvändning vid uppspelning på Pi 5.
 
-### Fas 2: Eliminera I/O-churn i `session.rs` — Estimat: 2–3 timmar
-1. I [`crates/mbl-transcode/src/session.rs`](file:///home/marcus/mbl/crates/mbl-transcode/src/session.rs):
-   - Ersätt den upprepade synkrona disk-avläsningen av `ffmpeg.m3u8` och `read_dir` med en in-memory spårning av färdiga segment.
-   - Kontrollera endast om målet `{segment_num}.m4s` eller `{segment_num + 1}.m4s` existerar via snabb `metadata()` istället för full mappskanning.
-2. **Verifiering:** Kör `cargo test -p mbl-transcode` och integrationstester i `crates/mbl-server/tests/`.
+### Fas 2: Minska diskavläsningarna vid segmentväntan
+
+- [x] Håll färdiga segment och FFmpegs position i minnet per bildvariant. Läs den växande EVENT-spellistan asynkront när storleken ändras. Använd publicering i spellistan som bekräftelse även för sista segmentet och kontrollera att den begärda filen finns kvar.
+- [x] Återställ spellistans status vid varje omstart. Behåll tidigare bekräftade fragment före ett vanligt spolmål. Vid kodarbyte behövs fragment som hör till den nya kodarens init-data.
+- [x] Använd samma spårning för Cast-förberedelsen och fortsätt leverera FFmpegs faktiska spellista med dess tidsstämplar.
 
 ### Fas 3: Dynamisk `DeviceProfileOverlay` från klienten — Estimat: 2–3 timmar
 1. I [`web/src/api/deviceProfile.ts`](file:///home/marcus/mbl/web/src/api/deviceProfile.ts):

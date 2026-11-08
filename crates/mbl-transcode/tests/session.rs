@@ -124,6 +124,9 @@ async fn seek_far_restarts_ffmpeg_and_serves_target_segment() {
         session.restart_count().await >= 1,
         "seeking far ahead must restart FFmpeg at segment 12"
     );
+    let restarts = session.restart_count().await;
+    assert_eq!(session.request_segment("0", 0).await.unwrap(), seg0);
+    assert_eq!(session.restart_count().await, restarts, "keep confirmed pre-seek media");
 
     mgr.shutdown_all().await;
 }
@@ -550,6 +553,7 @@ if [ ! -f "$0.count" ]; then
     touch "$0.count"
     exit 1
 fi
+printf 'unpublished media' > "$out_dir/1.m4s"
 exec sleep 30
 "##;
     std::fs::write(&binary, script).unwrap();
@@ -582,10 +586,12 @@ exec sleep 30
     .await
     .unwrap();
     // Simulate old later media left by a previous writer; it cannot certify the new partial file.
-    let stale = session.dir.join("0/1.m4s");
+    let stale = session.dir.join("0/2.m4s");
     std::fs::write(stale.as_std_path(), b"old").unwrap();
     assert!(session.prepare().await.is_err());
     assert!(!stale.exists());
+    assert!(session.dir.join("0/1.m4s").exists());
+    assert!(session.request_segment("0", 0).await.is_err(), "a later file is not publication");
     manager.stop_session(&session.id).await;
     assert!(session.request_init("0").await.is_err());
     assert!(session.request_segment("0", 0).await.is_err());
@@ -753,13 +759,26 @@ async fn generated_cast_timeline_preserves_variable_gops_and_init_across_receive
     session.request_segment("0", 2).await.unwrap();
     assert_eq!(session.runtime_status().await.restarts, 0);
     assert_eq!(tokio::fs::read(&init).await.unwrap(), original_init);
-    tokio::time::timeout(Duration::from_secs(15), async {
-        while !session.request_media_playlist("0").await.unwrap().contains("#EXT-X-ENDLIST") {
+    let final_playlist = tokio::time::timeout(Duration::from_secs(15), async {
+        loop {
+            let playlist = session.request_media_playlist("0").await.unwrap();
+            if playlist.contains("#EXT-X-ENDLIST") {
+                break playlist;
+            }
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
     })
     .await
     .unwrap();
+    let last_segment = final_playlist
+        .lines()
+        .rev()
+        .find_map(|line| line.strip_suffix(".m4s"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!(session.request_segment("0", last_segment).await.unwrap().is_file());
+    assert_eq!(session.restart_count().await, 0, "the last Cast fragment has no successor");
     let info = tools
         .probe(session.dir.join("0/ffmpeg.m3u8").as_std_path(), Duration::from_secs(15))
         .await

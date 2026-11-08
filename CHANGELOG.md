@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format is based on 
 ### Changed
 - The web player prefetches HLS fragments and can feed them to the decoder during download. Its back buffer retains up to 30 seconds for short backward seeks.
 - Direct Play and HLS file responses use 128 KiB read buffers. HLS responses stream from disk without loading the entire file into memory first.
+- HLS sessions track published fragments per rendition in memory, reducing disk work while waiting for segments during playback and Cast preparation.
 
 ## [1.2.3] - 2026-11-04
 

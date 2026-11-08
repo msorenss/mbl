@@ -2,7 +2,7 @@
 //! restart (`-ss`, `-start_number`), SIGSTOP/SIGCONT ahead-throttling, 60 s inactivity cleanup,
 //! disk quota enforcement, and concurrency caps (M2.5).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -103,15 +103,66 @@ struct SessionState {
     fallback_backends: Vec<Backend>,
     paused: bool,
     current_start_segment: u32,
-    ffmpeg_head_segment: u32,
+    renditions: HashMap<String, RenditionProgress>,
     last_requested_segment: u32,
     last_access: Instant,
     restart_count: u32,
 }
 
+#[derive(Default)]
+struct RenditionProgress {
+    completed: HashSet<u32>,
+    head: Option<u32>,
+    init_written: bool,
+    playlist_len: Option<u64>,
+    cast_goal_ms: Option<u64>,
+    cast_ready_segment: Option<u32>,
+}
+
+impl RenditionProgress {
+    async fn refresh(&mut self, dir: &Path) {
+        let path = dir.join("ffmpeg.m3u8");
+        let Ok(metadata) = tokio::fs::metadata(&path).await else {
+            return;
+        };
+        // FFmpeg publishes the EVENT playlist after closing the listed fragments.
+        // It grows with each publication and is reset when a new writer starts.
+        if self.playlist_len == Some(metadata.len()) {
+            return;
+        }
+        let Ok(playlist) = tokio::fs::read_to_string(path).await else {
+            return;
+        };
+        self.playlist_len = Some(playlist.len() as u64);
+        if !self.init_written {
+            self.init_written = playlist.lines().any(|line| line == "#EXT-X-MAP:URI=\"init.mp4\"");
+        }
+        let previous_head = self.head;
+        // A writer appends numbered segments in order. The tail contains all new entries.
+        for segment in playlist
+            .lines()
+            .rev()
+            .filter_map(|line| line.trim().strip_suffix(".m4s")?.parse::<u32>().ok())
+            .take_while(|&segment| previous_head.is_none_or(|head| segment > head))
+        {
+            self.completed.insert(segment);
+            self.head = Some(self.head.map_or(segment, |head| head.max(segment)));
+        }
+        if self.cast_ready_segment.is_none()
+            && let Some(goal_ms) = self.cast_goal_ms
+        {
+            self.cast_ready_segment = generated_segment_at(&playlist, goal_ms);
+        }
+    }
+}
+
 impl SessionState {
     fn ensure_open(&self) -> Result<()> {
         if self.closed { Err(Error::NotFound) } else { Ok(()) }
+    }
+
+    fn rendition(&mut self, name: &str) -> Result<&mut RenditionProgress> {
+        self.renditions.get_mut(name).ok_or(Error::NotFound)
     }
 }
 
@@ -172,8 +223,8 @@ impl HlsSession {
 
     /// Validate the initial init/closed fragment for every advertised rendition under one deadline.
     pub async fn prepare(&self) -> Result<()> {
-        if let Some(start_ms) = self.generated_playlist_start_ms {
-            return self.prepare_generated(start_ms).await;
+        if self.generated_playlist_start_ms.is_some() {
+            return self.prepare_generated().await;
         }
         tokio::time::timeout(self.segment_wait_timeout, async {
             loop {
@@ -205,7 +256,7 @@ impl HlsSession {
         .map_err(|_| Error::Unavailable("timed out preparing playback media".into()))?
     }
 
-    async fn prepare_generated(&self, start_ms: u64) -> Result<()> {
+    async fn prepare_generated(&self) -> Result<()> {
         // A remux can index the prefix faster than playback without re-encoding
         // video. Bound preparation; never claim a distant resume position is ready
         // merely because segment zero exists.
@@ -229,22 +280,27 @@ impl HlsSession {
                             "FFmpeg failed preparing Cast timeline".into(),
                         ));
                     }
-                }
-                let mut ready = None;
-                for rendition in &self.base_pipeline.output.renditions {
-                    let path = self.dir.join(&rendition.name).join("ffmpeg.m3u8");
-                    let text = tokio::fs::read_to_string(path).await.unwrap_or_default();
-                    let goal_ms = start_ms.saturating_add(12_000).min(self.duration_ms);
-                    let Some(segment) = generated_segment_at(&text, goal_ms) else {
-                        ready = None;
-                        break;
-                    };
-                    self.request_init(&rendition.name).await?;
-                    ready = Some(ready.map_or(segment, |previous: u32| previous.min(segment)));
-                }
-                if let Some(segment) = ready {
-                    self.state.lock().await.last_requested_segment = segment;
-                    return Ok(());
+                    let mut ready = None;
+                    for rendition in &self.base_pipeline.output.renditions {
+                        let dir = self.dir.join(&rendition.name);
+                        let progress = state.rendition(&rendition.name)?;
+                        progress.refresh(dir.as_std_path()).await;
+                        let Some(segment) = progress.cast_ready_segment else {
+                            ready = None;
+                            break;
+                        };
+                        if !progress.init_written
+                            || !file_has_data(dir.join("init.mp4").as_std_path()).await
+                        {
+                            ready = None;
+                            break;
+                        }
+                        ready = Some(ready.map_or(segment, |previous: u32| previous.min(segment)));
+                    }
+                    if let Some(segment) = ready {
+                        state.last_requested_segment = segment;
+                        return Ok(());
+                    }
                 }
                 tokio::time::sleep(Duration::from_millis(25)).await;
             }
@@ -294,9 +350,6 @@ impl HlsSession {
     pub async fn request_init(&self, rendition: &str) -> Result<PathBuf> {
         validate_rendition_name(rendition)?;
         let rendition_dir = self.dir.join(rendition);
-        if !rendition_dir.exists() {
-            return Err(Error::NotFound);
-        }
         let init_path = rendition_dir.join("init.mp4").into_std_path_buf();
 
         {
@@ -304,7 +357,11 @@ impl HlsSession {
             st.ensure_open()?;
             st.last_access = Instant::now();
             let running = poll_child_state(&mut st);
-            if is_init_complete(&rendition_dir, running, st.last_exit_failed) {
+            let progress = st.rendition(rendition)?;
+            if !progress.init_written {
+                progress.refresh(rendition_dir.as_std_path()).await;
+            }
+            if progress.init_written && file_has_data(&init_path).await {
                 return Ok(init_path);
             }
             if running {
@@ -333,7 +390,11 @@ impl HlsSession {
                 let mut st = self.state.lock().await;
                 st.ensure_open()?;
                 let running = poll_child_state(&mut st);
-                if is_init_complete(&rendition_dir, running, st.last_exit_failed) {
+                let progress = st.rendition(rendition)?;
+                if !progress.init_written {
+                    progress.refresh(rendition_dir.as_std_path()).await;
+                }
+                if progress.init_written && file_has_data(&init_path).await {
                     return Ok(init_path);
                 }
                 if !running {
@@ -367,35 +428,38 @@ impl HlsSession {
     pub async fn request_segment(&self, rendition: &str, segment_num: u32) -> Result<PathBuf> {
         validate_rendition_name(rendition)?;
         let rendition_dir = self.dir.join(rendition);
-        if !rendition_dir.exists() {
-            return Err(Error::NotFound);
-        }
         let seg_path = rendition_dir.join(format!("{segment_num}.m4s")).into_std_path_buf();
 
         {
             let mut st = self.state.lock().await;
             st.ensure_open()?;
             st.last_access = Instant::now();
-            st.last_requested_segment = segment_num;
 
             let running = poll_child_state(&mut st);
-            refresh_head_segment(&rendition_dir, &mut st, running);
+            let current_start_segment = st.current_start_segment;
+            let paused = st.paused;
+            let progress = st.rendition(rendition)?;
+            if paused || !progress.completed.contains(&segment_num) {
+                progress.refresh(rendition_dir.as_std_path()).await;
+            }
+            let head = progress.head.unwrap_or(current_start_segment);
+            let complete = progress.completed.contains(&segment_num);
+            st.last_requested_segment = segment_num;
 
             // Resume FFmpeg if it was paused and the client has caught up within `ahead_segments`.
-            if st.paused
-                && st.ffmpeg_head_segment.saturating_sub(segment_num) <= self.ahead_segments
-            {
+            if st.paused && head.saturating_sub(segment_num) <= self.ahead_segments {
                 resume_child(&st.child);
                 st.paused = false;
             }
 
-            if is_segment_complete(&rendition_dir, segment_num, running, st.last_exit_failed) {
+            if complete && file_has_data(&seg_path).await {
                 return Ok(seg_path);
             }
 
-            let within_head_window = running
+            let within_head_window = !complete
+                && running
                 && segment_num >= st.current_start_segment
-                && segment_num <= st.ffmpeg_head_segment.saturating_add(3);
+                && segment_num <= head.saturating_add(3);
 
             if within_head_window || self.generated_playlist_start_ms.is_some() {
                 if !running {
@@ -427,8 +491,9 @@ impl HlsSession {
                 let mut st = self.state.lock().await;
                 st.ensure_open()?;
                 let running = poll_child_state(&mut st);
-                refresh_head_segment(&rendition_dir, &mut st, running);
-                if is_segment_complete(&rendition_dir, segment_num, running, st.last_exit_failed) {
+                let progress = st.rendition(rendition)?;
+                progress.refresh(rendition_dir.as_std_path()).await;
+                if progress.completed.contains(&segment_num) && file_has_data(&seg_path).await {
                     return Ok(seg_path);
                 }
                 if !running {
@@ -463,16 +528,22 @@ impl HlsSession {
             st.paused = false;
             return;
         }
-        let rendition_dir = self.base_pipeline.output.rendition_dir(0);
-        refresh_head_segment(&rendition_dir, &mut st, true);
+        let primary = self.base_pipeline.output.renditions.first().map_or("0", |r| r.name.as_str());
+        let start = st.current_start_segment;
+        let Some(progress) = st.renditions.get_mut(primary) else {
+            return;
+        };
+        let rendition_dir = self.dir.join(primary);
+        progress.refresh(rendition_dir.as_std_path()).await;
+        let head = progress.head.unwrap_or(start);
 
-        let ahead = st.ffmpeg_head_segment.saturating_sub(st.last_requested_segment);
+        let ahead = head.saturating_sub(st.last_requested_segment);
         if ahead > self.ahead_segments && !st.paused {
             pause_child(&st.child);
             st.paused = true;
             tracing::debug!(
                 session_id = %self.id,
-                head = st.ffmpeg_head_segment,
+                head,
                 last_req = st.last_requested_segment,
                 ahead,
                 "paused FFmpeg process (ahead of client)"
@@ -482,7 +553,7 @@ impl HlsSession {
             st.paused = false;
             tracing::debug!(
                 session_id = %self.id,
-                head = st.ffmpeg_head_segment,
+                head,
                 last_req = st.last_requested_segment,
                 ahead,
                 "resumed FFmpeg process (client caught up)"
@@ -594,6 +665,8 @@ impl HlsSession {
                 "FFmpeg failed within 5s on hardware backend; falling back transparently"
             );
             st.active_backend = next;
+            // The fallback can change init data, so prior fragments cannot be reused.
+            st.renditions.clear();
             st.last_exit_failed = false;
         }
     }
@@ -608,9 +681,8 @@ impl HlsSession {
             std::fs::create_dir_all(rendition_dir.as_std_path())
                 .map_err(|e| Error::Internal(Box::new(e)))?;
 
-            // The new writer will replace this range. Old later files must not make a
-            // half-written new segment look complete via the next-segment heuristic.
-            let _ = std::fs::remove_file(rendition_dir.join("ffmpeg.m3u8").as_std_path());
+            // Invalidate the old playlist before the new writer can reuse segment URLs.
+            remove_if_exists(rendition_dir.join("ffmpeg.m3u8").as_std_path())?;
             for entry in
                 std::fs::read_dir(rendition_dir.as_std_path()).map_err(Error::internal)?.flatten()
             {
@@ -647,8 +719,22 @@ impl HlsSession {
             .spawn()
             .map_err(|e| Error::Unavailable(format!("failed to spawn ffmpeg: {e}")))?;
 
+        let cast_goal_ms = self
+            .generated_playlist_start_ms
+            .map(|start| start.saturating_add(12_000).min(self.duration_ms));
+        let mut previous_renditions = std::mem::take(&mut st.renditions);
+        for idx in 0..p.output.renditions.len().max(1) {
+            let name = p.output.renditions.get(idx).map_or("0", |r| r.name.as_str());
+            let mut completed = previous_renditions
+                .remove(name)
+                .map_or_else(HashSet::new, |progress| progress.completed);
+            completed.retain(|&segment| segment < segment_num);
+            st.renditions.insert(
+                name.to_owned(),
+                RenditionProgress { completed, cast_goal_ms, ..Default::default() },
+            );
+        }
         st.current_start_segment = segment_num;
-        st.ffmpeg_head_segment = segment_num;
         st.paused = false;
         st.last_exit_failed = false;
         st.last_spawn_at = Instant::now();
@@ -876,7 +962,7 @@ impl SessionManager {
                 fallback_backends,
                 paused: false,
                 current_start_segment: initial_segment,
-                ffmpeg_head_segment: initial_segment,
+                renditions: HashMap::new(),
                 last_requested_segment: initial_segment,
                 last_access: Instant::now(),
                 restart_count: 0,
@@ -1040,7 +1126,7 @@ fn poll_child_state(st: &mut SessionState) -> bool {
 }
 
 async fn kill_existing_child(st: &mut SessionState) {
-    if let Some(mut child) = st.child.take() {
+    if let Some(child) = st.child.as_mut() {
         if st.paused
             && let Some(pid) = child.id()
         {
@@ -1048,6 +1134,7 @@ async fn kill_existing_child(st: &mut SessionState) {
         }
         let _ = child.kill().await;
         let _ = child.wait().await;
+        st.child = None;
     }
     st.paused = false;
 }
@@ -1077,81 +1164,16 @@ fn send_unix_signal(pid: u32, sig_flag: &str) {
 #[cfg(not(unix))]
 fn send_unix_signal(_pid: u32, _sig_flag: &str) {}
 
-fn is_init_complete(rendition_dir: &Utf8PathBuf, child_running: bool, exit_failed: bool) -> bool {
-    let init_path = rendition_dir.join("init.mp4");
-    let Ok(meta) = std::fs::metadata(init_path.as_std_path()) else {
-        return false;
-    };
-    if meta.len() == 0 {
-        return false;
-    }
-    if !child_running && !exit_failed {
-        return true;
-    }
-    // FFmpeg closes init.mp4 before writing #EXT-X-MAP:URI="init.mp4" to ffmpeg.m3u8 and before
-    // opening the first media segment (.m4s).
-    if let Ok(m3u8) = std::fs::read_to_string(rendition_dir.join("ffmpeg.m3u8").as_std_path())
-        && m3u8.contains("init.mp4")
-    {
-        return true;
-    }
-    false
+async fn file_has_data(path: &Path) -> bool {
+    tokio::fs::metadata(path).await.is_ok_and(|meta| meta.is_file() && meta.len() > 0)
 }
 
-fn is_segment_complete(
-    rendition_dir: &Utf8PathBuf,
-    segment_num: u32,
-    child_running: bool,
-    exit_failed: bool,
-) -> bool {
-    let seg_path = rendition_dir.join(format!("{segment_num}.m4s"));
-    let Ok(meta) = std::fs::metadata(seg_path.as_std_path()) else {
-        return false;
-    };
-    if meta.len() == 0 {
-        return false;
+fn remove_if_exists(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(Error::from(error)),
     }
-    if !child_running && !exit_failed {
-        return true;
-    }
-    // Only files from the current writer exist at/after its start (cleared on spawn).
-    if child_running
-        && rendition_dir.join(format!("{}.m4s", segment_num.saturating_add(1))).exists()
-    {
-        return true;
-    }
-    // FFmpeg appends `{segment_num}.m4s` to `ffmpeg.m3u8` only after closing the segment file.
-    if let Ok(m3u8) = std::fs::read_to_string(rendition_dir.join("ffmpeg.m3u8").as_std_path()) {
-        let needle = format!("{segment_num}.m4s");
-        if m3u8.lines().any(|line| line.trim() == needle) {
-            return true;
-        }
-    }
-    false
-}
-
-fn refresh_head_segment(rendition_dir: &Utf8PathBuf, st: &mut SessionState, child_running: bool) {
-    let Ok(entries) = std::fs::read_dir(rendition_dir.as_std_path()) else {
-        return;
-    };
-    let mut max_completed = st.current_start_segment;
-    for entry in entries.flatten() {
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
-        let Some(stem) = name.strip_suffix(".m4s") else {
-            continue;
-        };
-        let Ok(num) = stem.parse::<u32>() else {
-            continue;
-        };
-        if num >= st.current_start_segment
-            && is_segment_complete(rendition_dir, num, child_running, st.last_exit_failed)
-        {
-            max_completed = max_completed.max(num);
-        }
-    }
-    st.ffmpeg_head_segment = max_completed;
 }
 
 fn dir_size_bytes(path: &Path) -> u64 {
@@ -1185,12 +1207,42 @@ fn new_session_id() -> Result<String> {
     Ok(hex)
 }
 
-#[cfg(all(test, unix))]
-mod lifecycle_tests {
+#[cfg(test)]
+mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::pipeline::{AudioOp, HlsOutput, Rendition, SubtitleOp};
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
+    #[tokio::test]
+    #[allow(clippy::unwrap_used)]
+    async fn playlist_growth_updates_only_the_matching_rendition() {
+        let primary = tempfile::tempdir().unwrap();
+        let secondary = tempfile::tempdir().unwrap();
+        let prefix = "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:2.0,\n5.m4s\n";
+        let primary_playlist = primary.path().join("ffmpeg.m3u8");
+        tokio::fs::write(&primary_playlist, prefix).await.unwrap();
+        tokio::fs::write(secondary.path().join("ffmpeg.m3u8"), prefix).await.unwrap();
+        let mut high = RenditionProgress::default();
+        let mut low = RenditionProgress::default();
+        high.refresh(primary.path()).await;
+        low.refresh(secondary.path()).await;
+        assert_eq!(high.head, Some(5));
+        assert_eq!(low.head, Some(5));
+
+        tokio::fs::write(&primary_playlist, format!("{prefix}#EXTINF:2.0,\n6.m4s\n"))
+            .await
+            .unwrap();
+        high.refresh(primary.path()).await;
+        low.refresh(secondary.path()).await;
+        assert_eq!(high.completed, HashSet::from([5, 6]));
+        assert_eq!(high.head, Some(6));
+        assert_eq!(low.completed, HashSet::from([5]));
+        assert_eq!(low.head, Some(5));
+    }
+
+    #[cfg(unix)]
     #[tokio::test]
     #[allow(clippy::unwrap_used)]
     async fn cancelled_stop_stays_registered_and_closed_sessions_finish_cleanup() {
