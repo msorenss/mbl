@@ -1207,6 +1207,37 @@ fn new_session_id() -> Result<String> {
     Ok(hex)
 }
 
+/// Select an actual completed fragment by its muxer-reported cumulative duration.
+fn generated_segment_at(playlist: &str, goal_ms: u64) -> Option<u32> {
+    let mut elapsed_ms = 0.0;
+    let mut duration_ms = None;
+    let mut last = None;
+    for line in playlist.lines() {
+        if let Some(value) = line.strip_prefix("#EXTINF:") {
+            let seconds: f64 = value.split(',').next()?.parse().ok()?;
+            if !seconds.is_finite() || seconds <= 0.0 {
+                return None;
+            }
+            duration_ms = Some(seconds * 1000.0);
+        } else if let Some(index) = line.strip_suffix(".m4s").and_then(|v| v.parse::<u32>().ok()) {
+            elapsed_ms += duration_ms.take()?;
+            last = Some(index);
+            if elapsed_ms >= goal_ms as f64 {
+                return last;
+            }
+        }
+    }
+    // The last frame/audio packet can end just short of container duration.
+    if playlist.lines().any(|line| line == "#EXT-X-ENDLIST")
+        && elapsed_ms > 0.0
+        && elapsed_ms + 100.0 >= goal_ms as f64
+    {
+        last
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1304,36 +1335,5 @@ mod tests {
         assert!(session.ffmpeg_pid().await.is_none());
         assert!(!session.dir.exists());
         assert!(session.renew_activity().await.is_err());
-    }
-}
-
-/// Select an actual completed fragment by its muxer-reported cumulative duration.
-fn generated_segment_at(playlist: &str, goal_ms: u64) -> Option<u32> {
-    let mut elapsed_ms = 0.0;
-    let mut duration_ms = None;
-    let mut last = None;
-    for line in playlist.lines() {
-        if let Some(value) = line.strip_prefix("#EXTINF:") {
-            let seconds: f64 = value.split(',').next()?.parse().ok()?;
-            if !seconds.is_finite() || seconds <= 0.0 {
-                return None;
-            }
-            duration_ms = Some(seconds * 1000.0);
-        } else if let Some(index) = line.strip_suffix(".m4s").and_then(|v| v.parse::<u32>().ok()) {
-            elapsed_ms += duration_ms.take()?;
-            last = Some(index);
-            if elapsed_ms >= goal_ms as f64 {
-                return last;
-            }
-        }
-    }
-    // The last frame/audio packet can end just short of container duration.
-    if playlist.lines().any(|line| line == "#EXT-X-ENDLIST")
-        && elapsed_ms > 0.0
-        && elapsed_ms + 100.0 >= goal_ms as f64
-    {
-        last
-    } else {
-        None
     }
 }

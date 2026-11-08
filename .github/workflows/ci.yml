@@ -28,9 +28,14 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   test-linux:
+    needs: web
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - uses: dtolnay/rust-toolchain@master
@@ -43,9 +48,14 @@ jobs:
       - run: cargo nextest run --workspace --no-tests=pass
 
   test-windows:
+    needs: web
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
       - name: Install FFmpeg
         shell: pwsh
         run: |
@@ -69,9 +79,14 @@ jobs:
 
   # Native arm64 runner: closest to the Raspberry Pi 5 target and runs the tests too.
   build-aarch64:
+    needs: web
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - uses: dtolnay/rust-toolchain@master
@@ -121,3 +136,8 @@ jobs:
       - run: pnpm -C web lint
       - run: pnpm -C web test
       - run: pnpm -C web build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: error

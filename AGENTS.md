@@ -84,6 +84,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-08 — CI-fixar inför v1.3.0
+- CI #57 stoppade på Clippy eftersom `generated_segment_at` låg efter testmodulen. Hjälpfunktionen ligger nu före testmodulen.
+- PWA-testet fick 404 i Linux och ARM64 eftersom deras utcheckningar saknade den byggda webbappen. Linux, Windows och ARM64 hämtar nu `web/dist` från webbjobbet innan Rust-testerna körs.
+
 ### 2026-11-08 — Releaseunderlag för v1.3.0
 - Uppdaterade arbetsytans version, pakettexten för Windows och OpenAPI. Changelog samlar webbgränssnittet, uppspelningsförbättringarna och den fysiska Cast-verifieringen.
 - Releaseflödet hämtar versionen från `Cargo.toml` och kräver grön CI på exakt samma commit på `main`. Grenen `codex/release-v1.3.0` startar bygget, och workflowen publicerar tagg och binärer efter godkända kontroller.
