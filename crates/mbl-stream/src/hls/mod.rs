@@ -8,6 +8,9 @@ use axum::body::Body;
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::Response;
 use mbl_core::{Error, Result};
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+use tokio_util::io::ReaderStream;
 
 pub use playlist::{
     HlsRendition, render_master_playlist, render_media_playlist, render_media_playlist_with_target,
@@ -29,22 +32,25 @@ pub fn serve_playlist(content: String) -> Response {
     res
 }
 
-/// Read an on-disk `init.mp4` or `{n}.m4s` segment and build an HTTP response with `content_type`.
+/// Stream an on-disk `init.mp4` or `{n}.m4s` segment with the given `content_type`.
 pub async fn serve_segment_file(path: &Path, content_type: &'static str) -> Result<Response> {
-    let bytes = tokio::fs::read(path).await.map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            Error::NotFound
-        } else {
-            Error::Internal(Box::new(e))
-        }
+    let file = File::open(path).await.map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => Error::NotFound,
+        _ => Error::from(e),
     })?;
+    let metadata = file.metadata().await.map_err(Error::from)?;
+    if !metadata.is_file() {
+        return Err(Error::NotFound);
+    }
 
-    let len = bytes.len();
-    let mut res = Response::new(Body::from(bytes));
+    let len = metadata.len();
+    let body = Body::from_stream(ReaderStream::with_capacity(file.take(len), 128 * 1024));
+    let mut res = Response::new(body);
     *res.status_mut() = StatusCode::OK;
     res.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
     res.headers_mut().insert(header::CONTENT_LENGTH, HeaderValue::from(len));
     res.headers_mut().insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    // A seek or encoder fallback can regenerate files under the same session URLs.
     res.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     Ok(res)
 }

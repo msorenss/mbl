@@ -888,6 +888,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-10-27 | M12 | Chromecast & Remote Playback: Google Cast SDK sender, W3C Remote Playback fallback, Cast button in Player.tsx, active overlay, PlayerRegistry integration with DELETE unregistration, plugin toggle & re-enable bugfix, serde default last_seen_at hardening, m12 integration tests | feat(chromecast) M12
 2026-10-27 | M12 review | Granskning av d05a03f, Cast-livscykel/reglage/progress, media-CORS, dokumenterade kvarstående integrationshinder; 321 Rust- och 42 webbtester | working tree (base d05a03f)
 2026-11-01 | v1.2.1 | Home Assistant MQTT bridge (auto-discovery, live player telemetry, remote controls), built-in HTTPS/TLS certificate manager (Local CA, Tailscale, Let's Encrypt), Chromecast HTTPS URL rewrite, and permissions documentation | release: v1.2.1
+2026-11-08 | Playback performance phase 1 | HLS prefetch and progressive loading, bounded player buffers, 128 KiB Direct Play and HLS file reads, Android AV1 capability regression coverage | perf(playback): prefetch HLS and stream media in larger chunks
 ```
 
 ---

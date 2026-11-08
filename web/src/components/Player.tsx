@@ -683,6 +683,11 @@ export function Player(props: PlayerProps) {
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
+        startFragPrefetch: true,
+        progressive: true,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        backBufferLength: 30,
         startPosition: startMs > 0 ? startMs / 1000 : -1,
         manifestLoadPolicy: hlsLoadPolicy(),
         playlistLoadPolicy: hlsLoadPolicy(),

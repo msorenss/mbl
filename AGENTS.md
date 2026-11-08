@@ -4,6 +4,7 @@ This document lives at the repository root so every AI agent, contributor, and a
 ---
 ## 1. Current status (quick overview)
 - Current work:
+  - Playback performance phase 1 is implemented. Next in the playback plan is phase 2, reducing segment readiness I/O in `mbl-transcode`.
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
@@ -82,6 +83,13 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-08 — Uppspelningsprestanda, fas 1
+- Webbspelaren använder hls.js-förhämtning, progressiv fragmentladdning och en bakåtbuffert på 30 sekunder. Framåtbuffertens mål är 30 sekunder med ett tak på 60 sekunder.
+- `mbl-stream` läser Direct Play och HLS i block på upp till 128 KiB. HLS behåller `no-store`, eftersom FFmpeg kan skapa om innehållet på samma sessions-URL efter spolning eller kodarbyte.
+- Ett test verifierar Direct Play för AV1 när Android-klienten annonserar stöd genom `DeviceProfileOverlay`. Reservprofilen gäller även äldre telefoner och kräver fortsatt enhetsdetektering för AV1.
+- Verifierat på Pi 5 med 21 tester i `mbl-stream` och `mbl-playback`, 231 webbtester, produktionsbygge och bundle-budget (141,09 KB gzip), samt `cargo fmt --all -- --check`.
+- Nästa steg i [uppspelningsplanen](docs/plans/playback-performance.md) är att minska diskavläsningarna vid väntan på segment och mäta starttid och minnesanvändning på Pi 5. Håll segmentspårningen separat per rendition och återställ den vid skrivarbyte. Verifiera även sista segmentet och Casts FFmpeg-genererade spellista.
 
 ### 2026-11-08 — Granskning och plan för uppspelningsprestanda & formatstöd (`docs/plans/playback-performance.md`)
 - **Fullständig teknisk genomlysning av uppspelningspipelinen:**

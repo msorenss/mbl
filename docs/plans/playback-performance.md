@@ -35,7 +35,7 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
 |---|---|---|
 | **H.264 (AVC)** | Baseline, Constrained Baseline, Main, High upp till Level 5.2. 8-bit. | **Direct Play** överallt. (10-bit H.264 transkodas p.g.a. brist på hårdvaruavkodning). |
 | **HEVC (H.265)** | Main, Main 10 (8/10-bit), HDR10, HLG, upp till 4K@60fps. | **Direct Play / Direct Stream** på Safari, Edge, Android, Smart TV och Chrome (om OS-dekoder finns). |
-| **AV1 (AV01)** | Main Profile, 8/10-bit, upp till 4K. | **Direct Play** i Chrome, Firefox, Edge, Android 10+ och nyare Apple-hårdvara (A17 Pro / M3+). |
+| **AV1 (AV01)** | Main Profile, 8/10-bit, upp till 4K. | **Direct Play** på kompatibla webbläsare och Apple-enheter. Android-klienten kan välja Direct Play när den rapporterar en kompatibel dekoder i sin profil. |
 | **VP9** | Profile 0 (8-bit), Profile 2 (10-bit HDR), upp till 4K. | **Direct Play** i WebM och MP4 på Chrome, Firefox, Edge, Android. |
 | **VP8** | Standard 8-bit. | **Direct Play** i WebM på PC och Android. |
 | **MPEG-2 / VC-1** | Gamla TV-sändningar, DVD, tidiga Blu-ray. | **Transkodas** till H.264. |
@@ -74,14 +74,13 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
   2. När segment $n+1$ har skapats är segment $n$ garanterat stängt och klart – en enda snabb `metadata()`-kontroll räcker.
   3. Läs aldrig `ffmpeg.m3u8` 40 gånger i sekunden för alla filer.
 
-### Flaskhals 2: Hela segmentet läses till RAM & `Cache-Control: no-store`
+### Flaskhals 2: Hela segmentet läses till RAM
 - **Fil & rader:** [`crates/mbl-stream/src/hls/mod.rs#L33-L50`](file:///home/marcus/mbl/crates/mbl-stream/src/hls/mod.rs#L33-L50).
 - **Problem:**
   1. `serve_segment_file()` läser hela `.m4s`-filen (ofta 2–8 MB) till en `Vec<u8>` med `tokio::fs::read(path).await`. Vid hög bitrate skapar detta onödiga minnesallokeringar och GC-press.
-  2. Svaret sätts till `Cache-Control: no-store`. HLS-mediasegment (`.m4s` och `init.mp4`) är **immutabla**. Att förbjuda webbläsarcaching innebär att om användaren spolar bakåt 15 sekunder tvingas webbläsaren ladda ner segmenten från servern igen.
+  2. En spolning eller ett kodarbyte kan ersätta HLS-segment och init-data på samma sessions-URL. När segmentet har lämnat spelarens buffert behöver klienten därför kunna hämta den aktuella filen.
 - **Lösning:**
-  - Sätt `Cache-Control: public, max-age=86400, immutable` på `.m4s` och `init.mp4`. (Endast spellistor `.m3u8` ska ha `no-cache`).
-  - Strömma filen via `ReaderStream` eller `axum::body::Body::from_stream` istället för helminnesbuffert.
+  - Strömma filen via `ReaderStream` med 128 KiB buffert och behåll `Cache-Control: no-store`. Versionssatta segment-URL:er behövs innan servern kan utlova oföränderliga segment.
 
 ### Flaskhals 3: 4 KB standardbuffert i Direct Play `ReaderStream`
 - **Fil & rader:** [`crates/mbl-stream/src/direct.rs#L154-L182`](file:///home/marcus/mbl/crates/mbl-stream/src/direct.rs#L154-L182).
@@ -121,20 +120,20 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
   });
   ```
 
-### Flaskhals 7: AV1 saknas i `android-exoplayer.toml`
+### Flaskhals 7: Android-klientens AV1-stöd behöver detekteras
 - **Fil & rader:** [`crates/mbl-playback/profiles/android-exoplayer.toml#L10`](file:///home/marcus/mbl/crates/mbl-playback/profiles/android-exoplayer.toml#L10).
-- **Problem:** `video_codecs` listar `h264`, `hevc`, `vp9`, men saknar `av1`. Alla moderna Android-enheter (Android 10+ med libgav1 och Android 12+ med Dav1d) har fullt stöd för AV1.
+- **Åtgärd:** Låt Android-klienten lägga till `av1` i både `directPlay` och `codecLimits` i sin `DeviceProfileOverlay` efter enhetsdetektering. Android erbjuder avkodning från Android 10 men kräver den först från Android 14. [Androids formatdokumentation](https://developer.android.com/media/platform/supported-formats#video-formats)
 
 ---
 
 ## 4. Implementationsplan för nästa agent
 
-### Fas 1: Lågt hängande frukter (Snabbstart & Buffring) — Estimat: 1–2 timmar
-1. **Klient:** Uppdatera `hls`-instansieringen i [`web/src/components/Player.tsx`](file:///home/marcus/mbl/web/src/components/Player.tsx) med `startFragPrefetch: true`, `progressive: true`, `backBufferLength: 30` och buffer-begränsningar.
-2. **Server (Direct Play):** Ändra `ReaderStream::new` till `ReaderStream::with_capacity(file.take(length), 128 * 1024)` i [`crates/mbl-stream/src/direct.rs`](file:///home/marcus/mbl/crates/mbl-stream/src/direct.rs).
-3. **Server (HLS Caching):** Byt till `Cache-Control: public, max-age=86400, immutable` för `.m4s` och `init.mp4` i [`crates/mbl-stream/src/hls/mod.rs`](file:///home/marcus/mbl/crates/mbl-stream/src/hls/mod.rs).
-4. **Android Profil:** Lägg till `av1` i [`crates/mbl-playback/profiles/android-exoplayer.toml`](file:///home/marcus/mbl/crates/mbl-playback/profiles/android-exoplayer.toml).
-5. **Verifiering:** Kör `cargo test -p mbl-stream` och `just web-check`.
+### Fas 1: Snabbstart och buffring
+
+- [x] Aktivera förhämtning och progressiv fragmentladdning i webbspelaren. Sätt buffertmålet till 30 s framåt, taket till 60 s och bakåtbufferten till 30 s. Behåll spelarens bandbreddstest vid start.
+- [x] Strömma hela Direct Play-svar, byteintervall och HLS-filer med en buffert på 128 KiB. Behåll `no-store` för HLS-filer som kan ersättas på samma URL.
+- [x] Verifiera att servern väljer Direct Play för AV1 när en Android-klient annonserar stöd. Enhetsdetekteringen tillhör Android-klienten.
+- [ ] Mät starttid och minnesanvändning vid uppspelning på Pi 5.
 
 ### Fas 2: Eliminera I/O-churn i `session.rs` — Estimat: 2–3 timmar
 1. I [`crates/mbl-transcode/src/session.rs`](file:///home/marcus/mbl/crates/mbl-transcode/src/session.rs):

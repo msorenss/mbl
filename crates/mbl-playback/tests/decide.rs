@@ -1079,8 +1079,34 @@ fn android_exoplayer_direct_plays_typical_phone_hevc_hdr10_mkv() {
     let decision = decide(&media, &profile, &ctx);
     assert_eq!(decision.method, PlayMethod::DirectPlay, "{:?}", decision.reasons);
     assert_eq!(decision.subtitle, SubtitleDelivery::Sidecar { format: "vtt".into() });
+}
 
-    // AV1 is not part of the conservative baseline; the server must convert it.
+#[test]
+fn android_exoplayer_direct_plays_av1_when_client_advertises_support() {
+    let profile = DeviceProfile::builtin("android-exoplayer").unwrap();
     let av1 = probe_fixture("av1_opus_mkv");
-    assert_ne!(decide(&av1, &profile, &DecisionContext::default()).method, PlayMethod::DirectPlay);
+    let ctx = DecisionContext::default();
+    assert_ne!(decide(&av1, &profile, &ctx).method, PlayMethod::DirectPlay);
+
+    let mut direct_play = profile.direct_play.clone();
+    direct_play[0].video_codecs.push("av1".into());
+    let profile = DeviceProfileOverlay {
+        name: "android-exoplayer".into(),
+        direct_play: Some(direct_play),
+        codec_limits: Some(vec![CodecLimit {
+            codec: "av1".into(),
+            profiles: vec!["Main".into()],
+            max_level: None,
+            max_width: Some(1920),
+            max_height: Some(1080),
+            max_bit_depth: Some(8),
+            hdr: false,
+            hdr_formats: vec![],
+        }]),
+        ..Default::default()
+    }
+    .resolve()
+    .unwrap();
+    let decision = decide(&av1, &profile, &ctx);
+    assert_eq!(decision.method, PlayMethod::DirectPlay, "{:?}", decision.reasons);
 }

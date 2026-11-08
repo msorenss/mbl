@@ -11,6 +11,8 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
 
+const READ_BUFFER_BYTES: usize = 128 * 1024;
+
 /// Inclusive byte range `[start, end]` within a file of `total_size` bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteRange {
@@ -151,7 +153,11 @@ pub async fn serve_direct_file(
     let content_type = content_type_for_path(path, container);
 
     let Some(raw_range) = range_header else {
-        let body = if is_head { Body::empty() } else { Body::from_stream(ReaderStream::new(file)) };
+        let body = if is_head {
+            Body::empty()
+        } else {
+            Body::from_stream(ReaderStream::with_capacity(file.take(total_size), READ_BUFFER_BYTES))
+        };
         let mut res = (StatusCode::OK, body).into_response();
         let headers = res.headers_mut();
         headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
@@ -178,7 +184,7 @@ pub async fn serve_direct_file(
         Body::empty()
     } else {
         file.seek(SeekFrom::Start(range.start)).await.map_err(Error::from)?;
-        Body::from_stream(ReaderStream::new(file.take(length)))
+        Body::from_stream(ReaderStream::with_capacity(file.take(length), READ_BUFFER_BYTES))
     };
 
     let mut res = (StatusCode::PARTIAL_CONTENT, body).into_response();

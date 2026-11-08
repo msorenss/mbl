@@ -167,7 +167,14 @@ it("reloads a failed master manifest and keeps the requested start before metada
   await vi.advanceTimersByTimeAsync(1000);
   expect(hls.loadSource).toHaveBeenCalledTimes(2);
   expect(hls.loadSource).toHaveBeenLastCalledWith(playback.url);
-  expect(hls.config.startPosition).toBe(5);
+  expect(hls.config).toMatchObject({
+    startPosition: 5,
+    startFragPrefetch: true,
+    progressive: true,
+    maxBufferLength: 30,
+    maxMaxBufferLength: 60,
+    backBufferLength: 30,
+  });
   expect(hls.startLoad).toHaveBeenLastCalledWith(5);
   expect(hls.config.fragLoadPolicy).toMatchObject({
     default: { maxLoadTimeMs: 25000, timeoutRetry: null },

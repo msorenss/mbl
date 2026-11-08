@@ -134,8 +134,8 @@ mod permission_patch_tests {
 const VALID_THEMES: &[&str] = &["dark", "oled", "light", "high-contrast"];
 const VALID_ACCENTS: &[&str] = &["amber", "indigo", "emerald", "rose", "cyan", "violet"];
 const VALID_LOCALES: &[&str] = &[
-    "en", "sv", "de", "fr", "es", "pt", "it", "nl", "pl", "tr", "ru", "uk", "ar", "hi", "zh",
-    "ja", "ko", "id", "vi", "no", "tl", "ceb", "war",
+    "en", "sv", "de", "fr", "es", "pt", "it", "nl", "pl", "tr", "ru", "uk", "ar", "hi", "zh", "ja",
+    "ko", "id", "vi", "no", "tl", "ceb", "war",
 ];
 const VALID_SUB_SIZES: &[&str] = &["sm", "md", "lg", "xl"];
 const VALID_SUB_BACKGROUNDS: &[&str] = &["none", "dim", "solid"];
