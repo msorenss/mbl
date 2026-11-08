@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format is based on 
 - Direct Play and HLS file responses use 128 KiB read buffers. HLS responses stream from disk without loading the entire file into memory first.
 - HLS sessions track published fragments per rendition in memory, reducing disk work while waiting for segments during playback and Cast preparation.
 - The web player reports browser codec support for HEVC, AV1, AC-3 and E-AC-3. Playback and its preview use separate capabilities for direct files and HLS.
+- HLS remux sessions for local playback prepare the fragment at the resume position, avoiding a second FFmpeg launch for the first request.
 
 ## [1.2.3] - 2026-11-04
 

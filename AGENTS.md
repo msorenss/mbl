@@ -4,7 +4,7 @@ This document lives at the repository root so every AI agent, contributor, and a
 ---
 ## 1. Current status (quick overview)
 - Current work:
-  - Playback performance phases 1–3 are implemented. Next in the playback plan is phase 4, starting non-Cast video-copy sessions near the resume position.
+  - Playback performance phases 1–4 are implemented. Physical Cast testing is ready on the isolated preview at port 18421.
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
@@ -83,6 +83,13 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-08 — Uppspelningsprestanda, fas 4 och Cast-testklipp
+- `mbl-service/src/playback.rs` startar lokal HLS med kopierad video vid segmentet som motsvarar återupptagningspunkten. Chromecast förbereder segment noll och får den fasta VOD-spellistan.
+- 16 riktade Rust-tester passerade i `playback`, `playback_startup` och `playback_tracks`. Det nya testet avkodar riktiga fragment och kontrollerar att webb och Cast förbereder olika segment vid 00:43.
+- På Pi 5 gick medianen till hämtat init- och målfragment från 468 till 219 ms för ett syntetiskt MKV-klipp vid 00:43, fem försök per bygge. FFmpeg-omstarterna gick från en till noll per försök. Mätningen avser lokal HTTP och ett klipp.
+- Tre 60-sekundersklipp med bildräknare och ljudpuls finns i `.dev/preview-cast/test-media/phase4/`. Separat testdatabas och konfig finns i `.dev/preview-cast/phase4-data/` och `.dev/preview-cast/phase4.toml`. Körbinären är `.dev/preview-cast/phase4-server`. Testservern använder port 18421, med Direct Play på `/item/1`, HLS med AAC på `/item/3` och E-AC-3 till AAC-stereo på `/item/2`.
+- Nästa steg är uppspelning på fysisk Chromecast. Testservern är isolerad från den installerade servern och använder ingen MQTT-konfiguration.
 
 ### 2026-11-08 — Uppspelningsprestanda, fas 3
 - Webbklienten skickar `DeviceProfileOverlay.browserCodecs` med separata MIME-prober för direkt MP4, direkt WebM och HLS. Lokal start, omförhandling och förhandsbesked använder samma profil. Cast använder mottagarens profil.

@@ -891,6 +891,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-11-08 | Playback performance phase 1 | HLS prefetch and progressive loading, bounded player buffers, 128 KiB Direct Play and HLS file reads, Android AV1 capability regression coverage | perf(playback): prefetch HLS and stream media in larger chunks
 2026-11-08 | Playback performance phase 2 | Per-rendition HLS readiness tracking, async EVENT playlist checks, and seek, fallback and Cast regression coverage | perf(transcode): track published HLS segments in memory
 2026-11-08 | Playback performance phase 3 | Browser codec probes for direct files and HLS, shared negotiation and preview overlays, typed OpenAPI profile input | feat(playback): negotiate detected browser codecs
+2026-11-08 | Playback performance phase 4 | Prepare the local HLS remux resume fragment immediately, retain Cast head startup, measure loopback and provide synthetic Cast clips | perf(playback): prepare the HLS remux resume fragment
 ```
 
 ---

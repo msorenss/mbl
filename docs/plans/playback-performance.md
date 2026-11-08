@@ -148,7 +148,8 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
 - [x] Verifiera med API-test att rapporterat AC-3-stöd ger Direct Play och att en profil utan HEVC-stöd väljer H.264 i testfallet.
 - [ ] Verifiera faktisk uppspelning på en Chrome-installation med AC-3-stöd.
 
-### Fas 4: Smart resume (`start_ms > 0`) vid videokopiering — Estimat: 2 timmar
-1. I [`crates/mbl-service/src/playback.rs`](file:///home/marcus/mbl/crates/mbl-service/src/playback.rs#L1264):
-   - Tillåt `initial_seg = segment_index_for_ms(start_ms)` även när `is_video_copy == true`, förutsatt att klienten inte begärt Cast-kompatibilitet.
-2. **Verifiering:** Mät uppstartstid vid spolning/återupptagning (ska gå från ~3 sekunder till <500 ms).
+### Fas 4: Start vid återupptagningspunkten för remux
+
+- [x] Förbered segmentet vid återupptagningspunkten för lokal HLS med kopierad video. Begränsa segmentvalet till den kända längden. Chromecast förbereder segment noll så mottagaren kan läsa början av VOD-listan före en spolning.
+- [x] Verifiera verkliga FFmpeg-fragment vid 00:43 för webb och Cast. Webb förbereder segment 7 direkt och Cast förbereder segment 0. Båda fragmenten kan avkodas.
+- [x] Mät återupptagning på Pi 5. På ett syntetiskt 60-sekundersklipp gick medianen för lokal HTTP fram till mottaget init- och målfragment från 468 till 219 ms över fem försök per bygge. Antalet FFmpeg-omstarter gick från en till noll per försök.

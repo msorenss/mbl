@@ -536,7 +536,7 @@ impl PlaybackService {
                         &media_info,
                         &decision,
                         &ctx,
-                        profile.max_audio_channels,
+                        &profile,
                         false,
                         start_ms,
                         duration_ms,
@@ -1111,7 +1111,7 @@ impl PlaybackService {
         media_info: &MediaInfo,
         decision: &Decision,
         ctx: &DecisionContext,
-        max_audio_channels: u8,
+        profile: &DeviceProfile,
         generated_playlist: bool,
         start_ms: u64,
         duration_ms: u64,
@@ -1179,7 +1179,7 @@ impl PlaybackService {
                 channels: audio_stream
                     .and_then(|a| a.channels)
                     .unwrap_or(2)
-                    .min(max_audio_channels)
+                    .min(profile.max_audio_channels)
                     .clamp(1, 6),
                 bitrate: *bitrate,
             },
@@ -1254,26 +1254,22 @@ impl PlaybackService {
             if is_video_copy { 10.max(DEFAULT_SEGMENT_SECS) } else { DEFAULT_SEGMENT_SECS };
         let fast_start_segments = !generated_playlist && !is_video_copy;
 
-        // When copying video, the upfront VOD playlist advertises all segments starting
-        // from 0. Initializing the pipeline at segment 0 ensures init.mp4 and 0.m4s are
-        // immediately available when players (such as Google Cast CAF / Shaka Player) probe
-        // the head of the playlist to calculate presentation time offsets before seeking.
-        // Seeks to later segments (or start_ms > 0) are fulfilled seamlessly by the segment
-        // server without killing the pipeline or corrupting init.mp4.
-        let initial_seg = if generated_playlist || is_video_copy {
+        // Cast can probe the head of the VOD playlist before seeking to its resume point.
+        // Other remux clients can prepare the requested fragment directly.
+        let starts_at_head = generated_playlist
+            || (is_video_copy && profile.name.eq_ignore_ascii_case("chromecast"));
+        let initial_seg = if starts_at_head {
             0
         } else {
-            segment_index_for_ms(start_ms, DEFAULT_SEGMENT_SECS, fast_start_segments)
+            let seek_ms =
+                if is_video_copy { start_ms.min(duration_ms.saturating_sub(1)) } else { start_ms };
+            segment_index_for_ms(seek_ms, DEFAULT_SEGMENT_SECS, fast_start_segments)
         };
-        let initial_start_ms = if generated_playlist || is_video_copy {
-            0
-        } else {
-            mbl_stream::hls::segment_start_ms_full(
-                initial_seg,
-                DEFAULT_SEGMENT_SECS,
-                fast_start_segments,
-            )
-        };
+        let initial_start_ms = mbl_stream::hls::segment_start_ms_full(
+            initial_seg,
+            DEFAULT_SEGMENT_SECS,
+            fast_start_segments,
+        );
         let input_utf8 = Utf8PathBuf::from_path_buf(verified_path.to_path_buf())
             .map_err(|_| Error::Validation("media path is not valid UTF-8".into()))?;
 

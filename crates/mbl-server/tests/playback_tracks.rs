@@ -52,6 +52,93 @@ async fn stop(app: &TestApp, admin: &str, response: &Value) {
 }
 
 #[tokio::test]
+async fn remux_resume_prepares_the_target_for_web_and_the_head_for_cast() {
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let seeded = seed_playback_fixtures(&app, &db, &admin).await;
+    let path: String = sqlx::query_scalar("SELECT path FROM media_parts WHERE id=?")
+        .bind(seeded.movie_part_id)
+        .fetch_one(&db.read)
+        .await
+        .unwrap();
+    let tools = FfTools::locate("", "").await.unwrap();
+    let output = tokio::process::Command::new(&tools.ffmpeg)
+        .args([
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=s=160x90:r=12:d=60",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
+            "-threads",
+            "1",
+            "-g",
+            "24",
+            "-sc_threshold",
+            "0",
+            "-f",
+            "matroska",
+        ])
+        .arg(&path)
+        .output()
+        .await
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    cache_probe(&db, &tools, &path, seeded.movie_part_id).await;
+
+    for (profile, first) in [("chrome", 7), ("chromecast", 0)] {
+        let response = app
+            .call(
+                Method::POST,
+                "/api/v1/playback",
+                Some(&admin),
+                Some(json!({
+                    "itemId": seeded.movie_id, "profile": profile,
+                    "startMs": 43_000, "waitForReady": true
+                })),
+            )
+            .await;
+        assert_eq!(response.status, StatusCode::OK, "{}", response.body);
+        assert_eq!(response.body["method"], "directStream");
+        assert_eq!(response.body["startMs"], 43_000);
+        let id = response.body["sessionId"].as_str().unwrap();
+        let session = services.stream.hls_session(id).unwrap();
+        assert_eq!(session.dir.join("0/0.m4s").is_file(), first == 0);
+        let init = session.request_init("0").await.unwrap();
+        let fragment = session.request_segment("0", first).await.unwrap();
+        assert_eq!(session.restart_count().await, 0);
+
+        let playlist = session.request_media_playlist("0").await.unwrap();
+        assert!(playlist.contains("#EXT-X-PLAYLIST-TYPE:VOD"));
+        assert!(playlist.contains("#EXT-X-ENDLIST"));
+        assert!(playlist.lines().any(|line| line == "7.m4s"));
+
+        let mut bytes = tokio::fs::read(init).await.unwrap();
+        bytes.extend(tokio::fs::read(fragment).await.unwrap());
+        let playable = app.dir.path().join("resume-fragment.mp4");
+        tokio::fs::write(&playable, bytes).await.unwrap();
+        let decoded = tokio::process::Command::new(&tools.ffmpeg)
+            .args(["-nostdin", "-v", "error", "-i"])
+            .arg(&playable)
+            .args(["-frames:v", "3", "-pix_fmt", "gray", "-f", "rawvideo", "pipe:1"])
+            .output()
+            .await
+            .unwrap();
+        assert!(decoded.status.success(), "{}", String::from_utf8_lossy(&decoded.stderr));
+        assert_eq!(decoded.stdout.len(), 3 * 160 * 90);
+        stop(&app, &admin, &response.body).await;
+    }
+}
+
+#[tokio::test]
 async fn selected_audio_and_ass_subtitles_are_real_and_invalid_indices_are_rejected() {
     let (app, db, services) = TestApp::new_with_services().await;
     let admin = app.setup_admin().await;
