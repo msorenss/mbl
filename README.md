@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.2.3
+Current release: v1.3.0
 
-This release adds native Hailo-8/8L/10H NPU inference with HailoRT GenAI (VLM, LLM, Whisper) and an interactive `.hef` model picker, plus the server prerequisites for the upcoming Android client (mDNS discovery, server endpoints, offline downloads and progress sync, synced lyrics, account self-deletion). See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for the full operational documentation.
+This release improves HLS startup and resume, negotiates codecs with the browser, and introduces a refreshed web interface that can be installed as a PWA. The interface supports 23 languages. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 

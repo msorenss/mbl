@@ -4,12 +4,22 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-08
+
+### Added
+- Installable web app for phones and tablets, with a responsive layout and app-shell caching.
+- Interface translations for 23 languages, including Tagalog, Cebuano and Waray.
+
 ### Changed
+- The web interface has updated navigation, consistent menus and controls, and reduced-motion-aware view transitions.
 - The web player prefetches HLS fragments and can feed them to the decoder during download. Its back buffer retains up to 30 seconds for short backward seeks.
 - Direct Play and HLS file responses use 128 KiB read buffers. HLS responses stream from disk without loading the entire file into memory first.
 - HLS sessions track published fragments per rendition in memory, reducing disk work while waiting for segments during playback and Cast preparation.
 - The web player reports browser codec support for HEVC, AV1, AC-3 and E-AC-3. Playback and its preview use separate capabilities for direct files and HLS.
 - HLS remux sessions for local playback prepare the fragment at the resume position, avoiding a second FFmpeg launch for the first request.
+
+### Verified
+- Physical Chromecast playback on Bedroom TV with three synthetic clips covering Direct Play, HLS with AAC, and HLS with E-AC-3 converted to AAC stereo.
 
 ## [1.2.3] - 2026-11-04
 

@@ -153,3 +153,4 @@ Denna plan sammanfattar granskningen av MBL:s uppspelningsarkitektur (både serv
 - [x] Förbered segmentet vid återupptagningspunkten för lokal HLS med kopierad video. Begränsa segmentvalet till den kända längden. Chromecast förbereder segment noll så mottagaren kan läsa början av VOD-listan före en spolning.
 - [x] Verifiera verkliga FFmpeg-fragment vid 00:43 för webb och Cast. Webb förbereder segment 7 direkt och Cast förbereder segment 0. Båda fragmenten kan avkodas.
 - [x] Mät återupptagning på Pi 5. På ett syntetiskt 60-sekundersklipp gick medianen för lokal HTTP fram till mottaget init- och målfragment från 468 till 219 ms över fem försök per bygge. Antalet FFmpeg-omstarter gick från en till noll per försök.
+- [x] Verifiera fysisk Cast för de tre syntetiska klippen på Bedroom TV. Användaren bekräftade MP4/AAC via Direct Play, MKV/AAC via HLS och MKV/E-AC-3 via HLS med AAC-stereo.
