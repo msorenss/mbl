@@ -83,6 +83,20 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-08 — Granskning och plan för uppspelningsprestanda & formatstöd (`docs/plans/playback-performance.md`)
+- **Fullständig teknisk genomlysning av uppspelningspipelinen:**
+  - Kartlade alla behållare (MP4, WebM, MKV, TS, AVI m.fl.), video-codecs (H.264, HEVC, AV1, VP9, VP8, MPEG-2), ljud-codecs (AAC, MP3, Opus, FLAC, AC-3, E-AC-3, TrueHD, DTS), HDR-format (HDR10, HLG, Dolby Vision) och undertextleverans (WebVTT-sidofiler vs bildinbränning).
+  - Skapade detaljerad åtgärdsplan i [`docs/plans/playback-performance.md`](docs/plans/playback-performance.md).
+- **Identifierade 7 konkreta prestandaflaskhalsar med exakta fillänkar och åtgärder:**
+  1. **I/O-loop i `request_segment` (`crates/mbl-transcode/src/session.rs#L425` & `#L1101`):** Synkron `read_dir` och läsning av hela `ffmpeg.m3u8` var 25:e ms vid segmentväntan belastar SD-kort/USB och blockerar Tokios trådpool på Pi 5. Åtgärdas genom in-memory segmentspårning.
+  2. **Segmentbuffring och `no-store` (`crates/mbl-stream/src/hls/mod.rs#L33`):** `tokio::fs::read` allokerar hela segmentet i RAM vid varje anrop, och `no-store` hindrar webbläsaren från att cacha immutabla `.m4s`/`init.mp4`-segment. Åtgärdas med `ReaderStream` och `Cache-Control: public, max-age=86400, immutable`.
+  3. **DirectPlay `ReaderStream` buffert (`crates/mbl-stream/src/direct.rs#L154`):** Använder 4 KB standardbuffert vilket ger >1 200 systemanrop/s vid 4K. Åtgärdas genom `with_capacity(..., 128 * 1024)`.
+  4. **Spurious FFmpeg-omstart vid återupptagning (`crates/mbl-service/src/playback.rs#L1264`):** `is_video_copy == true` tvingar start vid segment 0 även om `start_ms > 0`, vilket gör att FFmpeg dödas och startas om så fort spelaren begär sitt faktiska återupptagningssegment.
+  5. **Klientavkänning kastas bort (`web/src/api/deviceProfile.ts#L116` & `Player.tsx#L623`):** Webbläsarens `MediaSource.isTypeSupported()`-kontroller för HEVC, AV1, AC3 och EAC3 skickas inte till servern, utan bara statiska namn som `"chrome"`. Åtgärdas genom att skicka en dynamisk `DeviceProfileOverlay`.
+  6. **hls.js i webbspelaren (`web/src/components/Player.tsx#L684`):** Saknar `startFragPrefetch: true` (parallell segmentladdning), `progressive: true` (fMP4 streaming till SourceBuffer) och gränser för framåt-/bakåtbuffert (`backBufferLength: 30` för omedelbar spolning bakåt).
+  7. **AV1 saknas i Android-profilen:** [`crates/mbl-playback/profiles/android-exoplayer.toml`](crates/mbl-playback/profiles/android-exoplayer.toml) saknar `av1` i `video_codecs` trots fullt stöd i Android 10+ (libgav1/Dav1d).
+- **Nästa agent:** Följ fas 1 i [`docs/plans/playback-performance.md`](docs/plans/playback-performance.md): implementera snabbstart i `Player.tsx`, 128 KB buffert i `direct.rs`, immutable HLS-cache i `hls/mod.rs`, samt lägg till `av1` i `android-exoplayer.toml`.
+
 ### 2026-11-07 — Web UI v2: konsekventa menyer/val, View Transitions, installerbar PWA & 23 språk (inkl. Tagalog, Bisaya, Waray-Waray)
 - **Fullt i18n-stöd på 23 språk (`web/src/i18n/`, `crates/mbl-service/src/users.rs`):**
   - Utökade språkstödet från 5 till **23 språk** i både backend (`VALID_LOCALES` i `crates/mbl-service/src/users.rs`) och frontend (`SUPPORTED_LOCALES` i `web/src/i18n/index.ts`, `coreLocales.ts`, `extraPhrases.ts`, `philippineLocales.ts`, `allUiStrings.ts`):
