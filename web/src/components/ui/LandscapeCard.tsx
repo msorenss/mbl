@@ -46,6 +46,7 @@ export function LandscapeCard(props: LandscapeCardProps) {
         width: "100%",
         "min-width": "240px",
         "max-width": "300px",
+        "scroll-snap-align": "start",
       }}
     >
       <A
@@ -113,7 +114,6 @@ export function LandscapeCard(props: LandscapeCardProps) {
               position: "absolute",
               top: "50%",
               left: "50%",
-              transform: "translate(-50%, -50%)",
               width: "44px",
               height: "44px",
               "border-radius": "var(--radius-full)",

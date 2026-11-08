@@ -3,11 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { Chip } from "./Chip";
+import { DropdownMenu } from "./DropdownMenu";
 import { Hero } from "./Hero";
 import { PinPad } from "./PinPad";
 import { ProgressRing } from "./ProgressRing";
 import { SegmentedControl } from "./SegmentedControl";
+import { Select } from "./Select";
 import { Skeleton } from "./Skeleton";
+import { Switch } from "./Switch";
 
 describe("UI Component Library", () => {
   it("renders Button with proper variant and disabled state", () => {
@@ -154,5 +157,68 @@ describe("UI Component Library", () => {
     expect(container.textContent).toContain("2014");
     expect(container.textContent).toContain("Sci-Fi");
     expect(container.textContent).toContain("Play Now");
+  });
+
+  it("renders Select with label and options and emits change events", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+
+    render(
+      () => (
+        <Select
+          id="quality-select"
+          label="Quality"
+          value="1080p"
+          options={[
+            { value: "1080p", label: "1080p HD" },
+            { value: "4k", label: "4K UHD" },
+          ]}
+          onChange={onChange}
+        />
+      ),
+      container,
+    );
+
+    const select = container.querySelector("#quality-select") as HTMLSelectElement;
+    expect(select).toBeDefined();
+    expect(select.options.length).toBe(2);
+    select.value = "4k";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders Switch with role=switch and toggles aria-checked", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onChange = vi.fn();
+
+    render(() => <Switch checked={false} onChange={onChange} label="Reduced Motion" />, container);
+
+    const sw = container.querySelector('[role="switch"]') as HTMLButtonElement;
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+    sw.click();
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("renders DropdownMenu trigger with accessible label", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const onSelect = vi.fn();
+
+    render(
+      () => (
+        <DropdownMenu
+          triggerLabel="Profile menu"
+          trigger={<span>U</span>}
+          items={[{ id: "account", label: "Account", icon: "🔒", onSelect }]}
+        />
+      ),
+      container,
+    );
+
+    const trigger = container.querySelector('[aria-label="Profile menu"]') as HTMLButtonElement;
+    expect(trigger).toBeDefined();
+    expect(trigger.textContent).toContain("U");
   });
 });

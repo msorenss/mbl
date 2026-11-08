@@ -167,19 +167,21 @@ export function Setup() {
         display: "flex",
         "justify-content": "center",
         "align-items": "center",
-        "min-height": "100vh",
-        padding: "40px 20px",
+        "min-height": "100dvh",
+        padding:
+          "max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))",
         background: "var(--bg-base)",
       }}
     >
       <div
+        class="mbl-page"
         style={{
-          width: "520px",
-          padding: "36px",
+          width: "min(520px, 100%)",
+          padding: "clamp(22px, 5vw, 36px)",
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
-          "border-radius": "var(--radius-lg)",
-          "box-shadow": "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
+          "border-radius": "var(--radius-xl)",
+          "box-shadow": "var(--shadow-xl)",
         }}
       >
         {/* Wizard Progress indicator */}
@@ -355,7 +357,7 @@ export function Setup() {
                 cursor: "pointer",
               }}
             >
-              {isSubmitting() ? "Creating Admin..." : "Next: Add Library &rarr;"}
+              {isSubmitting() ? "Creating Admin..." : "Next: Add Library →"}
             </button>
           </form>
         </Show>
@@ -656,7 +658,7 @@ export function Setup() {
                   cursor: "pointer",
                 }}
               >
-                {isSubmitting() ? "Creating..." : "Next: Metadata Agent &rarr;"}
+                {isSubmitting() ? "Creating..." : "Next: Metadata Agent →"}
               </button>
             </div>
           </form>
@@ -751,7 +753,7 @@ export function Setup() {
               cursor: "pointer",
             }}
           >
-            Next: Review & Start Scan &rarr;
+            Next: Review & Start Scan →
           </button>
         </Show>
 

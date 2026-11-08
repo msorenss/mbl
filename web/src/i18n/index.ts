@@ -1,7 +1,70 @@
-import { createMemo } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 import { type AppLocale, useTheme } from "../context/ThemeContext";
+import { CORE_EXTRA_LOCALES } from "./coreLocales";
+import { EXTRA_TRANSLATIONS } from "./extraPhrases";
+import { PHILIPPINE_LOCALES } from "./philippineLocales";
 
-export const translations = {
+type LookupExtendedFn = typeof import("./phraseEngine").lookupExtendedPhrase;
+let cachedLookupExtended: LookupExtendedFn | undefined;
+let loadingPhraseEngine: Promise<LookupExtendedFn> | undefined;
+const [phraseEngineReady, setPhraseEngineReady] = createSignal(false);
+
+function ensurePhraseEngine(onReady?: () => void): LookupExtendedFn | undefined {
+  if (cachedLookupExtended) return cachedLookupExtended;
+  if (!loadingPhraseEngine) {
+    loadingPhraseEngine = import("./phraseEngine").then((mod) => {
+      cachedLookupExtended = mod.lookupExtendedPhrase;
+      setPhraseEngineReady(true);
+      return cachedLookupExtended;
+    });
+  }
+  if (onReady) {
+    void loadingPhraseEngine.then(() => onReady());
+  }
+  return cachedLookupExtended;
+}
+
+function lookupPhraseOrPrimary(phrase: string, loc: AppLocale): string | undefined {
+  const extFn = ensurePhraseEngine();
+  if (extFn) {
+    return extFn(phrase, loc, primaryLookup);
+  }
+  return primaryLookup(phrase, loc);
+}
+
+export interface LocaleOption {
+  code: AppLocale;
+  name: string;
+  nativeName: string;
+}
+
+export const SUPPORTED_LOCALES: readonly LocaleOption[] = [
+  { code: "en", name: "English", nativeName: "English" },
+  { code: "sv", name: "Swedish", nativeName: "Svenska" },
+  { code: "de", name: "German", nativeName: "Deutsch" },
+  { code: "fr", name: "French", nativeName: "Français" },
+  { code: "es", name: "Spanish", nativeName: "Español" },
+  { code: "pt", name: "Portuguese", nativeName: "Português" },
+  { code: "it", name: "Italian", nativeName: "Italiano" },
+  { code: "nl", name: "Dutch", nativeName: "Nederlands" },
+  { code: "pl", name: "Polish", nativeName: "Polski" },
+  { code: "tr", name: "Turkish", nativeName: "Türkçe" },
+  { code: "ru", name: "Russian", nativeName: "Русский" },
+  { code: "uk", name: "Ukrainian", nativeName: "Українська" },
+  { code: "ar", name: "Arabic", nativeName: "العربية" },
+  { code: "hi", name: "Hindi", nativeName: "हिन्दी" },
+  { code: "zh", name: "Chinese", nativeName: "中文" },
+  { code: "ja", name: "Japanese", nativeName: "日本語" },
+  { code: "ko", name: "Korean", nativeName: "한국어" },
+  { code: "id", name: "Indonesian", nativeName: "Bahasa Indonesia" },
+  { code: "vi", name: "Vietnamese", nativeName: "Tiếng Việt" },
+  { code: "no", name: "Norwegian", nativeName: "Norsk" },
+  { code: "tl", name: "Tagalog", nativeName: "Tagalog" },
+  { code: "ceb", name: "Bisaya (Cebuano)", nativeName: "Bisaya" },
+  { code: "war", name: "Waray-Waray", nativeName: "Waray-Waray" },
+];
+
+const baseTranslations = {
   en: {
     castDiagnosticsTitle: "Cast diagnostics",
     castDiagnosticsHelp:
@@ -181,6 +244,21 @@ export const translations = {
     cancel: "Cancel",
     close: "Close",
     searchPlaceholder: "Search movies, shows, music (Ctrl+K)...",
+    browse: "Browse",
+    personal: "My Library",
+    collections: "Collections & Playlists",
+    accountSecurity: "Account & Security",
+    remoteAccess: "Remote Access",
+    serverSettings: "Server Settings",
+    more: "More",
+    appearance: "Appearance",
+    quickSearch: "Search or jump to…",
+    onlineStatus: "Connected",
+    installApp: "Install Web App",
+    installAppDesc: "Add MBL to your phone or tablet home screen for a full-screen app experience.",
+    installAppIosHint: "On iPhone/iPad: tap Share in Safari and choose 'Add to Home Screen'.",
+    appInstalled: "Running as installed app",
+    toggleSidebar: "Toggle sidebar",
   },
   sv: {
     castDiagnosticsTitle: "Cast-diagnostik",
@@ -363,6 +441,21 @@ export const translations = {
     cancel: "Avbryt",
     close: "Stäng",
     searchPlaceholder: "Sök filmer, serier, musik (Ctrl+K)...",
+    browse: "Utforska",
+    personal: "Mitt bibliotek",
+    collections: "Samlingar & spellistor",
+    accountSecurity: "Konto & säkerhet",
+    remoteAccess: "Fjärråtkomst",
+    serverSettings: "Serverinställningar",
+    more: "Mer",
+    appearance: "Utseende",
+    quickSearch: "Sök eller hoppa till…",
+    onlineStatus: "Ansluten",
+    installApp: "Installera webbapp",
+    installAppDesc: "Lägg till MBL på hemskärmen på din mobil eller surfplatta för helskärmsläge.",
+    installAppIosHint: "På iPhone/iPad: tryck på Dela i Safari och välj 'Lägg till på hemskärmen'.",
+    appInstalled: "Körs som installerad app",
+    toggleSidebar: "Växla sidopanel",
   },
   de: {
     castDiagnosticsTitle: "Cast-Diagnose",
@@ -547,6 +640,22 @@ export const translations = {
     cancel: "Abbrechen",
     close: "Schließen",
     searchPlaceholder: "Filme, Serien, Musik suchen (Strg+K)...",
+    browse: "Entdecken",
+    personal: "Meine Mediathek",
+    collections: "Sammlungen & Wiedergabelisten",
+    accountSecurity: "Konto & Sicherheit",
+    remoteAccess: "Fernzugriff",
+    serverSettings: "Servereinstellungen",
+    more: "Mehr",
+    appearance: "Darstellung",
+    quickSearch: "Suchen oder springen zu…",
+    onlineStatus: "Verbunden",
+    installApp: "Web-App installieren",
+    installAppDesc: "Fügen Sie MBL zum Startbildschirm Ihres Smartphones oder Tablets hinzu.",
+    installAppIosHint:
+      "Auf iPhone/iPad: In Safari auf Teilen tippen und 'Zum Home-Bildschirm' wählen.",
+    appInstalled: "Läuft als installierte App",
+    toggleSidebar: "Seitenleiste umschalten",
   },
   fr: {
     castDiagnosticsTitle: "Diagnostic Cast",
@@ -729,6 +838,22 @@ export const translations = {
     cancel: "Annuler",
     close: "Fermer",
     searchPlaceholder: "Rechercher films, séries, musique (Ctrl+K)...",
+    browse: "Parcourir",
+    personal: "Ma médiathèque",
+    collections: "Collections & listes",
+    accountSecurity: "Compte & sécurité",
+    remoteAccess: "Accès à distance",
+    serverSettings: "Paramètres serveur",
+    more: "Plus",
+    appearance: "Apparence",
+    quickSearch: "Rechercher ou aller à…",
+    onlineStatus: "Connecté",
+    installApp: "Installer l'application",
+    installAppDesc: "Ajoutez MBL à l'écran d'accueil de votre mobile ou tablette en plein écran.",
+    installAppIosHint:
+      "Sur iPhone/iPad : touchez Partager dans Safari puis 'Sur l'écran d'accueil'.",
+    appInstalled: "Application installée active",
+    toggleSidebar: "Basculer la barre latérale",
   },
   es: {
     castDiagnosticsTitle: "Diagnóstico Cast",
@@ -910,22 +1035,249 @@ export const translations = {
     cancel: "Cancelar",
     close: "Cerrar",
     searchPlaceholder: "Buscar películas, series, música (Ctrl+K)...",
+    browse: "Explorar",
+    personal: "Mi biblioteca",
+    collections: "Colecciones y listas",
+    accountSecurity: "Cuenta y seguridad",
+    remoteAccess: "Acceso remoto",
+    serverSettings: "Ajustes del servidor",
+    more: "Más",
+    appearance: "Apariencia",
+    quickSearch: "Buscar o ir a…",
+    onlineStatus: "Conectado",
+    installApp: "Instalar aplicación web",
+    installAppDesc: "Añade MBL a la pantalla de inicio de tu móvil o tableta a pantalla completa.",
+    installAppIosHint:
+      "En iPhone/iPad: pulsa Compartir en Safari y elige 'Añadir a pantalla de inicio'.",
+    appInstalled: "Ejecutándose como app instalada",
+    toggleSidebar: "Alternar barra lateral",
   },
 } as const;
 
-export type TranslationKey = keyof typeof translations.en;
+const EXTRA_LOCALE_CODES = [
+  "pt",
+  "it",
+  "nl",
+  "pl",
+  "tr",
+  "ru",
+  "uk",
+  "ar",
+  "hi",
+  "zh",
+  "ja",
+  "ko",
+  "id",
+  "vi",
+  "no",
+] as const;
+
+const FIRST_20_LOCALE_CODES: readonly AppLocale[] = [
+  "en",
+  "sv",
+  "de",
+  "fr",
+  "es",
+  ...EXTRA_LOCALE_CODES,
+];
+
+const PH_LOCALE_CODES = ["tl", "ceb", "war"] as const;
+
+const ALL_LOCALE_CODES: readonly AppLocale[] = [...FIRST_20_LOCALE_CODES, ...PH_LOCALE_CODES];
+
+export type TranslationKey = keyof typeof baseTranslations.en | keyof typeof EXTRA_TRANSLATIONS;
+
+function buildAllTranslations(): Record<AppLocale, Record<TranslationKey, string>> {
+  const result = {} as Record<AppLocale, Record<string, string>>;
+  for (const loc of ALL_LOCALE_CODES) {
+    result[loc] = {};
+  }
+
+  // 1. Copy base 5 locales (en, sv, de, fr, es)
+  for (const loc of ["en", "sv", "de", "fr", "es"] as const) {
+    Object.assign(result[loc], baseTranslations[loc]);
+  }
+
+  // 2. Unpack 15 extra locales for core keys
+  for (const [key, tuple15] of Object.entries(CORE_EXTRA_LOCALES)) {
+    for (let i = 0; i < EXTRA_LOCALE_CODES.length; i++) {
+      const loc = EXTRA_LOCALE_CODES[i];
+      result[loc][key] = tuple15[i];
+    }
+  }
+
+  // 3. Unpack first 20 locales for extra page/UI keys
+  for (const [key, tuple20] of Object.entries(EXTRA_TRANSLATIONS)) {
+    for (let i = 0; i < FIRST_20_LOCALE_CODES.length; i++) {
+      const loc = FIRST_20_LOCALE_CODES[i];
+      result[loc][key] = tuple20[i];
+    }
+  }
+
+  // 4. Unpack Tagalog (tl), Bisaya (ceb), and Waray-Waray (war) for all keys
+  for (const [key, tuple3] of Object.entries(PHILIPPINE_LOCALES)) {
+    for (let i = 0; i < PH_LOCALE_CODES.length; i++) {
+      const loc = PH_LOCALE_CODES[i];
+      result[loc][key] = tuple3[i];
+    }
+  }
+
+  return result as Record<AppLocale, Record<TranslationKey, string>>;
+}
+
+export const translations = buildAllTranslations();
+
+const EN_PHRASE_TO_KEY = new Map<string, TranslationKey>();
+for (const [k, v] of Object.entries(translations.en)) {
+  EN_PHRASE_TO_KEY.set(v, k as TranslationKey);
+  EN_PHRASE_TO_KEY.set(v.toLowerCase(), k as TranslationKey);
+}
+
+function primaryLookup(phrase: string, loc: AppLocale): string | undefined {
+  const dict = (translations[loc] || translations.en) as Record<string, string>;
+  if (phrase in dict) {
+    return dict[phrase];
+  }
+  const mappedKey = EN_PHRASE_TO_KEY.get(phrase) || EN_PHRASE_TO_KEY.get(phrase.toLowerCase());
+  if (mappedKey && dict[mappedKey]) {
+    return dict[mappedKey];
+  }
+  return undefined;
+}
+
+export function translateText(keyOrPhrase: string, loc: AppLocale): string {
+  const dict = (translations[loc] || translations.en) as Record<string, string>;
+  const enDict = translations.en as Record<string, string>;
+  if (keyOrPhrase in dict) {
+    return dict[keyOrPhrase];
+  }
+  const trimmed = keyOrPhrase.trim();
+  if (!trimmed) return keyOrPhrase;
+  if (loc === "en") {
+    return enDict[keyOrPhrase] || keyOrPhrase;
+  }
+  const extended = lookupPhraseOrPrimary(trimmed, loc);
+  if (extended) {
+    return keyOrPhrase.replace(trimmed, extended);
+  }
+  return enDict[keyOrPhrase] || keyOrPhrase;
+}
 
 export function useI18n() {
-  const { locale } = useTheme();
-  const dict = createMemo(() => translations[locale() as AppLocale] || translations.en);
+  let themeLocale: (() => AppLocale) | undefined;
+  try {
+    themeLocale = useTheme().locale;
+  } catch {
+    themeLocale = () => "en" as AppLocale;
+  }
+  const locale = () => (themeLocale ? themeLocale() : ("en" as AppLocale));
+  const dict = createMemo(() => translations[locale()] || translations.en);
 
-  const t = (key: TranslationKey): string => {
-    return (
-      (dict() as Record<string, string>)[key] ||
-      (translations.en as Record<string, string>)[key] ||
-      key
-    );
+  const t = (key: TranslationKey | (string & {})): string => {
+    const curLoc = locale();
+    const curDict = dict() as Record<string, string>;
+    if (key in curDict) {
+      return curDict[key];
+    }
+    const mapped = EN_PHRASE_TO_KEY.get(key) || EN_PHRASE_TO_KEY.get(key.toLowerCase());
+    if (mapped && curDict[mapped]) {
+      return curDict[mapped];
+    }
+    if (curLoc !== "en") {
+      phraseEngineReady();
+      const ext = lookupPhraseOrPrimary(key, curLoc);
+      if (ext) return ext;
+    }
+    return (translations.en as Record<string, string>)[key] || key;
   };
 
   return { t, locale };
+}
+
+interface NodeI18nState {
+  orig: string;
+  rendered: string;
+}
+
+const originalTextNodes = new WeakMap<Node, NodeI18nState>();
+const originalElementAttrs = new WeakMap<Element, Record<string, NodeI18nState>>();
+const TRANSLATABLE_ATTRS = ["placeholder", "title", "aria-label"] as const;
+
+export function localizeDomSubtree(root: ParentNode, loc: AppLocale): void {
+  if (typeof document === "undefined" || typeof NodeFilter === "undefined") return;
+  if (loc !== "en" && !cachedLookupExtended) {
+    ensurePhraseEngine(() => localizeDomSubtree(root, loc));
+  }
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  let current: Node | null = walker.currentNode;
+  while (current) {
+    if (current.nodeType === Node.TEXT_NODE) {
+      const parentTag = current.parentElement?.tagName;
+      if (
+        parentTag !== "SCRIPT" &&
+        parentTag !== "STYLE" &&
+        parentTag !== "CODE" &&
+        parentTag !== "PRE"
+      ) {
+        const curVal = current.nodeValue ?? "";
+        const prevState = originalTextNodes.get(current);
+        // If the DOM node changed since our last render (e.g. reactive SolidJS update), capture new orig
+        const orig = prevState && prevState.rendered === curVal ? prevState.orig : curVal;
+        const trimmed = orig.trim();
+        if (trimmed) {
+          if (loc === "en") {
+            if (curVal !== orig) {
+              current.nodeValue = orig;
+            }
+            originalTextNodes.set(current, { orig, rendered: orig });
+          } else {
+            const translated = lookupPhraseOrPrimary(trimmed, loc);
+            if (translated) {
+              const nextVal = orig.replace(trimmed, translated);
+              if (curVal !== nextVal) {
+                current.nodeValue = nextVal;
+              }
+              originalTextNodes.set(current, { orig, rendered: nextVal });
+            }
+          }
+        }
+      }
+    } else if (current.nodeType === Node.ELEMENT_NODE) {
+      const el = current as Element;
+      let attrMap = originalElementAttrs.get(el);
+      for (const attr of TRANSLATABLE_ATTRS) {
+        const curAttr = el.getAttribute(attr);
+        if (!curAttr) continue;
+        const prevAttrState = attrMap?.[attr];
+        const origAttr =
+          prevAttrState && prevAttrState.rendered === curAttr ? prevAttrState.orig : curAttr;
+        const trimmed = origAttr.trim();
+        if (!trimmed) continue;
+
+        if (loc === "en") {
+          if (curAttr !== origAttr) {
+            el.setAttribute(attr, origAttr);
+          }
+          if (attrMap) {
+            attrMap[attr] = { orig: origAttr, rendered: origAttr };
+          }
+        } else {
+          const translated = lookupPhraseOrPrimary(trimmed, loc);
+          if (translated) {
+            const nextAttr = origAttr.replace(trimmed, translated);
+            if (!attrMap) {
+              attrMap = {};
+              originalElementAttrs.set(el, attrMap);
+            }
+            attrMap[attr] = { orig: origAttr, rendered: nextAttr };
+            if (curAttr !== nextAttr) {
+              el.setAttribute(attr, nextAttr);
+            }
+          }
+        }
+      }
+    }
+    current = walker.nextNode();
+  }
 }

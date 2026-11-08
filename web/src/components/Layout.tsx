@@ -1,5 +1,5 @@
-import { A, useLocation, useNavigate } from "@solidjs/router";
-import { createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { A, useBeforeLeave, useLocation, useNavigate } from "@solidjs/router";
+import { createEffect, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { useAuth } from "../context/AuthContext";
 import {
   type AccentColor,
@@ -8,10 +8,34 @@ import {
   useTheme,
 } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
-import { useI18n } from "../i18n";
+import { localizeDomSubtree, SUPPORTED_LOCALES, useI18n } from "../i18n";
+import {
+  canInstallPwa,
+  isIosSafariInstallCandidate,
+  isStandaloneApp,
+  promptInstallPwa,
+} from "../utils/pwa";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { Button, SegmentedControl, Sheet } from "./ui";
+import {
+  AppIcon,
+  type AppIconName,
+  Button,
+  DropdownMenu,
+  type DropdownMenuItem,
+  SegmentedControl,
+  Select,
+  Sheet,
+  Switch,
+} from "./ui";
+
+type SidebarRailMode = "auto" | "expanded" | "collapsed";
+
+interface NavItemDef {
+  href: string;
+  icon: AppIconName;
+  label: () => string;
+}
 
 export function Layout(props: { children?: JSX.Element }) {
   const { user, logout } = useAuth();
@@ -24,9 +48,40 @@ export function Layout(props: { children?: JSX.Element }) {
   const { isOpen: isCommandOpen, open: openCommand, close: closeCommand } = useCommandPalette();
 
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = createSignal(false);
+  const [isMobile, setIsMobile] = createSignal(false);
   const [isTvMode, setIsTvMode] = createSignal(false);
+  const [railMode, setRailMode] = createSignal<SidebarRailMode>(
+    (typeof localStorage !== "undefined"
+      ? (localStorage.getItem("mbl.sidebarMode") as SidebarRailMode | null)
+      : null) || "auto",
+  );
+
+  let mainRef: HTMLElement | undefined;
+
+  const toggleSidebar = () => {
+    const tabletViewport =
+      typeof window !== "undefined" && window.innerWidth >= 769 && window.innerWidth <= 1080;
+    const cur = railMode();
+    const currentlyCompact = cur === "collapsed" || (cur === "auto" && tabletViewport);
+    const next: SidebarRailMode = currentlyCompact ? "expanded" : "collapsed";
+    setRailMode(next);
+    try {
+      localStorage.setItem("mbl.sidebarMode", next);
+    } catch {
+      // Ignore storage quota / private mode errors
+    }
+  };
 
   onMount(() => {
+    const mobileMql = window.matchMedia?.("(max-width: 768px)");
+    if (mobileMql) {
+      setIsMobile(mobileMql.matches);
+      const onMobileChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+      mobileMql.addEventListener?.("change", onMobileChange);
+      onCleanup(() => mobileMql.removeEventListener?.("change", onMobileChange));
+    }
+
     // Detect TV mode from query parameter ?tv=1 or user agent
     const params = new URLSearchParams(window.location.search);
     const tvParam = params.get("tv") === "1";
@@ -53,201 +108,431 @@ export function Layout(props: { children?: JSX.Element }) {
     };
     window.addEventListener("keydown", handleTvKeys);
     onCleanup(() => window.removeEventListener("keydown", handleTvKeys));
+
+    let domObserver: MutationObserver | undefined;
+    if (typeof MutationObserver !== "undefined") {
+      let scheduled = false;
+      let isLocalizing = false;
+      domObserver = new MutationObserver(() => {
+        if (isLocalizing || scheduled) return;
+        scheduled = true;
+        queueMicrotask(() => {
+          scheduled = false;
+          isLocalizing = true;
+          try {
+            localizeDomSubtree(document.body, locale());
+          } finally {
+            isLocalizing = false;
+          }
+        });
+      });
+      domObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ["placeholder", "title", "aria-label"],
+      });
+      onCleanup(() => domObserver?.disconnect());
+    }
+  });
+
+  createEffect(() => {
+    const curLoc = locale();
+    void location.pathname;
+    if (typeof document !== "undefined" && document.body) {
+      queueMicrotask(() => localizeDomSubtree(document.body, curLoc));
+    }
+  });
+
+  // Progressive enhancement: Same-document View Transitions API on route navigation
+  const docWithVt = (typeof document !== "undefined" ? document : undefined) as
+    | (Document & {
+        startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+      })
+    | undefined;
+
+  useBeforeLeave((e) => {
+    if (e.defaultPrevented || !docWithVt?.startViewTransition) return;
+    const prefersReduced =
+      reducedMotion() ||
+      (typeof window !== "undefined" &&
+        (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false));
+    if (prefersReduced) return;
+
+    if (typeof e.to === "string" && e.to.split("?")[0] === e.from.pathname) {
+      return;
+    }
+
+    e.preventDefault();
+    const transition = docWithVt.startViewTransition(() => {
+      e.retry(true);
+    });
+    transition.finished
+      .then(() => {
+        if (mainRef) {
+          mainRef.scrollTop = 0;
+          if (!document.activeElement || document.activeElement === document.body) {
+            mainRef.focus({ preventScroll: true });
+          }
+        }
+      })
+      .catch(() => {});
+  });
+
+  // Fallback scroll & focus restoration when View Transitions are skipped or unsupported
+  let prevPathname = location.pathname;
+  createEffect(() => {
+    const cur = location.pathname;
+    if (cur !== prevPathname) {
+      prevPathname = cur;
+      setMobileMoreOpen(false);
+      if (mainRef) {
+        mainRef.scrollTop = 0;
+        queueMicrotask(() => {
+          if (mainRef && (!document.activeElement || document.activeElement === document.body)) {
+            mainRef.focus({ preventScroll: true });
+          }
+        });
+      }
+    }
   });
 
   const handleLogout = async () => {
+    setMobileMoreOpen(false);
+    setSettingsOpen(false);
     await logout();
     showToast({ title: "Logged out", message: "You have been logged out", type: "info" });
     navigate("/login");
   };
 
-  const navLinkStyle = (path: string) => {
-    const isActive = location.pathname === path;
-    return {
-      display: "flex",
-      "align-items": "center",
-      gap: "10px",
-      padding: "10px 14px",
-      "border-radius": "var(--radius-md)",
-      color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-      background: isActive ? "var(--accent-light)" : "transparent",
-      "font-weight": isActive ? "600" : "400",
-      transition: "background var(--duration-fast), color var(--duration-fast)",
-    };
+  const handleInstallApp = async () => {
+    const installed = await promptInstallPwa();
+    if (installed) {
+      showToast({
+        title: t("appInstalled"),
+        message: "MBL is ready on your home screen.",
+        type: "success",
+      });
+    }
   };
+
+  const isNavActive = (path: string): boolean => {
+    const cur = location.pathname;
+    if (path === "/") return cur === "/";
+    if (path === "/libraries") {
+      return (
+        cur === "/libraries" ||
+        cur.startsWith("/library/") ||
+        cur.startsWith("/photos/") ||
+        cur.startsWith("/item/")
+      );
+    }
+    return cur === path || cur.startsWith(`${path}/`);
+  };
+
+  const browseLinks: NavItemDef[] = [
+    { href: "/", icon: "home", label: () => t("home") },
+    { href: "/libraries", icon: "libraries", label: () => t("libraries") },
+    { href: "/search", icon: "search", label: () => t("search") },
+    { href: "/livetv", icon: "livetv", label: () => t("liveTv") },
+    { href: "/webtv", icon: "webtv", label: () => t("webtv") },
+  ];
+
+  const personalLinks: NavItemDef[] = [
+    { href: "/collections", icon: "collections", label: () => t("collections") },
+    { href: "/requests", icon: "requests", label: () => t("mediaRequests") },
+    { href: "/account", icon: "account", label: () => t("accountSecurity") },
+  ];
+
+  const adminLinks: NavItemDef[] = [
+    { href: "/admin/users", icon: "users", label: () => t("users") },
+    { href: "/admin/ai-agents", icon: "ai-agents", label: () => t("aiAgents") },
+    { href: "/admin/hardware", icon: "hardware", label: () => t("hardware") },
+    { href: "/admin/remote", icon: "remote", label: () => t("remoteAccess") },
+    { href: "/admin/workers", icon: "workers", label: () => t("distributedNodes") },
+    { href: "/admin/settings", icon: "settings", label: () => t("serverSettings") },
+  ];
+
+  const userMenuItems = (): DropdownMenuItem[] => {
+    const items: DropdownMenuItem[] = [
+      {
+        id: "switch-profile",
+        label: t("switchProfile"),
+        icon: <AppIcon name="profiles" size={18} />,
+        onSelect: () => navigate("/profiles"),
+      },
+      {
+        id: "account",
+        label: t("accountSecurity"),
+        icon: <AppIcon name="account" size={18} />,
+        onSelect: () => navigate("/account"),
+      },
+      {
+        id: "appearance",
+        label: `${t("appearance")} & ${t("theme")}`,
+        icon: <AppIcon name="appearance" size={18} />,
+        onSelect: () => setSettingsOpen(true),
+      },
+    ];
+
+    if (canInstallPwa()) {
+      items.push({
+        id: "install-pwa",
+        label: t("installApp"),
+        icon: <AppIcon name="install" size={18} />,
+        onSelect: () => {
+          void handleInstallApp();
+        },
+      });
+    }
+
+    items.push(
+      {
+        id: "api-docs",
+        label: t("apiReference"),
+        icon: <AppIcon name="api" size={18} />,
+        separatorBefore: true,
+        onSelect: () => window.location.assign("/api/docs"),
+      },
+      {
+        id: "logout",
+        label: t("logout"),
+        icon: <AppIcon name="logout" size={18} />,
+        danger: true,
+        separatorBefore: true,
+        onSelect: () => {
+          void handleLogout();
+        },
+      },
+    );
+    return items;
+  };
+
+  const renderSidebarLink = (item: NavItemDef) => (
+    <A
+      href={item.href}
+      class="mbl-nav-link"
+      data-active={isNavActive(item.href) ? "true" : "false"}
+      title={item.label()}
+    >
+      <span class="mbl-nav-icon" aria-hidden="true">
+        <AppIcon name={item.icon} size={20} />
+      </span>
+      <span
+        class="mbl-sidebar-label"
+        style={{
+          overflow: "hidden",
+          "text-overflow": "ellipsis",
+          "white-space": "nowrap",
+        }}
+      >
+        {item.label()}
+      </span>
+    </A>
+  );
+
+  const isMoreRouteActive = () =>
+    personalLinks.some((l) => isNavActive(l.href)) ||
+    isNavActive("/webtv") ||
+    isNavActive("/profiles") ||
+    adminLinks.some((l) => isNavActive(l.href));
 
   return (
     <div
       style={{
         display: "flex",
-        height: "100vh",
-        width: "100vw",
+        height: "100dvh",
+        width: "100%",
         overflow: "hidden",
         background: "var(--bg-base)",
       }}
     >
-      {/* Desktop Sidebar (hidden on mobile) */}
+      {/* Desktop & Tablet Sidebar / Navigation Rail (hidden on <= 768px) */}
       <aside
-        class="desktop-sidebar"
+        class="desktop-sidebar mbl-shell-sidebar"
+        data-rail-mode={railMode()}
         style={{
-          width: "240px",
+          width: "248px",
           background: "var(--bg-surface)",
           "border-right": "1px solid var(--border)",
           display: "flex",
           "flex-direction": "column",
           "flex-shrink": 0,
+          transition: "width var(--duration-normal) var(--ease-standard)",
         }}
       >
         <div
+          class="mbl-sidebar-brand"
           style={{
-            padding: "20px 16px",
+            padding: "16px",
             display: "flex",
             "align-items": "center",
-            gap: "10px",
+            gap: "11px",
             "border-bottom": "1px solid var(--border)",
+            height: "56px",
+            "flex-shrink": 0,
           }}
         >
-          <div
+          <A
+            href="/"
             style={{
-              width: "32px",
-              height: "32px",
-              background: "var(--accent)",
-              "border-radius": "var(--radius-md)",
               display: "flex",
               "align-items": "center",
-              "justify-content": "center",
-              "font-weight": "800",
-              color: "#fff",
-              "font-size": "16px",
+              gap: "11px",
+              overflow: "hidden",
+              color: "inherit",
             }}
           >
-            M
-          </div>
-          <div>
-            <div style={{ "font-weight": "700", "font-size": "17px", "letter-spacing": "0.5px" }}>
-              MBL
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                background:
+                  "linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 75%, #000) 100%)",
+                "border-radius": "var(--radius-md)",
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "center",
+                "font-weight": "800",
+                color: "#fff",
+                "font-size": "15px",
+                "flex-shrink": 0,
+                "box-shadow": "var(--shadow-sm)",
+              }}
+            >
+              M
             </div>
-            <div style={{ "font-size": "11px", color: "var(--text-muted)" }}>Media Lounge Box</div>
-          </div>
+            <div class="mbl-sidebar-label" style={{ overflow: "hidden" }}>
+              <div
+                style={{
+                  "font-weight": "800",
+                  "font-size": "16px",
+                  "letter-spacing": "0.04em",
+                  "line-height": "1.15",
+                }}
+              >
+                MBL
+              </div>
+              <div
+                style={{
+                  "font-size": "11px",
+                  color: "var(--text-muted)",
+                  "white-space": "nowrap",
+                }}
+              >
+                Media Lounge Box
+              </div>
+            </div>
+          </A>
         </div>
 
         <nav
+          aria-label="Primary navigation"
           style={{
-            padding: "16px 12px",
+            padding: "12px 10px",
             display: "flex",
             "flex-direction": "column",
-            gap: "4px",
+            gap: "3px",
             flex: 1,
             "overflow-y": "auto",
           }}
         >
-          <A href="/" style={navLinkStyle("/")}>
-            <span>🏠</span>
-            <span>{t("home")}</span>
-          </A>
-          <A href="/libraries" style={navLinkStyle("/libraries")}>
-            <span>📚</span>
-            <span>{t("libraries")}</span>
-          </A>
-          <A href="/search" style={navLinkStyle("/search")}>
-            <span>🔍</span>
-            <span>{t("search")}</span>
-          </A>
-          <A href="/livetv" style={navLinkStyle("/livetv")}>
-            <span>📺</span>
-            <span>{t("liveTv")}</span>
-          </A>
-          <A href="/webtv" style={navLinkStyle("/webtv")}>
-            <span>🌐</span>
-            <span>{t("webtv")}</span>
-          </A>
+          <div
+            class="mbl-sidebar-section-title"
+            style={{
+              padding: "4px 12px 6px",
+              "font-size": "10px",
+              "font-weight": "700",
+              color: "var(--text-muted)",
+              "text-transform": "uppercase",
+              "letter-spacing": "0.08em",
+            }}
+          >
+            {t("browse")}
+          </div>
+          <For each={browseLinks}>{renderSidebarLink}</For>
+
+          <div class="mbl-sidebar-rail-divider" aria-hidden="true" />
+          <div
+            class="mbl-sidebar-section-title"
+            style={{
+              "margin-top": "14px",
+              padding: "4px 12px 6px",
+              "font-size": "10px",
+              "font-weight": "700",
+              color: "var(--text-muted)",
+              "text-transform": "uppercase",
+              "letter-spacing": "0.08em",
+            }}
+          >
+            {t("personal")}
+          </div>
+          <For each={personalLinks}>{renderSidebarLink}</For>
 
           <Show when={user()?.isAdmin}>
+            <div class="mbl-sidebar-rail-divider" aria-hidden="true" />
             <div
+              class="mbl-sidebar-section-title"
               style={{
-                "margin-top": "20px",
-                "margin-bottom": "6px",
-                padding: "0 14px",
-                "font-size": "11px",
+                "margin-top": "14px",
+                padding: "4px 12px 6px",
+                "font-size": "10px",
                 "font-weight": "700",
                 color: "var(--text-muted)",
                 "text-transform": "uppercase",
-                "letter-spacing": "0.8px",
+                "letter-spacing": "0.08em",
               }}
             >
               {t("admin")}
             </div>
-            <A href="/admin/users" style={navLinkStyle("/admin/users")}>
-              <span>👥</span>
-              <span>{t("users")}</span>
-            </A>
-            <A href="/admin/ai-agents" style={navLinkStyle("/admin/ai-agents")}>
-              <span>🤖</span>
-              <span>{t("aiAgents")}</span>
-            </A>
-            <A href="/admin/hardware" style={navLinkStyle("/admin/hardware")}>
-              <span>⚡</span>
-              <span>{t("hardware")}</span>
-            </A>
-            <A href="/admin/remote" style={navLinkStyle("/admin/remote")}>
-              Remote access
-            </A>
-            <A href="/admin/workers" style={navLinkStyle("/admin/workers")}>
-              <span>🖥️</span>
-              <span>Distributed Nodes</span>
-            </A>
-            <A href="/admin/settings" style={navLinkStyle("/admin/settings")}>
-              <span>⚙️</span>
-              <span>Settings</span>
-            </A>
+            <For each={adminLinks}>{renderSidebarLink}</For>
           </Show>
-          <A href="/collections" style={navLinkStyle("/collections")}>
-            Collections & playlists
-          </A>
-          <A href="/requests" style={navLinkStyle("/requests")}>
-            Media requests
-          </A>
-          <A href="/account" style={navLinkStyle("/account")}>
-            Account & security
-          </A>
         </nav>
 
         {/* User bar at bottom of sidebar */}
         <div
+          class="mbl-sidebar-user"
           style={{
-            padding: "16px",
+            padding: "12px 14px",
             "border-top": "1px solid var(--border)",
             display: "flex",
             "align-items": "center",
             "justify-content": "space-between",
+            gap: "8px",
           }}
         >
           <A
             href="/profiles"
+            title={t("switchProfile")}
             style={{
               display: "flex",
               "align-items": "center",
-              gap: "var(--space-2)",
+              gap: "10px",
               overflow: "hidden",
+              "min-width": 0,
             }}
           >
             <div
               style={{
-                width: "28px",
-                height: "28px",
-                "border-radius": "var(--radius-sm)",
+                width: "30px",
+                height: "30px",
+                "border-radius": "var(--radius-full)",
                 background: "var(--accent)",
                 color: "#fff",
                 display: "flex",
                 "align-items": "center",
                 "justify-content": "center",
-                "font-weight": "bold",
+                "font-weight": "700",
                 "font-size": "13px",
+                "flex-shrink": 0,
               }}
             >
-              {user()?.displayName?.charAt(0).toUpperCase() || "U"}
+              {user()?.displayName?.charAt(0).toUpperCase() ||
+                user()?.username?.charAt(0).toUpperCase() ||
+                "U"}
             </div>
-            <div style={{ overflow: "hidden" }}>
+            <div class="mbl-sidebar-label" style={{ overflow: "hidden" }}>
               <div
                 style={{
                   "font-size": "13px",
@@ -255,50 +540,65 @@ export function Layout(props: { children?: JSX.Element }) {
                   "white-space": "nowrap",
                   "text-overflow": "ellipsis",
                   overflow: "hidden",
+                  color: "var(--text-primary)",
                 }}
               >
                 {user()?.displayName || user()?.username}
               </div>
+              <div style={{ "font-size": "11px", color: "var(--text-muted)" }}>
+                {user()?.isAdmin ? t("admin") : t("onlineStatus")}
+              </div>
             </div>
           </A>
-          <div style={{ display: "flex", gap: "4px" }}>
+          <div style={{ display: "flex", gap: "4px", "flex-shrink": 0 }}>
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
-              title={t("settings")}
+              title={`${t("appearance")} & ${t("settings")}`}
+              aria-label={t("settings")}
               style={{
                 background: "transparent",
-                border: "none",
+                border: "1px solid transparent",
                 color: "var(--text-secondary)",
-                padding: "6px",
+                width: "30px",
+                height: "30px",
+                display: "inline-flex",
+                "align-items": "center",
+                "justify-content": "center",
                 "border-radius": "var(--radius-sm)",
                 cursor: "pointer",
               }}
             >
-              ⚙
+              <AppIcon name="settings" size={18} />
             </button>
             <button
               type="button"
               onClick={handleLogout}
               title={t("logout")}
+              aria-label={t("logout")}
               style={{
                 background: "transparent",
-                border: "none",
+                border: "1px solid transparent",
                 color: "var(--text-secondary)",
-                padding: "6px",
+                width: "30px",
+                height: "30px",
+                display: "inline-flex",
+                "align-items": "center",
+                "justify-content": "center",
                 "border-radius": "var(--radius-sm)",
                 cursor: "pointer",
               }}
             >
-              🚪
+              <AppIcon name="logout" size={18} />
             </button>
           </div>
         </div>
 
         {/* Version info footer */}
         <div
+          class="mbl-sidebar-footer-meta"
           style={{
-            padding: "6px 16px 10px",
+            padding: "4px 16px 10px",
             "font-size": "11px",
             color: "var(--text-muted)",
             display: "flex",
@@ -310,115 +610,272 @@ export function Layout(props: { children?: JSX.Element }) {
           title={`MBL v${__MBL_VERSION__} (commit ${__MBL_GIT_COMMIT__}, built ${__MBL_BUILD_DATE__})`}
         >
           <span>v{__MBL_VERSION__}</span>
-          <span style={{ "font-family": "monospace", "font-size": "10px" }}>
+          <span style={{ "font-family": "var(--font-mono)", "font-size": "10px" }}>
             {__MBL_GIT_COMMIT__}
           </span>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main Content Shell */}
       <div
         style={{
           flex: 1,
           display: "flex",
           "flex-direction": "column",
-          height: "100vh",
+          height: "100dvh",
+          "min-width": 0,
           overflow: "hidden",
         }}
       >
-        {/* Top bar */}
+        {/* Top Bar */}
         <header
+          class="mbl-shell-header"
           style={{
             height: "56px",
-            background: "var(--bg-surface)",
+            background: "color-mix(in srgb, var(--bg-surface) 88%, transparent)",
+            "backdrop-filter": "blur(14px)",
             "border-bottom": "1px solid var(--border)",
             display: "flex",
             "align-items": "center",
             "justify-content": "space-between",
-            padding: "0 24px",
+            gap: "12px",
+            padding: "0 20px",
             "flex-shrink": 0,
+            "z-index": 30,
           }}
         >
-          {/* Quick Search / Command Palette Trigger */}
-          <button
-            type="button"
-            onClick={openCommand}
+          <div
             style={{
               display: "flex",
               "align-items": "center",
-              gap: "var(--space-3)",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              padding: "6px 14px",
-              "border-radius": "var(--radius-md)",
-              color: "var(--text-muted)",
-              "font-size": "var(--font-size-sm)",
-              cursor: "pointer",
-              width: "280px",
+              gap: "10px",
+              flex: "1 1 auto",
+              "min-width": 0,
             }}
           >
-            <span>🔍</span>
-            <span style={{ flex: 1, "text-align": "left" }}>Search or jump to...</span>
-            <kbd
+            {/* Desktop/Tablet Sidebar Rail Toggle */}
+            <button
+              type="button"
+              class="mbl-desktop-only"
+              onClick={toggleSidebar}
+              title={t("toggleSidebar")}
+              aria-label={t("toggleSidebar")}
               style={{
-                padding: "1px 5px",
-                "border-radius": "var(--radius-sm)",
-                background: "var(--bg-surface)",
+                background: "var(--bg-card)",
                 border: "1px solid var(--border)",
-                "font-size": "10px",
+                color: "var(--text-secondary)",
+                width: "36px",
+                height: "36px",
+                "border-radius": "var(--radius-md)",
+                display: "inline-flex",
+                "align-items": "center",
+                "justify-content": "center",
+                cursor: "pointer",
+                "flex-shrink": 0,
               }}
             >
-              Ctrl+K
-            </kbd>
-          </button>
+              <AppIcon name="menu" size={18} />
+            </button>
 
-          <div style={{ display: "flex", "align-items": "center", gap: "16px" }}>
+            {/* Mobile Brand Badge */}
+            <A
+              href="/"
+              class="mbl-mobile-brand"
+              style={{
+                display: "none",
+                "align-items": "center",
+                gap: "8px",
+                "flex-shrink": 0,
+                color: "inherit",
+              }}
+            >
+              <div
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  background: "var(--accent)",
+                  "border-radius": "var(--radius-md)",
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "center",
+                  "font-weight": "800",
+                  color: "#fff",
+                  "font-size": "15px",
+                }}
+              >
+                M
+              </div>
+            </A>
+
+            {/* Quick Search / Command Palette Trigger */}
+            <button
+              type="button"
+              class="mbl-header-search-btn"
+              onClick={openCommand}
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "var(--space-3)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                padding: "7px 14px",
+                "border-radius": "var(--radius-full)",
+                color: "var(--text-muted)",
+                "font-size": "var(--font-size-sm)",
+                cursor: "pointer",
+                width: "min(340px, 100%)",
+                transition: "border-color var(--duration-fast) var(--ease-standard)",
+              }}
+            >
+              <span aria-hidden="true" style={{ display: "inline-flex" }}>
+                <AppIcon name="search" size={16} />
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  "text-align": "left",
+                  overflow: "hidden",
+                  "text-overflow": "ellipsis",
+                  "white-space": "nowrap",
+                }}
+              >
+                {t("quickSearch")}
+              </span>
+              <kbd
+                class="mbl-kbd-hint"
+                style={{
+                  padding: "1px 6px",
+                  "border-radius": "var(--radius-sm)",
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border)",
+                  "font-size": "10px",
+                  "font-family": "var(--font-mono)",
+                }}
+              >
+                Ctrl+K
+              </kbd>
+            </button>
+          </div>
+
+          {/* Right Header Actions */}
+          <div style={{ display: "flex", "align-items": "center", gap: "10px", "flex-shrink": 0 }}>
+            <Show when={canInstallPwa()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleInstallApp()}
+                class="mbl-desktop-only"
+              >
+                <AppIcon name="install" size={16} /> {t("installApp")}
+              </Button>
+            </Show>
+
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
+              title={`${t("appearance")} & ${t("theme")}`}
+              aria-label={`${t("appearance")} & ${t("theme")}`}
               style={{
-                background: "transparent",
+                background: "var(--bg-card)",
                 border: "1px solid var(--border)",
                 color: "var(--text-primary)",
-                padding: "6px 12px",
-                "border-radius": "var(--radius-sm)",
+                height: "36px",
+                padding: "0 12px",
+                "border-radius": "var(--radius-full)",
                 "font-size": "var(--font-size-xs)",
-                display: "flex",
+                "font-weight": "var(--font-weight-medium)",
+                display: "inline-flex",
                 "align-items": "center",
-                gap: "var(--space-2)",
+                gap: "6px",
                 cursor: "pointer",
               }}
             >
-              <span>🎨</span> {t("theme")} & {t("settings")}
+              <span aria-hidden="true" style={{ display: "inline-flex" }}>
+                <AppIcon name="appearance" size={16} />
+              </span>
+              <span class="mbl-desktop-only">{t("appearance")}</span>
             </button>
-            <div style={{ display: "flex", "align-items": "center", gap: "6px" }}>
-              <span
-                style={{
-                  width: "8px",
-                  height: "8px",
-                  "border-radius": "50%",
-                  background: "var(--success)",
-                }}
-              />
-              <span style={{ "font-size": "12px", color: "var(--text-muted)" }}>Online</span>
-            </div>
+
+            <DropdownMenu
+              triggerLabel={user()?.displayName || user()?.username || "Account menu"}
+              header={
+                <div>
+                  <div
+                    style={{
+                      "font-size": "var(--font-size-sm)",
+                      "font-weight": "var(--font-weight-bold)",
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    {user()?.displayName || user()?.username}
+                  </div>
+                  <div
+                    style={{
+                      "font-size": "var(--font-size-xs)",
+                      color: "var(--text-muted)",
+                      display: "flex",
+                      "align-items": "center",
+                      gap: "6px",
+                      "margin-top": "2px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "7px",
+                        height: "7px",
+                        "border-radius": "50%",
+                        background: "var(--success)",
+                      }}
+                    />
+                    <span>{t("onlineStatus")}</span>
+                  </div>
+                </div>
+              }
+              items={userMenuItems()}
+              trigger={
+                <span
+                  style={{
+                    width: "34px",
+                    height: "34px",
+                    "border-radius": "var(--radius-full)",
+                    background: "var(--accent)",
+                    color: "#fff",
+                    display: "inline-flex",
+                    "align-items": "center",
+                    "justify-content": "center",
+                    "font-weight": "700",
+                    "font-size": "13px",
+                    border: "2px solid color-mix(in srgb, var(--accent) 45%, var(--bg-surface))",
+                  }}
+                >
+                  {user()?.displayName?.charAt(0).toUpperCase() ||
+                    user()?.username?.charAt(0).toUpperCase() ||
+                    "U"}
+                </span>
+              }
+            />
           </div>
         </header>
 
         {/* Scrollable View Area */}
         <main
+          ref={mainRef}
+          tabIndex={-1}
+          class="mbl-shell-main"
           style={{
             flex: 1,
             overflow: "auto",
             padding: "24px",
-            "padding-bottom": "80px", // space for mobile tab bar
+            outline: "none",
+            "-webkit-overflow-scrolling": "touch",
           }}
         >
           <ErrorBoundary>{props.children}</ErrorBoundary>
         </main>
 
-        {/* Mobile Bottom Navigation Bar */}
+        {/* Mobile Bottom Navigation Bar (shown on <= 768px) */}
         <nav
+          aria-label="Mobile navigation"
           class="mobile-bottom-nav"
           style={{
             display: "none",
@@ -426,128 +883,320 @@ export function Layout(props: { children?: JSX.Element }) {
             bottom: 0,
             left: 0,
             right: 0,
-            height: "60px",
-            background: "var(--bg-surface)",
+            height: "calc(62px + env(safe-area-inset-bottom))",
+            "padding-bottom": "env(safe-area-inset-bottom)",
+            "padding-left": "env(safe-area-inset-left)",
+            "padding-right": "env(safe-area-inset-right)",
+            background: "color-mix(in srgb, var(--bg-surface) 90%, transparent)",
+            "backdrop-filter": "blur(16px)",
             "border-top": "1px solid var(--border)",
             "align-items": "center",
             "justify-content": "space-around",
             "z-index": 50,
           }}
         >
-          <A
-            href="/"
+          <For
+            each={
+              [
+                { href: "/", icon: "home", label: () => t("home") },
+                { href: "/libraries", icon: "libraries", label: () => t("libraries") },
+                { href: "/search", icon: "search", label: () => t("search") },
+                { href: "/livetv", icon: "livetv", label: () => t("liveTv") },
+              ] as NavItemDef[]
+            }
+          >
+            {(tab) => {
+              const active = () => isNavActive(tab.href);
+              return (
+                <A
+                  href={tab.href}
+                  aria-current={active() ? "page" : undefined}
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    "flex-direction": "column",
+                    "align-items": "center",
+                    "justify-content": "center",
+                    gap: "2px",
+                    height: "100%",
+                    "font-size": "11px",
+                    "font-weight": active() ? "700" : "500",
+                    color: active() ? "var(--accent)" : "var(--text-secondary)",
+                    transition: "color var(--duration-fast) var(--ease-standard)",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: "inline-flex",
+                      padding: "3px 12px",
+                      "border-radius": "var(--radius-full)",
+                      background: active() ? "var(--accent-light)" : "transparent",
+                      transition: "background-color var(--duration-fast) var(--ease-standard)",
+                    }}
+                  >
+                    <AppIcon name={tab.icon} size={18} />
+                  </span>
+                  <span>{tab.label()}</span>
+                </A>
+              );
+            }}
+          </For>
+
+          <button
+            type="button"
+            onClick={() => setMobileMoreOpen(true)}
+            aria-expanded={mobileMoreOpen()}
             style={{
+              flex: 1,
               display: "flex",
               "flex-direction": "column",
               "align-items": "center",
+              "justify-content": "center",
+              gap: "2px",
+              height: "100%",
+              background: "transparent",
+              border: "none",
               "font-size": "11px",
-              color: "var(--text-secondary)",
+              "font-weight": isMoreRouteActive() || mobileMoreOpen() ? "700" : "500",
+              color:
+                isMoreRouteActive() || mobileMoreOpen() ? "var(--accent)" : "var(--text-secondary)",
+              cursor: "pointer",
             }}
           >
-            <span style={{ "font-size": "18px" }}>🏠</span>
-            <span>{t("home")}</span>
-          </A>
-          <A
-            href="/libraries"
-            style={{
-              display: "flex",
-              "flex-direction": "column",
-              "align-items": "center",
-              "font-size": "11px",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <span style={{ "font-size": "18px" }}>📚</span>
-            <span>{t("libraries")}</span>
-          </A>
-          <A
-            href="/search"
-            style={{
-              display: "flex",
-              "flex-direction": "column",
-              "align-items": "center",
-              "font-size": "11px",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <span style={{ "font-size": "18px" }}>🔍</span>
-            <span>{t("search")}</span>
-          </A>
-          <A
-            href="/livetv"
-            style={{
-              display: "flex",
-              "flex-direction": "column",
-              "align-items": "center",
-              "font-size": "11px",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <span style={{ "font-size": "18px" }}>📺</span>
-            <span>{t("liveTv")}</span>
-          </A>
-          <A
-            href="/profiles"
-            style={{
-              display: "flex",
-              "flex-direction": "column",
-              "align-items": "center",
-              "font-size": "11px",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <span style={{ "font-size": "18px" }}>👤</span>
-            <span>{t("users")}</span>
-          </A>
+            <span
+              aria-hidden="true"
+              style={{
+                display: "inline-flex",
+                padding: "3px 12px",
+                "border-radius": "var(--radius-full)",
+                background:
+                  isMoreRouteActive() || mobileMoreOpen() ? "var(--accent-light)" : "transparent",
+              }}
+            >
+              <AppIcon name="menu" size={18} />
+            </span>
+            <span>{t("more")}</span>
+          </button>
         </nav>
       </div>
 
       {/* Command Palette Modal */}
       <CommandPalette open={isCommandOpen()} onClose={closeCommand} />
 
-      {/* Settings & Appearance Sheet */}
-      <Sheet open={settingsOpen()} onOpenChange={setSettingsOpen} title={t("settings")}>
-        <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-6)" }}>
-          <a href="/api/docs">{t("apiReference")}</a>
-          <A href="/collections" onClick={() => setSettingsOpen(false)}>
-            Collections & playlists
-          </A>
-          <A href="/requests" onClick={() => setSettingsOpen(false)}>
-            Media requests
-          </A>
-          <A href="/account" onClick={() => setSettingsOpen(false)}>
-            Account & security
-          </A>
+      {/* Mobile "More" Navigation Drawer (Bottom Sheet) */}
+      <Sheet
+        open={mobileMoreOpen()}
+        onOpenChange={setMobileMoreOpen}
+        side="bottom"
+        title={t("more")}
+      >
+        <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-4)" }}>
+          {/* Quick Grid for Secondary User Destinations */}
+          <div
+            style={{
+              display: "grid",
+              "grid-template-columns": "repeat(2, minmax(0, 1fr))",
+              gap: "var(--space-2)",
+            }}
+          >
+            <For
+              each={
+                [
+                  { href: "/webtv", icon: "webtv", label: () => t("webtv") },
+                  { href: "/collections", icon: "collections", label: () => t("collections") },
+                  { href: "/requests", icon: "requests", label: () => t("mediaRequests") },
+                  { href: "/profiles", icon: "profiles", label: () => t("switchProfile") },
+                  { href: "/account", icon: "account", label: () => t("accountSecurity") },
+                ] as NavItemDef[]
+              }
+            >
+              {(item) => (
+                <A
+                  href={item.href}
+                  onClick={() => setMobileMoreOpen(false)}
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "10px",
+                    padding: "12px 14px",
+                    background: isNavActive(item.href)
+                      ? "var(--accent-light)"
+                      : "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    "border-radius": "var(--radius-md)",
+                    color: "var(--text-primary)",
+                    "font-size": "var(--font-size-sm)",
+                    "font-weight": "var(--font-weight-medium)",
+                  }}
+                >
+                  <span style={{ display: "inline-flex" }} aria-hidden="true">
+                    <AppIcon name={item.icon} size={18} />
+                  </span>
+                  <span
+                    style={{
+                      overflow: "hidden",
+                      "text-overflow": "ellipsis",
+                      "white-space": "nowrap",
+                    }}
+                  >
+                    {item.label()}
+                  </span>
+                </A>
+              )}
+            </For>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMoreOpen(false);
+                setSettingsOpen(true);
+              }}
+              style={{
+                display: "flex",
+                "align-items": "center",
+                gap: "10px",
+                padding: "12px 14px",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-md)",
+                color: "var(--text-primary)",
+                "font-size": "var(--font-size-sm)",
+                "font-weight": "var(--font-weight-medium)",
+                cursor: "pointer",
+                "text-align": "left",
+              }}
+            >
+              <span style={{ display: "inline-flex" }} aria-hidden="true">
+                <AppIcon name="appearance" size={18} />
+              </span>
+              <span>{t("appearance")}</span>
+            </button>
+          </div>
+
           <Show when={user()?.isAdmin}>
-            <A href="/admin/users" onClick={() => setSettingsOpen(false)}>
-              Manage users
-            </A>
+            <div>
+              <div
+                style={{
+                  "font-size": "11px",
+                  "font-weight": "700",
+                  color: "var(--text-muted)",
+                  "text-transform": "uppercase",
+                  "letter-spacing": "0.08em",
+                  "margin-bottom": "var(--space-2)",
+                }}
+              >
+                {t("admin")}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  "grid-template-columns": "repeat(2, minmax(0, 1fr))",
+                  gap: "var(--space-2)",
+                }}
+              >
+                <For each={adminLinks}>
+                  {(item) => (
+                    <A
+                      href={item.href}
+                      onClick={() => setMobileMoreOpen(false)}
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "10px",
+                        padding: "11px 12px",
+                        background: isNavActive(item.href)
+                          ? "var(--accent-light)"
+                          : "var(--bg-surface)",
+                        border: "1px solid var(--border)",
+                        "border-radius": "var(--radius-md)",
+                        color: "var(--text-primary)",
+                        "font-size": "var(--font-size-sm)",
+                        "font-weight": "var(--font-weight-medium)",
+                      }}
+                    >
+                      <span style={{ display: "inline-flex" }} aria-hidden="true">
+                        <AppIcon name={item.icon} size={18} />
+                      </span>
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          "text-overflow": "ellipsis",
+                          "white-space": "nowrap",
+                        }}
+                      >
+                        {item.label()}
+                      </span>
+                    </A>
+                  )}
+                </For>
+              </div>
+            </div>
           </Show>
-          <Show when={user()?.isAdmin}>
-            <A href="/admin/remote" onClick={() => setSettingsOpen(false)}>
-              Remote access
-            </A>
-            <A href="/admin/ai-agents" onClick={() => setSettingsOpen(false)}>
-              {t("aiAgents")}
-            </A>
-            <A href="/admin/hardware" onClick={() => setSettingsOpen(false)}>
-              {t("hardware")}
-            </A>
-            <A href="/admin/workers" onClick={() => setSettingsOpen(false)}>
-              {t("distributedNodes")}
-            </A>
-            <A href="/admin/settings" onClick={() => setSettingsOpen(false)}>
-              Settings
-            </A>
+
+          <Show when={canInstallPwa() || isIosSafariInstallCandidate()}>
+            <div
+              style={{
+                padding: "var(--space-3) var(--space-4)",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-md)",
+                display: "flex",
+                "flex-direction": "column",
+                gap: "var(--space-2)",
+              }}
+            >
+              <div style={{ "font-weight": "var(--font-weight-semibold)", "font-size": "14px" }}>
+                📲 {t("installApp")}
+              </div>
+              <div style={{ "font-size": "var(--font-size-xs)", color: "var(--text-secondary)" }}>
+                {canInstallPwa() ? t("installAppDesc") : t("installAppIosHint")}
+              </div>
+              <Show when={canInstallPwa()}>
+                <Button variant="primary" size="sm" onClick={() => void handleInstallApp()}>
+                  {t("installApp")}
+                </Button>
+              </Show>
+            </div>
           </Show>
+
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button
+              variant="secondary"
+              size="md"
+              style={{ flex: 1 }}
+              onClick={() => window.location.assign("/api/docs")}
+            >
+              📖 {t("apiReference")}
+            </Button>
+            <Button
+              variant="danger"
+              size="md"
+              style={{ flex: 1 }}
+              onClick={() => void handleLogout()}
+            >
+              🚪 {t("logout")}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      {/* Appearance & Preferences Sheet (Right drawer on desktop/tablet, Bottom sheet on mobile) */}
+      <Sheet
+        open={settingsOpen()}
+        onOpenChange={setSettingsOpen}
+        side={isMobile() ? "bottom" : "right"}
+        title={`${t("appearance")} & ${t("settings")}`}
+      >
+        <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-5)" }}>
           {/* Theme Selector */}
-          <div>
+          <div class="mbl-card-section" style={{ padding: "var(--space-4)" }}>
             <span
               style={{
                 display: "block",
                 "font-size": "var(--font-size-sm)",
                 "font-weight": "var(--font-weight-semibold)",
-                "margin-bottom": "var(--space-2)",
+                "margin-bottom": "var(--space-3)",
               }}
             >
               {t("theme")}
@@ -555,6 +1204,7 @@ export function Layout(props: { children?: JSX.Element }) {
             <SegmentedControl<ThemeMode>
               value={theme()}
               onChange={setTheme}
+              ariaLabel={t("theme")}
               options={[
                 { value: "dark", label: t("dark") },
                 { value: "oled", label: t("oled") },
@@ -565,39 +1215,54 @@ export function Layout(props: { children?: JSX.Element }) {
           </div>
 
           {/* Accent Color Selector */}
-          <div>
+          <div class="mbl-card-section" style={{ padding: "var(--space-4)" }}>
             <span
               style={{
                 display: "block",
                 "font-size": "var(--font-size-sm)",
                 "font-weight": "var(--font-weight-semibold)",
-                "margin-bottom": "var(--space-2)",
+                "margin-bottom": "var(--space-3)",
               }}
             >
               {t("accent")}
             </span>
-            <div style={{ display: "flex", gap: "var(--space-2)", "flex-wrap": "wrap" }}>
+            <div
+              style={{
+                display: "grid",
+                "grid-template-columns": "repeat(3, minmax(0, 1fr))",
+                gap: "var(--space-2)",
+              }}
+            >
               {(["amber", "indigo", "emerald", "rose", "cyan", "violet"] as AccentColor[]).map(
                 (ac) => {
                   const isSel = () => accent() === ac;
                   return (
                     <button
                       type="button"
+                      aria-pressed={isSel()}
                       onClick={() => setAccent(ac)}
                       style={{
-                        padding: "6px 12px",
-                        "border-radius": "var(--radius-sm)",
+                        display: "flex",
+                        "align-items": "center",
+                        "justify-content": "center",
+                        gap: "6px",
+                        padding: "8px 10px",
+                        "border-radius": "var(--radius-md)",
                         border: isSel()
                           ? "2px solid var(--text-primary)"
                           : "1px solid var(--border)",
                         background: `var(--color-accent-${ac}-base)`,
                         color: "#fff",
-                        "font-size": "11px",
-                        "font-weight": "bold",
+                        "font-size": "12px",
+                        "font-weight": "700",
                         cursor: "pointer",
+                        transition: "transform var(--duration-fast) var(--ease-standard)",
                       }}
                     >
-                      {t(ac)}
+                      <span>{t(ac)}</span>
+                      <Show when={isSel()}>
+                        <span aria-hidden="true">✓</span>
+                      </Show>
                     </button>
                   );
                 },
@@ -605,58 +1270,84 @@ export function Layout(props: { children?: JSX.Element }) {
             </div>
           </div>
 
-          {/* Language Selector */}
-          <div>
-            <span
-              style={{
-                display: "block",
-                "font-size": "var(--font-size-sm)",
-                "font-weight": "var(--font-weight-semibold)",
-                "margin-bottom": "var(--space-2)",
-              }}
-            >
-              {t("language")}
-            </span>
-            <SegmentedControl<AppLocale>
+          {/* Language Selector (23 Languages) */}
+          <div class="mbl-card-section" style={{ padding: "var(--space-4)" }}>
+            <Select
+              id="mbl-appearance-language"
+              label={t("language")}
               value={locale()}
-              onChange={setLocale}
-              options={[
-                { value: "en", label: "EN" },
-                { value: "sv", label: "SV" },
-                { value: "de", label: "DE" },
-                { value: "fr", label: "FR" },
-                { value: "es", label: "ES" },
-              ]}
+              options={SUPPORTED_LOCALES.map((loc) => ({
+                value: loc.code,
+                label: `${loc.nativeName} (${loc.code.toUpperCase()})`,
+              }))}
+              onChange={(e) => setLocale(e.currentTarget.value as AppLocale)}
             />
           </div>
 
-          {/* Reduced Motion Toggle */}
-          <div
-            style={{ display: "flex", "align-items": "center", "justify-content": "space-between" }}
-          >
-            <span
-              style={{
-                "font-size": "var(--font-size-sm)",
-                "font-weight": "var(--font-weight-medium)",
-              }}
-            >
-              {t("reducedMotion")}
-            </span>
-            <Button
-              variant={reducedMotion() ? "primary" : "secondary"}
-              size="sm"
-              onClick={() => setReducedMotion(!reducedMotion())}
-            >
-              {reducedMotion() ? "Enabled" : "Disabled"}
-            </Button>
+          {/* Reduced Motion Switch */}
+          <div class="mbl-card-section" style={{ padding: "var(--space-4)" }}>
+            <Switch
+              checked={reducedMotion()}
+              onChange={setReducedMotion}
+              label={t("reducedMotion")}
+            />
           </div>
 
-          <div style={{ "margin-top": "var(--space-6)" }}>
-            <A href="/profiles" onClick={() => setSettingsOpen(false)}>
+          {/* Installable Web App (PWA) Section */}
+          <Show when={canInstallPwa() || isIosSafariInstallCandidate() || isStandaloneApp()}>
+            <div class="mbl-card-section" style={{ padding: "var(--space-4)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  gap: "var(--space-3)",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      "font-size": "var(--font-size-sm)",
+                      "font-weight": "var(--font-weight-semibold)",
+                    }}
+                  >
+                    📲 {isStandaloneApp() ? t("appInstalled") : t("installApp")}
+                  </div>
+                  <Show when={!isStandaloneApp()}>
+                    <div
+                      style={{
+                        "font-size": "var(--font-size-xs)",
+                        color: "var(--text-secondary)",
+                        "margin-top": "4px",
+                      }}
+                    >
+                      {canInstallPwa() ? t("installAppDesc") : t("installAppIosHint")}
+                    </div>
+                  </Show>
+                </div>
+                <Show when={canInstallPwa()}>
+                  <Button variant="primary" size="sm" onClick={() => void handleInstallApp()}>
+                    {t("installApp")}
+                  </Button>
+                </Show>
+              </div>
+            </div>
+          </Show>
+
+          {/* Footer Quick Links */}
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <A href="/profiles" onClick={() => setSettingsOpen(false)} style={{ flex: 1 }}>
               <Button variant="outline" size="md" style={{ width: "100%" }}>
-                {t("switchProfile")}
+                👤 {t("switchProfile")}
               </Button>
             </A>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => window.location.assign("/api/docs")}
+            >
+              📖 {t("apiReference")}
+            </Button>
           </div>
         </div>
       </Sheet>

@@ -166,44 +166,97 @@ export default function Collections() {
       await loadList();
     });
   return (
-    <div style={{ display: "grid", gap: "16px", "max-width": "1000px" }}>
-      <h1>Collections & playlists</h1>
-      <label>
-        View{" "}
-        <select
-          disabled={busy()}
-          value={kind()}
-          onChange={(e) => setKind(e.currentTarget.value as "collections" | "playlists")}
+    <div class="mbl-page" style={{ display: "grid", gap: "20px", "max-width": "1000px" }}>
+      <div
+        style={{
+          display: "flex",
+          "align-items": "center",
+          "justify-content": "space-between",
+          "flex-wrap": "wrap",
+          gap: "12px",
+        }}
+      >
+        <h1 style={{ margin: 0, "font-size": "24px", "font-weight": "700" }}>
+          Collections & playlists
+        </h1>
+        <label
+          style={{
+            display: "inline-flex",
+            "align-items": "center",
+            gap: "10px",
+            "font-size": "var(--font-size-sm)",
+            "font-weight": "var(--font-weight-semibold)",
+            color: "var(--text-secondary)",
+          }}
         >
-          <option value="collections">Collections</option>
-          <option value="playlists">Playlists</option>
-        </select>
-      </label>
+          <span>View</span>
+          <select
+            disabled={busy()}
+            value={kind()}
+            onChange={(e) => setKind(e.currentTarget.value as "collections" | "playlists")}
+          >
+            <option value="collections">Collections</option>
+            <option value="playlists">Playlists</option>
+          </select>
+        </label>
+      </div>
       <Show when={error()}>
         <p role="alert">{error()}</p>
       </Show>
       <Show when={busy()}>
         <p role="status">Loading…</p>
       </Show>
-      <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap" }}>
-        <For each={entries()} fallback={<p>No entries yet.</p>}>
-          {(entry) => (
-            <Button disabled={busy()} onClick={() => showEntry(entry)}>
-              {entry.name} ({entry.itemCount})
-            </Button>
-          )}
-        </For>
+      <div class="mbl-card-section">
+        <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap" }}>
+          <For
+            each={entries()}
+            fallback={<p style={{ margin: 0, color: "var(--text-muted)" }}>No entries yet.</p>}
+          >
+            {(entry) => (
+              <Button
+                variant={selected()?.id === entry.id ? "primary" : "secondary"}
+                size="sm"
+                disabled={busy()}
+                onClick={() => showEntry(entry)}
+              >
+                {entry.name} ({entry.itemCount})
+              </Button>
+            )}
+          </For>
+        </div>
       </div>
       <Show when={selected()}>
         {(entry) => (
-          <section>
-            <h2>{entry().name}</h2>
-            <For each={items()} fallback={<p>No items loaded.</p>}>
+          <section class="mbl-card-section">
+            <h2 style={{ margin: "0 0 12px", "font-size": "18px" }}>{entry().name}</h2>
+            <For
+              each={items()}
+              fallback={<p style={{ color: "var(--text-muted)" }}>No items loaded.</p>}
+            >
               {(item) => (
-                <div style={{ display: "flex", gap: "12px", padding: "8px 0" }}>
-                  <A href={`/item/${item.id}`}>{item.title}</A>
+                <div
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    "justify-content": "space-between",
+                    gap: "12px",
+                    padding: "10px 0",
+                    "border-bottom": "1px solid var(--border)",
+                  }}
+                >
+                  <A
+                    href={`/item/${item.id}`}
+                    style={{ "font-weight": "var(--font-weight-medium)", color: "var(--accent)" }}
+                  >
+                    {item.title}
+                  </A>
                   <Show when={editable()}>
-                    <Button disabled={busy()} onClick={() => membership(item.id, false)}>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={busy()}
+                      onClick={() => membership(item.id, false)}
+                    >
                       Remove
                     </Button>
                   </Show>
@@ -211,42 +264,65 @@ export default function Collections() {
               )}
             </For>
             <Show when={items().length < ids().length}>
-              <Button
-                disabled={busy()}
-                onClick={() =>
-                  run(() => loadItemPage(ids().slice(items().length, items().length + 50), version))
-                }
-              >
-                Load more items
-              </Button>
+              <div style={{ "margin-top": "12px" }}>
+                <Button
+                  variant="secondary"
+                  disabled={busy()}
+                  onClick={() =>
+                    run(() =>
+                      loadItemPage(ids().slice(items().length, items().length + 50), version),
+                    )
+                  }
+                >
+                  Load more items
+                </Button>
+              </div>
             </Show>
           </section>
         )}
       </Show>
       <Show when={editable() || (!selected() && (kind() === "playlists" || user()?.isAdmin))}>
         <form
+          class="mbl-card-section"
+          style={{
+            display: "flex",
+            "align-items": "flex-end",
+            "flex-wrap": "wrap",
+            gap: "10px",
+          }}
           onSubmit={(e) => {
             e.preventDefault();
             void (selected() ? rename() : create());
           }}
         >
-          <label>
-            Name{" "}
+          <label
+            style={{
+              display: "flex",
+              "flex-direction": "column",
+              gap: "6px",
+              flex: "1 1 220px",
+              "font-size": "var(--font-size-xs)",
+              "font-weight": "var(--font-weight-semibold)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <span>Name</span>
             <input
               required
               maxlength={200}
               value={name()}
               onInput={(e) => setName(e.currentTarget.value)}
             />
-          </label>{" "}
+          </label>
           <Button type="submit" disabled={busy()}>
             {selected() ? "Rename" : "Create"}
-          </Button>{" "}
+          </Button>
           <Show when={selected()}>
-            <Button disabled={busy()} onClick={remove}>
+            <Button variant="danger" disabled={busy()} onClick={remove}>
               Delete
             </Button>
             <Button
+              variant="secondary"
               onClick={() => {
                 version++;
                 setSelected(null);
@@ -259,37 +335,65 @@ export default function Collections() {
         </form>
       </Show>
       <Show when={editable()}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void search();
-          }}
-        >
-          <label>
-            Find media{" "}
-            <input
-              value={query()}
-              maxlength={200}
-              onInput={(e) => setQuery(e.currentTarget.value)}
-            />
-          </label>{" "}
-          <Button type="submit" disabled={busy()}>
-            Search
-          </Button>
-        </form>
-        <For each={hits()}>
-          {(hit) => (
-            <div>
-              {hit.title}{" "}
-              <Button
-                disabled={busy() || ids().includes(hit.id)}
-                onClick={() => membership(hit.id, true)}
+        <div class="mbl-card-section" style={{ display: "grid", gap: "12px" }}>
+          <form
+            style={{
+              display: "flex",
+              "align-items": "flex-end",
+              "flex-wrap": "wrap",
+              gap: "10px",
+            }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void search();
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                "flex-direction": "column",
+                gap: "6px",
+                flex: "1 1 220px",
+                "font-size": "var(--font-size-xs)",
+                "font-weight": "var(--font-weight-semibold)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <span>Find media</span>
+              <input
+                value={query()}
+                maxlength={200}
+                onInput={(e) => setQuery(e.currentTarget.value)}
+              />
+            </label>
+            <Button type="submit" variant="secondary" disabled={busy()}>
+              Search
+            </Button>
+          </form>
+          <For each={hits()}>
+            {(hit) => (
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  gap: "10px",
+                  padding: "8px 0",
+                  "border-top": "1px solid var(--border)",
+                }}
               >
-                Add
-              </Button>
-            </div>
-          )}
-        </For>
+                <span>{hit.title}</span>
+                <Button
+                  size="sm"
+                  disabled={busy() || ids().includes(hit.id)}
+                  onClick={() => membership(hit.id, true)}
+                >
+                  Add
+                </Button>
+              </div>
+            )}
+          </For>
+        </div>
       </Show>
     </div>
   );

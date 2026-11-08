@@ -111,50 +111,52 @@ export function HubRow(props: HubRowProps) {
             </div>
           )}
 
-          <button
-            type="button"
-            aria-label="Scroll left"
-            disabled={!canScrollLeft()}
-            onClick={() => scrollBy(-400)}
-            style={{
-              width: "32px",
-              height: "32px",
-              "border-radius": "var(--radius-full)",
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              display: "flex",
-              "align-items": "center",
-              "justify-content": "center",
-              cursor: canScrollLeft() ? "pointer" : "default",
-              opacity: canScrollLeft() ? "1" : "0.3",
-              transition: "all var(--duration-fast) var(--ease-standard)",
-            }}
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            aria-label="Scroll right"
-            disabled={!canScrollRight()}
-            onClick={() => scrollBy(400)}
-            style={{
-              width: "32px",
-              height: "32px",
-              "border-radius": "var(--radius-full)",
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              display: "flex",
-              "align-items": "center",
-              "justify-content": "center",
-              cursor: canScrollRight() ? "pointer" : "default",
-              opacity: canScrollRight() ? "1" : "0.3",
-              transition: "all var(--duration-fast) var(--ease-standard)",
-            }}
-          >
-            ›
-          </button>
+          <div class="mbl-hub-scroll-arrows" style={{ display: "flex", gap: "var(--space-2)" }}>
+            <button
+              type="button"
+              aria-label="Scroll left"
+              disabled={!canScrollLeft()}
+              onClick={() => scrollBy(-400)}
+              style={{
+                width: "32px",
+                height: "32px",
+                "border-radius": "var(--radius-full)",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "center",
+                cursor: canScrollLeft() ? "pointer" : "default",
+                opacity: canScrollLeft() ? "1" : "0.3",
+                transition: "all var(--duration-fast) var(--ease-standard)",
+              }}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label="Scroll right"
+              disabled={!canScrollRight()}
+              onClick={() => scrollBy(400)}
+              style={{
+                width: "32px",
+                height: "32px",
+                "border-radius": "var(--radius-full)",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                display: "flex",
+                "align-items": "center",
+                "justify-content": "center",
+                cursor: canScrollRight() ? "pointer" : "default",
+                opacity: canScrollRight() ? "1" : "0.3",
+                transition: "all var(--duration-fast) var(--ease-standard)",
+              }}
+            >
+              ›
+            </button>
+          </div>
         </div>
       </div>
 
@@ -167,6 +169,9 @@ export function HubRow(props: HubRowProps) {
           gap: "var(--space-4)",
           "overflow-x": "auto",
           padding: "var(--space-2) var(--space-4)",
+          "scroll-snap-type": "x proximity",
+          "scroll-padding-left": "var(--space-4)",
+          "-webkit-overflow-scrolling": "touch",
           "scrollbar-width": "none",
           "-ms-overflow-style": "none",
         }}

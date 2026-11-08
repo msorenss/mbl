@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
 
 use axum::body::Body;
-use axum::http::header::{ACCEPT, CONTENT_TYPE};
+use axum::http::header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use mbl_server::Config;
@@ -67,4 +67,21 @@ async fn api_missing_route_never_falls_back_to_html() {
     let res = server.router.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn pwa_manifest_and_service_worker_served_with_expected_headers() {
+    let (server, _dir) = test_server().await;
+
+    let manifest_req = Request::get("/manifest.webmanifest").body(Body::empty()).unwrap();
+    let manifest_res = server.router.clone().oneshot(manifest_req).await.unwrap();
+    assert_eq!(manifest_res.status(), StatusCode::OK);
+    let manifest_ct = manifest_res.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap();
+    assert!(manifest_ct.contains("application/manifest+json"));
+
+    let sw_req = Request::get("/sw.js").body(Body::empty()).unwrap();
+    let sw_res = server.router.oneshot(sw_req).await.unwrap();
+    assert_eq!(sw_res.status(), StatusCode::OK);
+    let sw_cc = sw_res.headers().get(CACHE_CONTROL).unwrap().to_str().unwrap();
+    assert_eq!(sw_cc, "no-cache");
 }

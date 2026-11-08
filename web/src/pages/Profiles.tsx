@@ -4,12 +4,14 @@ import client from "../api/client";
 import type { components } from "../api/schema";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import { useI18n } from "../i18n";
 
 type UserProfileDto = components["schemas"]["UserProfileDto"];
 
 export function Profiles() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { t } = useI18n();
 
   const [profiles] = createResource(async () => {
     try {
@@ -44,12 +46,13 @@ export function Profiles() {
 
   return (
     <div
+      class="mbl-page"
       style={{
         display: "flex",
         "flex-direction": "column",
         "align-items": "center",
         "justify-content": "center",
-        "min-height": "80vh",
+        "min-height": "75dvh",
         padding: "var(--space-6)",
       }}
     >
@@ -58,15 +61,21 @@ export function Profiles() {
           "font-size": "clamp(28px, 4vw, 42px)",
           "font-weight": "var(--font-weight-bold)",
           color: "var(--text-primary)",
-          "margin-bottom": "var(--space-10)",
+          "margin-bottom": "var(--space-3)",
         }}
       >
-        Who's watching?
+        {t("whosWatching")}
       </h1>
 
-      <p style={{ color: "var(--text-secondary)", "text-align": "center" }}>
-        Selecting another profile signs you out. Sign in with that account to use its library access
-        and watch history.
+      <p
+        style={{
+          color: "var(--text-secondary)",
+          "text-align": "center",
+          "max-width": "480px",
+          "margin-bottom": "var(--space-8)",
+        }}
+      >
+        {t("profilesHint")}
       </p>
       {/* Profiles Grid */}
       <div
@@ -150,7 +159,7 @@ export function Profiles() {
 
       <Show when={user()?.isAdmin}>
         <Button variant="outline" size="md" onClick={() => navigate("/admin/users")}>
-          Manage Profiles
+          {t("manageProfiles")}
         </Button>
       </Show>
     </div>

@@ -243,6 +243,7 @@ export function ItemDetail() {
 
         {/* Details Container */}
         <div
+          class="mbl-item-detail-layout"
           style={{
             position: "relative",
             display: "flex",
@@ -254,6 +255,7 @@ export function ItemDetail() {
         >
           {/* Left Poster Card & Primary Actions */}
           <div
+            class="mbl-item-detail-poster-col"
             style={{
               width: "240px",
               "flex-shrink": 0,
@@ -299,28 +301,40 @@ export function ItemDetail() {
             </div>
 
             <Show when={(item()?.versions.length ?? 0) > 1}>
-              <label for="media-version">Version</label>
-              <select
-                id="media-version"
-                value={selectedVersionId() ?? ""}
-                onChange={(e) => {
-                  setSelectedVersionId(
-                    e.currentTarget.value ? Number(e.currentTarget.value) : null,
-                  );
-                  setSelectedAudioIdx(null);
-                  setSelectedSubIdx(null);
-                }}
-              >
-                <option value="">Automatic</option>
-                <For each={item()?.versions}>
-                  {(version) => (
-                    <option value={version.id}>
-                      {version.width ?? ""}×{version.height ?? ""} {version.videoCodec ?? ""}{" "}
-                      {version.container ?? ""}
-                    </option>
-                  )}
-                </For>
-              </select>
+              <div style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
+                <label
+                  for="media-version"
+                  style={{
+                    "font-size": "var(--font-size-xs)",
+                    "font-weight": "var(--font-weight-semibold)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  Version
+                </label>
+                <select
+                  id="media-version"
+                  value={selectedVersionId() ?? ""}
+                  style={{ width: "100%" }}
+                  onChange={(e) => {
+                    setSelectedVersionId(
+                      e.currentTarget.value ? Number(e.currentTarget.value) : null,
+                    );
+                    setSelectedAudioIdx(null);
+                    setSelectedSubIdx(null);
+                  }}
+                >
+                  <option value="">Automatic</option>
+                  <For each={item()?.versions}>
+                    {(version) => (
+                      <option value={version.id}>
+                        {version.width ?? ""}×{version.height ?? ""} {version.videoCodec ?? ""}{" "}
+                        {version.container ?? ""}
+                      </option>
+                    )}
+                  </For>
+                </select>
+              </div>
             </Show>
             {/* Action Buttons below poster */}
             <div style={{ display: "flex", "flex-direction": "column", gap: "var(--space-3)" }}>
@@ -415,7 +429,10 @@ export function ItemDetail() {
           </div>
 
           {/* Right Info Details */}
-          <div style={{ flex: 1, "min-width": "300px", "margin-top": "var(--space-6)" }}>
+          <div
+            class="mbl-item-detail-info-col"
+            style={{ flex: 1, "min-width": "280px", "margin-top": "var(--space-6)" }}
+          >
             <button
               type="button"
               onClick={() => navigate(`/library/${item()?.libraryId}`)}

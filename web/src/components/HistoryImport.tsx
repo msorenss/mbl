@@ -72,61 +72,101 @@ export default function HistoryImport() {
     }
   };
   return (
-    <section aria-labelledby="history-import-heading">
-      <h2 id="history-import-heading">Import watch history</h2>
-      <p>
+    <section
+      aria-labelledby="history-import-heading"
+      class="mbl-card-section"
+      style={{ display: "grid", gap: "12px" }}
+    >
+      <h2 id="history-import-heading" style={{ margin: 0, "font-size": "18px" }}>
+        Import watch history
+      </h2>
+      <p style={{ margin: 0, "font-size": "var(--font-size-sm)", color: "var(--text-secondary)" }}>
         Import into your current account. Existing library items are matched by external ID or
         title/year. Matching watch state may be updated.
       </p>
-      <label for="history-provider">Export format</label>{" "}
-      <select
-        id="history-provider"
-        disabled={busy()}
-        value={provider()}
-        onChange={(event) => {
-          generation++;
-          setProvider(event.currentTarget.value as "plex" | "jellyfin");
-          setPayload(null);
-          setFileName("");
-          setSummary(null);
-          setError("");
-        }}
-      >
-        <option value="plex">Plex</option>
-        <option value="jellyfin">Jellyfin</option>
-      </select>
-      <p>
+      <div style={{ display: "flex", "flex-wrap": "wrap", gap: "12px", "align-items": "flex-end" }}>
+        <div style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
+          <label
+            for="history-provider"
+            style={{
+              "font-size": "var(--font-size-xs)",
+              "font-weight": "var(--font-weight-semibold)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Export format
+          </label>
+          <select
+            id="history-provider"
+            disabled={busy()}
+            value={provider()}
+            onChange={(event) => {
+              generation++;
+              setProvider(event.currentTarget.value as "plex" | "jellyfin");
+              setPayload(null);
+              setFileName("");
+              setSummary(null);
+              setError("");
+            }}
+          >
+            <option value="plex">Plex</option>
+            <option value="jellyfin">Jellyfin</option>
+          </select>
+        </div>
+        <div style={{ display: "flex", "flex-direction": "column", gap: "6px", flex: "1 1 220px" }}>
+          <label
+            for="history-file"
+            style={{
+              "font-size": "var(--font-size-xs)",
+              "font-weight": "var(--font-weight-semibold)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            History JSON file
+          </label>
+          <input
+            id="history-file"
+            type="file"
+            accept=".json,application/json"
+            disabled={busy()}
+            onChange={(event) => void readFile(event.currentTarget.files?.[0])}
+          />
+        </div>
+      </div>
+      <p style={{ margin: 0, "font-size": "var(--font-size-xs)", color: "var(--text-muted)" }}>
         Expected JSON:{" "}
-        {provider() === "plex"
-          ? '{"items":[{"title":"Movie","year":2024,"viewCount":1,"viewOffsetMs":0}]}'
-          : '{"items":[{"name":"Movie","productionYear":2024,"played":true,"playbackPositionTicks":0}]}'}
+        <code>
+          {provider() === "plex"
+            ? '{"items":[{"title":"Movie","year":2024,"viewCount":1,"viewOffsetMs":0}]}'
+            : '{"items":[{"name":"Movie","productionYear":2024,"played":true,"playbackPositionTicks":0}]}'}
+        </code>
         .
       </p>
-      <label for="history-file">History JSON file</label>{" "}
-      <input
-        id="history-file"
-        type="file"
-        accept=".json,application/json"
-        disabled={busy()}
-        onChange={(event) => void readFile(event.currentTarget.files?.[0])}
-      />
-      <p>{fileName()}</p>
-      <Button disabled={!payload() || busy()} onClick={submit}>
-        {busy() ? "Importing…" : "Import history"}
-      </Button>
+      <Show when={fileName()}>
+        <p
+          style={{ margin: 0, "font-size": "var(--font-size-xs)", color: "var(--text-secondary)" }}
+        >
+          {fileName()}
+        </p>
+      </Show>
+      <div>
+        <Button disabled={!payload() || busy()} onClick={submit}>
+          {busy() ? "Importing…" : "Import history"}
+        </Button>
+      </div>
       <Show when={error()}>
         <p role="alert">{error()}</p>
       </Show>
       <Show when={summary()}>
         {(result) => (
           <div role="status">
-            <p>
+            <p style={{ margin: 0 }}>
               {result().matchedItems} of {result().totalItems} matched; {result().updatedWatchState}{" "}
               watch states updated.
             </p>
             <Show when={result().unmatched.length}>
-              <h3>Unmatched titles</h3>
-              <ul>
+              <h3 style={{ margin: "8px 0 4px", "font-size": "14px" }}>Unmatched titles</h3>
+              <ul style={{ margin: 0, "padding-left": "20px" }}>
                 <For each={result().unmatched}>{(title) => <li>{title}</li>}</For>
               </ul>
             </Show>

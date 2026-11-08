@@ -1,15 +1,11 @@
 import { useNavigate } from "@solidjs/router";
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { useAuth } from "../context/AuthContext";
-import {
-  type AccentColor,
-  type AppLocale,
-  type ThemeMode,
-  useTheme,
-} from "../context/ThemeContext";
-import { useI18n } from "../i18n";
+import { type AccentColor, type ThemeMode, useTheme } from "../context/ThemeContext";
+import { SUPPORTED_LOCALES, useI18n } from "../i18n";
+import { AppIcon } from "./ui";
 
 type ItemSummary = components["schemas"]["ItemSummary"];
 
@@ -64,35 +60,35 @@ export function CommandPalette(props: CommandPaletteProps) {
       id: string;
       category: string;
       label: string;
-      icon: string;
+      icon: JSX.Element;
       run: () => void;
     }[] = [
       {
         id: "nav-home",
-        category: "Navigation",
+        category: t("browse"),
         label: t("home"),
-        icon: "🏠",
+        icon: <AppIcon name="home" size={16} />,
         run: () => navigate("/"),
       },
       {
         id: "nav-libraries",
-        category: "Navigation",
+        category: t("browse"),
         label: t("libraries"),
-        icon: "📚",
+        icon: <AppIcon name="libraries" size={16} />,
         run: () => navigate("/libraries"),
       },
       {
         id: "nav-search",
-        category: "Navigation",
+        category: t("browse"),
         label: t("search"),
-        icon: "🔍",
+        icon: <AppIcon name="search" size={16} />,
         run: () => navigate("/search"),
       },
       {
         id: "nav-profiles",
-        category: "Navigation",
+        category: t("personal"),
         label: t("switchProfile"),
-        icon: "👤",
+        icon: <AppIcon name="profiles" size={16} />,
         run: () => navigate("/profiles"),
       },
     ];
@@ -100,89 +96,89 @@ export function CommandPalette(props: CommandPaletteProps) {
     actions.push(
       {
         id: "nav-api",
-        category: "Navigation",
+        category: t("browse"),
         label: t("apiReference"),
-        icon: "📖",
+        icon: <AppIcon name="api" size={16} />,
         run: () => window.location.assign("/api/docs"),
       },
       {
         id: "nav-requests",
-        category: "Navigation",
+        category: t("personal"),
         label: t("mediaRequests"),
-        icon: "🎬",
+        icon: <AppIcon name="requests" size={16} />,
         run: () => navigate("/requests"),
       },
       {
         id: "nav-collections",
-        category: "Navigation",
-        label: "Collections & playlists",
-        icon: "📚",
+        category: t("personal"),
+        label: t("collections"),
+        icon: <AppIcon name="collections" size={16} />,
         run: () => navigate("/collections"),
       },
       {
         id: "nav-account",
-        category: "Navigation",
-        label: "Account & security",
-        icon: "🔒",
+        category: t("personal"),
+        label: t("accountSecurity"),
+        icon: <AppIcon name="account" size={16} />,
         run: () => navigate("/account"),
       },
       {
         id: "nav-live",
-        category: "Navigation",
+        category: t("browse"),
         label: t("liveTv"),
-        icon: "📺",
+        icon: <AppIcon name="livetv" size={16} />,
         run: () => navigate("/livetv"),
       },
       {
         id: "nav-webtv",
-        category: "Navigation",
+        category: t("browse"),
         label: t("webtv"),
-        icon: "🌐",
+        icon: <AppIcon name="webtv" size={16} />,
         run: () => navigate("/webtv"),
       },
     );
     if (user()?.isAdmin) {
       actions.push({
         id: "admin-remote",
-        category: "Admin",
-        label: "Remote access",
-        icon: "🌐",
+        category: t("admin"),
+        label: t("remoteAccess"),
+        icon: <AppIcon name="remote" size={16} />,
         run: () => navigate("/admin/remote"),
       });
       actions.push(
         {
           id: "admin-nodes",
-          category: "Admin",
+          category: t("admin"),
           label: t("distributedNodes"),
-          icon: "🖥️",
+          icon: <AppIcon name="workers" size={16} />,
           run: () => navigate("/admin/workers"),
         },
         {
           id: "admin-users",
-          category: "Admin",
+          category: t("admin"),
           label: t("users"),
-          icon: "👥",
+          icon: <AppIcon name="users" size={16} />,
           run: () => navigate("/admin/users"),
         },
         {
           id: "admin-ai",
-          category: "Admin",
+          category: t("admin"),
           label: t("aiAgents"),
-          icon: "🤖",
+          icon: <AppIcon name="ai-agents" size={16} />,
           run: () => navigate("/admin/ai-agents"),
         },
         {
           id: "admin-hw",
-          category: "Admin",
+          category: t("admin"),
           label: t("hardware"),
-          icon: "⚡",
+          icon: <AppIcon name="hardware" size={16} />,
           run: () => navigate("/admin/hardware"),
         },
         {
           id: "admin-settings",
-          category: "Admin",
-          label: "Server Settings & TMDB",
-          icon: "⚙️",
+          category: t("admin"),
+          label: t("serverSettings"),
+          icon: <AppIcon name="settings" size={16} />,
           run: () => navigate("/admin/settings"),
         },
       );
@@ -200,7 +196,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         id: `theme-${th.id}`,
         category: t("theme"),
         label: `${th.label}${theme() === th.id ? " ✓" : ""}`,
-        icon: "🎨",
+        icon: <AppIcon name="theme" size={16} />,
         run: () => setTheme(th.id),
       });
     }
@@ -219,26 +215,19 @@ export function CommandPalette(props: CommandPaletteProps) {
         id: `accent-${ac.id}`,
         category: t("accent"),
         label: `${ac.label}${accent() === ac.id ? " ✓" : ""}`,
-        icon: "✨",
+        icon: <AppIcon name="accent" size={16} />,
         run: () => setAccent(ac.id),
       });
     }
 
-    // Languages
-    const locales: { id: AppLocale; label: string }[] = [
-      { id: "en", label: "English" },
-      { id: "sv", label: "Svenska" },
-      { id: "de", label: "Deutsch" },
-      { id: "fr", label: "Français" },
-      { id: "es", label: "Español" },
-    ];
-    for (const loc of locales) {
+    // Languages (all 23 supported languages)
+    for (const loc of SUPPORTED_LOCALES) {
       actions.push({
-        id: `lang-${loc.id}`,
+        id: `lang-${loc.code}`,
         category: t("language"),
-        label: `${loc.label}${locale() === loc.id ? " ✓" : ""}`,
-        icon: "🌐",
-        run: () => setLocale(loc.id),
+        label: `${loc.nativeName} (${loc.name})${locale() === loc.code ? " ✓" : ""}`,
+        icon: <AppIcon name="language" size={16} />,
+        run: () => setLocale(loc.code),
       });
     }
 
@@ -252,9 +241,10 @@ export function CommandPalette(props: CommandPaletteProps) {
   const allItems = () => {
     const results = searchResults().map((item) => ({
       id: `media-${item.id}`,
-      category: item.kind === "movie" ? "Movies" : item.kind === "show" ? "TV Shows" : "Media",
+      category:
+        item.kind === "movie" ? t("movies") : item.kind === "show" ? t("tvShows") : t("libraries"),
       label: `${item.title}${item.year ? ` (${item.year})` : ""}`,
-      icon: item.kind === "movie" ? "🎬" : "📺",
+      icon: <AppIcon name={item.kind === "movie" ? "collections" : "livetv"} size={16} />,
       run: () => navigate(`/item/${item.id}`),
     }));
     return [...results, ...staticActions()];
@@ -298,6 +288,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       <div
         role="dialog"
         aria-modal="true"
+        aria-label={t("quickSearch")}
         onKeyDown={handleKeyDown}
         style={{
           position: "fixed",
@@ -306,25 +297,29 @@ export function CommandPalette(props: CommandPaletteProps) {
           display: "flex",
           "align-items": "flex-start",
           "justify-content": "center",
-          "padding-top": "15vh",
-          background: "rgba(0, 0, 0, 0.75)",
-          "backdrop-filter": "blur(4px)",
+          padding:
+            "max(10dvh, calc(env(safe-area-inset-top) + 16px)) max(14px, env(safe-area-inset-right)) 16px max(14px, env(safe-area-inset-left))",
+          background: "rgba(0, 0, 0, 0.74)",
+          "backdrop-filter": "blur(6px)",
+          animation: "fadeIn var(--duration-fast) var(--ease-decelerate)",
         }}
         onClick={(e) => {
           if (e.target === e.currentTarget) props.onClose();
         }}
       >
         <div
+          class="mbl-dialog-content"
           style={{
             width: "100%",
             "max-width": "580px",
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
-            "border-radius": "var(--radius-lg)",
+            "border-radius": "var(--radius-xl)",
             "box-shadow": "var(--shadow-xl)",
             overflow: "hidden",
             display: "flex",
             "flex-direction": "column",
+            animation: "mblDialogIn var(--duration-normal) var(--ease-decelerate)",
           }}
         >
           {/* Search Input Bar */}
@@ -337,7 +332,9 @@ export function CommandPalette(props: CommandPaletteProps) {
               "border-bottom": "1px solid var(--border)",
             }}
           >
-            <span style={{ "font-size": "18px", opacity: 0.6 }}>🔍</span>
+            <span style={{ display: "inline-flex", opacity: 0.65 }} aria-hidden="true">
+              <AppIcon name="search" size={18} />
+            </span>
             <input
               ref={inputRef}
               type="text"
@@ -349,11 +346,14 @@ export function CommandPalette(props: CommandPaletteProps) {
                 background: "transparent",
                 border: "none",
                 outline: "none",
+                "box-shadow": "none",
+                padding: "2px 0",
                 color: "var(--text-primary)",
                 "font-size": "var(--font-size-md)",
               }}
             />
             <kbd
+              class="mbl-kbd-hint"
               style={{
                 padding: "2px 6px",
                 "border-radius": "var(--radius-sm)",
@@ -369,8 +369,9 @@ export function CommandPalette(props: CommandPaletteProps) {
 
           {/* Results List */}
           <div
+            role="listbox"
             style={{
-              "max-height": "380px",
+              "max-height": "min(400px, 60dvh)",
               "overflow-y": "auto",
               padding: "var(--space-2)",
             }}
@@ -386,7 +387,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                     "font-size": "var(--font-size-sm)",
                   }}
                 >
-                  {isSearching() ? "Searching..." : "No results found"}
+                  {isSearching() ? t("loading") : t("noResults")}
                 </div>
               }
             >
@@ -421,7 +422,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                       <div
                         style={{ display: "flex", "align-items": "center", gap: "var(--space-3)" }}
                       >
-                        <span style={{ "font-size": "16px" }}>{item.icon}</span>
+                        <span style={{ display: "inline-flex", "flex-shrink": 0 }}>
+                          {item.icon}
+                        </span>
                         <span
                           style={{
                             "font-size": "var(--font-size-sm)",

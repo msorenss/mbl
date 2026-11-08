@@ -1,6 +1,6 @@
 //! Embedded web UI assets and SPA fallback handler.
 
-use axum::http::header::{ACCEPT, CONTENT_TYPE};
+use axum::http::header::{ACCEPT, CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
@@ -17,8 +17,23 @@ pub async fn static_handler(uri: Uri, headers: HeaderMap) -> Response {
 
     // 1. Try exact asset match
     if let Some(file) = WebAssets::get(path) {
-        let mime = mime_guess::from_path(path).first_or_octet_stream();
-        return ([(CONTENT_TYPE, mime.as_ref())], file.data).into_response();
+        let content_type = if path.ends_with(".webmanifest") {
+            "application/manifest+json; charset=utf-8".to_owned()
+        } else {
+            mime_guess::from_path(path).first_or_octet_stream().to_string()
+        };
+        let cache_control = if path == "sw.js" || path == "index.html" {
+            "no-cache"
+        } else if path.starts_with("assets/") {
+            "public, max-age=31536000, immutable"
+        } else {
+            "public, max-age=3600"
+        };
+        return (
+            [(CONTENT_TYPE, content_type.as_str()), (CACHE_CONTROL, cache_control)],
+            file.data,
+        )
+            .into_response();
     }
 
     // 2. Reject API, health and MCP paths from falling back to index.html

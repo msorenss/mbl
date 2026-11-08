@@ -44,7 +44,9 @@ export function PosterCard(props: PosterCardProps) {
         display: "flex",
         "flex-direction": "column",
         width: "100%",
+        "min-width": "144px",
         "max-width": "180px",
+        "scroll-snap-align": "start",
       }}
     >
       <A
@@ -129,7 +131,6 @@ export function PosterCard(props: PosterCardProps) {
               position: "absolute",
               top: "50%",
               left: "50%",
-              transform: "translate(-50%, -50%)",
               width: "48px",
               height: "48px",
               "border-radius": "50%",
@@ -141,8 +142,6 @@ export function PosterCard(props: PosterCardProps) {
               "justify-content": "center",
               "font-size": "20px",
               cursor: "pointer",
-              opacity: 0,
-              transition: "opacity 0.2s ease, transform 0.2s ease",
               "box-shadow": "0 8px 16px rgba(0,0,0,0.5)",
               "z-index": 2,
             }}

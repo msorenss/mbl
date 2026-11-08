@@ -618,7 +618,7 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
             >
               <p style={{ margin: 0, "font-size": "13px", color: "var(--text-muted)" }}>
                 {t("onlineProvider")}: <strong>{response.provider}</strong> •{" "}
-                {response.results.length} träffar
+                {response.results.length} {t("resultsCount")}
               </p>
               <div style={{ display: "flex", gap: "6px" }}>
                 <Button
@@ -671,10 +671,10 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
                       {t("onlineNoVerified")}
                     </p>
                     <p style={{ margin: 0, "font-size": "13px", color: "var(--text-secondary)" }}>
-                      Kommersiella serier ligger ofta på externa streamingtjänster som kräver
-                      webbläsare eller inloggning. Du kan se och öppna alla{" "}
-                      {response.results.length} sökträffar med webblänkar under fliken{" "}
-                      <strong>"{t("onlineResults")}"</strong>.
+                      Commercial series are often hosted on external streaming services that require
+                      a browser or sign-in. You can view and open all {response.results.length}{" "}
+                      search results with web links under the{" "}
+                      <strong>"{t("onlineResults")}"</strong> tab.
                     </p>
                   </div>
                   <div>
@@ -684,7 +684,7 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
                       variant="secondary"
                       onClick={() => setResultsTab("all")}
                     >
-                      ☰ Visa alla {response.results.length} sökträffar med webblänkar
+                      ☰ View all {response.results.length} search results with web links
                     </Button>
                   </div>
                 </div>
@@ -694,8 +694,8 @@ export function OnlineSearch(props: { admin?: boolean } = {}) {
 
             <Show when={resultsTab() === "all"}>
               <p style={{ margin: 0, "font-size": "13px", color: "var(--text-secondary)" }}>
-                Visar alla {response.results.length} sökträffar från {response.provider}. Klicka på
-                "Kontrollera källa" för att analysera en sida för direkt video.
+                Showing all {response.results.length} search results from {response.provider}. Click
+                "{t("onlineCheck")}" to inspect a page for direct video.
               </p>
               <For each={response.results}>{sourceCard}</For>
             </Show>

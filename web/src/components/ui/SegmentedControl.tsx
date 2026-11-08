@@ -10,6 +10,7 @@ export interface SegmentedControlProps<T extends string = string> {
   value: T;
   onChange: (val: T) => void;
   size?: "sm" | "md";
+  ariaLabel?: string;
   class?: string;
 }
 
@@ -19,14 +20,17 @@ export function SegmentedControl<T extends string = string>(props: SegmentedCont
   return (
     <div
       role="radiogroup"
+      aria-label={props.ariaLabel}
       class={`mbl-segmented-control ${props.class || ""}`}
       style={{
         display: "inline-flex",
-        "background-color": "var(--bg-card)",
+        "flex-wrap": "wrap",
+        "background-color": "var(--bg-surface)",
         padding: "3px",
-        "border-radius": "var(--radius-sm)",
+        "border-radius": "var(--radius-md)",
         border: "1px solid var(--border)",
         gap: "2px",
+        "max-width": "100%",
       }}
     >
       <For each={props.options}>
@@ -39,18 +43,20 @@ export function SegmentedControl<T extends string = string>(props: SegmentedCont
               role="radio"
               aria-checked={isSelected()}
               onClick={() => props.onChange(option.value)}
+              class="mbl-segmented-btn"
               style={{
                 border: "none",
                 outline: "none",
                 cursor: "pointer",
-                padding: isSm() ? "4px 10px" : "6px 14px",
+                padding: isSm() ? "5px 11px" : "7px 14px",
                 "font-size": isSm() ? "var(--font-size-xs)" : "var(--font-size-sm)",
                 "font-weight": isSelected()
                   ? "var(--font-weight-semibold)"
                   : "var(--font-weight-medium)",
-                "border-radius": "calc(var(--radius-sm) - 2px)",
+                "border-radius": "calc(var(--radius-md) - 3px)",
                 "background-color": isSelected() ? "var(--accent)" : "transparent",
                 color: isSelected() ? "#ffffff" : "var(--text-secondary)",
+                "box-shadow": isSelected() ? "0 2px 8px rgba(0, 0, 0, 0.28)" : "none",
                 transition: "all var(--duration-fast) var(--ease-standard)",
               }}
             >

@@ -2,8 +2,10 @@ import { useNavigate } from "@solidjs/router";
 import { createEffect, createSignal, Show } from "solid-js";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useI18n } from "../i18n";
 
 export function Login() {
+  const { t } = useI18n();
   const [username, setUsername] = createSignal(
     new URLSearchParams(window.location.search).get("username") ?? "",
   );
@@ -49,18 +51,21 @@ export function Login() {
         display: "flex",
         "justify-content": "center",
         "align-items": "center",
-        height: "100vh",
+        "min-height": "100dvh",
+        padding:
+          "max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))",
         background: "var(--bg-base)",
       }}
     >
       <div
+        class="mbl-page"
         style={{
-          width: "360px",
-          padding: "32px",
+          width: "min(380px, 100%)",
+          padding: "clamp(24px, 5vw, 34px)",
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
-          "border-radius": "var(--radius-lg)",
-          "box-shadow": "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+          "border-radius": "var(--radius-xl)",
+          "box-shadow": "var(--shadow-xl)",
         }}
       >
         <div style={{ "text-align": "center", "margin-bottom": "28px" }}>
@@ -82,10 +87,10 @@ export function Login() {
             M
           </div>
           <h2 style={{ margin: "0 0 4px", "font-size": "20px", "font-weight": "700" }}>
-            Sign in to MBL
+            {t("signInTitle")}
           </h2>
           <p style={{ margin: 0, color: "var(--text-muted)", "font-size": "13px" }}>
-            Enter your server credentials to continue
+            {t("signInSubtitle")}
           </p>
         </div>
 
@@ -120,7 +125,7 @@ export function Login() {
                 color: "var(--text-secondary)",
               }}
             >
-              Username
+              {t("username")}
             </label>
             <input
               id="username"
@@ -128,7 +133,7 @@ export function Login() {
               value={username()}
               onInput={(e) => setUsername(e.currentTarget.value)}
               autocomplete="username"
-              placeholder="Username"
+              placeholder={t("username")}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -153,7 +158,7 @@ export function Login() {
                 color: "var(--text-secondary)",
               }}
             >
-              Password
+              {t("password")}
             </label>
             <input
               id="password"
@@ -176,7 +181,18 @@ export function Login() {
           </div>
 
           <div>
-            <label for="totp-code">Authentication code (if enabled)</label>
+            <label
+              for="totp-code"
+              style={{
+                display: "block",
+                "margin-bottom": "6px",
+                "font-size": "13px",
+                "font-weight": "600",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {t("authCodeIfEnabled")}
+            </label>
             <input
               id="totp-code"
               type="text"
@@ -184,9 +200,18 @@ export function Login() {
               autocomplete="one-time-code"
               pattern="[0-9]{6}"
               maxlength={6}
+              placeholder="123456"
               value={totpCode()}
               onInput={(e) => setTotpCode(e.currentTarget.value)}
-              style={{ width: "100%", padding: "10px", "margin-top": "6px" }}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                background: "var(--bg-base)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-sm)",
+                color: "var(--text-primary)",
+                "font-size": "14px",
+              }}
             />
           </div>
 
@@ -206,7 +231,7 @@ export function Login() {
               opacity: isSubmitting() ? 0.7 : 1,
             }}
           >
-            {isSubmitting() ? "Signing in..." : "Sign In"}
+            {isSubmitting() ? t("signingIn") : t("signIn")}
           </button>
         </form>
       </div>

@@ -112,6 +112,8 @@ export function Home() {
               durationMs={item().durationMs || undefined}
               backdropUrl={item().posterId ? `/api/v1/images/${item().posterId}?w=1080` : undefined}
               detailsHref={`/item/${item().id}`}
+              playLabel={t("playNow")}
+              detailsLabel={t("details")}
               onPlay={() => {
                 if (["show", "season", "artist", "album"].includes(item().kind)) {
                   navigate(`/item/${item().id}`);

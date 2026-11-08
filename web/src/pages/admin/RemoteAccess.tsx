@@ -1,7 +1,7 @@
 import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
 import type { components } from "../../api/schema";
-import { Button } from "../../components/ui";
+import { Badge, Button } from "../../components/ui";
 
 export default function RemoteAccess() {
   const [error, setError] = createSignal("");
@@ -52,72 +52,133 @@ export default function RemoteAccess() {
       setDiagnosis(result.data);
     });
   return (
-    <div style={{ "max-width": "800px" }}>
-      <h1>Remote access</h1>
+    <div class="mbl-page" style={{ "max-width": "840px", display: "grid", gap: "20px" }}>
+      <h1 style={{ margin: 0, "font-size": "24px", "font-weight": "700" }}>Remote access</h1>
       <Show when={error() || status.error}>
         <p role="alert">{error() || "Could not load remote access settings. Please reload."}</p>
       </Show>
       <Show when={status()} fallback={<p>Loading remote access…</p>}>
         {(info) => (
           <>
-            <h2>Connection status</h2>
-            <p>Tailscale: {info().tailscale ? "Available" : "Unavailable"}</p>
-            <p>Active WAN sessions: {info().activeWanSessions}</p>
-            <p>
-              Use Tailscale on the server and your devices for private remote access. Administrators
-              signing in over WAN need two-factor authentication under Account & security.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save();
-              }}
-              style={{ display: "grid", gap: "16px" }}
-            >
-              <label>
-                <input
-                  type="checkbox"
-                  checked={lanOnly()}
-                  onChange={(e) => setLanOnly(e.currentTarget.checked)}
-                />{" "}
-                Restrict administration to LAN and tailnet
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={tailscaleAuth()}
-                  onChange={(e) => setTailscaleAuth(e.currentTarget.checked)}
-                />{" "}
-                Enable Tailscale identity sign-in
-              </label>
-              <label>
-                WAN upload limit (Mbps; 0 = unlimited){" "}
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  required
-                  value={limit()}
-                  onInput={(e) => setLimit(e.currentTarget.valueAsNumber)}
-                />
-              </label>
-              <Button type="submit" disabled={busy()}>
-                Save settings
-              </Button>
-            </form>
-            <h2>Network diagnostics</h2>
-            <p>
-              The current diagnostic uses available network information; it does not establish that
-              this server is reachable from the internet.
-            </p>
-            <Button disabled={busy()} onClick={diagnose}>
-              Run diagnostics
-            </Button>
-            <Show when={diagnosis()}>
-              <pre style={{ "white-space": "pre-wrap", "overflow-wrap": "anywhere" }}>
-                {JSON.stringify(diagnosis(), null, 2)}
-              </pre>
-            </Show>
+            <section class="mbl-card-section" style={{ display: "grid", gap: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  "flex-wrap": "wrap",
+                  gap: "10px",
+                }}
+              >
+                <h2 style={{ margin: 0, "font-size": "18px" }}>Connection status</h2>
+                <Badge variant={info().tailscale ? "direct-play" : "default"}>
+                  Tailscale: {info().tailscale ? "Available" : "Unavailable"}
+                </Badge>
+              </div>
+              <p style={{ margin: 0, "font-size": "var(--font-size-sm)" }}>
+                Active WAN sessions: <strong>{info().activeWanSessions}</strong>
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  "font-size": "var(--font-size-sm)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Use Tailscale on the server and your devices for private remote access.
+                Administrators signing in over WAN need two-factor authentication under Account &
+                security.
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void save();
+                }}
+                style={{ display: "grid", gap: "14px", "margin-top": "4px" }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "10px",
+                    cursor: "pointer",
+                    "font-size": "var(--font-size-sm)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={lanOnly()}
+                    onChange={(e) => setLanOnly(e.currentTarget.checked)}
+                  />
+                  <span>Restrict administration to LAN and tailnet</span>
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    "align-items": "center",
+                    gap: "10px",
+                    cursor: "pointer",
+                    "font-size": "var(--font-size-sm)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={tailscaleAuth()}
+                    onChange={(e) => setTailscaleAuth(e.currentTarget.checked)}
+                  />
+                  <span>Enable Tailscale identity sign-in</span>
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    "flex-direction": "column",
+                    gap: "6px",
+                    "max-width": "320px",
+                    "font-size": "var(--font-size-xs)",
+                    "font-weight": "var(--font-weight-semibold)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <span>WAN upload limit (Mbps; 0 = unlimited)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={limit()}
+                    onInput={(e) => setLimit(e.currentTarget.valueAsNumber)}
+                  />
+                </label>
+                <div>
+                  <Button type="submit" disabled={busy()}>
+                    Save settings
+                  </Button>
+                </div>
+              </form>
+            </section>
+            <section class="mbl-card-section" style={{ display: "grid", gap: "12px" }}>
+              <h2 style={{ margin: 0, "font-size": "18px" }}>Network diagnostics</h2>
+              <p
+                style={{
+                  margin: 0,
+                  "font-size": "var(--font-size-sm)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                The current diagnostic uses available network information; it does not establish
+                that this server is reachable from the internet.
+              </p>
+              <div>
+                <Button variant="secondary" disabled={busy()} onClick={diagnose}>
+                  Run diagnostics
+                </Button>
+              </div>
+              <Show when={diagnosis()}>
+                <pre style={{ "white-space": "pre-wrap", "overflow-wrap": "anywhere", margin: 0 }}>
+                  {JSON.stringify(diagnosis(), null, 2)}
+                </pre>
+              </Show>
+            </section>
           </>
         )}
       </Show>

@@ -2,7 +2,7 @@ import { createResource, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import HistoryImport from "../components/HistoryImport";
-import { Button } from "../components/ui";
+import { Badge, Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
 export default function Account() {
@@ -94,56 +94,108 @@ export default function Account() {
       await logout();
     });
   return (
-    <div style={{ "max-width": "800px", display: "grid", gap: "24px" }}>
-      <h1>Account & security</h1>
+    <div class="mbl-page" style={{ "max-width": "840px", display: "grid", gap: "20px" }}>
+      <h1 style={{ margin: 0, "font-size": "24px", "font-weight": "700" }}>Account & security</h1>
       <Show when={error() || security.error || sessions.error}>
         <p role="alert">
           {error() || "Could not load account information. Please reload the page."}
         </p>
       </Show>
-      <section>
-        <h2>Two-factor authentication</h2>
-        <Show when={!security.loading && security()} fallback={<p>Loading security settings…</p>}>
-          <p>{security()?.totpEnabled ? "Enabled" : "Disabled"}</p>
-          <Show
-            when={security()?.totpEnabled}
-            fallback={
-              <Button disabled={busy() || !!setup()} onClick={beginSetup}>
-                Set up two-factor authentication
-              </Button>
-            }
-          >
-            <Button disabled={busy()} onClick={disable}>
-              Disable two-factor authentication
-            </Button>
+      <section class="mbl-card-section" style={{ display: "grid", gap: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            "justify-content": "space-between",
+            gap: "12px",
+            "flex-wrap": "wrap",
+          }}
+        >
+          <h2 style={{ margin: 0, "font-size": "18px" }}>Two-factor authentication</h2>
+          <Show when={!security.loading && security()}>
+            <Badge variant={security()?.totpEnabled ? "direct-play" : "default"}>
+              {security()?.totpEnabled ? "Enabled" : "Disabled"}
+            </Badge>
           </Show>
+        </div>
+        <Show when={!security.loading && security()} fallback={<p>Loading security settings…</p>}>
+          <div>
+            <Show
+              when={security()?.totpEnabled}
+              fallback={
+                <Button disabled={busy() || !!setup()} onClick={beginSetup}>
+                  Set up two-factor authentication
+                </Button>
+              }
+            >
+              <Button variant="secondary" disabled={busy()} onClick={disable}>
+                Disable two-factor authentication
+              </Button>
+            </Show>
+          </div>
         </Show>
         <Show when={setup()}>
           {(pending) => (
-            <div>
-              <p>
+            <div
+              style={{
+                display: "grid",
+                gap: "10px",
+                padding: "var(--space-4)",
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                "border-radius": "var(--radius-md)",
+              }}
+            >
+              <p style={{ margin: 0, "font-size": "var(--font-size-sm)" }}>
                 Add this secret to your authenticator app, then enter the six-digit code to activate
                 it.
               </p>
-              <code style={{ "overflow-wrap": "anywhere" }}>{pending().secret}</code>
-              <p>Two-factor authentication remains disabled until the code is verified.</p>
+              <code style={{ "overflow-wrap": "anywhere", padding: "8px 10px" }}>
+                {pending().secret}
+              </code>
+              <p
+                style={{
+                  margin: 0,
+                  "font-size": "var(--font-size-xs)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                Two-factor authentication remains disabled until the code is verified.
+              </p>
               <form
+                style={{
+                  display: "flex",
+                  "align-items": "flex-end",
+                  "flex-wrap": "wrap",
+                  gap: "10px",
+                }}
                 onSubmit={(e) => {
                   e.preventDefault();
                   void verify();
                 }}
               >
-                <label for="verify-totp">Authentication code</label>{" "}
-                <input
-                  id="verify-totp"
-                  inputmode="numeric"
-                  autocomplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  required
-                  maxlength={6}
-                  value={code()}
-                  onInput={(e) => setCode(e.currentTarget.value)}
-                />{" "}
+                <div style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
+                  <label
+                    for="verify-totp"
+                    style={{
+                      "font-size": "var(--font-size-xs)",
+                      "font-weight": "var(--font-weight-semibold)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    Authentication code
+                  </label>
+                  <input
+                    id="verify-totp"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    required
+                    maxlength={6}
+                    value={code()}
+                    onInput={(e) => setCode(e.currentTarget.value)}
+                  />
+                </div>
                 <Button type="submit" disabled={busy()}>
                   Verify & enable
                 </Button>
@@ -152,16 +204,48 @@ export default function Account() {
           )}
         </Show>
       </section>
-      <section>
-        <h2>Signed-in devices</h2>
+      <section class="mbl-card-section" style={{ display: "grid", gap: "12px" }}>
+        <h2 style={{ margin: 0, "font-size": "18px" }}>Signed-in devices</h2>
         <Show when={!sessions.loading} fallback={<p>Loading devices…</p>}>
-          <For each={sessions()}>
+          <For
+            each={sessions()}
+            fallback={
+              <p style={{ margin: 0, color: "var(--text-muted)" }}>No active sessions found.</p>
+            }
+          >
             {(session) => (
-              <div style={{ padding: "12px 0", "border-bottom": "1px solid var(--border)" }}>
-                <strong>{session.deviceName || session.clientName || "Unknown device"}</strong>
-                {session.current ? " (this device)" : ""}
-                <p>Last active: {new Date(session.lastSeenAt).toLocaleString()}</p>
-                <Button disabled={busy()} onClick={() => revoke(session.id, session.current)}>
+              <div
+                style={{
+                  display: "flex",
+                  "align-items": "center",
+                  "justify-content": "space-between",
+                  "flex-wrap": "wrap",
+                  gap: "12px",
+                  padding: "12px 0",
+                  "border-bottom": "1px solid var(--border)",
+                }}
+              >
+                <div>
+                  <div>
+                    <strong>{session.deviceName || session.clientName || "Unknown device"}</strong>
+                    {session.current ? " (this device)" : ""}
+                  </div>
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      "font-size": "var(--font-size-xs)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    Last active: {new Date(session.lastSeenAt).toLocaleString()}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy()}
+                  onClick={() => revoke(session.id, session.current)}
+                >
                   Sign out
                 </Button>
               </div>
@@ -170,28 +254,59 @@ export default function Account() {
         </Show>
       </section>
       <HistoryImport />
-      <section aria-labelledby="delete-account-heading">
-        <h2 id="delete-account-heading">Delete account</h2>
-        <p>
+      <section
+        aria-labelledby="delete-account-heading"
+        class="mbl-card-section"
+        style={{
+          display: "grid",
+          gap: "12px",
+          "border-color": "color-mix(in srgb, var(--danger) 35%, var(--border))",
+        }}
+      >
+        <h2 id="delete-account-heading" style={{ margin: 0, "font-size": "18px" }}>
+          Delete account
+        </h2>
+        <p
+          style={{ margin: 0, "font-size": "var(--font-size-sm)", color: "var(--text-secondary)" }}
+        >
           Permanently removes your account, watch history and signed-in devices from this server.
           Media files are not affected.
         </p>
         <form
+          style={{
+            display: "flex",
+            "align-items": "flex-end",
+            "flex-wrap": "wrap",
+            gap: "10px",
+          }}
           onSubmit={(e) => {
             e.preventDefault();
             void deleteAccount();
           }}
         >
-          <label for="delete-account-password">Confirm with your password</label>{" "}
-          <input
-            id="delete-account-password"
-            type="password"
-            autocomplete="current-password"
-            required
-            value={deletePassword()}
-            onInput={(e) => setDeletePassword(e.currentTarget.value)}
-          />{" "}
-          <Button type="submit" disabled={busy() || !deletePassword()}>
+          <div
+            style={{ display: "flex", "flex-direction": "column", gap: "6px", flex: "1 1 220px" }}
+          >
+            <label
+              for="delete-account-password"
+              style={{
+                "font-size": "var(--font-size-xs)",
+                "font-weight": "var(--font-weight-semibold)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Confirm with your password
+            </label>
+            <input
+              id="delete-account-password"
+              type="password"
+              autocomplete="current-password"
+              required
+              value={deletePassword()}
+              onInput={(e) => setDeletePassword(e.currentTarget.value)}
+            />
+          </div>
+          <Button type="submit" variant="danger" disabled={busy() || !deletePassword()}>
             Delete my account
           </Button>
         </form>

@@ -10,7 +10,62 @@ import { client } from "../api/client";
 
 export type ThemeMode = "dark" | "oled" | "light" | "high-contrast";
 export type AccentColor = "amber" | "indigo" | "emerald" | "rose" | "cyan" | "violet";
-export type AppLocale = "en" | "sv" | "de" | "fr" | "es";
+export type AppLocale =
+  | "en"
+  | "sv"
+  | "de"
+  | "fr"
+  | "es"
+  | "pt"
+  | "it"
+  | "nl"
+  | "pl"
+  | "tr"
+  | "ru"
+  | "uk"
+  | "ar"
+  | "hi"
+  | "zh"
+  | "ja"
+  | "ko"
+  | "id"
+  | "vi"
+  | "no"
+  | "tl"
+  | "ceb"
+  | "war";
+
+export interface LocaleOption {
+  code: AppLocale;
+  name: string;
+  nativeName: string;
+}
+
+export const SUPPORTED_LOCALES: readonly LocaleOption[] = [
+  { code: "en", name: "English", nativeName: "English" },
+  { code: "sv", name: "Swedish", nativeName: "Svenska" },
+  { code: "de", name: "German", nativeName: "Deutsch" },
+  { code: "fr", name: "French", nativeName: "Français" },
+  { code: "es", name: "Spanish", nativeName: "Español" },
+  { code: "pt", name: "Portuguese", nativeName: "Português" },
+  { code: "it", name: "Italian", nativeName: "Italiano" },
+  { code: "nl", name: "Dutch", nativeName: "Nederlands" },
+  { code: "pl", name: "Polish", nativeName: "Polski" },
+  { code: "tr", name: "Turkish", nativeName: "Türkçe" },
+  { code: "ru", name: "Russian", nativeName: "Русский" },
+  { code: "uk", name: "Ukrainian", nativeName: "Українська" },
+  { code: "ar", name: "Arabic", nativeName: "العربية" },
+  { code: "hi", name: "Hindi", nativeName: "हिन्दी" },
+  { code: "zh", name: "Chinese", nativeName: "中文" },
+  { code: "ja", name: "Japanese", nativeName: "日本語" },
+  { code: "ko", name: "Korean", nativeName: "한국어" },
+  { code: "id", name: "Indonesian", nativeName: "Bahasa Indonesia" },
+  { code: "vi", name: "Vietnamese", nativeName: "Tiếng Việt" },
+  { code: "no", name: "Norwegian", nativeName: "Norsk" },
+  { code: "tl", name: "Tagalog", nativeName: "Tagalog" },
+  { code: "ceb", name: "Bisaya (Cebuano)", nativeName: "Bisaya" },
+  { code: "war", name: "Waray-Waray", nativeName: "Waray-Waray" },
+];
 
 export interface SubtitleStyle {
   size: "sm" | "md" | "lg" | "xl";
@@ -90,12 +145,26 @@ export function ThemeProvider(props: ParentProps) {
   const applyAttributes = () => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
-    root.setAttribute("data-theme", theme());
+    const currentTheme = theme();
+    const currentLocale = locale();
+    root.setAttribute("data-theme", currentTheme);
     root.setAttribute("data-accent", accent());
+    root.setAttribute("lang", currentLocale);
+    root.setAttribute("dir", currentLocale === "ar" ? "rtl" : "ltr");
     if (reducedMotion()) {
       root.setAttribute("data-reduced-motion", "true");
     } else {
       root.removeAttribute("data-reduced-motion");
+    }
+    const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      const colorMap: Record<ThemeMode, string> = {
+        dark: "#141721",
+        oled: "#000000",
+        light: "#ffffff",
+        "high-contrast": "#000000",
+      };
+      themeColorMeta.setAttribute("content", colorMap[currentTheme] || "#0c0e14");
     }
   };
 
@@ -220,6 +289,10 @@ export function ThemeProvider(props: ParentProps) {
       {props.children}
     </ThemeContext.Provider>
   );
+}
+
+export function useOptionalTheme() {
+  return useContext(ThemeContext);
 }
 
 export function useTheme() {

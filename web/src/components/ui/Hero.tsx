@@ -16,6 +16,8 @@ export interface HeroProps {
   vibrantColor?: string;
   onPlay?: () => void;
   detailsHref?: string;
+  playLabel?: string;
+  detailsLabel?: string;
   children?: JSX.Element;
 }
 
@@ -153,19 +155,20 @@ export function Hero(props: HeroProps) {
           style={{
             display: "flex",
             "align-items": "center",
-            gap: "var(--space-4)",
+            "flex-wrap": "wrap",
+            gap: "var(--space-3)",
             "margin-top": "var(--space-2)",
           }}
         >
           {props.onPlay && (
             <Button size="lg" variant="primary" onClick={props.onPlay}>
-              <span style={{ "font-size": "18px" }}>▶</span> Play Now
+              <span style={{ "font-size": "18px" }}>▶</span> {props.playLabel || "Play Now"}
             </Button>
           )}
           {props.detailsHref && (
             <A href={props.detailsHref}>
               <Button size="lg" variant="secondary">
-                Details & More
+                {props.detailsLabel || "Details & More"}
               </Button>
             </A>
           )}

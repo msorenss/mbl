@@ -1,4 +1,5 @@
 import { createContext, createSignal, For, type JSX, useContext } from "solid-js";
+import { useI18n } from "../i18n";
 
 export interface Toast {
   id: string;
@@ -16,6 +17,7 @@ const ToastContext = createContext<ToastContextValue>();
 
 export function ToastProvider(props: { children: JSX.Element }) {
   const [toasts, setToasts] = createSignal<Toast[]>([]);
+  const { t: translate } = useI18n();
 
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -32,10 +34,11 @@ export function ToastProvider(props: { children: JSX.Element }) {
     <ToastContext.Provider value={{ showToast, removeToast }}>
       {props.children}
       <div
+        class="mbl-toast-viewport"
         style={{
           position: "fixed",
-          bottom: "16px",
-          right: "16px",
+          bottom: "max(16px, env(safe-area-inset-bottom))",
+          right: "max(16px, env(safe-area-inset-right))",
           display: "flex",
           "flex-direction": "column",
           gap: "8px",
@@ -47,6 +50,7 @@ export function ToastProvider(props: { children: JSX.Element }) {
         <For each={toasts()}>
           {(t) => (
             <div
+              class="mbl-toast-item"
               style={{
                 "pointer-events": "auto",
                 background: "var(--bg-overlay)",
@@ -72,10 +76,12 @@ export function ToastProvider(props: { children: JSX.Element }) {
             >
               <div>
                 {t.title && (
-                  <div style={{ "font-weight": "600", "margin-bottom": "2px" }}>{t.title}</div>
+                  <div style={{ "font-weight": "600", "margin-bottom": "2px" }}>
+                    {translate(t.title)}
+                  </div>
                 )}
                 <div style={{ color: "var(--text-secondary)", "font-size": "13px" }}>
-                  {t.message}
+                  {translate(t.message)}
                 </div>
               </div>
               <button

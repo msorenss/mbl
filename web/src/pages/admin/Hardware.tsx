@@ -11,22 +11,22 @@ const SLOT_METADATA: Record<HefModelSlot, { label: string; description: string }
   vision: {
     label: "Vision / Detection HEF",
     description:
-      "Snabb bildanalys via InferModel (t.ex. yolov11s.hef, yolov8s.hef eller Qwen3-VL-2B-vision.hef).",
+      "Fast image analysis via InferModel (e.g. yolov11s.hef, yolov8s.hef or Qwen3-VL-2B-vision.hef).",
   },
   vlm: {
     label: "GenAI VLM HEF (Hailo-10H)",
     description:
-      "Vision-Language Model via hailort::genai::VLM (t.ex. Qwen3-VL-2B-Instruct.hef eller Qwen2-VL-2B-Instruct.hef).",
+      "Vision-Language Model via hailort::genai::VLM (e.g. Qwen3-VL-2B-Instruct.hef or Qwen2-VL-2B-Instruct.hef).",
   },
   llm: {
     label: "GenAI LLM HEF (Hailo-10H)",
     description:
-      "Large Language Model via hailort::genai::LLM (t.ex. Qwen3-1.7B-Instruct.hef, Qwen2.5-1.5B-Instruct.hef eller Gemma4-E2B-Instruct.hef).",
+      "Large Language Model via hailort::genai::LLM (e.g. Qwen3-1.7B-Instruct.hef, Qwen2.5-1.5B-Instruct.hef or Gemma4-E2B-Instruct.hef).",
   },
   whisper: {
     label: "Whisper Speech2Text HEF (Hailo-10H)",
     description:
-      "Tal-till-text och undertextsynk via hailort::genai::Speech2Text (t.ex. Whisper-Base.hef eller Whisper-Small.hef).",
+      "Speech-to-text and subtitle sync via hailort::genai::Speech2Text (e.g. Whisper-Base.hef or Whisper-Small.hef).",
   },
 };
 
@@ -133,15 +133,15 @@ export function Hardware() {
     if (error || !data) {
       throw new Error(
         (error as unknown as { message?: string })?.message ||
-          "Kunde inte spara vald .hef-modellfil.",
+          "Could not save selected .hef model file.",
       );
     }
     await loadReport();
     showToast({
-      title: hefPath ? "HEF-modell uppdaterad" : "Automatisk HEF-identifiering",
+      title: hefPath ? "HEF Model Updated" : "Automatic HEF Detection",
       message: hefPath
-        ? `Valde ${hefPath.split("/").pop()} för ${SLOT_METADATA[slot].label}.`
-        : `Återställde ${SLOT_METADATA[slot].label} till automatisk identifiering.`,
+        ? `Selected ${hefPath.split("/").pop()} for ${SLOT_METADATA[slot].label}.`
+        : `Reset ${SLOT_METADATA[slot].label} to automatic detection.`,
       type: "success",
     });
   };
@@ -545,7 +545,7 @@ export function Hardware() {
                         }}
                         title={rep().hailo.activeHefModel ?? ""}
                       >
-                        {rep().hailo.activeHefModel?.split("/").pop() || "Ingen vald"}
+                        {rep().hailo.activeHefModel?.split("/").pop() || "None selected"}
                       </span>
                       <button
                         type="button"
@@ -561,7 +561,7 @@ export function Hardware() {
                           cursor: "pointer",
                         }}
                       >
-                        📁 Välj .hef
+                        📁 Select .hef
                       </button>
                     </div>
                   </div>
@@ -593,7 +593,7 @@ export function Hardware() {
                         }}
                         title={rep().hailo.activeVlmHefModel ?? ""}
                       >
-                        {rep().hailo.activeVlmHefModel?.split("/").pop() || "Ingen vald"}
+                        {rep().hailo.activeVlmHefModel?.split("/").pop() || "None selected"}
                       </span>
                       <button
                         type="button"
@@ -609,7 +609,7 @@ export function Hardware() {
                           cursor: "pointer",
                         }}
                       >
-                        📁 Välj .hef
+                        📁 Select .hef
                       </button>
                     </div>
                   </div>
@@ -641,7 +641,7 @@ export function Hardware() {
                         }}
                         title={rep().hailo.activeLlmHefModel ?? ""}
                       >
-                        {rep().hailo.activeLlmHefModel?.split("/").pop() || "Ingen vald"}
+                        {rep().hailo.activeLlmHefModel?.split("/").pop() || "None selected"}
                       </span>
                       <button
                         type="button"
@@ -657,7 +657,7 @@ export function Hardware() {
                           cursor: "pointer",
                         }}
                       >
-                        📁 Välj .hef
+                        📁 Select .hef
                       </button>
                     </div>
                   </div>
@@ -689,7 +689,7 @@ export function Hardware() {
                         }}
                         title={rep().hailo.activeWhisperHefModel ?? ""}
                       >
-                        {rep().hailo.activeWhisperHefModel?.split("/").pop() || "Ingen vald"}
+                        {rep().hailo.activeWhisperHefModel?.split("/").pop() || "None selected"}
                       </span>
                       <button
                         type="button"
@@ -705,7 +705,7 @@ export function Hardware() {
                           cursor: "pointer",
                         }}
                       >
-                        📁 Välj .hef
+                        📁 Select .hef
                       </button>
                     </div>
                   </div>

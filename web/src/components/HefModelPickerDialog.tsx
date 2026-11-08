@@ -60,7 +60,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
       });
       if (myVer !== reqVersion) return;
       if (res.error || !res.data) {
-        throw new Error(apiErrorMessage(res.error, "Kunde inte läsa katalogen."));
+        throw new Error(apiErrorMessage(res.error, "Could not read directory."));
       }
       setListing(res.data);
       if (res.data.path) {
@@ -68,7 +68,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
       }
     } catch (err) {
       if (myVer === reqVersion) {
-        setError(apiErrorMessage(err, "Kunde inte öppna katalogen."));
+        setError(apiErrorMessage(err, "Could not open directory."));
       }
     } finally {
       if (myVer === reqVersion) {
@@ -96,7 +96,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
   const handleConfirm = async (filePath: string) => {
     const trimmed = filePath.trim();
     if (!trimmed.toLowerCase().endsWith(".hef")) {
-      setError("Vald fil måste ha filändelsen .hef");
+      setError("Selected file must end with .hef");
       return;
     }
     setSaving(true);
@@ -105,7 +105,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
       await props.onSelect(trimmed);
       props.onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte spara .hef-sökvägen.");
+      setError(err instanceof Error ? err.message : "Could not save .hef path.");
     } finally {
       setSaving(false);
     }
@@ -118,7 +118,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
       await props.onSelect("");
       props.onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kunde inte återställa till automatisk.");
+      setError(err instanceof Error ? err.message : "Could not reset to automatic.");
     } finally {
       setSaving(false);
     }
@@ -130,7 +130,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
       onOpenChange={(isOpen) => {
         if (!isOpen) props.onClose();
       }}
-      title={`Välj .hef-modell — ${props.slotLabel}`}
+      title={`Select .hef Model — ${props.slotLabel}`}
       description={props.slotDescription}
     >
       <div
@@ -164,7 +164,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
         <div style={{ display: "flex", gap: "8px" }}>
           <input
             type="text"
-            aria-label="Katalog eller .hef-sökväg"
+            aria-label="Directory or .hef path"
             value={pathInput()}
             placeholder="/usr/share/hailo-models"
             onInput={(e) => setPathInput(e.currentTarget.value)}
@@ -205,7 +205,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
               }
             }}
           >
-            {pathInput().trim().toLowerCase().endsWith(".hef") ? "Använd fil" : "Öppna mapp"}
+            {pathInput().trim().toLowerCase().endsWith(".hef") ? "Use File" : "Open Folder"}
           </Button>
         </div>
 
@@ -252,7 +252,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
             }}
           >
             <span style={{ "font-family": "var(--font-mono)", "overflow-wrap": "anywhere" }}>
-              Mapp: {listing()?.path || "/"}
+              Folder: {listing()?.path || "/"}
             </span>
             <Show when={listing()?.parent}>
               <Button
@@ -262,14 +262,14 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
                 disabled={loading()}
                 onClick={() => void browseDir(listing()?.parent || undefined)}
               >
-                ↑ Upp en nivå
+                ↑ Up one level
               </Button>
             </Show>
           </div>
 
           <Show when={loading()}>
             <div style={{ padding: "12px", color: "var(--text-muted)", "text-align": "center" }}>
-              Läser katalog...
+              Reading directory...
             </div>
           </Show>
 
@@ -343,7 +343,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
                       disabled={saving()}
                       onClick={() => void handleConfirm(entry.path)}
                     >
-                      Välj .hef
+                      Select .hef
                     </Button>
                   </Show>
                 </div>
@@ -352,7 +352,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
 
             <Show when={(listing()?.entries.length ?? 0) === 0}>
               <div style={{ padding: "12px", color: "var(--text-muted)", "text-align": "center" }}>
-                Inga undermappar eller .hef-filer i denna katalog.
+                No subfolders or .hef files in this directory.
               </div>
             </Show>
           </Show>
@@ -375,11 +375,11 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
             disabled={saving()}
             onClick={() => void handleResetAuto()}
           >
-            ↺ Återställ till automatisk identifiering
+            ↺ Reset to automatic detection
           </Button>
           <div style={{ display: "flex", gap: "8px" }}>
             <Button type="button" variant="secondary" size="sm" onClick={() => props.onClose()}>
-              Avbryt
+              Cancel
             </Button>
             <Button
               type="button"
@@ -388,7 +388,7 @@ export function HefModelPickerDialog(props: HefModelPickerDialogProps) {
               disabled={saving() || !selectedFile().trim().toLowerCase().endsWith(".hef")}
               onClick={() => void handleConfirm(selectedFile())}
             >
-              Spara val
+              Save Selection
             </Button>
           </div>
         </div>

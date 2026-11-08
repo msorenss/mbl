@@ -196,7 +196,7 @@ export default function Settings() {
         >
           <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
             <span style={{ "font-size": "20px" }}>ℹ️</span>
-            <strong style={{ "font-size": "15px" }}>System- & Versionsinformation</strong>
+            <strong style={{ "font-size": "15px" }}>System & Version Information</strong>
           </div>
           <span
             style={{
@@ -223,13 +223,13 @@ export default function Settings() {
         >
           <div>
             <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
-              SERVERVERSION
+              SERVER VERSION
             </div>
             <div>v{serverInfo()?.version || __MBL_VERSION__}</div>
           </div>
           <div>
             <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
-              GIT COMMIT / BYGGVERSION
+              GIT COMMIT / BUILD VERSION
             </div>
             <div style={{ "font-family": "monospace", "font-size": "12px" }}>
               {serverInfo()?.gitCommit || __MBL_GIT_COMMIT__}
@@ -237,7 +237,7 @@ export default function Settings() {
           </div>
           <div>
             <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
-              BYGGDATUM
+              BUILD DATE
             </div>
             <div style={{ "font-size": "12px" }}>
               {serverInfo()?.buildTime || __MBL_BUILD_DATE__}
@@ -245,7 +245,7 @@ export default function Settings() {
           </div>
           <div>
             <div style={{ color: "var(--text-muted)", "font-size": "11px", "font-weight": "600" }}>
-              PLATTFORM & NPU
+              PLATFORM & NPU
             </div>
             <div style={{ "text-transform": "capitalize" }}>
               {serverInfo()?.os || "linux"} {serverInfo()?.arch || "arm64"} (

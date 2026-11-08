@@ -1,5 +1,6 @@
 import { Dialog as KobalteDialog } from "@kobalte/core/dialog";
 import { type JSX, splitProps } from "solid-js";
+import { useI18n } from "../../i18n";
 
 export interface DialogProps {
   open?: boolean;
@@ -13,6 +14,7 @@ export interface DialogProps {
 }
 
 export function Dialog(props: DialogProps) {
+  const { t } = useI18n();
   const [local, rest] = splitProps(props, [
     "open",
     "onOpenChange",
@@ -29,13 +31,13 @@ export function Dialog(props: DialogProps) {
       {local.trigger && <KobalteDialog.Trigger as="div">{local.trigger}</KobalteDialog.Trigger>}
       <KobalteDialog.Portal>
         <KobalteDialog.Overlay
+          class="mbl-overlay"
           style={{
             position: "fixed",
             inset: "0",
-            "background-color": "rgba(0, 0, 0, 0.75)",
-            "backdrop-filter": "blur(4px)",
+            "background-color": "rgba(0, 0, 0, 0.72)",
+            "backdrop-filter": "blur(6px)",
             "z-index": "100",
-            animation: "fadeIn var(--duration-fast) var(--ease-standard)",
           }}
         />
         <div
@@ -46,15 +48,17 @@ export function Dialog(props: DialogProps) {
             display: "flex",
             "align-items": "center",
             "justify-content": "center",
-            padding: "var(--space-4)",
+            padding:
+              "max(var(--space-4), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right)) max(var(--space-4), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left))",
           }}
         >
           <KobalteDialog.Content
+            class="mbl-dialog-content"
             onOpenAutoFocus={local.onOpenAutoFocus}
             onCloseAutoFocus={local.onCloseAutoFocus}
             style={{
               width: "100%",
-              "max-width": "480px",
+              "max-width": "500px",
               "max-height": "calc(100dvh - 2 * var(--space-4))",
               "overflow-y": "auto",
               "background-color": "var(--bg-card)",
@@ -82,10 +86,11 @@ export function Dialog(props: DialogProps) {
                     color: "var(--text-primary)",
                   }}
                 >
-                  {local.title}
+                  {t(local.title)}
                 </KobalteDialog.Title>
               )}
               <KobalteDialog.CloseButton
+                aria-label={t("Close")}
                 style={{
                   background: "none",
                   border: "none",
@@ -107,7 +112,7 @@ export function Dialog(props: DialogProps) {
                   "font-size": "var(--font-size-sm)",
                 }}
               >
-                {local.description}
+                {t(local.description)}
               </KobalteDialog.Description>
             )}
             {local.children}

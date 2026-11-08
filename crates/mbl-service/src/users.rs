@@ -92,16 +92,16 @@ mod permission_patch_tests {
             .unwrap();
         let service = UserService::new(db);
         let actor = Actor::user(id);
-        for locale in ["en", "sv", "de", "fr", "es"] {
+        for locale in VALID_LOCALES {
             let result = service
                 .update_preferences(
                     &actor,
-                    UpdateUserPreferences { locale: Some(locale.into()), ..Default::default() },
+                    UpdateUserPreferences { locale: Some((*locale).into()), ..Default::default() },
                 )
                 .await
                 .unwrap();
-            assert_eq!(result.locale, locale);
-            assert_eq!(service.get_preferences(&actor).await.unwrap().locale, locale);
+            assert_eq!(result.locale, *locale);
+            assert_eq!(service.get_preferences(&actor).await.unwrap().locale, *locale);
         }
         assert!(
             service
@@ -112,7 +112,10 @@ mod permission_patch_tests {
                 .await
                 .is_err()
         );
-        assert_eq!(service.get_preferences(&actor).await.unwrap().locale, "es");
+        assert_eq!(
+            service.get_preferences(&actor).await.unwrap().locale,
+            *VALID_LOCALES.last().unwrap()
+        );
     }
 
     #[test]
@@ -130,7 +133,10 @@ mod permission_patch_tests {
 
 const VALID_THEMES: &[&str] = &["dark", "oled", "light", "high-contrast"];
 const VALID_ACCENTS: &[&str] = &["amber", "indigo", "emerald", "rose", "cyan", "violet"];
-const VALID_LOCALES: &[&str] = &["en", "sv", "de", "fr", "es"];
+const VALID_LOCALES: &[&str] = &[
+    "en", "sv", "de", "fr", "es", "pt", "it", "nl", "pl", "tr", "ru", "uk", "ar", "hi", "zh",
+    "ja", "ko", "id", "vi", "no", "tl", "ceb", "war",
+];
 const VALID_SUB_SIZES: &[&str] = &["sm", "md", "lg", "xl"];
 const VALID_SUB_BACKGROUNDS: &[&str] = &["none", "dim", "solid"];
 const VALID_SUB_COLORS: &[&str] = &["white", "yellow", "cyan"];

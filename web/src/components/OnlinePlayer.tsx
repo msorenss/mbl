@@ -232,7 +232,7 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
         >
           <div style={{ "font-size": "44px" }}>📺</div>
           <div style={{ "font-size": "17px", "font-weight": "bold" }}>
-            Casting till {castDevice() || "Chromecast"}
+            Casting to {castDevice() || "Chromecast"}
           </div>
           <div style={{ color: "var(--text-secondary)", "font-size": "13px" }}>
             {props.source.title}
@@ -249,10 +249,10 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
                 }
               }}
             >
-              {castManager.getState().playerState === "playing" ? "⏸ Pausa" : "▶ Spela"}
+              {castManager.getState().playerState === "playing" ? "⏸ Pause" : "▶ Play"}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => castManager.stopCasting()}>
-              Koppla från Cast
+              Disconnect Cast
             </Button>
           </div>
         </div>
@@ -312,10 +312,10 @@ export function OnlinePlayer(props: { source: Source; onClose: () => void; onSav
             onClick={handleCast}
           >
             {isCasting()
-              ? `📺 Kopplad till ${castDevice() || "TV"}`
+              ? `📺 Connected to ${castDevice() || "TV"}`
               : castConnecting()
-                ? "📺 Ansluter..."
-                : "📺 Casta till TV"}
+                ? "📺 Connecting..."
+                : "📺 Cast to TV"}
           </Button>
         </Show>
         <Button type="button" onClick={props.onClose}>

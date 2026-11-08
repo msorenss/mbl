@@ -240,10 +240,10 @@ export function Libraries() {
       >
         <div>
           <h1 style={{ margin: "0 0 6px", "font-size": "24px", "font-weight": "800" }}>
-            Libraries
+            {t("libraries")}
           </h1>
           <p style={{ margin: 0, color: "var(--text-secondary)", "font-size": "14px" }}>
-            Media collections configured and monitored on this server
+            {t("librariesSubtitle")}
           </p>
         </div>
 
@@ -262,7 +262,7 @@ export function Libraries() {
               cursor: "pointer",
             }}
           >
-            + Add Library
+            {t("addLibrary")}
           </button>
         </Show>
       </div>
@@ -437,44 +437,77 @@ export function Libraries() {
                     </A>
 
                     <Show when={user()?.isAdmin}>
-                      <button
-                        type="button"
-                        onClick={() => handleScan(lib)}
-                        title="Scan library folder"
+                      <div
                         style={{
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          color: "var(--text-secondary)",
-                          padding: "5px 10px",
-                          "border-radius": "var(--radius-sm)",
-                          "font-size": "12px",
-                          cursor: "pointer",
+                          display: "flex",
+                          "align-items": "center",
+                          gap: "6px",
+                          "flex-wrap": "wrap",
                         }}
                       >
-                        🔄 Scan
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRefreshMetadata(lib)}
-                        title="Refresh TMDB metadata and artwork"
-                        style={{
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          color: "var(--text-secondary)",
-                          padding: "5px 10px",
-                          "border-radius": "var(--radius-sm)",
-                          "font-size": "12px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        ✨ Refresh TMDB
-                      </button>
-                      <button type="button" onClick={() => editLibrary(lib)}>
-                        Edit
-                      </button>
-                      <button type="button" onClick={() => deleteLibrary(lib)}>
-                        Remove
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleScan(lib)}
+                          title="Scan library folder"
+                          style={{
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border)",
+                            color: "var(--text-secondary)",
+                            padding: "5px 10px",
+                            "border-radius": "var(--radius-sm)",
+                            "font-size": "12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🔄 Scan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRefreshMetadata(lib)}
+                          title="Refresh TMDB metadata and artwork"
+                          style={{
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border)",
+                            color: "var(--text-secondary)",
+                            padding: "5px 10px",
+                            "border-radius": "var(--radius-sm)",
+                            "font-size": "12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✨ Refresh TMDB
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => editLibrary(lib)}
+                          style={{
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border)",
+                            color: "var(--text-secondary)",
+                            padding: "5px 10px",
+                            "border-radius": "var(--radius-sm)",
+                            "font-size": "12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteLibrary(lib)}
+                          style={{
+                            background: "var(--danger-light)",
+                            border: "1px solid color-mix(in srgb, var(--danger) 45%, transparent)",
+                            color: "var(--danger)",
+                            padding: "5px 10px",
+                            "border-radius": "var(--radius-sm)",
+                            "font-size": "12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </Show>
                   </div>
                 </div>
