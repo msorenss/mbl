@@ -47,6 +47,7 @@ pub struct ScanStats {
     pub failed: usize,
     pub new_items: usize,
     pub unavailable_roots: Vec<String>,
+    pub available_roots: usize,
 }
 
 #[derive(Clone)]
@@ -108,6 +109,7 @@ impl Scanner {
             .tools
             .clone()
             .ok_or_else(|| Error::Unavailable("ffprobe is not available; install FFmpeg".into()))?;
+        tracing::info!(library_id = library_id.0, "library scan started");
         let mut stats = ScanStats::default();
 
         let known: HashMap<String, PartFile> = media::parts_for_library(&self.db, library_id)
@@ -147,15 +149,25 @@ impl Scanner {
             .await
             .map_err(Error::internal)?;
             match files {
-                Some(f) => found.extend(f),
+                Some(f) => {
+                    stats.available_roots += 1;
+                    found.extend(f);
+                }
                 None => {
-                    tracing::warn!(library_id = %library_id, root, "library root unavailable; not marking files missing");
+                    tracing::warn!(
+                        library_id = library_id.0,
+                        root,
+                        "library root unavailable; not marking files missing"
+                    );
                     self.events
                         .publish(Event::LibraryUnavailable { library_id, path: root.clone() });
                     unavailable.push(prefix);
                     stats.unavailable_roots.push(root.clone());
                 }
             }
+        }
+        if stats.available_roots == 0 && !stats.unavailable_roots.is_empty() {
+            return Ok(stats);
         }
         stats.files_seen = found.len();
 
@@ -317,7 +329,7 @@ impl Scanner {
             done: true,
         });
         self.events.publish(Event::LibraryUpdated { library_id });
-        tracing::info!(library_id = %library_id, elapsed = ?started.elapsed(), ?stats, "scan finished");
+        tracing::info!(library_id = library_id.0, elapsed = ?started.elapsed(), ?stats, "scan finished");
         Ok(stats)
     }
 
@@ -456,7 +468,8 @@ impl JobHandler for ScanHandler {
         let progress = ctx.progress.clone();
         let last = std::sync::Mutex::new(-1i32);
         let handle = tokio::runtime::Handle::current();
-        self.scanner
+        let stats = self
+            .scanner
             .scan_folders(library_id, &folders, &ctx.cancel, move |p| {
                 let pct = (p * 100.0) as i32;
                 let mut last = last.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -468,7 +481,10 @@ impl JobHandler for ScanHandler {
                     });
                 }
             })
-            .await
-            .map(|_| ())
+            .await?;
+        if stats.available_roots == 0 && !stats.unavailable_roots.is_empty() {
+            return Err(Error::Unavailable("MBL cannot read any folders in this library".into()));
+        }
+        Ok(())
     }
 }

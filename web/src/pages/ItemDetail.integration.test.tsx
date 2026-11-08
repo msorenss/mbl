@@ -68,19 +68,7 @@ it("opens seasons instead of playing their nonexistent media and reloads watch s
   });
   dispose = render(() => createComponent(ItemDetail, {}), document.body);
   await tick();
-  expect(get).toHaveBeenCalledWith(
-    "/api/v1/items/{id}/playback-preview",
-    expect.objectContaining({
-      params: expect.objectContaining({
-        query: expect.objectContaining({
-          profile: JSON.stringify({
-            name: "chrome",
-            browserCodecs: { mp4: ["ac3"], webm: [], hls: [] },
-          }),
-        }),
-      }),
-    }),
-  );
+  expect(get).not.toHaveBeenCalledWith("/api/v1/items/{id}/playback-preview", expect.anything());
   expect(document.body.textContent).toContain("seasons");
   expect(document.querySelector('a[href="/item/2"]')).toBeTruthy();
   const season = [...document.querySelectorAll("button")].find(

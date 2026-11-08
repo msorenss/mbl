@@ -1,6 +1,6 @@
 # HTTPS, TLS & Certificate Management
 
-Media Lounge Box (MBL) includes a built-in HTTPS listener and TLS certificate manager, configurable from the web interface at **Admin -> Server Settings -> HTTPS & TLS Certificates** or via the REST API (`/api/v1/system/tls`).
+Media Box Lounge (MBL) includes a built-in HTTPS listener and TLS certificate manager, configurable from the web interface at **Admin -> Server Settings -> HTTPS & TLS Certificates** or via the REST API (`/api/v1/system/tls`).
 
 The HTTPS listener runs concurrently with HTTP (default HTTPS port `8443`, HTTP port `8420`) and reloads dynamically without restarting the server when certificates are generated, renewed, or changed.
 

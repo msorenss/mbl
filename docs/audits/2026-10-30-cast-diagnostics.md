@@ -132,6 +132,30 @@ receiver media requests to correlate the physical freeze. Do not paper over
 this by only raising TARGETDURATION or replacing conversion reasons with a
 false claim of successful playback. Receiver freeze remains unresolved.
 
+## 2026-11-08 Cast attempt stops during server preparation
+
+The phase 4 baseline passed physical playback on Bedroom TV with three
+synthetic sources covering Direct Play, HLS with AAC, and HLS with E-AC-3
+converted to AAC stereo.
+
+In the new sender trace, attempt 4 starts at 14:55:48 UTC. The Cast SDK reaches
+`SESSION_STARTED` and the sender requests playback for item 192 at 26.376 s.
+The request is still pending when the player is disposed 15.367 s later.
+Disposal aborts the request, which appears as `load.failed` with abort code 20.
+The trace contains neither an HTTP response nor a receiver `LOAD` request.
+
+The earlier frozen-picture traces reached HTTP 200 and receiver playback.
+For this attempt, correlate the server's playback-start log and source format
+for item 192 first. The sender trace alone cannot identify the server build
+or distinguish slow media preparation from an interrupted connection.
+
+The user identified the source as *Dark Matter: How to Build the Box* on the
+Windows v1.3.1 server over HTTPS. The item is Matroska with H.264 and
+six-channel E-AC-3. A subsequent local playback on that server advanced to
+38 seconds with software transcoding and zero FFmpeg restarts. This verifies
+local playback in that session. The physical Cast attempt still needs its own
+receiver trace.
+
 ## Broader diagnostic trail — follow-up after Cast
 
 User proposed a shared trail for all functions after Cast works. This is a

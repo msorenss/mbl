@@ -37,6 +37,7 @@ async fn forward(state: AppState, actor: Actor, mut socket: WebSocket) {
     ping.tick().await;
     loop {
         tokio::select! {
+            () = state.stop.cancelled() => break,
             event = rx.recv() => match event {
                 Ok(event) => {
                     if !events.visible(&actor, &event).await {

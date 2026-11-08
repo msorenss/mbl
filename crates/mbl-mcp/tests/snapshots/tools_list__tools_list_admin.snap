@@ -1187,7 +1187,7 @@ expression: tools
   },
   {
     "name": "restart_server",
-    "description": "Gracefully restart the MBL server process. DESTRUCTIVE: Requires confirm: true.",
+    "description": "Gracefully restart the MBL server. DESTRUCTIVE: Requires confirm: true.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

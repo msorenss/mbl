@@ -4,6 +4,43 @@
 export type Tuple3 = readonly [string, string, string];
 
 export const PHILIPPINE_LOCALES: Record<string, Tuple3> = {
+  diagnosticLogs: [
+    "Mga tala ng dayagnostik",
+    "Mga tala sa dayagnostik",
+    "Mga tala han dayagnostik",
+  ],
+  diagnosticLogsHelp: [
+    "Mga kaganapan sa server mula nang magsimula at sa browser sa tab na ito, kasama ang Chromecast.",
+    "Mga panghitabo sa server sukad sa pagsugod ug sa browser niini nga tab, apil ang Chromecast.",
+    "Mga hitabo ha server tikang han pagtikang ngan ha browser hini nga tab, upod an Chromecast.",
+  ],
+  diagnosticAllSources: ["Lahat ng pinagmulan", "Tanang tinubdan", "Ngatanan nga tinikangan"],
+  diagnosticAllLevels: ["Lahat ng antas", "Tanang lebel", "Ngatanan nga lebel"],
+  diagnosticSource: ["Pinagmulan", "Tinubdan", "Tinikangan"],
+  diagnosticBrowser: ["Browser", "Browser", "Browser"],
+  diagnosticLevel: ["Antas", "Lebel", "Lebel"],
+  diagnosticEventCount: ["Mga kaganapan", "Mga panghitabo", "Mga hitabo"],
+  diagnosticMore: ["Magpakita pa", "Ipakita pa", "Ipakita pa"],
+  diagnosticCopyEvents: [
+    "Kopyahin bilang JSON ang mga tumugmang kaganapan",
+    "Kopyaha isip JSON ang nagtugmang mga panghitabo",
+    "Kopyaha sugad nga JSON an nagtugma nga mga hitabo",
+  ],
+  diagnosticAutoRefresh: [
+    "Awtomatikong i-refresh ang mga tala ng server",
+    "Awtomatikong bag-ohi ang mga tala sa server",
+    "Awtomatiko nga ig-refresh an mga tala han server",
+  ],
+  diagnosticLoadError: [
+    "Hindi ma-load ang mga tala ng server.",
+    "Dili ma-load ang mga tala sa server.",
+    "Waray ma-load an mga tala han server.",
+  ],
+  diagnosticEmpty: [
+    "Walang tumugmang kaganapan.",
+    "Walay nagtugmang panghitabo.",
+    "Waray nagtugma nga hitabo.",
+  ],
   // Core 163 keys
   castDiagnosticsTitle: ["Dayagnostik ng Cast", "Dayagnostik sa Cast", "Dayagnostik han Cast"],
   castDiagnosticsHelp: [
@@ -79,9 +116,9 @@ export const PHILIPPINE_LOCALES: Record<string, Tuple3> = {
     "TV ha Web — Online nga Media",
   ],
   onlineDescription: [
-    "Maghanap at mag-stream ng mga tsanel, serye, at online media nang direkta sa Media Lounge Box.",
-    "Pangita ug i-stream ang mga tsanel, serye, ug online media direkta sulod sa Media Lounge Box.",
-    "Pagbiling ngan pag-stream hin mga tsanel, serye, ngan online media direkta ha Media Lounge Box.",
+    "Maghanap at mag-stream ng mga tsanel, serye, at online media nang direkta sa Media Box Lounge.",
+    "Pangita ug i-stream ang mga tsanel, serye, ug online media direkta sulod sa Media Box Lounge.",
+    "Pagbiling ngan pag-stream hin mga tsanel, serye, ngan online media direkta ha Media Box Lounge.",
   ],
   onlineSearchLabel: ["Pamagat o serye", "Ulohan o serye", "Titulo o serye"],
   onlineSearchAction: ["Maghanap sa web", "Pangita sa web", "Pagbiling ha web"],

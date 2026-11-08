@@ -1,7 +1,7 @@
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use mbl_core::Error;
 use mbl_db::repo::settings::SettingsRepo;
@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::dto::{LoginResponse, SetupRequest, SetupStatus};
 use crate::extract::{AdminUser, AuthUser, device_info};
+use crate::logs::ServerLogEntry;
 use crate::routes::auth::login_response;
 use crate::{ApiError, AppState, ServerInfo};
 
@@ -17,12 +18,41 @@ pub fn router() -> Router<AppState> {
         .route("/health", get(health))
         .route("/api/v1/system/health", get(system_health))
         .route("/api/v1/system/info", get(info))
+        .route("/api/v1/system/logs", get(get_logs))
+        .route("/api/v1/system/restart", post(restart))
         .route("/api/v1/system/endpoints", get(endpoints))
         .route("/api/v1/system/setup", get(setup_status).post(setup))
         .route("/api/v1/system/settings", get(get_system_settings).patch(update_system_settings))
         .route("/api/v1/system/settings/test-tmdb", axum::routing::post(test_tmdb))
         .route("/api/v1/system/tmdb/search", get(search_tmdb))
         .route("/api/v1/system/update", get(check_update))
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RestartAccepted {
+    previous_started_at: i64,
+}
+
+/// Gracefully stop and rebuild the server runtime (admin only).
+#[utoipa::path(post, path = "/api/v1/system/restart", tag = "system",
+    responses((status = 202, body = RestartAccepted), (status = 401), (status = 403), (status = 503)))]
+pub(crate) async fn restart(
+    AdminUser(auth): AdminUser,
+    State(state): State<AppState>,
+) -> Result<(StatusCode, Json<RestartAccepted>), ApiError> {
+    state.services.request_restart(&auth.actor)?;
+    Ok((StatusCode::ACCEPTED, Json(RestartAccepted { previous_started_at: state.info.started_at })))
+}
+
+/// Recent server events for the administrator's log viewer.
+#[utoipa::path(get, path = "/api/v1/system/logs", tag = "system",
+    responses((status = 200, body = [ServerLogEntry]), (status = 401), (status = 403)))]
+pub(crate) async fn get_logs(
+    AdminUser(_): AdminUser,
+    State(state): State<AppState>,
+) -> ([(axum::http::HeaderName, &'static str); 1], Json<Vec<ServerLogEntry>>) {
+    ([(header::CACHE_CONTROL, "no-store")], Json(state.recent_logs.snapshot()))
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -301,7 +331,7 @@ async fn get_system_settings(
     AuthUser(auth): AuthUser,
 ) -> Result<Json<SystemSettingsDto>, ApiError> {
     let repo = SettingsRepo::new(state.db.clone());
-    let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+    let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Box Lounge".into());
     let saved_key = repo.get("tmdb_api_key").await?;
     let is_configured = saved_key.as_deref().is_some_and(|k| !k.trim().is_empty());
     let tmdb_api_key = if auth.actor.is_admin { saved_key } else { None };
@@ -315,7 +345,7 @@ async fn get_system_settings(
 
     let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
     let dlna_friendly_name =
-        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Box Lounge".into());
 
     let auto_scan_on_change =
         repo.get("auto_scan_on_change").await?.map(|v| v != "false").unwrap_or(true);
@@ -471,7 +501,7 @@ async fn update_system_settings(
         }
     }
 
-    let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+    let server_name = repo.get("server_name").await?.unwrap_or_else(|| "Media Box Lounge".into());
     let saved_key = repo.get("tmdb_api_key").await?;
     let is_configured = saved_key.as_deref().is_some_and(|k| !k.trim().is_empty());
     let mqtt_enabled = repo.get("mqtt_enabled").await?.as_deref() == Some("true");
@@ -482,7 +512,7 @@ async fn update_system_settings(
         repo.get("mqtt_topic_prefix").await?.unwrap_or_else(|| "mbl/media_lounge_box".into());
     let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
     let dlna_friendly_name =
-        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Lounge Box".into());
+        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Box Lounge".into());
     let auto_scan_on_change =
         repo.get("auto_scan_on_change").await?.map(|v| v != "false").unwrap_or(true);
     let periodic_scan_interval_minutes = repo

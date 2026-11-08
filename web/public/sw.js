@@ -1,6 +1,6 @@
 // MBL App Shell Service Worker — enables standalone mobile & tablet PWA installation
 // Strictly bypasses API, media streams, images, Range requests, and MCP endpoints.
-const CACHE_NAME = "mbl-shell-v1";
+const CACHE_NAME = "mbl-shell-v2";
 const PRECACHE_URLS = [
   "/",
   "/manifest.webmanifest",

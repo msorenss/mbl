@@ -6,6 +6,7 @@ import { findNextEpisode } from "../api/nextEpisode";
 import type { components } from "../api/schema";
 import type { PlayRequest } from "../context/PlayerContext";
 import { useTheme } from "../context/ThemeContext";
+import { browserLogs } from "../utils/browserLogs";
 import { castManager } from "../utils/cast";
 import { castDiagnostics } from "../utils/castDiagnostics";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
@@ -347,6 +348,14 @@ export function Player(props: PlayerProps) {
         url: result.data?.url,
       });
       return result;
+    } catch (error) {
+      if (!abort.signal.aborted && error instanceof TypeError) {
+        castDiagnostics.record("server.request_failed", { kind: "fetch" });
+        throw new Error(
+          "Could not reach the server to start playback. Check the connection and retry playback.",
+        );
+      }
+      throw error;
     } finally {
       pendingStarts.delete(abort);
     }
@@ -443,6 +452,7 @@ export function Player(props: PlayerProps) {
 
   const failLocalPlayback = (message: string, expired = false) => {
     if (disposed || ended() || error()) return;
+    browserLogs.record(expired ? "warn" : "error", "playback", message, { itemId: mediaItemId() });
     const seconds = videoRef?.currentTime;
     setFailedPositionMs(
       Math.floor(

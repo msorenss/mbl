@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-08
+
+### Added
+- Admin diagnostics combines recent MBL server events, browser API and playback events, and Chromecast activity. Filter by source, level or text and copy matching events as JSON.
+- Library pages show whether a scan is queued, running, complete or failed, along with its job number, progress and any reported error. The library refreshes when the scan completes.
+- Administrators can restart MBL from Server Settings and see when it comes back online.
+
+### Changed
+- MBL now stands for Media Box Lounge. Package names, service names and integration identifiers keep their existing values.
+
+### Fixed
+- A scan cannot report success or update the last scan time when every library folder is unavailable.
+- Playback reports an actionable connection error when the startup request fails, and series pages without playable files skip the playback preview.
+- Windows hardware reports use the host's RAM and detected NVIDIA adapter. Encoder self-tests verify that FFmpeg actually processes frames and keep the first useful failure details.
+- Playback startup logs omit signed stream URLs.
+
 ## [1.3.1] - 2026-11-08
 
 ### Added

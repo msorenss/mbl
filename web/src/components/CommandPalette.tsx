@@ -181,6 +181,13 @@ export function CommandPalette(props: CommandPaletteProps) {
           icon: <AppIcon name="settings" size={16} />,
           run: () => navigate("/admin/settings"),
         },
+        {
+          id: "admin-logs",
+          category: t("admin"),
+          label: t("diagnosticLogs"),
+          icon: <AppIcon name="logs" size={16} />,
+          run: () => navigate("/admin/logs"),
+        },
       );
     }
 

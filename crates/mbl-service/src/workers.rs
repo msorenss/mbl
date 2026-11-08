@@ -166,7 +166,7 @@ impl WorkerService {
             let _ = socket.set_broadcast(true);
             let target = SocketAddr::from(([255, 255, 255, 255], 9));
             if let Err(e) = socket.send_to(&magic_packet, target).await {
-                tracing::warn!("Failed to broadcast WoL packet over UDP: {e}");
+                tracing::warn!(error = %e, "Failed to broadcast WoL packet over UDP");
             }
         }
 

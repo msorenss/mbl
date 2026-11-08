@@ -45,6 +45,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("rendered player lifecycle", () => {
+  it("lets the viewer retry a failed network start without submitting a second start automatically", async () => {
+    const post = vi.mocked(client.POST);
+    post.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), container);
+    await tick();
+    expect(container.textContent).toContain("Check the connection and retry playback");
+    expect(post).toHaveBeenCalledTimes(1);
+
+    const retry = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Retry playback",
+    );
+    expect(retry).toBeDefined();
+    retry?.click();
+    await tick();
+    expect(
+      post.mock.calls.filter((call: unknown[]) => call[0] === "/api/v1/playback"),
+    ).toHaveLength(2);
+    expect(container.querySelector("video")?.getAttribute("src")).toBe("/movie.mp4");
+  });
+
   it("sends explicit start-over and selected tracks to playback negotiation", async () => {
     dispose = render(
       () =>

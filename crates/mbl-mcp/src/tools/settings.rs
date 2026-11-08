@@ -106,7 +106,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
             scope: Scope::Admin,
             definition: ToolDefinition {
                 name: "restart_server".into(),
-                description: "Gracefully restart the MBL server process. DESTRUCTIVE: Requires confirm: true.".into(),
+                description: "Gracefully restart the MBL server. DESTRUCTIVE: Requires confirm: true.".into(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -320,7 +320,7 @@ pub async fn execute(
                 let plan = json!({
                     "action": "restart_server",
                     "dryRun": true,
-                    "details": "Would signal graceful server shutdown and systemd/service supervisor restart"
+                    "details": "Would stop active playback and restart the server runtime"
                 });
                 return Ok(CallToolResult::structured(
                     &plan,
@@ -334,6 +334,7 @@ pub async fn execute(
                 ));
             }
 
+            services.request_restart(&caller.actor).map_err(crate::server::map_service_error)?;
             let out = json!({
                 "restarting": true,
                 "message": "Graceful restart signal acknowledged by server",

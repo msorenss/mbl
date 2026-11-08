@@ -97,7 +97,7 @@ export function Hardware() {
   };
 
   const formatBytes = (bytes?: number | null) => {
-    if (!bytes) return "0 B";
+    if (bytes == null || bytes <= 0) return "—";
     const gb = bytes / (1024 * 1024 * 1024);
     if (gb >= 1) return `${gb.toFixed(1)} GB`;
     const mb = bytes / (1024 * 1024);

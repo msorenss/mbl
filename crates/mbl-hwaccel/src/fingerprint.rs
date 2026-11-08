@@ -9,7 +9,9 @@ use std::path::Path;
 use std::process::Command;
 
 use mbl_platform::PlatformProfile;
-use mbl_platform::system::{detect_profile_from_root, total_memory_bytes_from_root};
+use mbl_platform::system::{
+    detect_profile_from_root, total_memory_bytes, total_memory_bytes_from_root,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
@@ -138,7 +140,12 @@ pub struct HardwareFingerprint {
 /// Detect the current host's [`HardwareFingerprint`].
 pub fn detect_fingerprint() -> HardwareFingerprint {
     let nvidia_xml = query_nvidia_smi_xml();
-    detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, nvidia_xml.as_deref())
+    build_fingerprint(
+        Path::new("/"),
+        std::env::consts::ARCH,
+        nvidia_xml.as_deref(),
+        total_memory_bytes(),
+    )
 }
 
 /// Detect [`HardwareFingerprint`] from a filesystem root (e.g. `/` or a synthetic test fixture).
@@ -147,8 +154,16 @@ pub fn detect_fingerprint_from_root(
     arch: &str,
     nvidia_xml: Option<&str>,
 ) -> HardwareFingerprint {
-    let profile = detect_profile_from_root(root, arch);
-    let total_memory_bytes = total_memory_bytes_from_root(root);
+    build_fingerprint(root, arch, nvidia_xml, total_memory_bytes_from_root(root))
+}
+
+fn build_fingerprint(
+    root: &Path,
+    arch: &str,
+    nvidia_xml: Option<&str>,
+    total_memory_bytes: Option<u64>,
+) -> HardwareFingerprint {
+    let mut profile = detect_profile_from_root(root, arch);
     let board_model = read_board_model(root);
     let (cpu_model, cpu_cores) = read_cpu_info(root);
     let drm_devices = detect_drm_devices(root);
@@ -157,6 +172,9 @@ pub fn detect_fingerprint_from_root(
         Some(xml) => parse_nvidia_smi_xml(xml),
         None => detect_nvidia_from_proc(root),
     };
+    if matches!(arch, "x86_64" | "x86") && !nvidia_gpus.is_empty() {
+        profile = PlatformProfile::X86Nvidia;
+    }
     let dxgi_adapters = detect_dxgi_adapters();
     let hailo_devices = detect_hailo_devices(root);
     let npu_profile = hailo_devices
@@ -827,7 +845,6 @@ mod tests {
     fn parses_nvidia_smi_xml_and_detects_x86_nvidia() {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
-        write_file(root, "dev/nvidiactl", "");
 
         let sample_xml = r#"<?xml version="1.0" ?>
 <nvidia_smi_log>
@@ -848,5 +865,11 @@ mod tests {
         assert_eq!(fp.nvidia_gpus[0].driver_version.as_deref(), Some("550.120"));
         assert_eq!(fp.nvidia_gpus[0].memory_total_mib, Some(8188));
         assert_eq!(fp.nvidia_gpus[0].max_enc_sessions, 8);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_fingerprint_reports_physical_memory() {
+        assert!(detect_fingerprint().total_memory_bytes.is_some_and(|bytes| bytes > 0));
     }
 }

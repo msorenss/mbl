@@ -53,6 +53,7 @@ image.workspace = true
 mbl-analysis.workspace = true
 mbl-auth.workspace = true
 mbl-remote.workspace = true
+reqwest.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
 tempfile.workspace = true

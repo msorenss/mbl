@@ -89,7 +89,7 @@ const baseTranslations = {
 
     onlineTitle: "WebTV — Online Media",
     onlineDescription:
-      "Search and stream video channels, series, and online media directly inside Media Lounge Box.",
+      "Search and stream video channels, series, and online media directly inside Media Box Lounge.",
     onlineSearchLabel: "Title or series",
     onlineSearchAction: "Search the web",
     onlineSearching: "Searching the web…",
@@ -285,7 +285,7 @@ const baseTranslations = {
 
     onlineTitle: "WebTV — Strömmande webbmedia",
     onlineDescription:
-      "Sök och spela upp strömmande video, serier och webb-tv direkt i Media Lounge Box.",
+      "Sök och spela upp strömmande video, serier och webb-tv direkt i Media Box Lounge.",
     onlineSearchLabel: "Titel eller serie",
     onlineSearchAction: "Sök på webben",
     onlineSearching: "Söker på webben…",
@@ -481,7 +481,7 @@ const baseTranslations = {
 
     onlineTitle: "WebTV — Online-Medien",
     onlineDescription:
-      "Durchsuchen und streamen Sie Online-Kanäle, Serien und Web-TV direkt in der Media Lounge Box.",
+      "Durchsuchen und streamen Sie Online-Kanäle, Serien und Web-TV direkt in der Media Box Lounge.",
     onlineSearchLabel: "Titel oder Serie",
     onlineSearchAction: "Im Web suchen",
     onlineSearching: "Websuche läuft…",
@@ -681,7 +681,7 @@ const baseTranslations = {
 
     onlineTitle: "WebTV — Médias en ligne",
     onlineDescription:
-      "Recherchez et diffusez des chaînes, séries et vidéos en ligne directement dans Media Lounge Box.",
+      "Recherchez et diffusez des chaînes, séries et vidéos en ligne directement dans Media Box Lounge.",
     onlineSearchLabel: "Titre ou série",
     onlineSearchAction: "Rechercher sur le Web",
     onlineSearching: "Recherche sur le Web…",
@@ -878,7 +878,7 @@ const baseTranslations = {
 
     onlineTitle: "WebTV — Medios en línea",
     onlineDescription:
-      "Busque y reproduzca canales, series y vídeos en línea directamente en Media Lounge Box.",
+      "Busque y reproduzca canales, series y vídeos en línea directamente en Media Box Lounge.",
     onlineSearchLabel: "Título o serie",
     onlineSearchAction: "Buscar en la Web",
     onlineSearching: "Buscando en la Web…",

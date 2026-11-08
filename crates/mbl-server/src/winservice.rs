@@ -92,7 +92,7 @@ where
 {
     let config = Config::load(&overrides)?;
     let paths = config.paths();
-    let _log_guard = crate::logging::init(&config.log, &paths.logs)?;
+    let (_log_guard, recent_logs) = crate::logging::init(&config.log, &paths.logs)?;
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         commit = env!("MBL_GIT_COMMIT"),
@@ -102,8 +102,34 @@ where
     );
 
     tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(async {
-        let server = crate::build(config).await?;
-        server.serve(shutdown).await
+        let stopping = tokio_util::sync::CancellationToken::new();
+        let stop_signal = stopping.clone();
+        tokio::spawn(async move {
+            shutdown.await;
+            stop_signal.cancel();
+        });
+        while !stopping.is_cancelled() {
+            let restart = std::sync::Arc::new(tokio::sync::Notify::new());
+            let server = crate::app::build_runtime(
+                config.clone(),
+                recent_logs.clone(),
+                Some(restart.clone()),
+            )
+            .await?;
+            let stop = stopping.clone();
+            server
+                .serve(async move {
+                    tokio::select! {
+                        () = stop.cancelled() => {},
+                        () = restart.notified() => {},
+                    }
+                })
+                .await?;
+            if !stopping.is_cancelled() {
+                tracing::info!("restarting MBL");
+            }
+        }
+        Ok(())
     })
 }
 

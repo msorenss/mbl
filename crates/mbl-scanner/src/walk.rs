@@ -119,7 +119,10 @@ pub fn mtime_ms(meta: &std::fs::Metadata) -> i64 {
 /// (typical for an unmounted USB drive or network share).
 pub fn root_available(root: &str, has_known_files: bool) -> bool {
     match std::fs::read_dir(PathBuf::from(root)) {
-        Ok(mut entries) => entries.next().is_some() || !has_known_files,
+        Ok(mut entries) => match entries.next() {
+            Some(entry) => entry.is_ok(),
+            None => !has_known_files,
+        },
         Err(_) => false,
     }
 }

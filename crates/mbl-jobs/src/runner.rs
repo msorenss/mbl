@@ -83,6 +83,14 @@ impl JobQueue {
         self.repo.get(id).await
     }
 
+    pub async fn latest_matching(
+        &self,
+        kind: &str,
+        payload: &serde_json::Value,
+    ) -> Result<Option<Job>> {
+        self.repo.latest_matching(kind, &payload.to_string()).await
+    }
+
     pub async fn list_recent(&self, limit: i64) -> Result<Vec<Job>> {
         self.repo.list_recent(limit).await
     }

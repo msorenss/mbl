@@ -4,6 +4,7 @@ import client from "../api/client";
 import { apiErrorMessage } from "../api/errors";
 import type { components } from "../api/schema";
 import { LibraryFolderPicker } from "../components/LibraryFolderPicker";
+import { LibraryScanControl } from "../components/LibraryScanControl";
 import { Dialog } from "../components/ui/Dialog";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -168,33 +169,6 @@ export function Libraries() {
       await loadLibraries();
     } catch {
       showToast({ title: "Error", message: "Library could not be removed", type: "error" });
-    }
-  };
-
-  const handleScan = async (lib: LibraryDto) => {
-    try {
-      const { data, error } = await client.POST("/api/v1/libraries/{id}/scan", {
-        params: { path: { id: lib.id } },
-      });
-      if (data && !error) {
-        showToast({
-          title: "Scan Queued",
-          message: `Scanning ${lib.name} (Job #${data.jobId})`,
-          type: "success",
-        });
-      } else {
-        showToast({
-          title: "Scan Failed",
-          message: apiErrorMessage(error, "Failed to trigger scan"),
-          type: "danger",
-        });
-      }
-    } catch (e) {
-      showToast({
-        title: "Error",
-        message: e instanceof Error ? e.message : "Network error",
-        type: "danger",
-      });
     }
   };
 
@@ -445,22 +419,7 @@ export function Libraries() {
                           "flex-wrap": "wrap",
                         }}
                       >
-                        <button
-                          type="button"
-                          onClick={() => handleScan(lib)}
-                          title="Scan library folder"
-                          style={{
-                            background: "var(--bg-card)",
-                            border: "1px solid var(--border)",
-                            color: "var(--text-secondary)",
-                            padding: "5px 10px",
-                            "border-radius": "var(--radius-sm)",
-                            "font-size": "12px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          🔄 Scan
-                        </button>
+                        <LibraryScanControl id={lib.id} onComplete={loadLibraries} />
                         <button
                           type="button"
                           onClick={() => handleRefreshMetadata(lib)}

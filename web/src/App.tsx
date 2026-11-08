@@ -27,6 +27,7 @@ const Hardware = lazy(() => import("./pages/admin/Hardware"));
 const RemoteAccess = lazy(() => import("./pages/admin/RemoteAccess"));
 const Workers = lazy(() => import("./pages/admin/Workers"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
+const Logs = lazy(() => import("./pages/admin/Logs"));
 const LiveTv = lazy(() => import("./pages/LiveTv"));
 const WebTv = lazy(() => import("./pages/WebTv"));
 
@@ -105,6 +106,14 @@ export function App() {
                   component={() => (
                     <AuthGuard adminOnly>
                       <Settings />
+                    </AuthGuard>
+                  )}
+                />
+                <Route
+                  path="/admin/logs"
+                  component={() => (
+                    <AuthGuard adminOnly>
+                      <Logs />
                     </AuthGuard>
                   )}
                 />

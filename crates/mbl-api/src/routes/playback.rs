@@ -58,7 +58,6 @@ pub async fn start(
     tracing::info!(
         session = ?res.session_id,
         method = ?res.method,
-        url = %res.url,
         content_type = %res.content_type,
         "Playback start decided"
     );

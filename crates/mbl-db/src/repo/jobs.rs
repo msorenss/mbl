@@ -9,7 +9,7 @@ pub const DONE: &str = "done";
 pub const FAILED: &str = "failed";
 pub const CANCELLED: &str = "cancelled";
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, sqlx::FromRow)]
 pub struct Job {
     pub id: JobId,
     pub kind: String,
@@ -202,6 +202,19 @@ impl JobsRepo {
                FROM jobs WHERE id = ?"#,
             id
         )
+        .fetch_optional(&self.db.read)
+        .await?)
+    }
+
+    /// Most recent job for an exact kind and payload, including completed jobs.
+    pub async fn latest_matching(&self, kind: &str, payload: &str) -> Result<Option<Job>> {
+        Ok(sqlx::query_as::<_, Job>(
+            "SELECT id, kind, payload, status, priority, progress, attempts, run_after, error,
+                    created_at, updated_at FROM jobs
+             WHERE kind = ? AND payload = ? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(kind)
+        .bind(payload)
         .fetch_optional(&self.db.read)
         .await?)
     }

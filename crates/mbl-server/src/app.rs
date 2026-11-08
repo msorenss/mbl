@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::Router;
 use mbl_api::{AppState, ServerInfo};
@@ -22,10 +23,19 @@ pub struct Server {
     pub events: EventBus,
     pub router: Router,
     runner: JobRunner,
+    stop: CancellationToken,
 }
 
 /// Create directories, open the database, register background jobs and build the router.
 pub async fn build(config: Config) -> anyhow::Result<Server> {
+    build_runtime(config, mbl_api::logs::RecentLogs::default(), None).await
+}
+
+pub(crate) async fn build_runtime(
+    config: Config,
+    recent_logs: mbl_api::logs::RecentLogs,
+    restart: Option<Arc<tokio::sync::Notify>>,
+) -> anyhow::Result<Server> {
     let paths = config.paths();
     for dir in [&paths.data, &paths.cache, &paths.transcode] {
         std::fs::create_dir_all(dir)?;
@@ -125,6 +135,9 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
     let secure_cookies = config.server.public_url.starts_with("https://");
     let mut state =
         AppState::new(db.clone(), runner.queue(), images, events.clone(), info, secure_cookies);
+    state.recent_logs = recent_logs;
+    state.services.restart = restart;
+    let stop = state.stop.clone();
     state.services.stream =
         state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
     state.services.online = state.services.online.with_tools(tools.clone());
@@ -173,7 +186,7 @@ pub async fn build(config: Config) -> anyhow::Result<Server> {
         .merge(mbl_mcp::router(mcp_state))
         .fallback(crate::web::static_handler);
 
-    Ok(Server { config, paths, db, services, events, router, runner })
+    Ok(Server { config, paths, db, services, events, router, runner, stop })
 }
 
 fn default_probe_concurrency(profile: PlatformProfile, cpus: usize) -> usize {
@@ -191,8 +204,9 @@ impl Server {
     ) -> anyhow::Result<()> {
         // Bind before starting any background tasks; a port conflict must not leak workers.
         let addr = format!("{}:{}", self.config.server.bind, self.config.server.port);
-        let listener = tokio::net::TcpListener::bind(&addr).await?;
-        let stop = CancellationToken::new();
+        let listener = tokio::net::TcpListener::bind(&addr).await?.into_std()?;
+        let server = axum_server::from_tcp(listener)?;
+        let stop = self.stop.clone();
         self.start_watcher(&stop);
         let jobs = match self.runner.start(stop.clone()).await {
             Ok(jobs) => jobs,
@@ -238,13 +252,18 @@ impl Server {
 
         tracing::info!(%addr, version = env!("CARGO_PKG_VERSION"), commit = env!("MBL_GIT_COMMIT"), "listening");
         let stop_on_signal = stop.clone();
-        let served =
-            axum::serve(listener, self.router.into_make_service_with_connect_info::<SocketAddr>())
-                .with_graceful_shutdown(async move {
-                    shutdown.await;
-                    stop_on_signal.cancel();
-                })
-                .await;
+        let handle = axum_server::Handle::new();
+        let stop_http = handle.clone();
+        let signal_task = tokio::spawn(async move {
+            shutdown.await;
+            stop_on_signal.cancel();
+            stop_http.graceful_shutdown(Some(Duration::from_secs(5)));
+        });
+        let served = server
+            .handle(handle)
+            .serve(self.router.into_make_service_with_connect_info::<SocketAddr>())
+            .await;
+        signal_task.abort();
 
         stop.cancel();
         let _ = playback.await;

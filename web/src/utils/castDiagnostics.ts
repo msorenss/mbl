@@ -27,6 +27,7 @@ function safeText(value: string): string {
 
 class CastDiagnostics {
   private events: CastDiagnosticEvent[] = [];
+  private history: CastDiagnosticEvent[] = [];
   private startedAt = Date.now();
   private attempt = 0;
   private listeners = new Set<() => void>();
@@ -54,6 +55,8 @@ class CastDiagnostics {
       details: clean,
     };
     this.events.push(event);
+    this.history.push(event);
+    if (this.history.length > 200) this.history.shift();
     try {
       console.info(`[MBL Cast] ${stage}`, clean);
     } catch {
@@ -66,6 +69,10 @@ class CastDiagnostics {
 
   getEvents(): CastDiagnosticEvent[] {
     return [...this.events];
+  }
+
+  getHistory(): CastDiagnosticEvent[] {
+    return [...this.history];
   }
 
   error(stage: string, error: unknown) {

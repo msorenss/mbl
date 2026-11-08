@@ -32,7 +32,7 @@ fn ca_params(not_before: OffsetDateTime) -> Result<CertificateParams> {
     let mut params =
         CertificateParams::new(Vec::<String>::new()).map_err(|e| tls_err("CA params", e))?;
     params.distinguished_name.push(DnType::CommonName, CA_COMMON_NAME);
-    params.distinguished_name.push(DnType::OrganizationName, "Media Lounge Box");
+    params.distinguished_name.push(DnType::OrganizationName, "Media Box Lounge");
     params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
     params.use_authority_key_identifier_extension = true;

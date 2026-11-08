@@ -84,6 +84,37 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-08 — v1.3.2 med skanningsstatus, omstart och Media Box Lounge
+- Windows v1.3.1 accepterade Movies-skanningen som jobb 16, men biblioteket visade fortfarande `Never scanned` efter omladdning. Den gamla versionen visar inte jobbets fel. `GET /api/v1/libraries/{id}/scan` och den delade skanningskontrollen visar nu kö, körning, procent och fel. En skanning som inte kommer åt någon rot registreras inte längre som slutförd.
+- Administration → Serverinställningar kan starta om MBL:s serverruntime. HTTP, HTTPS och bakgrundsjobb stängs ned före återstart. Windows SCM-tjänsten behåller sin process. REST och det befintliga MCP-verktyget använder samma omstartssignal.
+- Visningsnamnet är Media Box Lounge. Befintliga namn som användaren har sparat, paket- och tjänsteidentifierare och MQTT-prefixet behålls.
+- Verifierat på Pi med 8 riktade serverintegrationstester och 234 webbtester. Omstartsknappen testades dessutom i webbläsaren mot v1.3.2. Servern kom tillbaka på samma adress och sessionen levde vidare. Den verkliga Movies-skanningen på Windows behöver följas upp med den nya jobbstatusen.
+
+### 2026-11-08 — Diagnostikloggar i webbgränssnittet
+- Administration → Diagnostikloggar visar MBL:s senaste serverhändelser, webbläsarens API- och uppspelningsfel och Cast-händelser från den aktuella fliken. Vyn har automatisk uppdatering, käll- och nivåfilter, textsökning samt kopiering av matchande händelser som JSON.
+- `GET /api/v1/system/logs` kräver admin och följer serverns LAN/tailnet-policy. Serverbufferten innehåller högst 1 000 poster från aktuell körning. HTTP-poster använder ruttscheman utan frågeparametrar. Loggvyn hämtar inte råa loggfiler, request headers eller loggar från andra processer. Befintlig filrotation är kvar.
+- Verifierat med 233 webbtester, produktionsbygge på 145,51 KB gzip, OpenAPI/MCP-paritet 175/175 och ett serverintegrationstest för behörighet och maskering. Sökning och JSON-kopiering testades i webbläsaren mot en separat lokal MBL-instans. Ändringen är inte installerad på Windows-servern.
+
+### 2026-11-08 — Nätverksavbrott vid uppspelningsstart
+- Användarens Chrome-konsol visar `POST /api/v1/playback net::ERR_NETWORK_CHANGED` för avsnitt 192. Den separata 404:an gäller förhandskontrollen för ID 183. `ItemDetail` hoppar nu över förhandskontrollen för poster utan videoversioner.
+- Webbspelaren visar ett tydligt anslutningsfel vid misslyckad `fetch`, behåller manuell omstart och registrerar `server.request_failed` i diagnostiken. Inget automatiskt nytt POST-anrop, eftersom det första kan ha hunnit skapa en session.
+- På Pi:n startade Frigate om ungefär var 40:e sekund och återskapade virtuella nätverksgränssnitt, bland annat 16:27:21 CET. Det sammanfaller med webbläsartestet men orsakssambandet är inte bekräftat. Jämför samma avsnitt från en annan dator på LAN och korrelera Windows-serverns logg om felet kvarstår.
+- Verifierat med 53 riktade webbtester. Ändringarna är lokala och inte installerade på Windows-servern.
+
+### 2026-11-08 — Lokalt uppspelningsfel på Windows återskapat
+- Vanlig uppspelning av `How to Build the Box` (192) på Windows v1.3.1 via HTTPS visade `Failed to fetch`. `Retry playback` stod först på `Preparing playback…` och gav sedan samma fel. Spelaren fick ingen uppspelningsmetod eller videodata. Samma avsnitt gick att spela i ett tidigare försök.
+- Nästa steg är att korrelera `POST /api/v1/playback` med serverns `Playback start requested` och `Playback start decided` runt 16:27 CET. Webbläsarens fel räcker inte för att skilja ett avbrutet nätverksanrop från en server som fastnar under start.
+
+### 2026-11-08 — Windows hårdvarurapport och uppspelning
+- Windows v1.3.1 på HTTPS spelade `How to Build the Box` (Matroska, H.264, E-AC-3 5.1) lokalt med mjukvarukodning och noll FFmpeg-omstarter. Den tidigare Cast-loggen stannade före mottagarens `LOAD`. Ny fysisk Cast-logg behövs för jämförelse.
+- `mbl-hwaccel` använder nu plattformens RAM-detektering för värddatorn och identifierar x86-NVIDIA från de redan upptäckta NVIDIA-korten. Okänt minne visas som ett streck i webbgränssnittet.
+- Självtestet avkodar komprimerade H.264- och HEVC-klipp, kräver bearbetade bildrutor och behåller FFmpegs första felrader. VAAPI hoppas över på Windows. NVENC behöver köras på Windows med det nya bygget för att avgöra orsaken till kodningsfelen.
+- Verifierat med 26 riktade Rust-tester, Clippy för `mbl-hwaccel` och `mbl-platform`, Windows-målets kompilationskontroll för `mbl-platform`, webbtestet för Hardware och TypeScript.
+
+### 2026-11-08 — Ny Cast-logg för medie-ID 192
+- Cast ansluter. Uppspelningsanropet för 26,376 s är fortfarande obesvarat när spelaren stängs efter 15,367 s. Avbrottskod 20 följer på stängningen. Mottagaren hinner aldrig få `LOAD`.
+- Tidigare frysfall nådde TV:n efter HTTP 200. Den nya loggen är dokumenterad i [Cast-granskningen](docs/audits/2026-10-30-cast-diagnostics.md). Korrelera med serverns uppspelningslogg för samma fil innan en ändring av HLS eller Cast-profilen bedöms.
+
 ### 2026-11-08 — Windows FFmpeg-bundling, GitHub Release Update Checker & Release v1.3.1
 - **Live Windows Server Audit (`http://192.168.68.135:8420`):**
   - Identifierade orsaken till att biblioteksskanningen fallerade: `ffmpeg.exe` och `ffprobe.exe` saknades på Windows-värden, vilket gjorde att `mbl-scanner` avbröt omedelbart med *"ffprobe is not available; install FFmpeg"*. Alla diskar (`C:`, `D:`, `E:`, `F:`, `H:`) och mappar var fullt läsbara och intakta.

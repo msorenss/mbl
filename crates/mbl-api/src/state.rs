@@ -6,6 +6,7 @@ use mbl_platform::PlatformProfile;
 use mbl_service::Services;
 use serde::Serialize;
 
+use crate::logs::RecentLogs;
 use crate::rate_limit::LoginLimiter;
 
 #[derive(Debug, Clone)]
@@ -14,6 +15,8 @@ pub struct AppState {
     pub services: Services,
     pub info: Arc<ServerInfo>,
     pub login_limiter: Arc<LoginLimiter>,
+    pub recent_logs: RecentLogs,
+    pub stop: tokio_util::sync::CancellationToken,
     /// Add `Secure` to cookies (set when the public URL is HTTPS).
     pub secure_cookies: bool,
 }
@@ -32,6 +35,8 @@ impl AppState {
             db,
             info: Arc::new(info),
             login_limiter: Arc::new(LoginLimiter::default()),
+            recent_logs: RecentLogs::default(),
+            stop: tokio_util::sync::CancellationToken::new(),
             secure_cookies,
         }
     }
@@ -44,6 +49,7 @@ pub struct ServerInfo {
     pub version: &'static str,
     pub git_commit: &'static str,
     pub build_time: &'static str,
+    pub started_at: i64,
     pub os: &'static str,
     pub arch: &'static str,
     pub platform_profile: PlatformProfile,
@@ -74,6 +80,7 @@ impl ServerInfo {
             version,
             git_commit,
             build_time,
+            started_at: mbl_core::time::now_ms(),
             os: std::env::consts::OS,
             arch: std::env::consts::ARCH,
             platform_profile,

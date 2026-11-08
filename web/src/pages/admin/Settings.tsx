@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
 import CastDiagnostics from "../../components/CastDiagnostics";
+import { RestartServerControl } from "../../components/RestartServerControl";
 import TlsSettings from "../../components/TlsSettings";
 import { Button } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
@@ -12,7 +13,7 @@ export default function Settings() {
   const { t } = useI18n();
 
   // Server & TMDB state
-  const [serverName, setServerName] = createSignal("Media Lounge Box");
+  const [serverName, setServerName] = createSignal("Media Box Lounge");
   const [apiKey, setApiKey] = createSignal("");
   const [showKey, setShowKey] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
@@ -36,9 +37,9 @@ export default function Settings() {
 
   // DLNA state
   const [dlnaEnabled, setDlnaEnabled] = createSignal(true);
-  const [dlnaFriendlyName, setDlnaFriendlyName] = createSignal("Media Lounge Box");
+  const [dlnaFriendlyName, setDlnaFriendlyName] = createSignal("Media Box Lounge");
 
-  const [serverInfo] = createResource(async () => {
+  const [serverInfo, { refetch: refetchServerInfo }] = createResource(async () => {
     try {
       const res = await client.GET("/api/v1/system/info");
       return res.data;
@@ -93,7 +94,7 @@ export default function Settings() {
   const [settings, { refetch }] = createResource(async () => {
     const res = await client.GET("/api/v1/system/settings");
     if (res.data) {
-      setServerName(res.data.serverName || "Media Lounge Box");
+      setServerName(res.data.serverName || "Media Box Lounge");
       setApiKey(res.data.tmdbApiKey || "");
       setAutoScanOnChange(res.data.autoScanOnChange ?? true);
       setPeriodicInterval(res.data.periodicScanIntervalMinutes ?? 60);
@@ -103,7 +104,7 @@ export default function Settings() {
       setMqttUsername(res.data.mqttUsername || "");
       setMqttTopicPrefix(res.data.mqttTopicPrefix || "mbl/media_lounge_box");
       setDlnaEnabled(res.data.dlnaEnabled ?? true);
-      setDlnaFriendlyName(res.data.dlnaFriendlyName || "Media Lounge Box");
+      setDlnaFriendlyName(res.data.dlnaFriendlyName || "Media Box Lounge");
       return res.data;
     }
     throw new Error("Could not load system settings.");
@@ -134,7 +135,7 @@ export default function Settings() {
         await refetch();
         showToast({
           title: "Settings Saved",
-          message: "Media Lounge Box server settings successfully saved and applied.",
+          message: "Media Box Lounge server settings successfully saved and applied.",
           type: "success",
         });
       } else {
@@ -197,7 +198,7 @@ export default function Settings() {
     <div style={{ "max-width": "860px", padding: "16px 0" }}>
       <div style={{ "margin-bottom": "28px" }}>
         <h1 style={{ margin: "0 0 6px 0", "font-size": "26px", "font-weight": "800" }}>
-          Server Settings — Media Lounge Box
+          Server Settings — Media Box Lounge
         </h1>
         <p style={{ margin: 0, color: "var(--text-secondary)", "font-size": "14px" }}>
           Configure external metadata providers, Home Assistant MQTT automation, DLNA streaming, and
@@ -222,6 +223,10 @@ export default function Settings() {
       </Show>
 
       {/* System & Version Information Card */}
+      <section class="mbl-card-section" style={{ "margin-bottom": "24px" }}>
+        <h2>{t("Server maintenance")}</h2>
+        <RestartServerControl onRestart={() => void refetchServerInfo()} />
+      </section>
       <div
         style={{
           background: "var(--bg-surface)",
@@ -582,7 +587,7 @@ export default function Settings() {
               type="text"
               value={serverName()}
               onInput={(e) => setServerName(e.currentTarget.value)}
-              placeholder="Media Lounge Box"
+              placeholder="Media Box Lounge"
               style={{
                 width: "100%",
                 padding: "9px 12px",
@@ -891,7 +896,7 @@ export default function Settings() {
             "margin-bottom": "16px",
           }}
         >
-          Connect Media Lounge Box to your Home Assistant instance via MQTT Discovery. Home
+          Connect Media Box Lounge to your Home Assistant instance via MQTT Discovery. Home
           Assistant automatically discovers all active players as <code>media_player</code>{" "}
           entities, receives real-time telemetry (playing state, title, series/episode, position,
           duration, volume), and can send playback commands (<code>PLAY</code>, <code>PAUSE</code>,{" "}
@@ -1128,7 +1133,7 @@ export default function Settings() {
               type="text"
               value={dlnaFriendlyName()}
               onInput={(e) => setDlnaFriendlyName(e.currentTarget.value)}
-              placeholder="Media Lounge Box"
+              placeholder="Media Box Lounge"
               disabled={!dlnaEnabled()}
               style={{
                 width: "100%",

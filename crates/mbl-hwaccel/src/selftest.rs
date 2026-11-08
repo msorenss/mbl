@@ -138,12 +138,13 @@ pub fn candidate_backends_for_profile(
     probe: &FfmpegProbeCaps,
 ) -> Vec<String> {
     let mut out = Vec::new();
+    let has_vaapi = !cfg!(windows) && probe.has_encoder("h264_vaapi");
     match profile {
         PlatformProfile::X86Nvidia => {
             if probe.has_encoder("h264_nvenc") {
                 out.push("nvenc".to_owned());
             }
-            if probe.has_encoder("h264_vaapi") {
+            if has_vaapi {
                 out.push("vaapi".to_owned());
             }
             if probe.has_encoder("h264_qsv") {
@@ -154,7 +155,7 @@ pub fn candidate_backends_for_profile(
             if probe.has_encoder("h264_qsv") {
                 out.push("qsv".to_owned());
             }
-            if probe.has_encoder("h264_vaapi") {
+            if has_vaapi {
                 out.push("vaapi".to_owned());
             }
         }
@@ -162,7 +163,7 @@ pub fn candidate_backends_for_profile(
             if probe.has_encoder("h264_amf") {
                 out.push("d3d11Amf".to_owned());
             }
-            if probe.has_encoder("h264_vaapi") {
+            if has_vaapi {
                 out.push("vaapi".to_owned());
             }
         }
@@ -184,7 +185,7 @@ pub fn candidate_backends_for_profile(
             if probe.has_encoder("h264_qsv") {
                 out.push("qsv".to_owned());
             }
-            if probe.has_encoder("h264_vaapi") {
+            if has_vaapi {
                 out.push("vaapi".to_owned());
             }
             if probe.has_encoder("h264_amf") {
@@ -335,14 +336,24 @@ pub fn run_selftest(
     let mut entries = Vec::new();
     let now = now_ms();
     let candidates = candidate_backends_for_profile(fp.profile, probe);
+    let sample_dir = tempfile::tempdir();
+    let decode_samples = [("h264", "libx264"), ("hevc", "libx265")].map(|(codec, encoder)| {
+        let sample = sample_dir.as_ref().map_err(ToString::to_string).and_then(|dir| {
+            create_decode_sample(ffmpeg_bin, &dir.path().join(format!("{codec}.mkv")), encoder)
+        });
+        (codec, sample)
+    });
 
     for backend in candidates {
         // 1. Decode test (h264 + hevc)
-        for decode_codec in ["h264", "hevc"] {
-            let (ok, fps, error) = run_single_decode_test(ffmpeg_bin, &backend, decode_codec);
+        for (decode_codec, sample) in &decode_samples {
+            let (ok, fps, error) = match sample {
+                Ok(path) => run_single_decode_test(ffmpeg_bin, &backend, path),
+                Err(error) => (false, None, Some(error.clone())),
+            };
             entries.push(HwCapEntry {
                 backend: backend.clone(),
-                codec: decode_codec.to_owned(),
+                codec: (*decode_codec).to_owned(),
                 operation: "decode".to_owned(),
                 ok,
                 fps,
@@ -457,17 +468,44 @@ fn run_hailo_npu_selftest(fp: &HardwareFingerprint) -> (String, bool, Option<f64
     }
 }
 
+const SELFTEST_FRAMES: u32 = 30;
+
+fn create_decode_sample(
+    ffmpeg_bin: &Path,
+    path: &Path,
+    encoder: &str,
+) -> Result<std::path::PathBuf, String> {
+    let mut cmd = selftest_command(ffmpeg_bin);
+    cmd.args([
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=1280x720:rate=30",
+        "-frames:v",
+        &SELFTEST_FRAMES.to_string(),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:v",
+        encoder,
+        "-preset",
+        "ultrafast",
+        "-threads",
+        "2",
+    ])
+    .arg(path);
+    let (_, _, error) = execute_timed_ffmpeg(cmd, SELFTEST_FRAMES);
+    match error {
+        None => Ok(path.to_path_buf()),
+        Some(error) => Err(format!("Could not generate {encoder} decode sample: {error}")),
+    }
+}
+
 fn run_single_decode_test(
     ffmpeg_bin: &Path,
     backend: &str,
-    _codec: &str,
+    sample: &Path,
 ) -> (bool, Option<f64>, Option<String>) {
-    if !ffmpeg_bin.exists() && ffmpeg_bin != Path::new("ffmpeg") {
-        return (false, None, Some("ffmpeg binary not found".to_owned()));
-    }
-
-    let mut cmd = Command::new(ffmpeg_bin);
-    cmd.args(["-nostdin", "-hide_banner", "-loglevel", "error", "-y"]);
+    let mut cmd = selftest_command(ffmpeg_bin);
     match backend {
         "vaapi" => {
             cmd.args(["-hwaccel", "vaapi", "-hwaccel_device", "/dev/dri/renderD128"]);
@@ -487,20 +525,9 @@ fn run_single_decode_test(
         _ => {}
     }
 
-    let frames = 30u32;
-    cmd.args([
-        "-f",
-        "lavfi",
-        "-i",
-        "testsrc2=size=1280x720:rate=30",
-        "-frames:v",
-        &frames.to_string(),
-        "-f",
-        "null",
-        "-",
-    ]);
+    cmd.arg("-i").arg(sample).args(["-f", "null", "-"]);
 
-    execute_timed_ffmpeg(cmd, frames)
+    execute_timed_ffmpeg(cmd, SELFTEST_FRAMES)
 }
 
 fn run_single_encode_test(
@@ -512,9 +539,8 @@ fn run_single_encode_test(
         return (false, None, Some("ffmpeg binary not found".to_owned()));
     }
 
-    let frames = 30u32;
-    let mut cmd = Command::new(ffmpeg_bin);
-    cmd.args(["-nostdin", "-hide_banner", "-loglevel", "error", "-y"]);
+    let frames = SELFTEST_FRAMES;
+    let mut cmd = selftest_command(ffmpeg_bin);
 
     match backend {
         "vaapi" => {
@@ -657,12 +683,40 @@ fn run_single_encode_test(
     execute_timed_ffmpeg(cmd, frames)
 }
 
+fn selftest_command(ffmpeg_bin: &Path) -> Command {
+    let mut cmd = Command::new(ffmpeg_bin);
+    cmd.args([
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-progress",
+        "pipe:1",
+        "-nostats",
+    ]);
+    cmd
+}
+
 fn execute_timed_ffmpeg(mut cmd: Command, frames: u32) -> (bool, Option<f64>, Option<String>) {
     let started = Instant::now();
     match cmd.output() {
         Ok(out) if out.status.success() => {
+            let progress = String::from_utf8_lossy(&out.stdout);
+            let processed = progress
+                .lines()
+                .rev()
+                .find_map(|line| line.strip_prefix("frame=")?.trim().parse::<u32>().ok())
+                .unwrap_or_default();
+            if processed < frames {
+                return (
+                    false,
+                    None,
+                    Some(format!("FFmpeg processed {processed} of {frames} frames")),
+                );
+            }
             let elapsed = started.elapsed().as_secs_f64().max(0.005);
-            let fps = ((f64::from(frames) / elapsed) * 10.0).round() / 10.0;
+            let fps = ((f64::from(processed) / elapsed) * 10.0).round() / 10.0;
             (true, Some(fps), None)
         }
         Ok(out) => {
@@ -670,7 +724,15 @@ fn execute_timed_ffmpeg(mut cmd: Command, frames: u32) -> (bool, Option<f64>, Op
             let msg = if stderr.is_empty() {
                 format!("ffmpeg exited with status {}", out.status)
             } else {
-                stderr.lines().last().unwrap_or(&stderr).to_owned()
+                stderr
+                    .lines()
+                    .filter(|line| !line.trim().is_empty())
+                    .take(6)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .chars()
+                    .take(1024)
+                    .collect()
             };
             (false, None, Some(msg))
         }
@@ -685,6 +747,19 @@ mod tests {
     use super::*;
     use crate::ffmpeg::parse_from_outputs;
     use crate::fingerprint::detect_fingerprint_from_root;
+
+    #[test]
+    fn decode_selftest_processes_encoded_video() {
+        let ffmpeg = Path::new("ffmpeg");
+        if !Command::new(ffmpeg).arg("-version").output().is_ok_and(|out| out.status.success()) {
+            return;
+        }
+        let dir = TempDir::new().unwrap();
+        let sample = create_decode_sample(ffmpeg, &dir.path().join("h264.mkv"), "libx264").unwrap();
+        let (ok, fps, error) = run_single_decode_test(ffmpeg, "software", &sample);
+        assert!(ok, "{error:?}");
+        assert!(fps.is_some_and(|fps| fps > 0.0));
+    }
 
     #[test]
     fn bad_backend_tracker_marks_and_expires_entries() {
@@ -727,7 +802,8 @@ mod tests {
         let tracker = BadBackendTracker::default();
         let cap = compute_capacity(&fp, &probe, &results, &tracker, 2);
         assert_eq!(cap.preferred_backend, "qsv");
-        assert_eq!(cap.fallback_backends, vec!["vaapi", "software"]);
+        let fallback = if cfg!(windows) { vec!["software"] } else { vec!["vaapi", "software"] };
+        assert_eq!(cap.fallback_backends, fallback);
         // 155 fps / 30 fps per stream = 5 max sessions
         assert_eq!(cap.max_video_sessions, 5);
         assert_eq!(cap.available_video_sessions, 3);
@@ -735,10 +811,10 @@ mod tests {
         assert!(cap.can_tonemap);
         assert!(cap.supports_abr_ladder);
 
-        // If qsv is marked bad, fallback chain switches to vaapi automatically
+        // If QSV is marked bad, use the next supported backend.
         tracker.mark_bad("qsv", "h264", "GPU hang");
         let cap_after_fail = compute_capacity(&fp, &probe, &results, &tracker, 0);
-        assert_eq!(cap_after_fail.preferred_backend, "vaapi");
-        assert_eq!(cap_after_fail.fallback_backends, vec!["software"]);
+        assert_eq!(cap_after_fail.preferred_backend, fallback[0]);
+        assert_eq!(cap_after_fail.fallback_backends, fallback[1..]);
     }
 }

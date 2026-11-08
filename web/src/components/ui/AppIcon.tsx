@@ -15,6 +15,7 @@ export type AppIconName =
   | "remote"
   | "workers"
   | "settings"
+  | "logs"
   | "profiles"
   | "appearance"
   | "api"
@@ -37,6 +38,13 @@ export function AppIcon(props: AppIconProps) {
 
   const renderPaths = (): JSX.Element => {
     switch (props.name) {
+      case "logs":
+        return (
+          <>
+            <rect x="4" y="3" width="16" height="18" rx="2" />
+            <path d="M8 8h8M8 12h8M8 16h5" />
+          </>
+        );
       case "home":
         return (
           <>

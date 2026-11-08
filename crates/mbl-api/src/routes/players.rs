@@ -115,6 +115,7 @@ pub(crate) async fn connect_player(
         let mut ping = tokio::time::interval(std::time::Duration::from_secs(20));
         loop {
             tokio::select! {
+                () = state.stop.cancelled() => break,
                 command = connection.commands.recv() => {
                     let Some(command) = command else { break; };
                     let Ok(json) = serde_json::to_string(&command) else { break; };

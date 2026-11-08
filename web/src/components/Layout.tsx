@@ -252,6 +252,7 @@ export function Layout(props: { children?: JSX.Element }) {
     { href: "/admin/remote", icon: "remote", label: () => t("remoteAccess") },
     { href: "/admin/workers", icon: "workers", label: () => t("distributedNodes") },
     { href: "/admin/settings", icon: "settings", label: () => t("serverSettings") },
+    { href: "/admin/logs", icon: "logs", label: () => t("diagnosticLogs") },
   ];
 
   const userMenuItems = (): DropdownMenuItem[] => {
@@ -421,7 +422,7 @@ export function Layout(props: { children?: JSX.Element }) {
                   "white-space": "nowrap",
                 }}
               >
-                Media Lounge Box
+                Media Box Lounge
               </div>
             </div>
           </A>

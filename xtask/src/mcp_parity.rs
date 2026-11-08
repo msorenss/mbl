@@ -60,6 +60,8 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
         // Check if covered by matching or related MCP tool
         let is_covered = match path.as_str() {
             "/api/v1/system/info" => mcp_tool_names.contains("get_server_info"),
+            "/api/v1/system/logs" => mcp_tool_names.contains("get_logs"),
+            "/api/v1/system/restart" => mcp_tool_names.contains("restart_server"),
             "/api/v1/online/history" => mcp_tool_names.contains("get_online_history"),
             "/api/v1/online/search" => mcp_tool_names.contains("search_online_sources"),
             "/api/v1/online/inspect" => mcp_tool_names.contains("inspect_online_source"),

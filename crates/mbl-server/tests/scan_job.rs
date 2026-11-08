@@ -69,20 +69,19 @@ async fn scan_endpoint_runs_a_scan_job() {
     .await;
     assert_eq!(status, StatusCode::CREATED, "{lib}");
     let lib_id = lib["id"].as_i64().unwrap();
+    let scan_uri = format!("/api/v1/libraries/{lib_id}/scan");
+    assert_eq!(call(&router, Method::GET, &scan_uri, &token, None).await.0, StatusCode::NO_CONTENT);
 
-    let (status, body) =
-        call(&router, Method::POST, &format!("/api/v1/libraries/{lib_id}/scan"), &token, None)
-            .await;
+    let (status, body) = call(&router, Method::POST, &scan_uri, &token, None).await;
     assert_eq!(status, StatusCode::ACCEPTED);
     let job_id = body["jobId"].as_i64().unwrap();
 
     let mut status = String::new();
     for _ in 0..300 {
-        status = sqlx::query_scalar("SELECT status FROM jobs WHERE id = ?")
-            .bind(job_id)
-            .fetch_one(&db.read)
-            .await
-            .unwrap();
+        let (response, scan) = call(&router, Method::GET, &scan_uri, &token, None).await;
+        assert_eq!(response, StatusCode::OK);
+        assert_eq!(scan["jobId"], job_id);
+        status = scan["status"].as_str().unwrap().to_owned();
         if status == "done" || status == "failed" {
             break;
         }
@@ -168,6 +167,8 @@ async fn scan_requires_admin_and_is_deduplicated() {
     let anna =
         serde_json::from_slice::<Value>(&bytes).unwrap()["token"].as_str().unwrap().to_owned();
     let (s, _) = call(&router, Method::POST, &uri, &anna, None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = call(&router, Method::GET, &uri, &anna, None).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
     let (s, _) = call(&router, Method::POST, "/api/v1/libraries/999/scan", &admin, None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);

@@ -138,6 +138,7 @@ pub struct Services {
     pub online: OnlineService,
     pub import: ImportService,
     pub downloads: DownloadService,
+    pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
 impl Services {
@@ -204,7 +205,18 @@ impl Services {
             online,
             import,
             downloads,
+            restart: None,
         }
+    }
+
+    pub fn request_restart(&self, actor: &mbl_core::Actor) -> mbl_core::Result<()> {
+        actor.require_admin()?;
+        let restart = self.restart.as_ref().ok_or_else(|| {
+            mbl_core::Error::Unavailable("Server restart is unavailable in this runtime".into())
+        })?;
+        tracing::info!("server restart requested");
+        restart.notify_one();
+        Ok(())
     }
 
     pub fn with_mcp_config(mut self, config: Arc<RwLock<McpConfig>>) -> Self {

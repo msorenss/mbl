@@ -1,4 +1,4 @@
-# MBL
+# Media Box Lounge (MBL)
 
 MBL is an open-source, Plex-inspired media center built in Rust. It is designed around the Raspberry Pi 5, but it also runs well on Windows and Linux desktops and fully leverages Intel and NVIDIA GPU acceleration. The stack is AI-native and ships with a built-in Model Context Protocol (MCP) server.
 
@@ -24,7 +24,7 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.3.1
+Current release: v1.3.2
 
 This release bundles FFmpeg essentials directly in the Windows installer, adds an in-app GitHub release update checker with platform-specific download links, and enhances hardware and memory reporting on Windows. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 

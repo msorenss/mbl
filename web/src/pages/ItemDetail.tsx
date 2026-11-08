@@ -78,7 +78,7 @@ export function ItemDetail() {
     const ready = item();
     const version = ++previewVersion;
     setPreview(null);
-    if (!ready) return;
+    if (!ready?.versions.length) return;
     void client
       .GET("/api/v1/items/{id}/playback-preview", {
         params: {

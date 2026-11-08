@@ -7,7 +7,7 @@
       "name": "AGPL-3.0-or-later",
       "identifier": "AGPL-3.0-or-later"
     },
-    "version": "1.3.1"
+    "version": "1.3.2"
   },
   "paths": {
     "/.well-known/oauth-authorization-server": {
@@ -2280,6 +2280,38 @@
       }
     },
     "/api/v1/libraries/{id}/scan": {
+      "get": {
+        "tags": [
+          "libraries"
+        ],
+        "summary": "Read the most recent full scan for this library. Returns 204 before its first scan.",
+        "operationId": "scan_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryScanStatus"
+                }
+              }
+            }
+          },
+          "204": {},
+          "403": {},
+          "404": {}
+        }
+      },
       "post": {
         "tags": [
           "libraries"
@@ -6338,6 +6370,31 @@
         "security": []
       }
     },
+    "/api/v1/system/logs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Recent server events for the administrator's log viewer.",
+        "operationId": "get_logs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerLogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {}
+        }
+      }
+    },
     "/api/v1/system/reachability-test": {
       "post": {
         "tags": [
@@ -6418,6 +6475,29 @@
             }
           },
           "403": {}
+        }
+      }
+    },
+    "/api/v1/system/restart": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Gracefully stop and rebuild the server runtime (admin only).",
+        "operationId": "restart",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartAccepted"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "503": {}
         }
       }
     },
@@ -10750,6 +10830,32 @@
           "homevideo"
         ]
       },
+      "LibraryScanStatus": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "status",
+          "progress"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobId": {
+            "$ref": "#/components/schemas/JobId"
+          },
+          "progress": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "LiveSessionContext": {
         "type": "object",
         "required": [
@@ -14345,6 +14451,18 @@
         "type": "integer",
         "format": "int64"
       },
+      "RestartAccepted": {
+        "type": "object",
+        "required": [
+          "previousStartedAt"
+        ],
+        "properties": {
+          "previousStartedAt": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "RevokeForm": {
         "type": "object",
         "required": [
@@ -14641,6 +14759,7 @@
           "version",
           "gitCommit",
           "buildTime",
+          "startedAt",
           "os",
           "arch",
           "platformProfile",
@@ -14673,8 +14792,46 @@
             "type": "string",
             "description": "Stable random identifier of this server installation (persisted in settings)."
           },
+          "startedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "ServerLogEntry": {
+        "type": "object",
+        "required": [
+          "timestampMs",
+          "level",
+          "target",
+          "message",
+          "details"
+        ],
+        "properties": {
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "level": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "timestampMs": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

@@ -4,6 +4,7 @@
 pub mod dto;
 pub mod error;
 pub mod extract;
+pub mod logs;
 pub mod openapi;
 pub mod rate_limit;
 pub mod routes;
@@ -54,5 +55,6 @@ pub fn router(state: AppState) -> Router {
         .merge(openapi::router())
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn_with_state(state.clone(), routes::stream::limit_wan))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), logs::log_http))
         .with_state(state)
 }

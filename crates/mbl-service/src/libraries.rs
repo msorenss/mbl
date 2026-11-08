@@ -1,5 +1,6 @@
 use mbl_core::{Actor, Error, JobId, LibraryId, LibraryKind, Result, time::now_ms};
 use mbl_db::Db;
+use mbl_db::repo::jobs::Job;
 use mbl_db::repo::libraries::{LibrariesRepo, Library};
 use mbl_jobs::{JobQueue, Priority, kinds};
 
@@ -34,9 +35,13 @@ impl LibraryService {
     pub async fn scan(&self, actor: &Actor, id: LibraryId) -> Result<JobId> {
         actor.require_admin()?;
         self.repo.get(id).await?.ok_or(Error::NotFound)?;
-        self.jobs
-            .enqueue(kinds::LIBRARY_SCAN, &serde_json::json!({ "libraryId": id }), Priority::High)
-            .await
+        self.jobs.enqueue(kinds::LIBRARY_SCAN, &scan_payload(id), Priority::High).await
+    }
+
+    pub async fn scan_status(&self, actor: &Actor, id: LibraryId) -> Result<Option<Job>> {
+        actor.require_admin()?;
+        self.repo.get(id).await?.ok_or(Error::NotFound)?;
+        self.jobs.latest_matching(kinds::LIBRARY_SCAN, &scan_payload(id)).await
     }
 
     /// Queue a metadata refresh for all items in a library.
@@ -156,6 +161,10 @@ impl LibraryService {
         }
         Ok(roots)
     }
+}
+
+fn scan_payload(id: LibraryId) -> serde_json::Value {
+    serde_json::json!({ "libraryId": id })
 }
 
 fn library_name(raw: &str) -> Result<String> {

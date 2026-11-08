@@ -947,7 +947,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Read the most recent full scan for this library. Returns 204 before its first scan. */
+        get: operations["scan_status"];
         put?: never;
         /** Queue a library scan (admin). */
         post: operations["scan_library"];
@@ -2301,6 +2302,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent server events for the administrator's log viewer. */
+        get: operations["get_logs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/reachability-test": {
         parameters: {
             query?: never;
@@ -2346,6 +2364,23 @@ export interface paths {
         get: operations["get_remote_status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Gracefully stop and rebuild the server runtime (admin only). */
+        post: operations["restart"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3635,6 +3670,13 @@ export interface components {
         LibraryId: number;
         /** @enum {string} */
         LibraryKind: "movie" | "show" | "music" | "photo" | "homevideo";
+        LibraryScanStatus: {
+            error?: string | null;
+            jobId: components["schemas"]["JobId"];
+            /** Format: double */
+            progress: number;
+            status: string;
+        };
         LiveSessionContext: {
             connectedCompanions: string[];
             currentChapter?: string | null;
@@ -4604,6 +4646,10 @@ export interface components {
         };
         /** Format: int64 */
         RequestId: number;
+        RestartAccepted: {
+            /** Format: int64 */
+            previousStartedAt: number;
+        };
         RevokeForm: {
             token: string;
         };
@@ -4692,7 +4738,19 @@ export interface components {
             platformProfile: components["schemas"]["PlatformProfile"];
             /** @description Stable random identifier of this server installation (persisted in settings). */
             serverId: string;
+            /** Format: int64 */
+            startedAt: number;
             version: string;
+        };
+        ServerLogEntry: {
+            details: {
+                [key: string]: string;
+            };
+            level: string;
+            message: string;
+            target: string;
+            /** Format: int64 */
+            timestampMs: number;
         };
         SessionDto: {
             clientName?: string | null;
@@ -7419,6 +7477,45 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["JobAccepted"];
                 };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scan_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryScanStatus"];
+                };
+            };
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             404: {
                 headers: {
@@ -10890,6 +10987,37 @@ export interface operations {
             };
         };
     };
+    get_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerLogEntry"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     test_reachability: {
         parameters: {
             query?: never;
@@ -10966,6 +11094,43 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    restart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartAccepted"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

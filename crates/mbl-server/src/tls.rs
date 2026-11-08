@@ -24,6 +24,18 @@ struct Desired {
     key: String,
 }
 
+struct HttpsListener {
+    handle: Handle<SocketAddr>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl HttpsListener {
+    async fn stop(self) {
+        self.handle.graceful_shutdown(Some(DRAIN_TIMEOUT));
+        let _ = self.task.await;
+    }
+}
+
 async fn desired(repo: &SettingsRepo) -> Option<Desired> {
     if repo.get("tls_enabled").await.ok().flatten().as_deref() != Some("true") {
         return None;
@@ -45,19 +57,19 @@ pub async fn run(db: Db, router: Router, bind: String, stop: CancellationToken) 
     // Several crypto providers may be linked in; pick one explicitly so rustls never panics.
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let repo = SettingsRepo::new(db);
-    let mut active: Option<(Desired, Handle<SocketAddr>)> = None;
+    let mut active: Option<(Desired, HttpsListener)> = None;
     let mut failed: Option<Desired> = None;
     loop {
         let want = desired(&repo).await;
         let unchanged = active.as_ref().map(|(d, _)| d) == want.as_ref();
         if !unchanged && failed.as_ref() != want.as_ref() {
-            if let Some((_, handle)) = active.take() {
-                handle.graceful_shutdown(Some(DRAIN_TIMEOUT));
+            if let Some((_, listener)) = active.take() {
+                listener.stop().await;
             }
             failed = None;
             if let Some(want) = want {
                 match start(&bind, &want, router.clone()).await {
-                    Ok(handle) => active = Some((want, handle)),
+                    Ok(listener) => active = Some((want, listener)),
                     Err(error) => {
                         tracing::warn!(%error, port = want.port, "HTTPS listener not started");
                         failed = Some(want);
@@ -70,12 +82,12 @@ pub async fn run(db: Db, router: Router, bind: String, stop: CancellationToken) 
             () = tokio::time::sleep(POLL_INTERVAL) => {}
         }
     }
-    if let Some((_, handle)) = active {
-        handle.graceful_shutdown(Some(DRAIN_TIMEOUT));
+    if let Some((_, listener)) = active {
+        listener.stop().await;
     }
 }
 
-async fn start(bind: &str, want: &Desired, router: Router) -> anyhow::Result<Handle<SocketAddr>> {
+async fn start(bind: &str, want: &Desired, router: Router) -> anyhow::Result<HttpsListener> {
     let addr: SocketAddr = format!("{bind}:{}", want.port).parse()?;
     let config =
         RustlsConfig::from_pem(want.cert.clone().into_bytes(), want.key.clone().into_bytes())
@@ -84,7 +96,7 @@ async fn start(bind: &str, want: &Desired, router: Router) -> anyhow::Result<Han
     let server = axum_server::bind_rustls(addr, config)
         .handle(handle.clone())
         .serve(router.into_make_service_with_connect_info::<SocketAddr>());
-    tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         if let Err(error) = server.await {
             tracing::warn!(%error, "HTTPS listener stopped");
         }
@@ -93,10 +105,11 @@ async fn start(bind: &str, want: &Desired, router: Router) -> anyhow::Result<Han
     match tokio::time::timeout(Duration::from_secs(3), handle.listening()).await {
         Ok(Some(bound)) => {
             tracing::info!(addr = %bound, "HTTPS listening");
-            Ok(handle)
+            Ok(HttpsListener { handle, task })
         }
         _ => {
             handle.shutdown();
+            let _ = task.await;
             anyhow::bail!("could not bind {addr}")
         }
     }

@@ -3,6 +3,7 @@ import { createVirtualizer } from "@tanstack/solid-virtual";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import { LibraryScanControl } from "../components/LibraryScanControl";
 import { PosterCard } from "../components/PosterCard";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -30,7 +31,6 @@ export function LibraryDetail() {
   const [loadError, setLoadError] = createSignal<string | null>(null);
   let requestVersion = 0;
   const [loading, setLoading] = createSignal(true);
-  const [isScanning, setIsScanning] = createSignal(false);
   const [isRefreshing, setIsRefreshing] = createSignal(false);
   const [sortField, setSortField] = createSignal<SortField>("title");
   const [sortOrder, setSortOrder] = createSignal<SortOrder>("asc");
@@ -108,37 +108,6 @@ export function LibraryDetail() {
       if (version === requestVersion) setLoadError("Could not load library items. Please retry.");
     } finally {
       if (version === requestVersion) setLoading(false);
-    }
-  };
-
-  const handleScan = async () => {
-    if (isScanning()) return;
-    setIsScanning(true);
-    try {
-      const { data, error } = await client.POST("/api/v1/libraries/{id}/scan", {
-        params: { path: { id: libraryId() } },
-      });
-      if (data && !error) {
-        showToast({
-          title: "Scan Started",
-          message: `Library scan queued (Job #${data.jobId})`,
-          type: "success",
-        });
-      } else {
-        showToast({
-          title: "Scan Failed",
-          message: error ? String(error) : "Failed to queue scan",
-          type: "danger",
-        });
-      }
-    } catch (e) {
-      showToast({
-        title: "Scan Error",
-        message: e instanceof Error ? e.message : "Network error",
-        type: "danger",
-      });
-    } finally {
-      setIsScanning(false);
     }
   };
 
@@ -291,28 +260,17 @@ export function LibraryDetail() {
         {/* Scan & Refresh Buttons (Admin) */}
         <Show when={user()?.isAdmin}>
           <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
-            <button
-              type="button"
-              onClick={handleScan}
-              disabled={isScanning()}
-              style={{
-                display: "flex",
-                "align-items": "center",
-                gap: "8px",
-                padding: "9px 16px",
-                background: "var(--bg-surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-                "border-radius": "var(--radius-sm)",
-                "font-size": "13px",
-                "font-weight": "600",
-                cursor: isScanning() ? "not-allowed" : "pointer",
-                opacity: isScanning() ? 0.6 : 1,
-              }}
-            >
-              <span>🔄</span>
-              <span>{isScanning() ? "Scanning..." : "Scan Library"}</span>
-            </button>
+            <Show when={library()?.id} keyed>
+              {(id) => (
+                <LibraryScanControl
+                  id={id}
+                  onComplete={() => {
+                    void loadLibrary();
+                    void loadItems();
+                  }}
+                />
+              )}
+            </Show>
             <button
               type="button"
               onClick={handleRefreshMetadata}

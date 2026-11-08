@@ -18,7 +18,7 @@ use crate::routes::{
 #[openapi(
     info(title = "MBL API", description = "MBL media server REST API."),
     paths(
-        system::health, system::system_health, system::info, system::endpoints, system::setup_status, system::setup,
+        system::health, system::system_health, system::info, system::get_logs, system::restart, system::endpoints, system::setup_status, system::setup,
         system::get_system_settings, tls::get_tls, tls::update_tls, tls::issue_local_ca, tls::issue_tailscale, tls::issue_acme, tls::download_ca, system::update_system_settings, system::test_tmdb, system::search_tmdb, system::check_update,
         auth::login, auth::logout, auth::me, auth::list_sessions, auth::revoke_session,
         auth::create_token, auth::list_tokens, auth::revoke_token,
@@ -32,7 +32,7 @@ use crate::routes::{
         oauth::oauth_authorization_server_metadata, oauth::oauth_protected_resource_metadata,
         oauth::register_client, oauth::authorize, oauth::token_endpoint, oauth::revoke_token,
         libraries::list, libraries::get_one, libraries::create, libraries::update,
-        libraries::remove, libraries::scan, libraries::refresh, libraries::browse,
+        libraries::remove, libraries::scan, libraries::scan_status, libraries::refresh, libraries::browse,
         items::list, items::detail, items::children, items::lyrics, items::search, items::home,
         items::mark_watched, items::mark_unwatched,
         items::playback_preview_get, items::playback_preview_post,
@@ -83,6 +83,9 @@ use crate::routes::{
         import::import_plex, import::import_jellyfin,
     ),
     components(schemas(
+        crate::logs::ServerLogEntry,
+        system::RestartAccepted,
+        libraries::LibraryScanStatus,
         mbl_db::repo::items::SortField,
         mbl_db::repo::items::SortOrder,
         mbl_db::repo::users::UserPreferences,

@@ -15,7 +15,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/libraries", get(list).post(create))
         .route("/api/v1/libraries/{id}", get(get_one).patch(update).delete(remove))
-        .route("/api/v1/libraries/{id}/scan", post(scan))
+        .route("/api/v1/libraries/{id}/scan", get(scan_status).post(scan))
         .route("/api/v1/libraries/{id}/refresh", post(refresh))
         .route("/api/v1/system/browse", get(browse))
 }
@@ -144,6 +144,38 @@ async fn browse(
 #[serde(rename_all = "camelCase")]
 pub struct JobAccepted {
     pub job_id: JobId,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LibraryScanStatus {
+    job_id: JobId,
+    status: String,
+    progress: f64,
+    error: Option<String>,
+}
+
+/// Read the most recent full scan for this library. Returns 204 before its first scan.
+#[utoipa::path(get, path = "/api/v1/libraries/{id}/scan", tag = "libraries",
+    params(("id" = i64, Path)), responses((status = 200, body = LibraryScanStatus), (status = 204), (status = 403), (status = 404)))]
+pub(crate) async fn scan_status(
+    State(state): State<AppState>,
+    AdminUser(auth): AdminUser,
+    Path(id): Path<LibraryId>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
+    let job = state.services.libraries.scan_status(&auth.actor, id).await?;
+    let response = match job {
+        Some(job) => Json(LibraryScanStatus {
+            job_id: job.id,
+            status: job.status,
+            progress: job.progress,
+            error: job.error,
+        })
+        .into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    };
+    Ok(([(axum::http::header::CACHE_CONTROL, "no-store")], response).into_response())
 }
 
 /// Queue a library scan (admin).
