@@ -806,6 +806,23 @@ class CastManager {
           });
           const loadResult = await session.loadMedia(request);
           castDiagnostics.record("load.accepted", { result: loadResult ?? null });
+          const loadDeadline = Date.now() + 15_000;
+          while (generation === this.generation) {
+            const loaded = session.getMediaSession();
+            if (loaded?.media?.contentId === url) {
+              if (loaded.idleReason === "ERROR") {
+                throw new Error("The Cast receiver could not load the stream.");
+              }
+              if (this.remotePlayer?.isMediaLoaded === true) {
+                castDiagnostics.record("load.ready", { state: loaded.playerState });
+                break;
+              }
+            }
+            if (!castContext.getCurrentSession() || Date.now() >= loadDeadline) {
+              throw new Error("The Cast receiver did not confirm that the stream loaded.");
+            }
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+          }
           if (generation !== this.generation) {
             castContext.endCurrentSession(true);
             return false;
@@ -833,6 +850,8 @@ class CastManager {
           if (hadActiveGoogleSession && !loadStarted && generation === this.generation) {
             this.activeItemId = previousItemId;
             this.notify();
+          } else if (loadStarted && generation === this.generation) {
+            this.stopCasting();
           } else {
             this.clearSession();
           }

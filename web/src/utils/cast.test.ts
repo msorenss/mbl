@@ -252,6 +252,43 @@ it("does not treat a stale finished state on initial load as a new completion", 
 });
 
 describe("Google Cast lifecycle", () => {
+  it("waits for receiver confirmation before handing playback over", async () => {
+    const sdk = await google();
+    sdk.player.isMediaLoaded = false;
+    vi.useFakeTimers();
+    try {
+      const request = manager?.requestCastSession(media);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(manager?.getState().isCasting).toBe(false);
+      expect(client.POST).not.toHaveBeenCalled();
+      sdk.player.isMediaLoaded = true;
+      await vi.advanceTimersByTimeAsync(250);
+      expect(await request).toBe(true);
+      expect(manager?.getState().isCasting).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends a Cast connection that accepts LOAD but remains idle with no media", async () => {
+    const sdk = await google();
+    sdk.player.isMediaLoaded = false;
+    sdk.player.playerState = "IDLE";
+    sdk.session.loadMedia.mockResolvedValueOnce(undefined);
+    vi.useFakeTimers();
+    try {
+      const request = manager?.requestCastSession(media);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(await request).toBe(false);
+      expect(manager?.getLastError()).toContain("did not confirm");
+      expect(manager?.getState().isCasting).toBe(false);
+      expect(sdk.context.endCurrentSession).toHaveBeenCalledOnce();
+      expect(client.POST).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the paused position when the receiver unloads media with an error", async () => {
     const sdk = await google();
     await manager?.requestCastSession(media);

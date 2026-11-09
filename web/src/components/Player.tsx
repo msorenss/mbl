@@ -79,6 +79,7 @@ export function Player(props: PlayerProps) {
     props.audioStreamIndex,
   );
   const [quality, setQuality] = createSignal(0);
+  const [adaptiveLevels, setAdaptiveLevels] = createSignal(0);
   const [changingQuality, setChangingQuality] = createSignal(false);
   const [controlNotice, setControlNotice] = createSignal("");
 
@@ -335,6 +336,7 @@ export function Player(props: PlayerProps) {
         itemId: body.itemId,
         profile: typeof body.profile === "string" ? body.profile : body.profile?.name,
         startMs,
+        maxBitrate: body.maxBitrate,
         audioStreamIndex: body.audioStreamIndex,
         audioOffsetMs: body.audioOffsetMs,
         subtitleStreamIndex: body.subtitleStreamIndex,
@@ -392,8 +394,20 @@ export function Player(props: PlayerProps) {
     retryPositionMs?: number,
   ) => {
     const previous = playbackData();
-    if (!previous || loading() || changingQuality() || isCasting() || castConnecting())
-      return false;
+    if (!previous || loading() || changingQuality() || castConnecting()) return false;
+    if (isCasting()) {
+      if (!receiverAutoplaySupported()) return false;
+      return startReceiverPlayback(
+        mediaItemId(),
+        Math.floor(currentTime() * 1000),
+        isPlaying(),
+        audioIndex,
+        subtitle < 0 ? null : subtitle,
+        offset,
+        true,
+        maxBitrate,
+      );
+    }
     setChangingQuality(true);
     setControlNotice("");
     const position =
@@ -706,10 +720,13 @@ export function Player(props: PlayerProps) {
     setSessionExpired(false);
     const streamUrl = data.url;
     const isHls = new URL(streamUrl, window.location.href).pathname.endsWith(".m3u8");
+    setAdaptiveLevels(0);
 
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
+        capLevelToPlayerSize: true,
+        capLevelOnFPSDrop: true,
         startFragPrefetch: true,
         progressive: true,
         maxBufferLength: 30,
@@ -757,8 +774,9 @@ export function Player(props: PlayerProps) {
       hlsInstance = hls;
       hlsRecovery = recovery;
       // Register before loading: loaders and attach validation may emit errors synchronously.
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(Hls.Events.MANIFEST_PARSED, (_event, manifest) => {
         if (!active() || error()) return;
+        setAdaptiveLevels(manifest?.levels.length ?? 0);
         setLoading(false);
         if (localAutoplay && !castConnecting()) vid.play().catch(() => {});
       });
@@ -970,6 +988,7 @@ export function Player(props: PlayerProps) {
       : undefined,
     offset = audioSyncMs(),
     preservePosition = false,
+    maxBitrate = quality(),
   ) => {
     if (castConnecting() || changingQuality()) return false;
     if (isCasting() && !receiverAutoplaySupported()) {
@@ -1014,6 +1033,7 @@ export function Player(props: PlayerProps) {
             partId: itemId === mediaItemId() ? mediaPartId() : undefined,
             profile: "chromecast",
             startMs,
+            maxBitrate: maxBitrate || undefined,
             audioOffsetMs: offset,
             audioStreamIndex: audioIndex,
             subtitleStreamIndex: subtitleIndex ?? undefined,
@@ -1039,9 +1059,7 @@ export function Player(props: PlayerProps) {
           // A replacement HLS stream was prepared for the requested position.
           // The previous receiver stream can advance far past it during preparation.
           negotiatedStartMs =
-            preservePosition && !(isCasting() && hlsFmp4)
-              ? Math.floor(oldPosition * 1000)
-              : result.data.startMs;
+            preservePosition && !hlsFmp4 ? Math.floor(oldPosition * 1000) : result.data.startMs;
           const title = negotiatedTitle;
           return {
             contentId: result.data.url,
@@ -1071,7 +1089,7 @@ export function Player(props: PlayerProps) {
         setFailedPositionMs(null);
         setSessionExpired(false);
         setError(null);
-        setQuality(0);
+        setQuality(maxBitrate);
         setAudioSyncMs(accepted.audioOffsetMs ?? offset);
         setMediaItemId(itemId);
         setMediaPartId(accepted.partId);
@@ -1362,13 +1380,11 @@ export function Player(props: PlayerProps) {
     // biome-ignore lint/a11y/noStaticElementInteractions: mouse movement resets auto-hide controls timer
     <div
       ref={playerContainerRef}
+      class="mbl-player-viewport"
       onMouseMove={resetHideControlsTimer}
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
+        inset: 0,
         background: "#000",
         "z-index": 9999,
         display: "flex",
@@ -1758,10 +1774,9 @@ export function Player(props: PlayerProps) {
       {/* Stats for Nerds Overlay (M3.8) */}
       <Show when={showStats()}>
         <div
+          class="mbl-player-stats"
           style={{
             position: "absolute",
-            top: "80px",
-            left: "32px",
             background: "rgba(10, 12, 16, 0.88)",
             "backdrop-filter": "blur(8px)",
             border: "1px solid var(--border)",
@@ -1771,8 +1786,6 @@ export function Player(props: PlayerProps) {
             "font-family": "var(--font-mono)",
             "font-size": "12px",
             "z-index": 10005,
-            "max-width": "380px",
-            "max-height": "70vh",
             "overflow-y": "auto",
             "box-shadow": "var(--shadow-xl)",
           }}
@@ -1817,6 +1830,9 @@ export function Player(props: PlayerProps) {
               }
             >
               <div>Local resolution: {isAudioOnly() ? "Audio only" : videoSize()}</div>
+              <Show when={adaptiveLevels() > 1}>
+                <div>Adaptive streaming: {adaptiveLevels()} quality levels</div>
+              </Show>
               <div>
                 Local buffer:{" "}
                 {bufferAheadSecs() === null ? "Not measured" : `${bufferAheadSecs()}s`}
@@ -1942,12 +1958,12 @@ export function Player(props: PlayerProps) {
 
       {/* Player Header Overlay */}
       <div
+        class="mbl-player-header"
         style={{
           position: "absolute",
           top: 0,
           left: 0,
           right: 0,
-          padding: "24px 32px",
           "z-index": 20,
           background: "linear-gradient(to bottom, rgba(0, 0, 0, 0.85) 0%, transparent 100%)",
           display: "flex",
@@ -1958,7 +1974,10 @@ export function Player(props: PlayerProps) {
           "pointer-events": showControls() ? "auto" : "none",
         }}
       >
-        <div style={{ display: "flex", "align-items": "center", gap: "16px" }}>
+        <div
+          class="mbl-player-heading"
+          style={{ display: "flex", "align-items": "center", gap: "16px" }}
+        >
           <button
             type="button"
             onClick={handleClose}
@@ -1979,7 +1998,7 @@ export function Player(props: PlayerProps) {
           >
             &larr;
           </button>
-          <div>
+          <div class="mbl-player-title">
             <div style={{ "font-size": "18px", "font-weight": "700", color: "#fff" }}>
               {mediaTitle() || "Now Playing"}
             </div>
@@ -2031,13 +2050,13 @@ export function Player(props: PlayerProps) {
 
       {/* Bottom Controls Overlay */}
       <div
+        class="mbl-player-controls"
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
           "z-index": 20,
-          padding: "24px 32px 28px",
           background: "linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, transparent 100%)",
           display: "flex",
           "flex-direction": "column",
@@ -2138,9 +2157,10 @@ export function Player(props: PlayerProps) {
 
         {/* Buttons Row */}
         <div
+          class="mbl-player-button-row"
           style={{ display: "flex", "align-items": "center", "justify-content": "space-between" }}
         >
-          <div style={{ display: "flex", "align-items": "center", gap: "16px" }}>
+          <div class="mbl-player-transport" style={{ display: "flex", "align-items": "center" }}>
             <button
               type="button"
               onClick={togglePlay}
@@ -2221,9 +2241,10 @@ export function Player(props: PlayerProps) {
           </div>
 
           <div
-            style={{ display: "flex", "align-items": "center", gap: "14px", position: "relative" }}
+            class="mbl-player-options"
+            style={{ display: "flex", "align-items": "center", position: "relative" }}
           >
-            <div style={{ display: "grid", gap: "4px" }}>
+            <div class="mbl-player-settings">
               <Show when={(playbackData()?.audioTracks?.length ?? 0) > 0}>
                 <label for="player-audio-track">Audio track</label>
                 <select
@@ -2257,7 +2278,12 @@ export function Player(props: PlayerProps) {
                 <select
                   id="player-quality"
                   value={quality()}
-                  disabled={isCasting() || loading() || changingQuality() || castConnecting()}
+                  disabled={
+                    loading() ||
+                    changingQuality() ||
+                    castConnecting() ||
+                    (isCasting() && !receiverAutoplaySupported())
+                  }
                   onChange={(event) => {
                     const select = event.currentTarget;
                     void changeQuality(Number(select.value)).finally(() => {
@@ -2316,11 +2342,14 @@ export function Player(props: PlayerProps) {
               </select>
             </div>
             {/* Speed Selector */}
-            <div style={{ position: "relative" }}>
+            <div class="mbl-player-menu-anchor">
               <button
                 type="button"
                 disabled={isCasting()}
-                onClick={() => setShowSpeedMenu(!showSpeedMenu())}
+                onClick={() => {
+                  setShowSubtitlesMenu(false);
+                  setShowSpeedMenu(!showSpeedMenu());
+                }}
                 style={{
                   background: "rgba(255, 255, 255, 0.1)",
                   border: "none",
@@ -2336,6 +2365,7 @@ export function Player(props: PlayerProps) {
               </button>
               <Show when={showSpeedMenu()}>
                 <div
+                  class="mbl-player-menu"
                   style={{
                     position: "absolute",
                     bottom: "40px",
@@ -2375,12 +2405,15 @@ export function Player(props: PlayerProps) {
 
             {/* Subtitles Menu */}
             <Show when={subtitleChoices().length > 0}>
-              <div style={{ position: "relative" }}>
+              <div class="mbl-player-menu-anchor">
                 <button
                   type="button"
                   aria-label="Subtitle tracks"
                   disabled={loading() || changingQuality() || castConnecting()}
-                  onClick={() => setShowSubtitlesMenu(!showSubtitlesMenu())}
+                  onClick={() => {
+                    setShowSpeedMenu(false);
+                    setShowSubtitlesMenu(!showSubtitlesMenu());
+                  }}
                   style={{
                     background:
                       selectedSubtitleIndex() >= 0 ? "var(--accent)" : "rgba(255,255,255,0.1)",
@@ -2397,6 +2430,7 @@ export function Player(props: PlayerProps) {
                 </button>
                 <Show when={showSubtitlesMenu()}>
                   <div
+                    class="mbl-player-menu"
                     style={{
                       position: "absolute",
                       bottom: "40px",

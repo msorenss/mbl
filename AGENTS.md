@@ -8,7 +8,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.4` (2026-11-08; Windows HLS cache throttling, Cast recovery and NVENC driver warning).
+- Release prepared: `v1.3.5` (2026-11-09; adaptive HLS for browsers and Cast, mobile player controls, and Cast startup diagnostics).
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -83,6 +83,23 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-09 — Adaptiv uppspelning för Google Cast
+- Chromecast kan använda samma begränsade H.264-stege som webbspelaren. För en adaptiv session förbereder servern både första fragmentet och fragmentet vid sparad position i båda kvalitetsnivåerna. Om förberedelsen misslyckas försöker servern med en nivå.
+- Kvalitetstaket följer med vid Cast-anslutning och kan ändras från spelaren under Cast. Paus, ljudspår och undertextval följer med vid omladdningen. Diagnostikloggen visar antal nivåer i masterspellistan och nivån för varje fragment.
+- 15 riktade Rust-tester och 64 webbtester passerade. FFmpeg avkodade båda nivåernas första fragment och återupptagningsfragment efter hoppet, med init-filen som mottagaren hämtar efter förberedelsen.
+- Prova från början och från sparad position på Bedroom TV. Kontrollera paus och återupptagning samt nivåbyten under varierande bandbredd. Loggens `variant_count` ska vara 2 när sessionen är adaptiv.
+
+### 2026-11-09 — Adaptiv uppspelning i webbläsaren och mobilreglage
+- Kvalificerad H.264-transkodning för webbklienter erbjuder två synkroniserade HLS-nivåer. Mjukvarukodning för den adaptiva vägen är begränsad till x86_64 med minst fyra tillgängliga logiska processorer och högst 720p. Om förberedelsen av två nivåer misslyckas provas en nivå. Direct Play, remux och Cast fortsätter med befintliga uppspelningsvägar.
+- Hls.js begränsar nivåerna efter spelarens storlek och tappade bildrutor. Statistikpanelen visar när den laddat flera nivåer. Reglagen radbryts på små skärmar och menyerna ryms i porträtt- och landskapsläge.
+- Chromium kontrollerades vid 320×568, 390×844, 667×375 och 1280×720. Webbspelaren växlade mellan syntetiska HLS-nivåer vid emulerad bandbredd. Verifiera den kompletta kedjan mot en x86-server innan arbetet med adaptiv Cast påbörjas.
+- 70 riktade webbtester, TypeScript, produktionsbygge och Clippy för tjänste- och transkodningskoden passerade. Ett fristående FFmpeg-prov visade identiska segmentgränser för båda nivåerna vid återupptagning.
+
+### 2026-11-09 — Cast godkänner LOAD utan laddat media
+- I försök 7 och 8 på v1.3.4 accepterade mottagaren LOAD för medie-ID 913 och 192 vid ungefär 5:31 och 6:36. Mottagaren stannade i `IDLE` med `loaded=false`. Serverloggen visar HTTP 200 för masterspellistan och tre efterföljande HLS-anrop i vardera försök.
+- Spelaren väntar nu på rätt laddat media innan den avslutar den lokala sessionen. Om mottagaren förblir tom avbryts Cast och den lokala sessionen behålls. HLS-diagnostiken visar typen av resurs och segmentnummer utan att exponera URL eller sessions-ID.
+- Jämför samma klipp från noll och från sparad position på den fysiska mottagaren. Kontrollera om den hämtar init, första fragmentet och fragmentet vid sparad position. Orsaken till mottagarens `IDLE` återstår att bekräfta.
 
 ### 2026-11-08 — Cast-avbrott vid cachegränsen på Windows
 - Den kombinerade loggen visar att en HLS-session togs bort vid cachegränsen 20:12:20 CET. Segment och progress började ge 404 före pausen 20:12:31. Chromecast rapporterade sedan `IDLE / ERROR`. Windows rapporterade tidigare strypt FFmpeg trots att signalerna för paus och återupptagning saknade effekt på plattformen.

@@ -538,6 +538,10 @@ impl PlaybackService {
                         &ctx,
                         &profile,
                         false,
+                        req.wait_for_ready
+                            && (profile.name == "chromecast"
+                                || (matches!(&req.profile, Some(PlaybackProfileInput::Overlay(p)) if p.browser_codecs.is_some())
+                                    && matches!(profile.name.as_str(), "chrome" | "edge" | "firefox" | "safari" | "generic-hls"))),
                         start_ms,
                         duration_ms,
                         audio_offset_ms,
@@ -1113,6 +1117,7 @@ impl PlaybackService {
         ctx: &DecisionContext,
         profile: &DeviceProfile,
         generated_playlist: bool,
+        allow_adaptive: bool,
         start_ms: u64,
         duration_ms: u64,
         audio_offset_ms: i64,
@@ -1248,23 +1253,56 @@ impl PlaybackService {
             _ => video_stream.and_then(|v| v.width),
         };
         let height = video_stream.and_then(|v| v.height);
+        let mut renditions = vec![Rendition { name: "0".to_owned(), width, max_bitrate }];
+        // Start with two bounded H.264 encodes. Keep the original path for
+        // remux, burn-in, costly filters and larger software encodes.
+        if allow_adaptive
+            && (selected_backend.is_gpu()
+                || (selected_backend == Backend::Software
+                    && cfg!(target_arch = "x86_64")
+                    && std::thread::available_parallelism().is_ok_and(|cores| cores.get() >= 4)))
+            && matches!(
+                video_op,
+                VideoOp::Encode { codec: VideoCodec::H264, deinterlace: false, tonemap: false, .. }
+            )
+            && matches!(subtitle_op, SubtitleOp::None)
+            && max_bitrate >= 1_000_000
+            && let Some(source) = video_stream
+            && source.hdr.is_none()
+            && source.frame_rate.is_none_or(|fps| fps <= 60.0)
+            && let (Some(source_width), Some(source_height), Some(top_width)) =
+                (source.width, source.height, width)
+            && (960..=1280).contains(&top_width)
+            && source_width >= top_width
+            && u64::from(source_height) * u64::from(top_width) <= 720 * u64::from(source_width)
+        {
+            renditions.push(Rendition {
+                name: "1".to_owned(),
+                width: Some(640),
+                max_bitrate: max_bitrate / 3,
+            });
+        }
+        let adaptive = renditions.len() > 1;
+        let cast_adaptive = adaptive && profile.name == "chromecast";
 
         let is_video_copy = matches!(decision.video, StreamAction::Copy);
         let target_duration =
             if is_video_copy { 10.max(DEFAULT_SEGMENT_SECS) } else { DEFAULT_SEGMENT_SECS };
-        let fast_start_segments = !generated_playlist && !is_video_copy;
+        let fast_start_segments = !generated_playlist && !is_video_copy && !adaptive;
 
         // Cast can probe the head of the VOD playlist before seeking to its resume point.
         // Other remux clients can prepare the requested fragment directly.
         let starts_at_head = generated_playlist
-            || (is_video_copy && profile.name.eq_ignore_ascii_case("chromecast"));
-        let initial_seg = if starts_at_head {
-            0
+            || (is_video_copy && profile.name.eq_ignore_ascii_case("chromecast"))
+            || cast_adaptive;
+        let seek_ms = if is_video_copy || cast_adaptive {
+            start_ms.min(duration_ms.saturating_sub(1))
         } else {
-            let seek_ms =
-                if is_video_copy { start_ms.min(duration_ms.saturating_sub(1)) } else { start_ms };
-            segment_index_for_ms(seek_ms, DEFAULT_SEGMENT_SECS, fast_start_segments)
+            start_ms
         };
+        let resume_segment =
+            segment_index_for_ms(seek_ms, DEFAULT_SEGMENT_SECS, fast_start_segments);
+        let initial_seg = if starts_at_head { 0 } else { resume_segment };
         let initial_start_ms = mbl_stream::hls::segment_start_ms_full(
             initial_seg,
             DEFAULT_SEGMENT_SECS,
@@ -1283,7 +1321,7 @@ impl PlaybackService {
                 dir: Utf8PathBuf::from("/tmp/mbl-hls"),
                 segment_secs: DEFAULT_SEGMENT_SECS,
                 start_number: initial_seg,
-                renditions: vec![Rendition { name: "0".to_owned(), width, max_bitrate }],
+                renditions,
             },
             backend: selected_backend,
         };
@@ -1294,17 +1332,46 @@ impl PlaybackService {
             StreamAction::Copy => video_stream.map(|s| s.codec.clone()),
             StreamAction::Drop => None,
         };
-        let master = render_master_playlist(&[HlsRendition {
-            name: "0".to_owned(),
-            width,
-            height,
-            bandwidth: max_bitrate,
-            video_codec: video_codec_str,
-            audio_codec: audio_stream.map(|_| match &decision.audio {
-                StreamAction::Transcode { codec, .. } => codec.clone(),
-                _ => audio_stream.map_or("aac", |s| s.codec.as_str()).to_owned(),
-            }),
-        }]);
+        let audio_bitrate = match &decision.audio {
+            StreamAction::Transcode { bitrate, .. } => *bitrate,
+            StreamAction::Copy => audio_stream.map_or(0, |_| 384_000),
+            StreamAction::Drop => 0,
+        };
+        let audio_codec = audio_stream.map(|_| match &decision.audio {
+            StreamAction::Transcode { codec, .. } => codec.clone(),
+            _ => audio_stream.map_or("aac", |s| s.codec.as_str()).to_owned(),
+        });
+        let variants = pipeline
+            .output
+            .renditions
+            .iter()
+            // Advertise the lower level first for players without a startup estimate.
+            .rev()
+            .map(|r| {
+                let height = if adaptive {
+                    video_stream.and_then(|v| {
+                        let source_width = u64::from(v.width?);
+                        let scaled = u64::from(v.height?) * u64::from(r.width?);
+                        u32::try_from(2 * ((scaled + source_width) / (2 * source_width))).ok()
+                    })
+                } else {
+                    height
+                };
+                HlsRendition {
+                    name: r.name.clone(),
+                    width: r.width,
+                    height,
+                    bandwidth: r.max_bitrate.saturating_add(if adaptive {
+                        audio_bitrate
+                    } else {
+                        0
+                    }),
+                    video_codec: video_codec_str.clone(),
+                    audio_codec: audio_codec.clone(),
+                }
+            })
+            .collect::<Vec<_>>();
+        let master = render_master_playlist(&variants);
         let media_m3u8 = render_media_playlist_with_target(
             eff_duration,
             DEFAULT_SEGMENT_SECS,
@@ -1321,16 +1388,44 @@ impl PlaybackService {
                 duration_ms: eff_duration,
                 pipeline,
                 master_playlist: master,
-                media_playlists: vec![("0".to_owned(), media_m3u8)],
+                media_playlists: variants
+                    .into_iter()
+                    .map(|r| (r.name, media_m3u8.clone()))
+                    .collect(),
                 fast_start_segments,
                 generated_playlist_start_ms: generated_playlist.then_some(start_ms),
             })
             .await?;
         let mut candidate = HlsStartup { session: Some((hls_mgr.clone(), session.clone())) };
-        if (wait_for_ready || generated_playlist)
-            && let Err(error) = session.prepare().await
-        {
+        let prepared = if cast_adaptive {
+            session.prepare_cast_resume(resume_segment).await
+        } else if wait_for_ready || generated_playlist {
+            session.prepare().await
+        } else {
+            Ok(())
+        };
+        if let Err(error) = prepared {
             candidate.abort().await;
+            if adaptive {
+                tracing::warn!(%error, "adaptive playback startup failed; retrying with one rendition");
+                return Box::pin(self.start_hls_session(
+                    user_id,
+                    part_id,
+                    verified_path,
+                    media_info,
+                    decision,
+                    ctx,
+                    profile,
+                    generated_playlist,
+                    false,
+                    start_ms,
+                    duration_ms,
+                    audio_offset_ms,
+                    library_roots,
+                    wait_for_ready,
+                ))
+                .await;
+            }
             return Err(error);
         }
         candidate.session = None;

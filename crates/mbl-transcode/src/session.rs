@@ -261,11 +261,37 @@ impl HlsSession {
         if self.generated_playlist_start_ms.is_some() {
             return self.prepare_generated().await;
         }
+        self.prepare_segment(self.base_pipeline.output.start_number).await
+    }
+
+    /// Prepare the playlist head and the resume fragment before a Cast handoff.
+    /// Cast can probe the head even when LOAD requests a distant position.
+    pub async fn prepare_cast_resume(&self, resume_segment: u32) -> Result<()> {
+        self.prepare().await?;
+        if resume_segment == 0 {
+            return Ok(());
+        }
+        self.prepare_segment(resume_segment).await?;
+        let mut state = self.state.lock().await;
+        state.ensure_open()?;
+        for rendition in &self.base_pipeline.output.renditions {
+            let head = self.dir.join(&rendition.name).join("0.m4s");
+            if !state.rendition(&rendition.name)?.completed.contains(&0)
+                || !file_has_data(head.as_std_path()).await
+            {
+                return Err(Error::Unavailable("Cast startup lost its initial fragment".into()));
+            }
+        }
+        // Keep the head available until the receiver starts making requests.
+        state.last_requested_segment = 0;
+        Ok(())
+    }
+
+    async fn prepare_segment(&self, segment: u32) -> Result<()> {
         tokio::time::timeout(self.segment_wait_timeout, async {
             loop {
                 for rendition in &self.base_pipeline.output.renditions {
-                    self.request_segment(&rendition.name, self.base_pipeline.output.start_number)
-                        .await?;
+                    self.request_segment(&rendition.name, segment).await?;
                     self.request_init(&rendition.name).await?;
                 }
                 let mut state = self.state.lock().await;
@@ -277,11 +303,7 @@ impl HlsSession {
                         ));
                     }
                     self.advance_fallback_locked(&mut state);
-                    self.spawn_at_segment_locked(
-                        &mut state,
-                        self.base_pipeline.output.start_number,
-                    )
-                    .await?;
+                    self.spawn_at_segment_locked(&mut state, segment).await?;
                     continue;
                 }
                 return Ok(());
@@ -730,10 +752,6 @@ impl HlsSession {
 
         let mut p = self.base_pipeline.clone();
         p.backend = st.active_backend;
-        // If we fell back to a non-GPU backend on a multi-rendition pipeline, collapse to primary rendition 0
-        if p.output.renditions.len() > 1 && !p.backend.is_gpu() {
-            p.output.renditions.truncate(1);
-        }
         p.start_ms = self.segment_start_ms(segment_num);
         p.output.start_number = segment_num;
 
@@ -955,8 +973,11 @@ impl SessionManager {
             VideoOp::Encode { codec, .. } => codec.as_str().to_owned(),
             _ => "h264".to_owned(),
         };
-        fallback_backends
-            .retain(|b| *b == Backend::Software || !self.is_backend_bad(*b, &codec_name));
+        fallback_backends.retain(|b| {
+            *b == Backend::Software
+                || ((base_pipeline.output.renditions.len() == 1 || b.is_gpu())
+                    && !self.is_backend_bad(*b, &codec_name))
+        });
         let mut active_backend = base_pipeline.backend;
         if active_backend != Backend::Software
             && self.is_backend_bad(active_backend, &codec_name)
@@ -1098,9 +1119,12 @@ impl SessionManager {
         // segment has been consumed in that state.
         for (_, last_req, session) in &sessions {
             if *last_req > 1 && *last_req != u32::MAX {
-                let r_dir = session.base_pipeline.output.rendition_dir(0);
-                for seg in 0..(last_req - 1) {
-                    let _ = std::fs::remove_file(r_dir.join(format!("{seg}.m4s")).as_std_path());
+                for idx in 0..session.base_pipeline.output.renditions.len() {
+                    let r_dir = session.base_pipeline.output.rendition_dir(idx);
+                    for seg in 0..(last_req - 1) {
+                        let _ =
+                            std::fs::remove_file(r_dir.join(format!("{seg}.m4s")).as_std_path());
+                    }
                 }
             }
         }

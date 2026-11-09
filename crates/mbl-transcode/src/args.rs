@@ -275,11 +275,17 @@ fn build_abr_ladder_args(
 
     let filter_complex = branches.join(";");
     validate_filter_graph(&filter_complex)?;
+    if p.backend == Backend::Software {
+        push_pair(args, "-filter_complex_threads", "1");
+    }
     push_pair(args, "-filter_complex", &filter_complex);
 
     for (i, r) in p.output.renditions.iter().enumerate() {
         push_pair(args, "-map", &format!("[v{i}]"));
         push_video_encoder(args, p.backend, codec, r.max_bitrate, p.output.segment_secs, caps);
+        if p.backend == Backend::Software {
+            push_pair(args, "-threads:v", &caps.threads.unwrap_or(2).min(2).to_string());
+        }
         push_audio_args(args, &p.audio, p.start_ms);
         push_str(args, "-sn");
         push_hls_output_args(args, p, i);
@@ -325,9 +331,9 @@ fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
         return Err(Error::Validation("subtitle burn-in requires a single rendition".into()));
     }
     if p.output.renditions.len() > 1 {
-        if !p.backend.is_gpu() {
+        if !p.backend.is_gpu() && p.backend != Backend::Software {
             return Err(Error::Validation(format!(
-                "multi-rendition ABR ladder requires a GPU backend, not {:?}",
+                "multi-rendition ABR ladder is unavailable for backend {:?}",
                 p.backend
             )));
         }

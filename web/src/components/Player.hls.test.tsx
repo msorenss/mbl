@@ -170,6 +170,8 @@ it("reloads a failed master manifest and keeps the requested start before metada
   expect(hls.loadSource).toHaveBeenCalledTimes(2);
   expect(hls.loadSource).toHaveBeenLastCalledWith(playback.url);
   expect(hls.config).toMatchObject({
+    capLevelToPlayerSize: true,
+    capLevelOnFPSDrop: true,
     startPosition: 5,
     startFragPrefetch: true,
     progressive: true,

@@ -68,7 +68,7 @@ fn sample_pipeline(input: &Path, segment_secs: u32, video: VideoOp) -> Pipeline 
 }
 
 #[tokio::test]
-async fn seek_far_restarts_ffmpeg_and_serves_target_segment() {
+async fn cast_resume_prepares_head_and_target_for_both_variants() {
     let Ok(tools) = mbl_probe::FfTools::locate("", "").await else {
         eprintln!("skipping: ffmpeg not available");
         return;
@@ -78,28 +78,38 @@ async fn seek_far_restarts_ffmpeg_and_serves_target_segment() {
     generate_synthetic_media(&tools.ffmpeg, &media_file, 30).await;
 
     let transcode_dir = Utf8PathBuf::from_path_buf(tmp.path().join("transcode")).unwrap();
-    let mut cfg = SessionManagerConfig::new(tools.ffmpeg, transcode_dir, PlatformProfile::Generic);
+    let mut cfg =
+        SessionManagerConfig::new(tools.ffmpeg.clone(), transcode_dir, PlatformProfile::Generic);
     cfg.caps = FfmpegCaps { preset: "ultrafast".to_owned(), crf: 28, threads: Some(2) };
     let mgr = SessionManager::new(cfg).unwrap();
 
+    let mut pipeline = sample_pipeline(
+        &media_file,
+        2,
+        VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(320),
+            max_bitrate: 600_000,
+            deinterlace: false,
+            tonemap: false,
+        },
+    );
+    pipeline.output.renditions.push(Rendition {
+        name: "1".into(),
+        width: Some(160),
+        max_bitrate: 250_000,
+    });
     let session = mgr
         .create_session(CreateSessionReq {
             user_id: UserId(1),
             part_id: PartId(10),
             duration_ms: 30_000,
-            pipeline: sample_pipeline(
-                &media_file,
-                2,
-                VideoOp::Encode {
-                    codec: VideoCodec::H264,
-                    width: Some(320),
-                    max_bitrate: 600_000,
-                    deinterlace: false,
-                    tonemap: false,
-                },
-            ),
-            master_playlist: "#EXTM3U\n0/index.m3u8\n".to_owned(),
-            media_playlists: vec![("0".to_owned(), "#EXTM3U\n".to_owned())],
+            pipeline,
+            master_playlist: "#EXTM3U\n1/index.m3u8\n0/index.m3u8\n".to_owned(),
+            media_playlists: vec![
+                ("0".into(), "#EXTM3U\n".into()),
+                ("1".into(), "#EXTM3U\n".into()),
+            ],
             fast_start_segments: false,
             generated_playlist_start_ms: None,
         })
@@ -107,26 +117,34 @@ async fn seek_far_restarts_ffmpeg_and_serves_target_segment() {
         .unwrap();
 
     // Upfront playlists exist immediately.
-    assert_eq!(session.request_master_playlist().await.unwrap(), "#EXTM3U\n0/index.m3u8\n");
+    assert_eq!(
+        session.request_master_playlist().await.unwrap(),
+        "#EXTM3U\n1/index.m3u8\n0/index.m3u8\n"
+    );
     assert_eq!(session.request_media_playlist("0").await.unwrap(), "#EXTM3U\n");
 
-    let init = session.request_init("0").await.unwrap();
-    assert!(init.exists());
-    let seg0 = session.request_segment("0", 0).await.unwrap();
-    assert!(seg0.exists());
-    assert_eq!(session.restart_count().await, 0);
-
-    // Seek far ahead to segment 12 (24s into the 30s file, > head + 3): must restart FFmpeg.
-    let seg12 = session.request_segment("0", 12).await.unwrap();
-    assert!(seg12.exists());
-    assert!(std::fs::metadata(&seg12).unwrap().len() > 0, "12.m4s must be non-empty");
-    assert!(
-        session.restart_count().await >= 1,
-        "seeking far ahead must restart FFmpeg at segment 12"
-    );
+    session.prepare_cast_resume(12).await.unwrap();
+    assert_eq!(session.last_requested_segment().await, 0);
     let restarts = session.restart_count().await;
-    assert_eq!(session.request_segment("0", 0).await.unwrap(), seg0);
-    assert_eq!(session.restart_count().await, restarts, "keep confirmed pre-seek media");
+    for name in ["1", "0"] {
+        let init = std::fs::read(session.request_init(name).await.unwrap()).unwrap();
+        for index in [0, 12] {
+            let segment = session.request_segment(name, index).await.unwrap();
+            let fragment = tmp.path().join("cast-fragment.mp4");
+            let mut bytes = init.clone();
+            bytes.extend(std::fs::read(segment).unwrap());
+            std::fs::write(&fragment, bytes).unwrap();
+            let decoded = tokio::process::Command::new(&tools.ffmpeg)
+                .args(["-v", "error", "-xerror", "-i"])
+                .arg(fragment)
+                .args(["-frames:v", "2", "-f", "null", "-"])
+                .output()
+                .await
+                .unwrap();
+            assert!(decoded.status.success(), "{}", String::from_utf8_lossy(&decoded.stderr));
+        }
+    }
+    assert_eq!(session.restart_count().await, restarts, "receiver probes must use prepared media");
 
     mgr.shutdown_all().await;
 }

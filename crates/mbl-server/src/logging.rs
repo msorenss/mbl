@@ -75,7 +75,16 @@ impl WebLogFields {
     fn number(&mut self, field: &Field, value: impl ToString) {
         if matches!(
             field.name(),
-            "item_id" | "part_id" | "library_id" | "start_ms" | "status" | "elapsed_ms" | "attempt"
+            "item_id"
+                | "part_id"
+                | "library_id"
+                | "start_ms"
+                | "status"
+                | "elapsed_ms"
+                | "attempt"
+                | "segment_number"
+                | "variant_count"
+                | "variant_index"
         ) {
             self.details.insert(field.name().to_owned(), value.to_string());
         }
@@ -95,6 +104,9 @@ impl Visit for WebLogFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         if field.name() == "message" {
             self.message = Some(value.chars().filter(|c| !c.is_control()).take(512).collect());
+        } else if field.name() == "stream_asset" && matches!(value, "playlist" | "init" | "segment")
+        {
+            self.details.insert(field.name().to_owned(), value.to_owned());
         }
     }
 

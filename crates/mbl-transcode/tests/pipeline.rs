@@ -861,6 +861,44 @@ async fn transcodes_10s_test_media_to_fmp4_hls_and_verifies_with_ffprobe() {
     let audio = probed.streams.iter().find(|s| s.kind == StreamKind::Audio).unwrap();
     assert_eq!(audio.codec, "aac");
     assert_eq!(audio.channels, Some(2));
+
+    // Both variants must offer the same segment boundaries so the browser can
+    // switch quality without moving its playhead. Exercise a non-zero start.
+    let mut adaptive = pipeline;
+    adaptive.start_ms = 2_000;
+    adaptive.output.start_number = 1;
+    adaptive.output.dir = Utf8PathBuf::from_path_buf(tmp.path().join("adaptive")).unwrap();
+    adaptive.output.renditions.push(Rendition {
+        name: "1".to_owned(),
+        width: Some(160),
+        max_bitrate: 250_000,
+    });
+    for name in ["0", "1"] {
+        std::fs::create_dir_all(adaptive.output.dir.join(name)).unwrap();
+    }
+    let output = tokio::process::Command::new(&tools.ffmpeg)
+        .args(build_args(&adaptive, &caps).unwrap())
+        .output()
+        .await
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let mut previous_segments = None;
+    for (name, width) in [("0", 320), ("1", 160)] {
+        let playlist = adaptive.output.dir.join(name).join("ffmpeg.m3u8");
+        let contents = std::fs::read_to_string(&playlist).unwrap();
+        let segments = contents
+            .lines()
+            .filter(|line| line.starts_with("#EXTINF:") || line.ends_with(".m4s"))
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        assert_eq!(segments.len(), 8, "{contents}");
+        if let Some(expected) = previous_segments.replace(segments.clone()) {
+            assert_eq!(segments, expected);
+        }
+        let probed =
+            tools.probe(playlist.as_std_path(), std::time::Duration::from_secs(15)).await.unwrap();
+        assert_eq!(probed.primary_video().unwrap().width, Some(width));
+    }
 }
 
 #[tokio::test]

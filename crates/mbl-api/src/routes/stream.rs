@@ -235,10 +235,12 @@ pub async fn hls_master(
         "HLS master playlist requested"
     );
     let m3u8 = state.services.stream.hls_master_playlist(&session).await?;
+    let variant_count = m3u8.lines().filter(|line| line.starts_with("#EXT-X-STREAM-INF:")).count();
     tracing::info!(
         session = %session,
         client_ip = %client_ip,
         bytes = m3u8.len(),
+        variant_count,
         "HLS master playlist served"
     );
     Ok(serve_playlist(m3u8))
@@ -271,6 +273,12 @@ pub async fn hls_rendition_file(
     let user_agent = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("-");
     let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
     let start_time = std::time::Instant::now();
+    let variant_index = rendition.parse::<u32>().ok();
+    let stream_asset = match file.as_str() {
+        "index.m3u8" => "playlist",
+        "init.mp4" => "init",
+        _ => "segment",
+    };
     tracing::info!(
         session = %session,
         rendition = %rendition,
@@ -280,6 +288,7 @@ pub async fn hls_rendition_file(
         ?range,
         "HLS rendition file requested"
     );
+    let mut segment_number = None;
     let res: Result<Response, ApiError> = async {
         match file.as_str() {
             "index.m3u8" => {
@@ -292,6 +301,7 @@ pub async fn hls_rendition_file(
             }
             other => {
                 let seg_num = parse_segment_filename(other)?;
+                segment_number = Some(seg_num);
                 let path =
                     state.services.stream.hls_media_segment(&session, &rendition, seg_num).await?;
                 Ok(serve_segment_file(&path, MIME_M4S).await?)
@@ -316,6 +326,9 @@ pub async fn hls_rendition_file(
                 status,
                 bytes = %bytes,
                 elapsed_ms,
+                stream_asset,
+                segment_number,
+                variant_index,
                 "HLS rendition file served"
             );
         }
@@ -327,6 +340,9 @@ pub async fn hls_rendition_file(
                 client_ip = %client_ip,
                 error = ?e,
                 elapsed_ms,
+                stream_asset,
+                segment_number,
+                variant_index,
                 "HLS rendition file failed"
             );
         }

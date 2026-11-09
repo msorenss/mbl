@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-11-09
+
+### Added
+- Eligible H.264 transcodes offer two synchronized HLS quality levels for web browsers and Chromecast. The browser can also cap quality based on player size and dropped frames.
+- The quality limit carries over to Google Cast and stays available during casting. The server logs how many levels the playlist offers and which level each segment belongs to.
+
+### Fixed
+- Chromecast confirms it loaded the requested media before MBL releases local playback. Adaptive Cast prepares the initial fragment and the resume fragment at both quality levels.
+- Player controls wrap on narrow screens. Subtitle and speed menus and the diagnostics panel fit within the mobile viewport.
+
 ## [1.3.4] - 2026-11-08
 
 ### Added

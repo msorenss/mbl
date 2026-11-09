@@ -376,6 +376,23 @@ it("preserves current audio on Cast changes and ignores an unavailable optional 
     playerState: "paused",
   };
   emit(state);
+  const quality = document.querySelector("#player-quality") as HTMLSelectElement;
+  expect(quality.disabled).toBe(false);
+  quality.value = "2000000";
+  quality.dispatchEvent(new Event("change", { bubbles: true }));
+  await tick();
+  await tick();
+  expect(quality.value).toBe("2000000");
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({
+      body: expect.objectContaining({
+        profile: "chromecast",
+        startMs: 123000,
+        maxBitrate: 2000000,
+      }),
+    }),
+  );
   const audio = document.querySelector("#player-audio-track") as HTMLSelectElement;
   audio.value = "3";
   audio.dispatchEvent(new Event("change", { bubbles: true }));
@@ -388,6 +405,7 @@ it("preserves current audio on Cast changes and ignores an unavailable optional 
         profile: "chromecast",
         audioStreamIndex: 3,
         startMs: 123000,
+        maxBitrate: 2000000,
       }),
     }),
   );

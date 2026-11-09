@@ -1015,3 +1015,125 @@ dialog[open],
     margin-top: 0 !important;
   }
 }
+
+.mbl-player-header {
+  padding: max(24px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) 24px
+    max(32px, env(safe-area-inset-left));
+}
+
+.mbl-player-heading,
+.mbl-player-title,
+.mbl-player-settings {
+  min-width: 0;
+}
+
+.mbl-player-title {
+  overflow-wrap: anywhere;
+}
+
+.mbl-player-heading > button {
+  flex-shrink: 0;
+}
+
+.mbl-player-controls {
+  padding: 24px max(32px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom))
+    max(32px, env(safe-area-inset-left));
+}
+
+.mbl-player-settings {
+  display: grid;
+  gap: 4px;
+}
+
+.mbl-player-settings select {
+  width: 100%;
+  min-width: 0;
+}
+
+.mbl-player-transport {
+  gap: 16px;
+}
+
+.mbl-player-options {
+  gap: 14px;
+}
+
+.mbl-player-menu-anchor {
+  position: relative;
+}
+
+.mbl-player-menu {
+  max-height: min(45dvh, 320px);
+  overflow: auto;
+}
+
+.mbl-player-stats {
+  top: max(80px, calc(env(safe-area-inset-top) + 50px));
+  left: max(32px, env(safe-area-inset-left));
+  width: min(380px, calc(100% - 64px));
+  max-height: min(70dvh, calc(100dvh - 96px - env(safe-area-inset-bottom)));
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px), (max-height: 480px) {
+  .mbl-player-header {
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px
+      max(12px, env(safe-area-inset-left));
+  }
+
+  .mbl-player-title > div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mbl-player-controls {
+    padding: 10px max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
+
+  .mbl-player-button-row,
+  .mbl-player-options,
+  .mbl-player-transport {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .mbl-player-options {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mbl-player-settings {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .mbl-player-settings select {
+    /* Keeps the browser from zooming the layout when a control receives focus. */
+    font-size: max(16px, 1em);
+  }
+
+  .mbl-player-menu-anchor {
+    position: static;
+  }
+
+  .mbl-player-menu {
+    margin-inline-end: 0;
+    max-width: 100%;
+  }
+
+  .mbl-player-stats {
+    left: max(12px, env(safe-area-inset-left));
+    width: min(380px, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  }
+}
+
+@media (max-width: 560px) {
+  .mbl-player-options,
+  .mbl-player-settings {
+    flex-basis: 100%;
+  }
+}

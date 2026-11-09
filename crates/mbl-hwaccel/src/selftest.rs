@@ -270,7 +270,8 @@ pub fn compute_capacity(
 
     let can_tonemap = probe.can_tonemap_on_backend(&preferred_backend, fp.profile);
     let supports_abr_ladder = !fp.profile.is_pi_or_arm()
-        && matches!(preferred_backend.as_str(), "vaapi" | "qsv" | "nvenc" | "d3d11Amf");
+        && (matches!(preferred_backend.as_str(), "vaapi" | "qsv" | "nvenc" | "d3d11Amf")
+            || (preferred_backend == "software" && fp.arch == "x86_64" && fp.cpu_cores >= 4));
 
     let max_video_sessions = estimate_max_sessions(fp, &preferred_backend, results);
     let available_video_sessions = max_video_sessions.saturating_sub(active_video_sessions);

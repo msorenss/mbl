@@ -894,6 +894,7 @@ Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 2026-11-08 | Playback performance phase 4 | Prepare the local HLS remux resume fragment immediately, retain Cast head startup, measure loopback and provide synthetic Cast clips | perf(playback): prepare the HLS remux resume fragment
 2026-11-08 | v1.3.3 | Windows service cleanup, library media previews, and available episodes in Up Next | release: v1.3.3
 2026-11-08 | v1.3.4 | Windows HLS cache throttling, Cast subtitle handoff and error diagnostics, NVENC driver warning | release: v1.3.4
+2026-11-09 | v1.3.5 | Adaptive browser and Cast playback, mobile player scaling, and Cast startup confirmation | release: v1.3.5
 ```
 
 ---
