@@ -84,6 +84,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-09 — SQLite-fix för release v1.3.5
+- CI:s beroendegranskning stoppade första försöket på RUSTSEC-2026-0459. `vendor/sqlx-sqlite` använder källkoden från crates.io-version 0.9.0 med uppdaterat beroende till `libsqlite3-sys` 0.39.1, som paketerar SQLite 3.54.1.
+- Lokal `cargo deny` passerade. Ta bort Cargo-patchen och den lokala kopian när en publicerad SQLx-version tillåter den korrigerade SQLite-versionen.
+
 ### 2026-11-09 — Adaptiv uppspelning för Google Cast
 - Chromecast kan använda samma begränsade H.264-stege som webbspelaren. För en adaptiv session förbereder servern både första fragmentet och fragmentet vid sparad position i båda kvalitetsnivåerna. Om förberedelsen misslyckas försöker servern med en nivå.
 - Kvalitetstaket följer med vid Cast-anslutning och kan ändras från spelaren under Cast. Paus, ljudspår och undertextval följer med vid omladdningen. Diagnostikloggen visar antal nivåer i masterspellistan och nivån för varje fragment.

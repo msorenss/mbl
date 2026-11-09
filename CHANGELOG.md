@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format is based on 
 - The quality limit carries over to Google Cast and stays available during casting. The server logs how many levels the playlist offers and which level each segment belongs to.
 
 ### Fixed
+- Updated bundled SQLite to 3.54.1 to address CVE-2026-119375.
 - Chromecast confirms it loaded the requested media before MBL releases local playback. Adaptive Cast prepares the initial fragment and the resume fragment at both quality levels.
 - Player controls wrap on narrow screens. Subtitle and speed menus and the diagnostics panel fit within the mobile viewport.
 
