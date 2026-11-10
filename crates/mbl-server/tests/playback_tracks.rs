@@ -52,7 +52,7 @@ async fn stop(app: &TestApp, admin: &str, response: &Value) {
 }
 
 #[tokio::test]
-async fn remux_resume_prepares_the_target_for_web_and_the_head_for_cast() {
+async fn remux_resume_uses_the_generated_timeline_for_cast() {
     let (app, db, services) = TestApp::new_with_services().await;
     let admin = app.setup_admin().await;
     let seeded = seed_playback_fixtures(&app, &db, &admin).await;
@@ -81,9 +81,11 @@ async fn remux_resume_prepares_the_target_for_web_and_the_head_for_cast() {
             "-threads",
             "1",
             "-g",
-            "24",
+            "9999",
             "-sc_threshold",
             "0",
+            "-force_key_frames",
+            "0,7.3,14.8,18.6,24.4,30.2,37.3,43,49.2,55.1",
             "-f",
             "matroska",
         ])
@@ -95,6 +97,7 @@ async fn remux_resume_prepares_the_target_for_web_and_the_head_for_cast() {
     cache_probe(&db, &tools, &path, seeded.movie_part_id).await;
 
     for (profile, first) in [("chrome", 7), ("chromecast", 0)] {
+        let cast = profile == "chromecast";
         let response = app
             .call(
                 Method::POST,
@@ -109,6 +112,7 @@ async fn remux_resume_prepares_the_target_for_web_and_the_head_for_cast() {
         assert_eq!(response.status, StatusCode::OK, "{}", response.body);
         assert_eq!(response.body["method"], "directStream");
         assert_eq!(response.body["startMs"], 43_000);
+        assert_eq!(response.body["hlsGeneratedTimeline"].as_bool(), cast.then_some(true));
         let id = response.body["sessionId"].as_str().unwrap();
         let session = services.stream.hls_session(id).unwrap();
         assert_eq!(session.dir.join("0/0.m4s").is_file(), first == 0);
@@ -117,9 +121,20 @@ async fn remux_resume_prepares_the_target_for_web_and_the_head_for_cast() {
         assert_eq!(session.restart_count().await, 0);
 
         let playlist = session.request_media_playlist("0").await.unwrap();
-        assert!(playlist.contains("#EXT-X-PLAYLIST-TYPE:VOD"));
-        assert!(playlist.contains("#EXT-X-ENDLIST"));
-        assert!(playlist.lines().any(|line| line == "7.m4s"));
+        if cast {
+            assert!(playlist.contains("#EXT-X-PLAYLIST-TYPE:EVENT"));
+            let durations: Vec<f64> = playlist
+                .lines()
+                .filter_map(|line| line.strip_prefix("#EXTINF:"))
+                .map(|line| line.trim_end_matches(',').parse().unwrap())
+                .collect();
+            assert!(durations[0] > 7.0, "the Cast playlist must match the first fragment");
+            assert!(durations.iter().sum::<f64>() >= 55.0, "the resume point needs a buffer");
+        } else {
+            assert!(playlist.contains("#EXT-X-PLAYLIST-TYPE:VOD"));
+            assert!(playlist.contains("#EXT-X-ENDLIST"));
+            assert!(playlist.lines().any(|line| line == "7.m4s"));
+        }
 
         let mut bytes = tokio::fs::read(init).await.unwrap();
         bytes.extend(tokio::fs::read(fragment).await.unwrap());

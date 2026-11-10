@@ -853,7 +853,13 @@ it("prepares a Cast HLS seek target instead of seeking outside the generated tim
     currentTime: 90,
   };
   emit(state);
-  window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+  const seek = document.querySelector<HTMLInputElement>('[aria-label="Seek video"]')!;
+  seek.value = "95";
+  seek.dispatchEvent(new Event("input", { bubbles: true }));
+  expect(cast.requestCastSession).not.toHaveBeenCalled();
+  seek.value = "100";
+  seek.dispatchEvent(new Event("input", { bubbles: true }));
+  seek.dispatchEvent(new Event("change", { bubbles: true }));
   await tick();
   await tick();
   expect(cast.seek).not.toHaveBeenCalled();

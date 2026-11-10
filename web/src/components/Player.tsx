@@ -1214,11 +1214,14 @@ export function Player(props: PlayerProps) {
     }
   };
 
+  const needsCastSeekPreparation = () =>
+    isCasting() && receiverAutoplaySupported() && playbackData()?.hlsGeneratedTimeline === true;
+  const [pendingCastSeek, setPendingCastSeek] = createSignal<number | null>(null);
+
   const seekTo = (targetTime: number) => {
     if (castConnecting() || !Number.isFinite(targetTime)) return;
     targetTime = Math.max(0, Math.min(duration() || targetTime, targetTime));
-    const data = playbackData();
-    if (isCasting() && receiverAutoplaySupported() && data?.hlsGeneratedTimeline === true) {
+    if (needsCastSeekPreparation()) {
       // A growing, actual muxer playlist cannot seek beyond its indexed range.
       // Prepare the target before loading it; keep the old receiver session on failure.
       castDiagnostics.record("control.seek-prepare", { position: targetTime });
@@ -2081,7 +2084,7 @@ export function Player(props: PlayerProps) {
               min={0}
               max={duration() || 100}
               step={0.5}
-              value={currentTime()}
+              value={pendingCastSeek() ?? currentTime()}
               aria-label={isAudioOnly() ? "Seek audio" : "Seek video"}
               onPointerMove={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
@@ -2094,10 +2097,19 @@ export function Player(props: PlayerProps) {
               }}
               onPointerLeave={() => setPreviewTime(null)}
               onFocus={(event) => setPreviewTime(Number(event.currentTarget.value) * 1000)}
-              onBlur={() => setPreviewTime(null)}
+              onBlur={() => {
+                setPreviewTime(null);
+                setPendingCastSeek(null);
+              }}
               onInput={(event) => {
-                handleSeek(event);
+                if (needsCastSeekPreparation())
+                  setPendingCastSeek(Number(event.currentTarget.value));
+                else handleSeek(event);
                 setPreviewTime(Number(event.currentTarget.value) * 1000);
+              }}
+              onChange={(event) => {
+                if (needsCastSeekPreparation()) handleSeek(event);
+                setPendingCastSeek(null);
               }}
               style={{
                 width: "100%",

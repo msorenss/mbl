@@ -8,7 +8,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.5` (2026-11-09; adaptive HLS for browsers and Cast, mobile player controls, and Cast startup diagnostics).
+- Release prepared: `v1.3.6` (2026-11-10; Cast remux segment timing and seek handling).
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -83,6 +83,12 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-10 — Faktiska segmentlängder för Cast-remux
+- Versionsmetadata, Windows MSI och changelog är förberedda för v1.3.6. Fysisk verifiering av Cast-fixen återstår.
+- Windows-fångsten visar att MBL:s uppskattade lista annonserade 6 sekunder för varje fragment medan FFmpeg skrev 7,341, 7,465, 3,796 och 5,797 sekunder. En separat Cast-logg vid 15:14 visar samma uteblivna laddning som tidigare.
+- Google Cast med kopierad video och `waitForReady` får nu FFmpegs EVENT-spellista. Servern förbereder den faktiska tidslinjen till förbi återupptagningspositionen. Fragment som finns kvar i EVENT-listan undantas från delvis cacherensning. Den globala kvoten gäller fortfarande.
+- Spolning med tidsreglaget förbereder målet när användaren släpper reglaget. Verifiera Automatisk och 8 Mbps från noll och sparad position på Bedroom TV med nästa bygge.
 
 ### 2026-11-09 — SQLite-fix för release v1.3.5
 - CI:s beroendegranskning stoppade första försöket på RUSTSEC-2026-0459. `vendor/sqlx-sqlite` använder källkoden från crates.io-version 0.9.0 med uppdaterat beroende till `libsqlite3-sys` 0.39.1, som paketerar SQLite 3.54.1.

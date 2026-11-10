@@ -513,6 +513,9 @@ impl PlaybackService {
         let markers = self.load_markers(part.item_id, part.id, &media_info).await;
 
         let _starting = PlaybackStarting::new(self.starting.clone());
+        let generated_playlist = req.wait_for_ready
+            && profile.name.eq_ignore_ascii_case("chromecast")
+            && matches!(decision.video, StreamAction::Copy);
         let (session_id, url, is_hls) = match decision.method {
             PlayMethod::DirectPlay => {
                 if req.wait_for_ready {
@@ -537,7 +540,7 @@ impl PlaybackService {
                         &decision,
                         &ctx,
                         &profile,
-                        false,
+                        generated_playlist,
                         req.wait_for_ready
                             && (profile.name == "chromecast"
                                 || (matches!(&req.profile, Some(PlaybackProfileInput::Overlay(p)) if p.browser_codecs.is_some())
@@ -672,7 +675,7 @@ impl PlaybackService {
             })
             .collect();
         Ok(PlaybackResponse {
-            hls_generated_timeline: None,
+            hls_generated_timeline: (is_hls && generated_playlist).then_some(true),
             has_video: media_info.primary_video().is_some(),
             audio_tracks,
             audio_stream_index,

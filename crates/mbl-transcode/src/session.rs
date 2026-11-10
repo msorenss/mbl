@@ -1115,10 +1115,13 @@ impl SessionManager {
         sessions.sort_by_key(|(last, _, _)| *last);
 
         // Pass 1: delete segments strictly older than `last_requested_segment.saturating_sub(1)`.
-        // The generated playlist uses MAX as a sentinel while preparing; no
-        // segment has been consumed in that state.
+        // Generated EVENT playlists keep advertising every published segment.
+        // Removing one would leave an unrecoverable hole in the playlist.
         for (_, last_req, session) in &sessions {
-            if *last_req > 1 && *last_req != u32::MAX {
+            if *last_req > 1
+                && *last_req != u32::MAX
+                && session.generated_playlist_start_ms.is_none()
+            {
                 for idx in 0..session.base_pipeline.output.renditions.len() {
                     let r_dir = session.base_pipeline.output.rendition_dir(idx);
                     for seg in 0..(last_req - 1) {

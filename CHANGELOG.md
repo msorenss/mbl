@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-11-10
+
+### Fixed
+- Chromecast remux playback uses the segment durations produced by FFmpeg and keeps published segments available for the life of the session.
+- The Cast seek slider prepares playback at the selected position when the seek is committed.
+
 ## [1.3.5] - 2026-11-09
 
 ### Added

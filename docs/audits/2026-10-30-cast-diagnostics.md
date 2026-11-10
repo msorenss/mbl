@@ -174,6 +174,20 @@ the prepared position. The exported log also records the selected subtitle
 index and the result of paused progress requests. Repeat the same subtitle
 and pause sequence on Bedroom TV to verify A/V sync and resume.
 
+## 2026-11-10 Windows capture confirms mismatched segment durations
+
+The advertised media playlist listed four 6-second fragments and a target
+duration of 10. FFmpeg listed the corresponding durations as 7.341, 7.465,
+3.796 and 5.797 seconds, with a target duration of 8 at capture time. A
+separate attempt for item 192 at 914.527 seconds accepted LOAD but stayed
+unloaded until the sender timed out.
+
+Cast remux sessions that request playback readiness now serve the generated
+EVENT playlist. FFmpeg writes from source zero and prepares the indexed resume
+point before LOAD. The server preserves the fragments it advertises while the
+session remains active. Physical retesting is needed to check whether this
+resolves the receiver's startup failure.
+
 ## Broader diagnostic trail — follow-up after Cast
 
 User proposed a shared trail for all functions after Cast works. This is a
