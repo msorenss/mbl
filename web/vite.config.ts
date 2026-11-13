@@ -22,6 +22,15 @@ const buildDate = `${new Date().toISOString().slice(0, 19).replace("T", " ")} UT
 
 export default defineConfig({
   plugins: [solid()],
+  build: {
+    target: "chrome80",
+    rolldownOptions: {
+      input: {
+        app: path.resolve(__dirname, "index.html"),
+        receiver: path.resolve(__dirname, "cast-receiver/index.html"),
+      },
+    },
+  },
   define: {
     __MBL_VERSION__: JSON.stringify(version),
     __MBL_GIT_COMMIT__: JSON.stringify(commit),

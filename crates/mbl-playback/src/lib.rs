@@ -11,3 +11,5 @@ pub use profile::{
     BUILTIN_PROFILES, CodecLimit, DeviceProfile, DeviceProfileOverlay, DirectPlayRule,
     SubtitleMethod, SubtitleRule, TranscodeTarget,
 };
+
+pub mod cast_profiles;

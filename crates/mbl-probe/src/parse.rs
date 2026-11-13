@@ -45,6 +45,7 @@ struct RawStream {
     width: Option<u32>,
     height: Option<u32>,
     pix_fmt: Option<String>,
+    sample_aspect_ratio: Option<String>,
     bits_per_raw_sample: Option<String>,
     avg_frame_rate: Option<String>,
     r_frame_rate: Option<String>,
@@ -141,6 +142,17 @@ fn stream(raw: RawStream) -> Option<StreamInfo> {
         width: raw.width.filter(|_| is_video),
         height: raw.height.filter(|_| is_video),
         bit_depth: if is_video { bit_depth(&raw) } else { None },
+        square_pixels_unrotated: Some(
+            raw.sample_aspect_ratio.as_deref().is_none_or(|sar| sar == "1:1")
+                && tag(&raw.tags, "rotate").is_none_or(|v| {
+                    v.parse::<f64>().is_ok_and(|n| n.is_finite() && n % 360.0 == 0.0)
+                })
+                && raw.side_data_list.iter().all(|s| {
+                    s.get("rotation").is_none_or(|r| {
+                        r.as_f64().is_some_and(|n| n.is_finite() && n % 360.0 == 0.0)
+                    })
+                }),
+        ),
         frame_rate: if is_video {
             parse_rate(raw.avg_frame_rate.as_deref())
                 .or_else(|| parse_rate(raw.r_frame_rate.as_deref()))

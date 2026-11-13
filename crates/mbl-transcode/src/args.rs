@@ -56,11 +56,25 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
                 push_pair(&mut args, "-tag:v", "hvc1");
             }
         }
-        VideoOp::Encode { codec, width, max_bitrate, deinterlace, tonemap } => {
+        VideoOp::Encode {
+            codec,
+            width,
+            max_bitrate,
+            max_frame_rate,
+            bounds,
+            deinterlace,
+            tonemap,
+        } => {
             match &p.subtitle {
                 SubtitleOp::BurnImage { index } => {
-                    let graph =
-                        build_burn_image_graph(p.backend, *deinterlace, *tonemap, *width, *index)?;
+                    let graph = build_burn_image_graph(
+                        p.backend,
+                        *deinterlace,
+                        *tonemap,
+                        *width,
+                        *bounds,
+                        *index,
+                    )?;
                     push_pair(&mut args, "-filter_complex", &graph);
                     push_pair(&mut args, "-map", "[vout]");
                 }
@@ -70,6 +84,7 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
                         *deinterlace,
                         *tonemap,
                         *width,
+                        *bounds,
                         Some((p.input.as_str(), *index)),
                     )?;
                     push_pair(&mut args, "-map", "0:v:0");
@@ -81,6 +96,7 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
                         *deinterlace,
                         *tonemap,
                         *width,
+                        *bounds,
                         Some((path.as_str(), 0)),
                     )?;
                     push_pair(&mut args, "-map", "0:v:0");
@@ -92,6 +108,7 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
                         *deinterlace,
                         *tonemap,
                         *width,
+                        *bounds,
                         None,
                     )?;
                     push_pair(&mut args, "-map", "0:v:0");
@@ -99,6 +116,9 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
                 }
             }
 
+            if let Some(fps) = max_frame_rate {
+                push_pair(&mut args, "-r:v", &fps.to_string());
+            }
             push_video_encoder(
                 &mut args,
                 p.backend,
@@ -282,6 +302,9 @@ fn build_abr_ladder_args(
 
     for (i, r) in p.output.renditions.iter().enumerate() {
         push_pair(args, "-map", &format!("[v{i}]"));
+        if let VideoOp::Encode { max_frame_rate: Some(fps), .. } = &p.video {
+            push_pair(args, "-r:v", &fps.to_string());
+        }
         push_video_encoder(args, p.backend, codec, r.max_bitrate, p.output.segment_secs, caps);
         if p.backend == Backend::Software {
             push_pair(args, "-threads:v", &caps.threads.unwrap_or(2).min(2).to_string());
@@ -313,6 +336,23 @@ fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
     }
     if p.output.dir.as_str().is_empty() || p.output.dir.as_str().contains('\0') {
         return Err(Error::Validation("pipeline output dir is invalid".into()));
+    }
+    if let VideoOp::Encode { max_frame_rate: Some(fps), .. } = &p.video
+        && !(1..=120).contains(fps)
+    {
+        return Err(Error::Validation("video frame rate must be between 1 and 120".into()));
+    }
+    if let VideoOp::Encode { bounds: Some((w, h)), .. } = &p.video {
+        if !(2..=8192).contains(w) || !(2..=8192).contains(h) || w % 2 != 0 || h % 2 != 0 {
+            return Err(Error::Validation(
+                "video bounds must be even dimensions between 2 and 8192".into(),
+            ));
+        }
+        if p.output.renditions.len() != 1 {
+            return Err(Error::Validation(
+                "bounded geometry currently requires one rendition".into(),
+            ));
+        }
     }
     if p.output.segment_secs == 0 {
         return Err(Error::Validation("HLS segment_secs must be >= 1".into()));
@@ -400,6 +440,14 @@ fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
     Ok(())
 }
 
+// `dar` and `sar` refer to the frame after FFmpeg autorotation. Normalize
+// anamorphic pixels without upscaling the displayed source, then fit both axes.
+fn bounded_scale(w: u32, h: u32) -> String {
+    format!(
+        r"scale=w=max(2\,trunc(min(iw*sar\,min({w}\,{h}*dar))/2)*2):h=max(2\,trunc(ow/dar/2)*2),setsar=1"
+    )
+}
+
 fn software_tonemap_chain() -> String {
     "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
         .to_owned()
@@ -410,8 +458,32 @@ fn build_video_filter_chain_for_backend(
     deinterlace: bool,
     tonemap: bool,
     width: Option<u32>,
+    bounds: Option<(u32, u32)>,
     burn_text: Option<(&str, u32)>,
 ) -> Result<String> {
+    if let Some((w, h)) = bounds {
+        let mut chain =
+            build_video_filter_chain_for_backend(backend, deinterlace, tonemap, None, None, None)?;
+        let (download, upload) = match backend {
+            Backend::Vaapi => (",hwdownload,format=nv12", ",format=nv12,hwupload"),
+            Backend::Qsv => {
+                (",hwdownload,format=nv12", ",format=nv12,hwupload=extra_hw_frames=64,format=qsv")
+            }
+            Backend::Nvenc if tonemap => (",hwdownload,format=nv12", ",format=nv12,hwupload_cuda"),
+            Backend::Nvenc => (",hwdownload,format=yuv420p", ",format=yuv420p,hwupload_cuda"),
+            _ => ("", ""),
+        };
+        chain.push_str(download);
+        chain.push(',');
+        chain.push_str(&bounded_scale(w, h));
+        if let Some((path, index)) = burn_text {
+            chain
+                .push_str(&format!(",subtitles=filename={}:si={index}", escape_filter_path(path)?));
+        }
+        chain.push_str(upload);
+        validate_filter_graph(&chain)?;
+        return Ok(chain);
+    }
     let mut filters: Vec<String> = Vec::with_capacity(6);
     match backend {
         Backend::Vaapi => {
@@ -506,10 +578,14 @@ fn build_burn_image_graph(
     deinterlace: bool,
     tonemap: bool,
     width: Option<u32>,
+    bounds: Option<(u32, u32)>,
     subtitle_stream_index: u32,
 ) -> Result<String> {
     let mut tail = String::from("overlay=eof_action=pass");
-    if let Some(w) = width {
+    if let Some((w, h)) = bounds {
+        tail.push(',');
+        tail.push_str(&bounded_scale(w, h));
+    } else if let Some(w) = width {
         tail.push_str(&format!(",scale=w={w}:h=-2"));
     }
     match backend {

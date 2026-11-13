@@ -30,6 +30,11 @@ pub enum VideoOp {
         codec: VideoCodec,
         width: Option<u32>,
         max_bitrate: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_frame_rate: Option<u32>,
+        /// Fit display geometry into this box and normalize to square pixels.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bounds: Option<(u32, u32)>,
         deinterlace: bool,
         tonemap: bool,
     },

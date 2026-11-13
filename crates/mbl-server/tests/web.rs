@@ -85,3 +85,20 @@ async fn pwa_manifest_and_service_worker_served_with_expected_headers() {
     let sw_cc = sw_res.headers().get(CACHE_CONTROL).unwrap().to_str().unwrap();
     assert_eq!(sw_cc, "no-cache");
 }
+
+#[tokio::test]
+async fn cast_receiver_served_without_login_and_without_stale_html_cache() {
+    let (server, _dir) = test_server().await;
+    let res = server
+        .router
+        .oneshot(Request::get("/cast-receiver/index.html").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(CACHE_CONTROL).unwrap(), "no-cache");
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let html = String::from_utf8_lossy(&bytes);
+    assert!(html.contains("cast-media-player"));
+    assert!(html.contains("caf_receiver/v3/cast_receiver_framework.js"));
+    assert!(!html.contains("id=\"root\""));
+}

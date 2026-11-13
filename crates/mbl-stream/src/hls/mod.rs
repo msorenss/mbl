@@ -1,6 +1,8 @@
 //! HLS playlists and segment response helpers (`master.m3u8`, `index.m3u8`, `init.mp4`, `{n}.m4s`).
 
+mod avc;
 pub mod playlist;
+pub use avc::avc_init_metadata;
 
 use std::path::Path;
 

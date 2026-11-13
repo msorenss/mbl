@@ -2,7 +2,13 @@
 
 Webbspelaren använder Google Cast Web Sender SDK med Default Media Receiver
 (`CC1AD845`) och webbläsarens Remote Playback API som fallback. MBL har ingen
-egen receiver. Fysisk mottagaracceptans återstår.
+egen receiver. För verifierade enheter, kända begränsningar och exakt
+felsökningsflöde, se [Cast-driftguiden](../../audits/cast-runbook.md).
+
+**Läge 2026-11-12:** Bedroom display spelar den testade filen vid 2 Mbps,
+även efter textspårsbyte. Automatisk fungerar ännu inte enligt användaren.
+Använd 2 Mbps som tillfällig inställning för denna fil; det är ingen garanti
+för alla filer eller mottagare. Automatisk är inte samma sak som adaptiv HLS.
 
 ## Användning
 
@@ -18,16 +24,18 @@ bevaras vid nästa ljudsynk-/spårbyte. Inbrända undertexter omförhandlas i vi
 och skickas inte som externa SDK-textspår. Ljudsynk mellan −10 och +10 sekunder justeras i serverns ljudström
 (negativt tidigarelägger, positivt fördröjer) och följer med till Google Cast.
 Ändring använder mottagarens position och bevarar pausläget; ljudet kodas om,
-medan kompatibel video kopieras. Saknas ledig HLS-kapacitet behålls tidigare
-session och inställning. Om en sparad ljudsynk hindrar den första starten kan
+medan kompatibel video kopieras. Vid uttryckligt kapacitetsfel frigör den aktuella arbetskopian tidigare
+session och provar en gång till. Misslyckad ersättning efter frigjord
+kapacitet återställer lokal uppspelning vid sparad position. Om en sparad ljudsynk hindrar den första starten kan
 du välja **Retry without audio sync** i felvyn; ditt val av återupptagning eller
 start från början bevaras. Native Remote Playback använder befintlig källa och
 reglaget för att ändra ljudsynk är därför spärrat under sådan uppspelning.
-Lokala reglage för hastighet, nattläge och kvalitet är spärrade under casting.
+Lokala reglage för hastighet och nattläge är spärrade under casting.
+Google Cast kan byta kvalitetsgräns genom ny serverförhandling.
 
 Google Cast väntar också på serverns första färdiga HLS-data före laddningen.
-Vid spår- och synkbyte används mottagarens senaste position efter väntan.
-Startfel behåller den tidigare sessionen; detta verifierar inte mottagarens
+Vid HLS-byte används serverns förberedda position.
+Utan kapacitetsöverlämning kan förhandlingsfel behålla tidigare session; detta verifierar inte mottagarens
 åtkomst till adressen eller dess avkodare.
 
 Webbspelaren förnyar också en pausad Cast-session med mottagarens position.
@@ -98,8 +106,9 @@ händelser, städning av medielyssnare, automatisk fortsättning, nollvolym,
 avbrutna anslutningar och korrekt progress/stop. HTTP-regressioner täcker
 ägarisolering, transport, kapacitet och media-CORS.
 
-Fysisk acceptans med representativa filer, seek/resume, undertexter,
-ljudspår, nätavbrott och fortsättning över flera avsnitt återstår.
+Vissa fysiska tester är bekräftade enligt Cast-driftguiden. Full acceptans
+med representativa filer, seek/resume, undertexter, ljudspår, nätavbrott
+och fortsättning över flera avsnitt återstår.
 Se [granskningsrapporten](../../audits/2026-10-27-web-and-service-audit.md).
 
 SDK-referenser: [Media och uppdateringslyssnare](https://developers.google.com/cast/docs/reference/web_sender/chrome.cast.media.Media),
@@ -123,7 +132,7 @@ Tiderna anges både som UTC och millisekunder från försökets början. En acce
 LOAD är separat från mottagarens PLAYING; även PLAYING kan behöva jämföras med
 om positionen faktiskt avancerar. Medielänkar maskerar query/fragment och HLS-/
 live-sessionernas capability-ID. Inga cookies, bearer tokens, lösenord, titlar
-eller enhetsnamn loggas av diagnostiken.
+loggas av diagnostiken. Mottagarens namn loggas i `receiver.selected`.
 
 Loggen ligger endast i den aktuella sidans minne, utan uppladdning eller
 beständig lagring. Den begränsas till 200 händelser: början bevaras tillsammans
@@ -149,8 +158,8 @@ Servern förbereder segment fram till återupptagningspunkten med en liten margi
 En sen start eller sökning kan därför ta längre tid och använda mer temporärt
 utrymme: den kopierade videon och det konverterade ljudet före målpunkten behöver
 indexeras. Förberedelsen begränsas till 60 sekunder och sessionerna omfattas av
-den ordinarie cachekvoten. Ett misslyckat nytt försök ersätter inte en redan
-ansluten mottagares befintliga källa. Spelarens sökknappar förbereder en ny
+den ordinarie cachekvoten. Vid förhandlingsfel behålls normalt befintlig källa, men inte om den redan
+stängts för att frigöra transkodningskapacitet. Spelarens sökknappar förbereder en ny
 Cast-källa vid behov. Direkt uppspelning och native Remote Playback använder
 sina ordinarie sökflöden.
 

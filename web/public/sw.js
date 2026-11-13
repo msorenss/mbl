@@ -37,6 +37,7 @@ self.addEventListener("fetch", (event) => {
 
   // Never intercept API, streaming, artwork, Subsonic, or MCP calls
   if (
+    url.pathname.startsWith("/cast-receiver/") ||
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/stream/") ||
     url.pathname.startsWith("/images/") ||

@@ -1,3 +1,5 @@
+import { TELEMETRY_NAMESPACE } from "./castReceiver";
+import { receiverConfiguration } from "./castReceiverConfig";
 /**
  * Chromecast & Remote Playback Management (M12).
  *
@@ -8,6 +10,7 @@
 
 import client from "../api/client";
 import { castDiagnostics } from "./castDiagnostics";
+import { type CapabilitySession, type CastProfileSelection, queryCastProfile } from "./castProfile";
 
 export interface CastMediaOptions {
   contentId: string; // Absolute or relative stream URL
@@ -61,6 +64,7 @@ export type CastStateListener = (state: {
   isAvailable: boolean;
   isCasting: boolean;
   deviceName: string | null;
+  profileSelection: CastProfileSelection | null;
   playerState: "idle" | "playing" | "paused" | "buffering";
   currentTime: number;
   duration: number;
@@ -100,12 +104,14 @@ declare global {
         CastContext: {
           getInstance: () => {
             setOptions: (opts: Record<string, unknown>) => void;
-            getCurrentSession: () => {
-              getSessionId: () => string;
-              getMediaSession: () => MediaSessionLike | null;
-              getCastDevice: () => { friendlyName?: string };
-              loadMedia: (req: unknown) => Promise<unknown>;
-            } | null;
+            getCurrentSession: () =>
+              | (CapabilitySession & {
+                  getSessionId: () => string;
+                  getMediaSession: () => MediaSessionLike | null;
+                  getCastDevice: () => { friendlyName?: string };
+                  loadMedia: (req: unknown) => Promise<unknown>;
+                })
+              | null;
             requestSession: () => Promise<void>;
             endCurrentSession: (stopCasting: boolean) => void;
             addEventListener?: (event: string, callback: (event: unknown) => void) => void;
@@ -170,6 +176,8 @@ class CastManager {
   private isAvailable = false;
   private isCasting = false;
   private deviceName: string | null = null;
+  private detachTelemetry: (() => void) | null = null;
+  private profileSelection: CastProfileSelection | null = null;
   private playerState: "idle" | "playing" | "paused" | "buffering" = "idle";
   private currentTime = 0;
   private duration = 0;
@@ -311,6 +319,7 @@ class CastManager {
       isAvailable: this.isAvailable,
       isCasting: this.isCasting,
       deviceName: this.deviceName,
+      profileSelection: this.profileSelection,
       playerState: this.playerState,
       currentTime: this.currentTime,
       duration: this.duration,
@@ -382,10 +391,13 @@ class CastManager {
       if (!framework) return;
 
       const castContext = framework.CastContext.getInstance();
-      const defaultAppId = window.chrome?.cast?.media?.DEFAULT_MEDIA_RECEIVER_APP_ID || "CC1AD845";
-
+      const receiver = receiverConfiguration();
+      castDiagnostics.record("receiver.application", {
+        appId: receiver.appId,
+        custom: receiver.custom,
+      });
       castContext.setOptions({
-        receiverApplicationId: defaultAppId,
+        receiverApplicationId: receiver.appId,
         autoJoinPolicy: window.chrome?.cast?.AutoJoinPolicy?.ORIGIN_SCOPED || "origin_scoped",
         resumeSavedSession: true,
       });
@@ -581,6 +593,9 @@ class CastManager {
       wasCasting: this.isCasting,
       requesting: this.requesting,
     });
+    this.profileSelection = null;
+    this.detachTelemetry?.();
+    this.detachTelemetry = null;
     this.detachMedia?.();
     this.detachMedia = null;
     this.playbackEnded = false;
@@ -628,7 +643,7 @@ class CastManager {
   public async requestCastSession(
     media: CastMediaOptions,
     videoElement?: HTMLVideoElement,
-    prepare?: () => Promise<CastMediaOptions>,
+    prepare?: (selection: CastProfileSelection) => Promise<CastMediaOptions>,
   ): Promise<boolean> {
     if (this.requesting) return false;
     castDiagnostics.start();
@@ -697,9 +712,75 @@ class CastManager {
             return false;
           }
 
+          castDiagnostics.record("receiver.selected", {
+            deviceName: session.getCastDevice()?.friendlyName || "Google Cast",
+          });
+
+          this.detachTelemetry?.();
+          this.detachTelemetry = null;
+          if (session.addMessageListener && session.removeMessageListener) {
+            let lastTelemetry = -Infinity;
+            const listener = (namespace: string, raw: string) => {
+              if (
+                namespace !== TELEMETRY_NAMESPACE ||
+                castContext.getCurrentSession() !== session ||
+                typeof raw !== "string" ||
+                raw.length > 2048 ||
+                Date.now() - lastTelemetry < 200
+              )
+                return;
+              try {
+                const data = JSON.parse(raw);
+                if (
+                  data?.schemaVersion !== 1 ||
+                  data.revision !== 1 ||
+                  ![
+                    "ERROR",
+                    "BUFFERING",
+                    "BITRATE_CHANGED",
+                    "PLAYING",
+                    "PAUSE",
+                    "PLAYER_LOAD_COMPLETE",
+                  ].includes(data.event)
+                )
+                  return;
+                const clean: Record<string, number | boolean> = {};
+                for (const key of ["detailedErrorCode", "totalBitrate", "width", "height"]) {
+                  if (
+                    typeof data[key] === "number" &&
+                    Number.isFinite(data[key]) &&
+                    data[key] >= 0 &&
+                    data[key] <= 1e9
+                  )
+                    clean[key] = data[key];
+                }
+                if (typeof data.isBuffering === "boolean") clean.isBuffering = data.isBuffering;
+                lastTelemetry = Date.now();
+                castDiagnostics.record(`receiver.caf.${data.event.toLowerCase()}`, clean);
+              } catch {
+                /* Malformed or oversized diagnostic payloads are discarded. */
+              }
+            };
+            try {
+              session.addMessageListener(TELEMETRY_NAMESPACE, listener);
+              this.detachTelemetry = () => {
+                try {
+                  session.removeMessageListener?.(TELEMETRY_NAMESPACE, listener);
+                } catch {
+                  /* Ended session. */
+                }
+              };
+            } catch {
+              /* Standard receiver has no MBL telemetry namespace. */
+            }
+          }
+          const selection = await queryCastProfile(session);
+          if (generation !== this.generation || castContext.getCurrentSession() !== session)
+            return false;
+          castDiagnostics.record("receiver.profile", { ...selection });
           if (prepare) {
             castDiagnostics.record("prepare.begin");
-            media = await prepare();
+            media = await prepare(selection);
             castDiagnostics.record("prepare.ready", {
               contentType: media.contentType,
               url: media.contentId,
@@ -707,6 +788,7 @@ class CastManager {
             });
           }
           if (generation !== this.generation) return false;
+          if (castContext.getCurrentSession() !== session) return false;
           this.activeItemId = media.itemId ?? null;
           const url = this.toAbsoluteUrl(media.contentId);
           if (["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)) {
@@ -804,9 +886,24 @@ class CastManager {
             tracks: mediaInfo.tracks?.length ?? 0,
             subtitleIndex: hasSelectedTrack ? selected : null,
           });
-          const loadResult = await session.loadMedia(request);
+          let loadTimer: number | undefined;
+          let loadResult: unknown;
+          try {
+            loadResult = await Promise.race([
+              session.loadMedia(request),
+              new Promise<never>((_, reject) => {
+                loadTimer = window.setTimeout(
+                  () => reject(new Error("The Cast receiver did not respond to the load request.")),
+                  30_000,
+                );
+              }),
+            ]);
+          } finally {
+            window.clearTimeout(loadTimer);
+          }
           castDiagnostics.record("load.accepted", { result: loadResult ?? null });
-          const loadDeadline = Date.now() + 15_000;
+          // Allow slow receivers to initialize before declaring a failed handoff.
+          const loadDeadline = Date.now() + 60_000;
           while (generation === this.generation) {
             const loaded = session.getMediaSession();
             if (loaded?.media?.contentId === url) {
@@ -827,7 +924,10 @@ class CastManager {
             castContext.endCurrentSession(true);
             return false;
           }
+          if (castContext.getCurrentSession() !== session) return false;
           this.isCasting = true;
+          // Raw online URLs are not constrained by server profile negotiation.
+          this.profileSelection = prepare ? selection : null;
           this.deviceName = session.getCastDevice()?.friendlyName || "Google Cast";
           this.castSessionId ??= `cast-${crypto.randomUUID()}`;
           this.currentTime = media.currentTime ?? 0;

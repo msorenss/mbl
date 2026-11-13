@@ -37,6 +37,9 @@ MediaInfo {
             frame_rate: Some(
                 24.0,
             ),
+            square_pixels_unrotated: Some(
+                true,
+            ),
             interlaced: false,
             hdr: None,
             channels: None,
@@ -60,6 +63,9 @@ MediaInfo {
             height: None,
             bit_depth: None,
             frame_rate: None,
+            square_pixels_unrotated: Some(
+                true,
+            ),
             interlaced: false,
             hdr: None,
             channels: Some(

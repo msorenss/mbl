@@ -12,8 +12,24 @@ const GENERIC_HLS_TOML: &str = include_str!("../profiles/generic-hls.toml");
 const ANDROID_EXOPLAYER_TOML: &str = include_str!("../profiles/android-exoplayer.toml");
 
 /// Names of all built-in device profiles.
-pub const BUILTIN_PROFILES: &[&str] =
-    &["chrome", "firefox", "safari", "edge", "generic-hls", "chromecast", "android-exoplayer"];
+pub const BUILTIN_PROFILES: &[&str] = &[
+    "chrome",
+    "firefox",
+    "safari",
+    "edge",
+    "generic-hls",
+    "chromecast",
+    "android-exoplayer",
+    "cast-safe-720",
+    "nest-hub",
+    "nest-hub-max",
+    "chromecast-legacy",
+    "chromecast-gen3",
+    "chromecast-ultra",
+    "google-tv-hd",
+    "google-tv-4k",
+    "google-tv-streamer",
+];
 
 /// Full capability description of a playback client (Appendix A.7).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -158,6 +174,20 @@ pub struct DeviceProfileOverlay {
 }
 
 impl DeviceProfile {
+    pub fn is_cast(&self) -> bool {
+        self.name.eq_ignore_ascii_case("chromecast")
+            || !crate::cast_profiles::modes(&self.name).is_empty()
+    }
+
+    /// Maximum supported frame rate at the encoded dimensions.
+    pub fn cast_frame_rate(&self, width: u32, height: u32) -> Option<u32> {
+        crate::cast_profiles::modes(&self.name)
+            .iter()
+            .filter(|(w, h, _)| width <= *w && height <= *h)
+            .map(|(_, _, fps)| *fps)
+            .max()
+    }
+
     /// Parse and validate a `DeviceProfile` from TOML text.
     pub fn from_toml(src: &str) -> Result<Self> {
         let profile: Self = toml::from_str(src)
@@ -168,6 +198,16 @@ impl DeviceProfile {
 
     /// Look up one of the built-in profiles (`chrome`, `firefox`, `safari`, `edge`, `generic-hls`).
     pub fn builtin(name: &str) -> Result<Self> {
+        let normalized = name.trim().to_ascii_lowercase();
+        if let Some(&(width, height, _)) = crate::cast_profiles::modes(&normalized).first() {
+            let mut profile = Self::from_toml(GENERIC_HLS_TOML)?;
+            profile.name = normalized;
+            let limit = &mut profile.codec_limits[0];
+            limit.max_width = Some(width);
+            limit.max_height = Some(height);
+            limit.max_level = Some(crate::cast_profiles::level(&profile.name));
+            return Ok(profile);
+        }
         if name.eq_ignore_ascii_case("chromecast") {
             let mut profile = Self::from_toml(GENERIC_HLS_TOML)?;
             profile.name = "chromecast".into();
@@ -284,6 +324,26 @@ impl DeviceProfile {
 
     /// Merge a dynamic client overlay over `self`, validating the resulting profile.
     pub fn merge(&self, overlay: DeviceProfileOverlay) -> Result<Self> {
+        if !crate::cast_profiles::modes(&self.name).is_empty() {
+            // Server-owned profiles cannot be widened or renamed by an overlay.
+            if overlay.name != self.name
+                || overlay.browser_codecs.is_some()
+                || overlay.direct_play.is_some()
+                || overlay.codec_limits.is_some()
+                || overlay.transcode_target.is_some()
+                || overlay.subtitles.is_some()
+                || overlay.max_audio_channels.is_some()
+            {
+                return Err(Error::Validation("Cast capability profiles are server-owned".into()));
+            }
+            let mut merged = self.clone();
+            merged.max_bitrate = overlay.max_bitrate;
+            merged.validate()?;
+            return Ok(merged);
+        }
+        if !crate::cast_profiles::modes(&overlay.name).is_empty() {
+            return Err(Error::Validation("Cast profile cannot alias a different base".into()));
+        }
         let mut merged = self.clone();
         if !overlay.name.trim().is_empty() {
             merged.name = overlay.name;

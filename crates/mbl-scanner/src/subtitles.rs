@@ -68,6 +68,7 @@ pub fn discover_sidecars(media_path: &Path, next_stream_index: u32) -> Vec<Strea
             width: None,
             height: None,
             bit_depth: None,
+            square_pixels_unrotated: Some(true),
             frame_rate: None,
             interlaced: false,
             hdr: None,

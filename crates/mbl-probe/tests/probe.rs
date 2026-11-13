@@ -108,3 +108,14 @@ async fn missing_binary_is_unavailable() {
     let err = FfTools::locate("/nonexistent/ffmpeg", "/nonexistent/ffprobe").await.unwrap_err();
     assert!(matches!(err, mbl_core::Error::Unavailable(_)));
 }
+
+#[test]
+fn probe_flags_geometry_that_needs_normalization() {
+    for (sar, rotation, expected) in
+        [("1:1", 0, true), ("16:15", 0, false), ("1:1", 90, false), ("N/A", 0, false)]
+    {
+        let raw = serde_json::json!({"format":{},"streams":[{"index":0,"codec_type":"video","codec_name":"h264", "width":128,"height":72,"sample_aspect_ratio":sar,"side_data_list":[{"rotation":rotation}]}]});
+        let info = mbl_probe::parse_ffprobe_json(&serde_json::to_vec(&raw).unwrap()).unwrap();
+        assert_eq!(info.primary_video().unwrap().square_pixels_unrotated, Some(expected));
+    }
+}

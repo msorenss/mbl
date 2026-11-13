@@ -22,7 +22,7 @@ pub async fn static_handler(uri: Uri, headers: HeaderMap) -> Response {
         } else {
             mime_guess::from_path(path).first_or_octet_stream().to_string()
         };
-        let cache_control = if path == "sw.js" || path == "index.html" {
+        let cache_control = if path == "sw.js" || path.ends_with(".html") {
             "no-cache"
         } else if path.starts_with("assets/") {
             "public, max-age=31536000, immutable"

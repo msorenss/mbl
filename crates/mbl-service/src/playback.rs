@@ -51,6 +51,14 @@ impl PlaybackProfileInput {
             Self::Named(name) => DeviceProfile::builtin(name),
             Self::Full(profile) => {
                 profile.validate()?;
+                if !mbl_playback::cast_profiles::modes(&profile.name.to_ascii_lowercase())
+                    .is_empty()
+                    && **profile != DeviceProfile::builtin(&profile.name)?
+                {
+                    return Err(Error::Validation(
+                        "Cast capability profiles are server-owned".into(),
+                    ));
+                }
                 Ok((**profile).clone())
             }
             Self::Overlay(overlay) => (**overlay).clone().resolve(),
@@ -472,6 +480,10 @@ impl PlaybackService {
             None => DeviceProfile::builtin("chrome")?,
         };
         let ctx = self.build_decision_context(&req).await;
+        if !mbl_playback::cast_profiles::modes(&profile.name).is_empty() {
+            tracing::info!(profile = %profile.name, revision = mbl_playback::cast_profiles::REVISION,
+                "Server-owned Cast capability profile selected");
+        }
         let (part, media_info, mut decision) = self.select_best_part(&req, &profile, &ctx).await?;
 
         if !actor.can_access_library(part.library_id) {
@@ -513,9 +525,8 @@ impl PlaybackService {
         let markers = self.load_markers(part.item_id, part.id, &media_info).await;
 
         let _starting = PlaybackStarting::new(self.starting.clone());
-        let generated_playlist = req.wait_for_ready
-            && profile.name.eq_ignore_ascii_case("chromecast")
-            && matches!(decision.video, StreamAction::Copy);
+        let generated_playlist =
+            req.wait_for_ready && profile.is_cast() && matches!(decision.video, StreamAction::Copy);
         let (session_id, url, is_hls) = match decision.method {
             PlayMethod::DirectPlay => {
                 if req.wait_for_ready {
@@ -542,7 +553,7 @@ impl PlaybackService {
                         &profile,
                         generated_playlist,
                         req.wait_for_ready
-                            && (profile.name == "chromecast"
+                            && (profile.is_cast()
                                 || (matches!(&req.profile, Some(PlaybackProfileInput::Overlay(p)) if p.browser_codecs.is_some())
                                     && matches!(profile.name.as_str(), "chrome" | "edge" | "firefox" | "safari" | "generic-hls"))),
                         start_ms,
@@ -648,7 +659,7 @@ impl PlaybackService {
             return Err(Error::Unavailable("playback server is shutting down".into()));
         }
         let receiver_url = |path: String| -> String {
-            if profile.name == "chromecast"
+            if profile.is_cast()
                 && let Some(base) = &self.public_url
             {
                 format!("{base}{path}")
@@ -964,6 +975,7 @@ impl PlaybackService {
                         width: None,
                         height: None,
                         bit_depth: None,
+                        square_pixels_unrotated: Some(true),
                         frame_rate: None,
                         interlaced: false,
                         hdr: None,
@@ -993,6 +1005,7 @@ impl PlaybackService {
                     width: Some(1920),
                     height: Some(1080),
                     bit_depth: Some(8),
+                    square_pixels_unrotated: Some(true),
                     frame_rate: Some(24.0),
                     interlaced: false,
                     hdr: None,
@@ -1014,6 +1027,7 @@ impl PlaybackService {
                     width: None,
                     height: None,
                     bit_depth: None,
+                    square_pixels_unrotated: Some(true),
                     frame_rate: None,
                     interlaced: false,
                     hdr: None,
@@ -1039,6 +1053,7 @@ impl PlaybackService {
                     width: (ds.kind == StreamKind::Video).then_some(1920),
                     height: (ds.kind == StreamKind::Video).then_some(1080),
                     bit_depth: (ds.kind == StreamKind::Video).then_some(8),
+                    square_pixels_unrotated: None,
                     frame_rate: (ds.kind == StreamKind::Video).then_some(24.0),
                     interlaced: false,
                     hdr: None,
@@ -1148,6 +1163,14 @@ impl PlaybackService {
                     .or_else(|| media_info.streams_of(StreamKind::Audio).next())
             });
 
+        if !mbl_playback::cast_profiles::modes(&profile.name).is_empty()
+            && video_stream
+                .is_some_and(|v| v.width.is_none_or(|w| w == 0) || v.height.is_none_or(|h| h == 0))
+        {
+            return Err(Error::Validation(
+                "Cast profile requires known video dimensions; rescan the file".into(),
+            ));
+        }
         let selected_backend = ctx
             .hw
             .as_ref()
@@ -1164,6 +1187,26 @@ impl PlaybackService {
             }
             StreamAction::Copy => VideoOp::Copy,
             StreamAction::Transcode { codec, bitrate, width } => VideoOp::Encode {
+                bounds: if !mbl_playback::cast_profiles::modes(&profile.name).is_empty() {
+                    profile.codec_limit(codec).and_then(|l| {
+                        Some((width.unwrap_or(l.max_width?).min(l.max_width?), l.max_height?))
+                    })
+                } else {
+                    None
+                },
+                max_frame_rate: video_stream.and_then(|v| {
+                    let w = width.or(v.width)?;
+                    let source_w = v.width?.max(1);
+                    let h =
+                        (u64::from(v.height?) * u64::from(w)).div_ceil(u64::from(source_w)) as u32;
+                    profile.cast_frame_rate(w, h).filter(|max| {
+                        v.square_pixels_unrotated.is_none()
+                            || v.interlaced
+                            || v.frame_rate.is_none_or(|fps| {
+                                !fps.is_finite() || fps <= 0.0 || fps > *max as f32
+                            })
+                    })
+                }),
                 codec: codec.parse::<VideoCodec>().unwrap_or(VideoCodec::H264),
                 width: *width,
                 max_bitrate: *bitrate,
@@ -1260,6 +1303,7 @@ impl PlaybackService {
         // Start with two bounded H.264 encodes. Keep the original path for
         // remux, burn-in, costly filters and larger software encodes.
         if allow_adaptive
+            && mbl_playback::cast_profiles::modes(&profile.name).is_empty()
             && (selected_backend.is_gpu()
                 || (selected_backend == Backend::Software
                     && cfg!(target_arch = "x86_64")
@@ -1286,18 +1330,18 @@ impl PlaybackService {
             });
         }
         let adaptive = renditions.len() > 1;
-        let cast_adaptive = adaptive && profile.name == "chromecast";
+        let cast_adaptive = adaptive && profile.is_cast();
 
         let is_video_copy = matches!(decision.video, StreamAction::Copy);
         let target_duration =
             if is_video_copy { 10.max(DEFAULT_SEGMENT_SECS) } else { DEFAULT_SEGMENT_SECS };
-        let fast_start_segments = !generated_playlist && !is_video_copy && !adaptive;
+        let fast_start_segments =
+            !generated_playlist && !is_video_copy && !adaptive && !profile.is_cast();
 
         // Cast can probe the head of the VOD playlist before seeking to its resume point.
         // Other remux clients can prepare the requested fragment directly.
-        let starts_at_head = generated_playlist
-            || (is_video_copy && profile.name.eq_ignore_ascii_case("chromecast"))
-            || cast_adaptive;
+        let starts_at_head =
+            generated_playlist || (is_video_copy && profile.is_cast()) || cast_adaptive;
         let seek_ms = if is_video_copy || cast_adaptive {
             start_ms.min(duration_ms.saturating_sub(1))
         } else {
@@ -1344,17 +1388,20 @@ impl PlaybackService {
             StreamAction::Transcode { codec, .. } => codec.clone(),
             _ => audio_stream.map_or("aac", |s| s.codec.as_str()).to_owned(),
         });
-        let variants = pipeline
+        let mut variants = pipeline
             .output
             .renditions
             .iter()
             // Advertise the lower level first for players without a startup estimate.
             .rev()
             .map(|r| {
-                let height = if adaptive {
+                let height = if !is_video_copy {
                     video_stream.and_then(|v| {
                         let source_width = u64::from(v.width?);
                         let scaled = u64::from(v.height?) * u64::from(r.width?);
+                        if source_width == 0 {
+                            return None;
+                        }
                         u32::try_from(2 * ((scaled + source_width) / (2 * source_width))).ok()
                     })
                 } else {
@@ -1392,7 +1439,8 @@ impl PlaybackService {
                 pipeline,
                 master_playlist: master,
                 media_playlists: variants
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .map(|r| (r.name, media_m3u8.clone()))
                     .collect(),
                 fast_start_segments,
@@ -1402,7 +1450,10 @@ impl PlaybackService {
         let mut candidate = HlsStartup { session: Some((hls_mgr.clone(), session.clone())) };
         let prepared = if cast_adaptive {
             session.prepare_cast_resume(resume_segment).await
-        } else if wait_for_ready || generated_playlist {
+        } else if wait_for_ready
+            || generated_playlist
+            || !mbl_playback::cast_profiles::modes(&profile.name).is_empty()
+        {
             session.prepare().await
         } else {
             Ok(())
@@ -1430,6 +1481,42 @@ impl PlaybackService {
                 .await;
             }
             return Err(error);
+        }
+        if !mbl_playback::cast_profiles::modes(&profile.name).is_empty() && video_stream.is_some() {
+            let metadata_result: Result<()> = async {
+                for variant in &mut variants {
+                    let init = tokio::fs::read(session.dir.join(&variant.name).join("init.mp4"))
+                        .await
+                        .map_err(Error::internal)?;
+                    let (w, h, codec) =
+                        mbl_stream::hls::avc_init_metadata(&init).ok_or_else(|| {
+                            Error::Validation("Cast init has no supported AVC metadata".into())
+                        })?;
+                    if profile.cast_frame_rate(w, h).is_none() {
+                        return Err(Error::Validation(
+                            "Encoded Cast dimensions exceed device limits".into(),
+                        ));
+                    }
+                    variant.width = Some(w);
+                    variant.height = Some(h);
+                    variant.video_codec = Some(codec);
+                    if !adaptive {
+                        variant.bandwidth = variant.bandwidth.saturating_add(audio_bitrate);
+                    }
+                }
+                tokio::fs::write(
+                    session.dir.join("master.m3u8"),
+                    render_master_playlist(&variants),
+                )
+                .await
+                .map_err(Error::internal)?;
+                Ok(())
+            }
+            .await;
+            if let Err(error) = metadata_result {
+                candidate.abort().await;
+                return Err(error);
+            }
         }
         candidate.session = None;
         Ok(session.id.clone())
@@ -1593,4 +1680,17 @@ fn generate_session_id() -> Result<String> {
         let _ = write!(hex, "{b:02x}");
     }
     Ok(hex)
+}
+
+#[cfg(test)]
+mod cast_profile_tests {
+    use super::*;
+
+    #[test]
+    fn full_cast_profile_cannot_override_server_catalogue() {
+        let mut profile = DeviceProfile::builtin("nest-hub").expect("built-in");
+        assert!(PlaybackProfileInput::Full(Box::new(profile.clone())).resolve().is_ok());
+        profile.codec_limits[0].max_width = Some(3840);
+        assert!(PlaybackProfileInput::Full(Box::new(profile)).resolve().is_err());
+    }
 }

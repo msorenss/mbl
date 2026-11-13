@@ -87,6 +87,8 @@ async fn cast_resume_prepares_head_and_target_for_both_variants() {
         &media_file,
         2,
         VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(320),
             max_bitrate: 600_000,
@@ -176,6 +178,8 @@ async fn ahead_throttling_pauses_and_resumes_ffmpeg() {
                 &media_file,
                 1,
                 VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(320),
                     max_bitrate: 600_000,
@@ -344,6 +348,8 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
                 &media_file,
                 2,
                 VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(320),
                     max_bitrate: 500_000,
@@ -371,6 +377,8 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
                 &media_file,
                 2,
                 VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(320),
                     max_bitrate: 500_000,
@@ -450,6 +458,8 @@ exit 0
         &media_file,
         2,
         VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(1280),
             max_bitrate: 2_000_000,
@@ -513,6 +523,8 @@ async fn concurrent_admission_and_failed_start_preserve_existing_session() {
             &input,
             2,
             VideoOp::Encode {
+                bounds: None,
+                max_frame_rate: None,
                 codec: VideoCodec::H264,
                 width: Some(320),
                 max_bitrate: 500000,

@@ -9,6 +9,7 @@ import { useTheme } from "../context/ThemeContext";
 import { browserLogs } from "../utils/browserLogs";
 import { castManager } from "../utils/cast";
 import { castDiagnostics } from "../utils/castDiagnostics";
+import { type CastProfileSelection, SAFE_CAST_PROFILE } from "../utils/castProfile";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
 import CastDiagnostics from "./CastDiagnostics";
 import TrickplayPreview from "./TrickplayPreview";
@@ -96,6 +97,7 @@ export function Player(props: PlayerProps) {
     loadId: number;
     itemId: number | null;
   } | null>(null);
+  const [castProfile, setCastProfile] = createSignal<CastProfileSelection | null>(null);
   const [receiverAutoplaySupported, setReceiverAutoplaySupported] = createSignal(false);
   let lastFinishedLoad = -1;
   let lastAutoplayLoad = -1;
@@ -512,7 +514,16 @@ export function Player(props: PlayerProps) {
   const reportProgress = async (state: "playing" | "paused" | "buffering") => {
     const data = playbackData();
     const vid = videoRef;
-    if (!data || !vid || disposed || ended() || error() || sessionExpired() || reportingProgress)
+    if (
+      !data ||
+      !vid ||
+      disposed ||
+      ended() ||
+      error() ||
+      sessionExpired() ||
+      reportingProgress ||
+      stoppedSession === data.sessionId
+    )
       return;
 
     const casting = isCasting();
@@ -537,6 +548,7 @@ export function Player(props: PlayerProps) {
       if (
         !disposed &&
         playbackData()?.sessionId === data.sessionId &&
+        stoppedSession !== data.sessionId &&
         (result.response.status === 404 || result.response.status === 410)
       )
         expirePlayback();
@@ -652,7 +664,7 @@ export function Player(props: PlayerProps) {
     }
   };
 
-  const startPlaybackSession = async (startMs = 0, offset = audioSyncMs()) => {
+  const startPlaybackSession = async (startMs = 0, offset = audioSyncMs(), autoplay = true) => {
     requestedStartMs = startMs;
     setLoading(true);
     setError(null);
@@ -686,7 +698,7 @@ export function Player(props: PlayerProps) {
           ? (data.audioStreamIndex ?? undefined)
           : selectedAudioIndex(),
       );
-      initPlayer(data as PlaybackResponse, data.startMs, true, props.subtitleStreamIndex);
+      initPlayer(data as PlaybackResponse, data.startMs, autoplay, props.subtitleStreamIndex);
       return true;
     } catch (e) {
       if (disposed) return false;
@@ -908,9 +920,10 @@ export function Player(props: PlayerProps) {
       const lastPosition = currentTime();
       setIsCastAvailable(cState.isAvailable);
       setIsCasting(cState.isCasting);
+      setCastProfile(cState.profileSelection ?? null);
       setReceiverAutoplaySupported(cState.supportsAutoplayNext === true);
       if (!cState.isCasting || !cState.playbackEnded) setReceiverFinish(null);
-      if (wasCasting && !cState.isCasting && !disposed && videoRef) {
+      if (wasCasting && !cState.isCasting && !disposed && videoRef && !castConnecting()) {
         const receiverError = castManager.getLastError();
         if (receiverError) setCastStatus(receiverError);
         const data = playbackData();
@@ -1011,6 +1024,8 @@ export function Player(props: PlayerProps) {
     let negotiatedStartMs = startMs;
     const preserveReceiverState =
       isCasting() && itemId === mediaItemId() && autoplay === isPlaying();
+    let releasedLocalSession = false;
+    let releasedReceiverSession = false;
     let negotiated: PlaybackResponse | null = null;
     let negotiatedTitle = itemId === mediaItemId() ? mediaTitle() || "MBL" : "MBL";
     videoRef?.pause();
@@ -1026,18 +1041,39 @@ export function Player(props: PlayerProps) {
           autoplay,
         },
         videoRef,
-        async () => {
+        async (selection = SAFE_CAST_PROFILE) => {
           recordLocalCastState("local.prepare");
-          const result = await negotiatePlayback({
+          const request = {
             itemId,
             partId: itemId === mediaItemId() ? mediaPartId() : undefined,
-            profile: "chromecast",
+            profile: selection.profile,
             startMs,
             maxBitrate: maxBitrate || undefined,
             audioOffsetMs: offset,
             audioStreamIndex: audioIndex,
             subtitleStreamIndex: subtitleIndex ?? undefined,
-          });
+          };
+          let result = await negotiatePlayback(request);
+          if (
+            !disposed &&
+            result.error &&
+            playbackFailureMessage(result.error, "").includes(
+              "maximum concurrent video transcode sessions",
+            )
+          ) {
+            releasedReceiverSession = isCasting();
+            oldPosition = releasedReceiverSession
+              ? currentTime()
+              : (videoRef?.currentTime ?? currentTime());
+            hlsRecovery?.dispose();
+            hlsRecovery = null;
+            hlsInstance?.destroy();
+            hlsInstance = null;
+            releasedLocalSession = !releasedReceiverSession;
+            await stopPlayback();
+            if (disposed) throw new Error("Playback closed.");
+            result = await negotiatePlayback(request);
+          }
           if (result.error || !result.data)
             throw new Error(
               playbackFailureMessage(
@@ -1054,7 +1090,8 @@ export function Player(props: PlayerProps) {
           } catch {
             /* Optional title lookup must not reject valid receiver playback. */
           }
-          oldPosition = isCasting() ? currentTime() : (videoRef?.currentTime ?? currentTime());
+          if (!releasedLocalSession && !releasedReceiverSession)
+            oldPosition = isCasting() ? currentTime() : (videoRef?.currentTime ?? currentTime());
           const hlsFmp4 = new URL(result.data.url, window.location.href).pathname.endsWith(".m3u8");
           // A replacement HLS stream was prepared for the requested position.
           // The previous receiver stream can advance far past it during preparation.
@@ -1113,8 +1150,17 @@ export function Player(props: PlayerProps) {
       }
       if (!success) {
         setCastStatus(castManager.getLastError());
-        if (resumeLocalAfterCancel && !disposed && !isCasting())
+        if (releasedReceiverSession) castManager.stopCasting();
+        if ((releasedLocalSession || releasedReceiverSession) && !disposed && !isCasting()) {
+          setCastConnecting(false);
+          await startPlaybackSession(
+            Math.floor(oldPosition * 1000),
+            audioSyncMs(),
+            resumeLocalAfterCancel,
+          );
+        } else if (resumeLocalAfterCancel && !disposed && !isCasting()) {
           void videoRef?.play().catch(() => {});
+        }
       }
       return success && !!accepted && !disposed;
     } finally {
@@ -1729,13 +1775,33 @@ export function Player(props: PlayerProps) {
           }}
         >
           <div style={{ "font-size": "56px" }}>📺</div>
-          <div style={{ "font-size": "22px", "font-weight": "bold", color: "#fff" }}>
+          <div
+            style={{
+              "font-size": "22px",
+              "font-weight": "bold",
+              color: "#fff",
+              "max-width": "90%",
+              "overflow-wrap": "anywhere",
+              "text-align": "center",
+            }}
+          >
             Casting to {castDevice() || "Chromecast"}
           </div>
           <div style={{ "font-size": "14px", color: "var(--text-secondary)" }}>
             {mediaTitle()}{" "}
             {mediaItemId() === props.itemId && props.subtitle ? `• ${props.subtitle}` : ""}
           </div>
+          <Show when={castProfile()}>
+            <p
+              role="status"
+              style={{ "max-width": "90%", "overflow-wrap": "anywhere", "text-align": "center" }}
+            >
+              Automatic · up to {castProfile()?.maxHeight}p<br />
+              {castProfile()?.source === "receiver-probe"
+                ? "Receiver capability verified"
+                : "Limited compatibility — receiver capabilities could not be verified"}
+            </p>
+          </Show>
           <Button variant="secondary" onClick={() => castManager.stopCasting()}>
             Disconnect Cast
           </Button>
@@ -1856,6 +1922,13 @@ export function Player(props: PlayerProps) {
             <div>
               Requested quality limit: {quality() ? `${quality() / 1000000} Mbps` : "Automatic"}
             </div>
+            <Show when={isCasting() && castProfile()}>
+              <div>
+                Receiver limit: {castProfile()?.maxHeight}p ({castProfile()?.source}); bitrate
+                limit: {quality() ? `${quality() / 1000000} Mbps` : "Automatic"}. Network and server
+                limits are reported separately below.
+              </div>
+            </Show>
             <Show when={diagnosticsError()}>
               <p role="alert">{diagnosticsError()}</p>
             </Show>
@@ -2286,6 +2359,18 @@ export function Player(props: PlayerProps) {
                 </select>
               </Show>
               <Show when={!isAudioOnly()}>
+                <Show when={isCasting() && castProfile()}>
+                  <p
+                    class="cast-profile-notice"
+                    role="status"
+                    style={{ "overflow-wrap": "anywhere", "max-width": "100%" }}
+                  >
+                    Automatic · up to {castProfile()?.maxHeight}p ·{" "}
+                    {castProfile()?.source === "receiver-probe"
+                      ? "receiver capability verified"
+                      : "Limited compatibility — receiver capabilities could not be verified"}
+                  </p>
+                </Show>
                 <label for="player-quality">Quality limit</label>
                 <select
                   id="player-quality"

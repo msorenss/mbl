@@ -108,6 +108,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/HEVC_Main10 (2020).mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: None,
                     max_bitrate: 8_000_000,
@@ -127,6 +129,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/4K_Remux (2024).mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1280),
                     max_bitrate: 4_000_000,
@@ -151,6 +155,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/TV/Show/Season 01/Show - S01E01.mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(854),
                     max_bitrate: 1_500_000,
@@ -175,6 +181,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/TV/Broadcast_1080i.ts"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: None,
                     max_bitrate: 6_000_000,
@@ -194,6 +202,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/TV/Broadcast_1080i.ts"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1280),
                     max_bitrate: 3_500_000,
@@ -218,6 +228,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Anime/Episode_01.mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: None,
                     max_bitrate: 8_000_000,
@@ -239,6 +251,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 ),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1920),
                     max_bitrate: 8_000_000,
@@ -258,6 +272,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from(r"D:\Media\Movies\Blade Runner 2049 [4K]\Movie: IMAX.mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1920),
                     max_bitrate: 10_000_000,
@@ -282,6 +298,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/Bluray_Rip (2019).mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: None,
                     max_bitrate: 10_000_000,
@@ -301,6 +319,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/DVD_Interlaced.mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1280),
                     max_bitrate: 4_000_000,
@@ -325,6 +345,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/Heat (1995)/Heat (1995).mkv"),
                 start_ms: 120_000,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1920),
                     max_bitrate: 8_000_000,
@@ -376,6 +398,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/Indie (2022).mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1280),
                     max_bitrate: 3_000_000,
@@ -409,6 +433,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/Source.mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::Hevc,
                     width: Some(1920),
                     max_bitrate: 5_000_000,
@@ -433,6 +459,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/Movies/Source.mkv"),
                 start_ms: 0,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::Av1,
                     width: Some(1280),
                     max_bitrate: 2_500_000,
@@ -477,6 +505,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 ),
                 start_ms: 18_000,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1280),
                     max_bitrate: 4_000_000,
@@ -506,6 +536,8 @@ fn twenty_two_pipeline_cases() -> Vec<PipelineCase> {
                 input: Utf8PathBuf::from("/media/TV/Classic [1998]/Episode: 01.mkv"),
                 start_ms: 6_000,
                 video: VideoOp::Encode {
+                    bounds: None,
+                    max_frame_rate: None,
                     codec: VideoCodec::H264,
                     width: Some(1280),
                     max_bitrate: 3_500_000,
@@ -563,6 +595,8 @@ fn rejects_invalid_pipeline_combinations() {
     // The ABR graph must reject burn-in until it can actually render it on every branch.
     let mut abr_burn = bad_burn.clone();
     abr_burn.video = VideoOp::Encode {
+        bounds: None,
+        max_frame_rate: None,
         codec: VideoCodec::H264,
         width: Some(320),
         max_bitrate: 800_000,
@@ -582,6 +616,8 @@ fn rejects_invalid_pipeline_combinations() {
         input: Utf8PathBuf::from("/media/Movie_HDR.mkv"),
         start_ms: 0,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: None,
             max_bitrate: 8_000_000,
@@ -600,6 +636,8 @@ fn rejects_invalid_pipeline_combinations() {
         input: Utf8PathBuf::from("/media/Movie.mkv"),
         start_ms: 0,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(1920),
             max_bitrate: 8_000_000,
@@ -637,6 +675,8 @@ fn hardware_backends_tonemap_and_abr_ladder_args() {
         input: Utf8PathBuf::from("/media/Movies/HDR10.mkv"),
         start_ms: 0,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::Hevc,
             width: Some(1920),
             max_bitrate: 8_000_000,
@@ -657,6 +697,8 @@ fn hardware_backends_tonemap_and_abr_ladder_args() {
     let qsv = Pipeline {
         backend: Backend::Qsv,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(1280),
             max_bitrate: 4_000_000,
@@ -679,6 +721,8 @@ fn hardware_backends_tonemap_and_abr_ladder_args() {
     let nvenc = Pipeline {
         backend: Backend::Nvenc,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::Av1,
             width: Some(1920),
             max_bitrate: 6_000_000,
@@ -698,6 +742,8 @@ fn hardware_backends_tonemap_and_abr_ladder_args() {
     let pi4 = Pipeline {
         backend: Backend::V4l2m2m,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(1280),
             max_bitrate: 4_000_000,
@@ -725,6 +771,8 @@ fn hardware_backends_tonemap_and_abr_ladder_args() {
         input: Utf8PathBuf::from("/media/Movies/4K_Source.mkv"),
         start_ms: 0,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(1920),
             max_bitrate: 8_000_000,
@@ -802,6 +850,8 @@ async fn transcodes_10s_test_media_to_fmp4_hls_and_verifies_with_ffprobe() {
         input: Utf8PathBuf::from_path_buf(input_path).unwrap(),
         start_ms: 0,
         video: VideoOp::Encode {
+            bounds: None,
+            max_frame_rate: None,
             codec: VideoCodec::H264,
             width: Some(320),
             max_bitrate: 800_000,
@@ -1017,5 +1067,183 @@ async fn signed_audio_sync_preserves_video_timeline_including_seek() {
             };
             assert!(build_args(&invalid, &FfmpegCaps::default()).is_err());
         }
+    }
+}
+
+#[tokio::test]
+async fn cast_frame_rate_limit_is_present_in_real_encoded_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("source.mp4");
+    let status = tokio::process::Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=size=128x72:rate=60:duration=1",
+            "-c:v",
+            "libx264",
+            "-threads",
+            "1",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",
+        ])
+        .arg(&input)
+        .status()
+        .await
+        .unwrap();
+    assert!(status.success());
+    let out = Utf8PathBuf::from_path_buf(dir.path().join("hls")).unwrap();
+    std::fs::create_dir_all(out.join("0")).unwrap();
+    let pipeline = Pipeline {
+        input: Utf8PathBuf::from_path_buf(input).unwrap(),
+        start_ms: 0,
+        video: VideoOp::Encode {
+            codec: VideoCodec::H264,
+            width: Some(64),
+            max_bitrate: 200_000,
+            bounds: None,
+            max_frame_rate: Some(30),
+            deinterlace: false,
+            tonemap: false,
+        },
+        audio: AudioOp::None,
+        subtitle: SubtitleOp::None,
+        backend: Backend::Software,
+        output: HlsOutput {
+            dir: out.clone(),
+            segment_secs: 6,
+            start_number: 0,
+            renditions: vec![Rendition { name: "0".into(), width: Some(64), max_bitrate: 200_000 }],
+        },
+    };
+    let args = build_args(&pipeline, &FfmpegCaps::default()).unwrap();
+    let result = tokio::process::Command::new("ffmpeg").args(args).output().await.unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let mut bytes = std::fs::read(out.join("0/init.mp4")).unwrap();
+    bytes.extend(std::fs::read(out.join("0/0.m4s")).unwrap());
+    let combined = dir.path().join("encoded.mp4");
+    std::fs::write(&combined, bytes).unwrap();
+    let result = tokio::process::Command::new("ffprobe")
+        .args(["-v", "error", "-show_streams", "-show_format", "-of", "json"])
+        .arg(combined)
+        .output()
+        .await
+        .unwrap();
+    assert!(result.status.success());
+    let value = mbl_probe::parse_ffprobe_json(&result.stdout).unwrap();
+    let video = value.primary_video().unwrap();
+    assert_eq!(video.width, Some(64));
+    assert_eq!(video.height, Some(36));
+    assert_eq!(video.frame_rate, Some(30.0));
+}
+
+#[tokio::test]
+async fn cast_bounds_normalize_anamorphic_and_rotated_video() {
+    for (sar, rotation, expected_w, expected_h) in [("2/1", 0, 64, 18), ("1/1", 90, 26, 46)] {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("source.mp4");
+        let output = tokio::process::Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=size=128x72:rate=24:duration=1",
+                "-vf",
+                &format!("setsar={sar}"),
+                "-c:v",
+                "libx264",
+                "-threads",
+                "1",
+                "-pix_fmt",
+                "yuv420p",
+                "-y",
+            ])
+            .arg(&original)
+            .output()
+            .await
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let input = dir.path().join("input.mp4");
+        let status = tokio::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-display_rotation", &rotation.to_string(), "-i"])
+            .arg(original)
+            .args(["-c", "copy", "-y"])
+            .arg(&input)
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success());
+        // Verify the fixture actually carries non-square pixels or rotation;
+        // some FFmpeg versions silently ignore the old rotate metadata tag.
+        let source_probe = tokio::process::Command::new("ffprobe")
+            .args(["-v", "error", "-show_streams", "-show_format", "-of", "json"])
+            .arg(&input)
+            .output()
+            .await
+            .unwrap();
+        assert!(source_probe.status.success());
+        let source_info = mbl_probe::parse_ffprobe_json(&source_probe.stdout).unwrap();
+        assert_eq!(source_info.primary_video().unwrap().square_pixels_unrotated, Some(false));
+        let out = Utf8PathBuf::from_path_buf(dir.path().join("hls")).unwrap();
+        std::fs::create_dir_all(out.join("0")).unwrap();
+        let p = Pipeline {
+            input: Utf8PathBuf::from_path_buf(input).unwrap(),
+            start_ms: 0,
+            video: VideoOp::Encode {
+                codec: VideoCodec::H264,
+                width: Some(64),
+                max_bitrate: 200_000,
+                max_frame_rate: Some(30),
+                bounds: Some((64, 48)),
+                deinterlace: false,
+                tonemap: false,
+            },
+            audio: AudioOp::None,
+            subtitle: SubtitleOp::None,
+            backend: Backend::Software,
+            output: HlsOutput {
+                dir: out.clone(),
+                segment_secs: 6,
+                start_number: 0,
+                renditions: vec![Rendition {
+                    name: "0".into(),
+                    width: Some(64),
+                    max_bitrate: 200_000,
+                }],
+            },
+        };
+        let result = tokio::process::Command::new("ffmpeg")
+            .args(build_args(&p, &FfmpegCaps::default()).unwrap())
+            .output()
+            .await
+            .unwrap();
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        let mut data = std::fs::read(out.join("0/init.mp4")).unwrap();
+        data.extend(std::fs::read(out.join("0/0.m4s")).unwrap());
+        let combined = dir.path().join("combined.mp4");
+        std::fs::write(&combined, data).unwrap();
+        let result = tokio::process::Command::new("ffprobe")
+            .args(["-v", "error", "-show_streams", "-show_format", "-of", "json"])
+            .arg(&combined)
+            .output()
+            .await
+            .unwrap();
+        let info = mbl_probe::parse_ffprobe_json(&result.stdout).unwrap();
+        let v = info.primary_video().unwrap();
+        assert_eq!((v.width, v.height), (Some(expected_w), Some(expected_h)));
+        assert_eq!(v.square_pixels_unrotated, Some(true));
+        let decoded = tokio::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-threads", "1", "-i"])
+            .arg(combined)
+            .args(["-f", "null", "-"])
+            .output()
+            .await
+            .unwrap();
+        assert!(decoded.status.success());
     }
 }

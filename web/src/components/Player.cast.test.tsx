@@ -200,7 +200,7 @@ it("continues a finished receiver item once, after stopping its server session",
       : ({ response: new Response(null, { status: 204 }) } as never);
   });
   cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
-    await prepare();
+    await prepare({ profile: "nest-hub", maxHeight: 720, source: "receiver-probe" });
     return true;
   });
   const next = vi.fn();
@@ -235,7 +235,7 @@ it("continues a finished receiver item once, after stopping its server session",
   expect(post).toHaveBeenCalledWith(
     "/api/v1/playback",
     expect.objectContaining({
-      body: expect.objectContaining({ itemId: 8, profile: "chromecast", startMs: 0 }),
+      body: expect.objectContaining({ itemId: 8, profile: "nest-hub", startMs: 0 }),
     }),
   );
   expect(cast.requestCastSession).toHaveBeenCalledTimes(1);
@@ -251,7 +251,7 @@ it("does not display stale local video metrics as receiver statistics", async ()
   vi.spyOn(client, "GET").mockResolvedValue({
     data: {
       sessionId: "test",
-      profileName: "chromecast",
+      profileName: "cast-safe-720",
       network: "lan",
       isHls: false,
       transcode: null,
@@ -290,7 +290,7 @@ it("carries signed audio sync into Google Cast and renegotiates it at receiver t
     "/api/v1/playback",
     expect.objectContaining({
       body: expect.objectContaining({
-        profile: "chromecast",
+        profile: "cast-safe-720",
         audioOffsetMs: -250,
       }),
     }),
@@ -313,7 +313,7 @@ it("carries signed audio sync into Google Cast and renegotiates it at receiver t
     "/api/v1/playback",
     expect.objectContaining({
       body: expect.objectContaining({
-        profile: "chromecast",
+        profile: "cast-safe-720",
         audioOffsetMs: 500,
         startMs: 123000,
       }),
@@ -387,7 +387,7 @@ it("preserves current audio on Cast changes and ignores an unavailable optional 
     "/api/v1/playback",
     expect.objectContaining({
       body: expect.objectContaining({
-        profile: "chromecast",
+        profile: "cast-safe-720",
         startMs: 123000,
         maxBitrate: 2000000,
       }),
@@ -402,7 +402,7 @@ it("preserves current audio on Cast changes and ignores an unavailable optional 
     "/api/v1/playback",
     expect.objectContaining({
       body: expect.objectContaining({
-        profile: "chromecast",
+        profile: "cast-safe-720",
         audioStreamIndex: 3,
         startMs: 123000,
         maxBitrate: 2000000,
@@ -736,7 +736,7 @@ it("sends whole milliseconds when casting a fractional browser position", async 
   expect(client.POST).toHaveBeenCalledWith(
     "/api/v1/playback",
     expect.objectContaining({
-      body: expect.objectContaining({ profile: "chromecast", startMs: 303693 }),
+      body: expect.objectContaining({ profile: "cast-safe-720", startMs: 303693 }),
     }),
   );
 });
@@ -824,7 +824,7 @@ it("prepares a Cast HLS seek target instead of seeking outside the generated tim
     return path === "/api/v1/playback"
       ? ({
           data: {
-            sessionId: body?.profile === "chromecast" ? "receiver-new" : "local",
+            sessionId: body?.profile === "cast-safe-720" ? "receiver-new" : "local",
             hlsGeneratedTimeline: true,
             url: "http://192.168.1.20/stream.m3u8",
             contentType: "application/vnd.apple.mpegurl",
@@ -866,7 +866,11 @@ it("prepares a Cast HLS seek target instead of seeking outside the generated tim
   expect(client.POST).toHaveBeenCalledWith(
     "/api/v1/playback",
     expect.objectContaining({
-      body: expect.objectContaining({ profile: "chromecast", startMs: 100000, waitForReady: true }),
+      body: expect.objectContaining({
+        profile: "cast-safe-720",
+        startMs: 100000,
+        waitForReady: true,
+      }),
     }),
   );
   expect(cast.requestCastSession).toHaveBeenCalledTimes(1);
@@ -913,7 +917,7 @@ it("replays a locally finished clip from zero when casting and reports new progr
     return path === "/api/v1/playback"
       ? ({
           data: {
-            sessionId: body?.profile === "chromecast" ? "replay" : "test",
+            sessionId: body?.profile === "cast-safe-720" ? "replay" : "test",
             url: "http://192.168.1.20/movie.mp4",
             contentType: "video/mp4",
             startMs: body?.startMs ?? 0,
@@ -956,7 +960,7 @@ it("replays a locally finished clip from zero when casting and reports new progr
   expect(client.POST).toHaveBeenCalledWith(
     "/api/v1/playback",
     expect.objectContaining({
-      body: expect.objectContaining({ startMs: 0, profile: "chromecast" }),
+      body: expect.objectContaining({ startMs: 0, profile: "cast-safe-720" }),
     }),
   );
   expect(client.POST).toHaveBeenCalledWith(
@@ -981,4 +985,235 @@ it("does not start local replay when an EOF Cast chooser is canceled", async () 
   await tick();
   expect(cast.requestCastSession).toHaveBeenCalled();
   expect(video.play).toHaveBeenCalledTimes(plays);
+});
+
+it("releases local capacity and retries Cast after the one-session limit", async () => {
+  const order: string[] = [];
+  let starts = 0;
+  vi.mocked(client.POST).mockImplementation(async (path) => {
+    if (path === "/api/v1/playback") {
+      starts++;
+      order.push("start");
+      if (starts === 2)
+        return {
+          error: {
+            error: {
+              code: "unavailable",
+              message: "maximum concurrent video transcode sessions (1) reached",
+            },
+          },
+          response: new Response(null, { status: 503 }),
+        } as never;
+      return {
+        data: {
+          sessionId: starts === 1 ? "local" : "receiver",
+          method: "directPlay",
+          url: "/movie.mp4",
+          subtitles: [],
+          markers: [],
+          startMs: 0,
+          durationMs: 600000,
+        },
+        response: new Response(),
+      } as never;
+    }
+    if (path === "/api/v1/playback/{session}/stop") order.push("stop");
+    return { response: new Response(null, { status: 204 }) } as never;
+  });
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    await prepare();
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  document.querySelector<HTMLButtonElement>('[title="Cast to TV (Chromecast)"]')?.click();
+  await tick();
+  await tick();
+  expect(order.slice(0, 4)).toEqual(["start", "start", "stop", "start"]);
+});
+
+it("restores the saved position after releasing local capacity and failed Cast", async () => {
+  const order: string[] = [];
+  let starts = 0;
+  vi.mocked(client.POST).mockImplementation(async (path) => {
+    if (path === "/api/v1/playback") {
+      starts++;
+      order.push("start");
+      if (starts === 2)
+        return {
+          error: {
+            error: {
+              code: "unavailable",
+              message: "maximum concurrent video transcode sessions (1) reached",
+            },
+          },
+          response: new Response(null, { status: 503 }),
+        } as never;
+      return {
+        data: {
+          sessionId: starts === 1 ? "local" : "receiver",
+          method: "directPlay",
+          url: "/movie.mp4",
+          subtitles: [],
+          markers: [],
+          startMs: 0,
+          durationMs: 600000,
+        },
+        response: new Response(),
+      } as never;
+    }
+    if (path === "/api/v1/playback/{session}/stop") {
+      order.push("stop");
+      document.querySelector("video")!.currentTime = 0;
+    }
+    return { response: new Response(null, { status: 204 }) } as never;
+  });
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    await prepare();
+    return false;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  document.querySelector("video")!.currentTime = 111.75;
+  document.querySelector<HTMLButtonElement>('[title="Cast to TV (Chromecast)"]')?.click();
+  await tick();
+  await tick();
+  expect(client.POST).toHaveBeenLastCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({ body: expect.objectContaining({ startMs: 111750 }) }),
+  );
+});
+
+it("releases receiver capacity once when changing a Cast subtitle", async () => {
+  const order: string[] = [];
+  let starts = 0;
+  vi.mocked(client.POST).mockImplementation(async (path) => {
+    if (path === "/api/v1/playback") {
+      starts++;
+      order.push("start");
+      if (starts === 2)
+        return {
+          error: {
+            error: {
+              code: "unavailable",
+              message: "maximum concurrent video transcode sessions (1) reached",
+            },
+          },
+          response: new Response(null, { status: 503 }),
+        } as never;
+      return {
+        data: {
+          sessionId: starts === 1 ? "local" : "receiver",
+          method: "directPlay",
+          url: "/movie.mp4",
+          subtitles: [{ index: 38, title: "Swedish", url: "/swedish.vtt" }],
+          subtitleOptions: [{ index: 38, title: "Swedish" }],
+          markers: [],
+          startMs: 0,
+          durationMs: 600000,
+        },
+        response: new Response(),
+      } as never;
+    }
+    if (path === "/api/v1/playback/{session}/stop") order.push("stop");
+    return { response: new Response(null, { status: 204 }) } as never;
+  });
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    await prepare();
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    currentTime: 139.295,
+    playerState: "paused",
+  };
+  emit(state);
+  cast.selectSubtitle.mockResolvedValueOnce(false);
+  document.querySelector<HTMLButtonElement>('[aria-label="Subtitle tracks"]')?.click();
+  [...document.querySelectorAll("button")]
+    .find((button) => button.textContent === "Swedish")
+    ?.click();
+  await tick();
+  await tick();
+  expect(cast.stopCasting).not.toHaveBeenCalled();
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback/{session}/stop",
+    expect.objectContaining({ body: { positionMs: 139295 } }),
+  );
+  expect(order.slice(0, 4)).toEqual(["start", "start", "stop", "start"]);
+});
+
+it("restores local playback at the receiver position if replacement Cast fails", async () => {
+  const order: string[] = [];
+  let starts = 0;
+  vi.mocked(client.POST).mockImplementation(async (path) => {
+    if (path === "/api/v1/playback") {
+      starts++;
+      order.push("start");
+      if (starts === 2)
+        return {
+          error: {
+            error: {
+              code: "unavailable",
+              message: "maximum concurrent video transcode sessions (1) reached",
+            },
+          },
+          response: new Response(null, { status: 503 }),
+        } as never;
+      return {
+        data: {
+          sessionId: starts === 1 ? "local" : "receiver",
+          method: "directPlay",
+          url: "/movie.mp4",
+          subtitles: [{ index: 38, title: "Swedish", url: "/swedish.vtt" }],
+          subtitleOptions: [{ index: 38, title: "Swedish" }],
+          markers: [],
+          startMs: 0,
+          durationMs: 600000,
+        },
+        response: new Response(),
+      } as never;
+    }
+    if (path === "/api/v1/playback/{session}/stop") order.push("stop");
+    return { response: new Response(null, { status: 204 }) } as never;
+  });
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    await prepare();
+    return false;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    currentTime: 139.295,
+    playerState: "paused",
+  };
+  emit(state);
+  cast.stopCasting.mockImplementationOnce(() => {
+    state = { ...state, isCasting: false };
+    emit(state);
+  });
+  cast.selectSubtitle.mockResolvedValueOnce(false);
+  document.querySelector<HTMLButtonElement>('[aria-label="Subtitle tracks"]')?.click();
+  [...document.querySelectorAll("button")]
+    .find((button) => button.textContent === "Swedish")
+    ?.click();
+  await tick();
+  await tick();
+  expect(cast.stopCasting).toHaveBeenCalledOnce();
+  expect(client.POST).toHaveBeenLastCalledWith(
+    "/api/v1/playback",
+    expect.objectContaining({ body: expect.objectContaining({ startMs: 139295 }) }),
+  );
+  expect(client.POST).toHaveBeenCalledWith(
+    "/api/v1/playback/{session}/stop",
+    expect.objectContaining({ body: { positionMs: 139295 } }),
+  );
+  expect(order.slice(0, 4)).toEqual(["start", "start", "stop", "start"]);
 });

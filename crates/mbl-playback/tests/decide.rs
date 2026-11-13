@@ -50,6 +50,7 @@ fn synthetic_video_media(
                 width: Some(width),
                 height: Some(height),
                 bit_depth: Some(bit_depth),
+                square_pixels_unrotated: Some(true),
                 frame_rate: Some(24.0),
                 interlaced,
                 hdr,
@@ -71,6 +72,7 @@ fn synthetic_video_media(
                 width: None,
                 height: None,
                 bit_depth: None,
+                square_pixels_unrotated: Some(true),
                 frame_rate: None,
                 interlaced: false,
                 hdr: None,
@@ -1136,4 +1138,93 @@ fn browser_overlay_keeps_hls_codec_support_separate_from_direct_play() {
     assert_eq!(decision.method, PlayMethod::DirectStream, "{:?}", decision.reasons);
     assert_eq!(decision.video, StreamAction::Copy);
     assert_eq!(decision.audio, StreamAction::Copy);
+}
+
+#[test]
+fn cast_profiles_enforce_dimensions_fps_and_manual_bitrate() {
+    let mut media = synthetic_video_media(
+        "mp4",
+        "h264",
+        Some("High"),
+        Some(40),
+        1920,
+        960,
+        8,
+        None,
+        false,
+        "aac",
+        2,
+        Some(8_000_000),
+    );
+    let hub = DeviceProfile::builtin("nest-hub").unwrap();
+    for max_bitrate in [None, Some(2_000_000), Some(20_000_000)] {
+        let ctx = DecisionContext { max_bitrate, ..Default::default() };
+        let decision = decide(&media, &hub, &ctx);
+        assert!(matches!(decision.video, StreamAction::Transcode { width: Some(1280), .. }));
+    }
+    let tv = DeviceProfile::builtin("google-tv-4k").unwrap();
+    assert_eq!(decide(&media, &tv, &DecisionContext::default()).method, PlayMethod::DirectPlay);
+    media.streams[0].width = Some(1080);
+    media.streams[0].height = Some(1920);
+    assert!(matches!(
+        decide(&media, &hub, &DecisionContext::default()).video,
+        StreamAction::Transcode { width: Some(404), .. }
+    ));
+    media.streams[0].width = Some(1280);
+    media.streams[0].height = Some(720);
+    media.streams[0].frame_rate = Some(60.0);
+    assert_eq!(decide(&media, &hub, &DecisionContext::default()).method, PlayMethod::DirectPlay);
+    let max = DeviceProfile::builtin("nest-hub-max").unwrap();
+    assert!(matches!(
+        decide(&media, &max, &DecisionContext::default()).video,
+        StreamAction::Transcode { .. }
+    ));
+    let legacy = DeviceProfile::builtin("chromecast-legacy").unwrap();
+    assert_eq!(legacy.cast_frame_rate(1280, 720), Some(60));
+    assert_eq!(legacy.cast_frame_rate(1920, 1080), Some(30));
+    for invalid in [None, Some(f32::NAN), Some(0.0)] {
+        media.streams[0].frame_rate = invalid;
+        assert!(matches!(
+            decide(&media, &hub, &DecisionContext::default()).video,
+            StreamAction::Transcode { .. }
+        ));
+    }
+}
+
+#[test]
+fn cast_profile_overlays_cannot_widen_or_rename_server_limits() {
+    let hub = DeviceProfile::builtin("nest-hub").unwrap();
+    for overlay in [
+        DeviceProfileOverlay { name: "chrome".into(), ..Default::default() },
+        DeviceProfileOverlay {
+            name: "nest-hub".into(),
+            max_audio_channels: Some(6),
+            ..Default::default()
+        },
+        DeviceProfileOverlay {
+            name: "nest-hub".into(),
+            codec_limits: Some(vec![]),
+            ..Default::default()
+        },
+    ] {
+        assert!(hub.merge(overlay).is_err());
+    }
+    let bounded = hub
+        .merge(DeviceProfileOverlay {
+            name: "nest-hub".into(),
+            max_bitrate: Some(20_000_000),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(bounded.codec_limit("h264").unwrap().max_height, Some(720));
+    assert!(
+        DeviceProfile::builtin("chrome")
+            .unwrap()
+            .merge(DeviceProfileOverlay { name: "nest-hub".into(), ..Default::default() })
+            .is_err()
+    );
+    for name in mbl_playback::cast_profiles::NAMES {
+        assert!(BUILTIN_PROFILES.contains(name));
+        assert!(DeviceProfile::builtin(name).unwrap().is_cast());
+    }
 }

@@ -453,6 +453,23 @@ fn evaluate_subtitle(sub: &StreamInfo, profile: &DeviceProfile) -> SubtitleDeliv
 }
 
 fn evaluate_video(v: &StreamInfo, profile: &DeviceProfile, reasons: &mut Vec<Reason>) {
+    if !crate::cast_profiles::modes(&profile.name).is_empty() {
+        let supported = v.width.zip(v.height).zip(v.frame_rate).is_some_and(|((w, h), fps)| {
+            fps.is_finite()
+                && fps > 0.0
+                && profile.cast_frame_rate(w, h).is_some_and(|max| fps <= max as f32)
+        });
+        if v.square_pixels_unrotated != Some(true)
+            || !supported
+            || v.profile.is_none()
+            || v.level.is_none()
+            || v.bit_depth.is_none()
+        {
+            reasons.push(Reason::Other(
+                "Video dimensions/frame rate require the Cast device limits".into(),
+            ));
+        }
+    }
     let Some(limit) = profile.codec_limit(&v.codec) else {
         reasons.push(Reason::VideoCodecUnsupported(v.codec.clone()));
         if v.interlaced {
@@ -600,6 +617,18 @@ fn pick_video_width(
         && let Some(max_w) = limit.max_width
     {
         target_w = target_w.min(max_w);
+    }
+
+    if let Some(max_h) = profile.codec_limit(target_codec).and_then(|l| l.max_height)
+        && let Some(src_h) = v.height.filter(|h| *h > 0)
+    {
+        target_w = target_w
+            .min((u64::from(src_w) * u64::from(max_h) / u64::from(src_h)).min(u64::from(u32::MAX))
+                as u32);
+    }
+    // FFmpeg's -2 height rounds to even; keep scaled width even too.
+    if target_w < src_w {
+        target_w = (target_w / 2 * 2).max(2);
     }
 
     if let Some(limit_br) = max_bitrate {

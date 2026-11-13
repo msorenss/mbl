@@ -4,6 +4,7 @@ This document lives at the repository root so every AI agent, contributor, and a
 ---
 ## 1. Current status (quick overview)
 - Current work:
+  - Prioriterad nästa plan: [Enhetsanpassad Cast och adaptiv Automatisk](docs/plans/cast-device-profiles.md). Automatiskt profilval är krav: P0 → P3-prototyp → P1 → färdig P3 → P2 → P4/P5. Ingen modellväljare i normalflödet; okänd mottagare får säker fallback. P1:s servergrund och geometri är implementerade lokalt; full acceptans och automatisk mottagaridentifiering återstår.
   - Playback performance phases 1–4 are implemented. All three synthetic clips passed physical Cast testing on Bedroom TV.
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
@@ -83,6 +84,82 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-13 — Checkpoint för Cast-arbetet P1–P3
+- Sparar serverprofiler, geometrinormalisering, senderprofilval, CAF-receiver, tidigare lokala Cast-fixar, tester och dokumentation i en gemensam checkpoint på användarens begäran.
+- Senast verifierat: 269 webbtester, 6 server-webbtester, TypeScript, produktionsbygge och bundle-budget; P1 hade även 25 riktade Rust-tester och grön workspace-Clippy.
+- Ingen release, push eller installation ingår. Receiverregistrering/hosting och fysisk acceptans på Bedroom display/Bedroom TV återstår enligt `docs/cast-receiver.md`.
+
+### 2026-11-13 — P3 Custom Web Receiver, lokalt testbygge
+- Separat CAF-entry `/cast-receiver/index.html`, fasta H.264-geometri/fps/profilprober, riktade nonce-svar och begränsad numerisk receivertelemetri. Ingen MBL-inloggning eller admin-token i receiverkoden.
+- Sender väljer registrerat app-ID via `VITE_MBL_CAST_APP_ID` eller avancerad lokal browserinställning i admin-Settings. Explicit standardreceiverläge finns; inget dolt appbyte. Receiver-HTML har no-cache och undantas från PWA-shellcachen.
+- Guide och fysisk testmatris i `docs/cast-receiver.md`. Registrering av app-ID/testenheter och receiverhosting återstår; ingen Google-registrering, publicering eller installation utförd. Auto/performance på faktisk Hub/Google TV är inte verifierad.
+- Verifierat: 269 webbtester, TypeScript, produktionsbygge, bundle-budget 147,47 KB gzip och 6 serverintegrationstester för webbresurser (inklusive receiversidan utan inloggning och med no-cache). Fysisk verifiering återstår.
+- Paketera receiver och dess tre assetberoenden med `node web/scripts/package-cast-receiver.mjs <output>`. Bygget inkluderar sidan i vanliga MBL-webbassets.
+
+### 2026-11-13 — P2 sender och automatiskt reservläge
+- `web/src/utils/castProfile.ts` implementerar versionssatt, nonce-bunden capability-fråga med 3 s timeout, begränsad parser och kombinationsbaserat profilval. Inget namnbaserat modellval eller beständig cache. Aktuellt audio-only-besked avvisar video.
+- Cast väljer profil före Player-förhandling; UI visar upplösningstak och om stöd verifierats eller säker 720p30-fallback används. Omförhandlingar använder samma gemensamma väg. Sessionsbyte gör gamla svar ogiltiga.
+- P3 saknas fortfarande: standardreceiver lämnar ingen MBL-rapport, varför även Google TV får fallback. Ingen driftsättning. P2:s fysiska acceptans och mottagarspecifika Auto är inte klara; nästa steg är P3 receiver, registrering/hosting och fysisk verifiering.
+- Verifiering: hela webbsviten 258 tester; efter sista sessions-/online-URL-skydden 65 riktade Cast-tester. TypeScript och slutligt produktionsbygge passerade. Fysisk mobil/Cast-QA återstår.
+- Senderkontrakt och begränsningar finns sist i `docs/plans/cast-device-profiles.md`.
+
+### 2026-11-13 — P1 geometri och verifierat dokumentationsläge
+- Nya Cast-profiler kopierar inte video med rotation, anamorf SAR eller äldre probe utan geometribesked. FFmpeg normaliserar kvadratiska pixlar och håller både bredd och höjd inom profiltaket; befintliga profiler behåller sin väg.
+- Verifierat: 25 riktade Rust-tester för playback/probe/HLS/pipeline, inklusive riktig roterad/anamorf video och 60→30 fps. Slutlig Clippy för hela arbetsytan med alla targets och `-D warnings` passerade. Rotationsfixturen måste använda `-display_rotation`; `rotate`-taggen skapade ingen rotation i lokal FFmpeg 7.1.5.
+- Planen dokumenterar återstående omförhandlingstester och audio-only-identifiering via P3. P1 är inte fullt accepterad och P2 är inte påbörjad. Ingen installation eller release i detta steg.
+
+### 2026-11-12 — P1 servergrund för Cast-profiler
+- Verifierat: 17 riktade Rust-integrationstester (9 playback, 2 HLS, 6 pipeline), inklusive riktig FFmpeg 60→30 fps, samt Clippy för playback/stream/transcode/service med alla targets. Fullsvit och fysisk acceptans återstår.
+- Nio serverägda profilnamn, revision 1, i `crates/mbl-playback/src/cast_profiles.rs`. Val via befintligt playback profile-fält. Gamla `chromecast` är oförändrad; automatisk mottagaridentifiering är inte implementerad.
+- Dimensioner/fps begränsas före kopiering; omkodning begränsar höjd/bredd och vid behov fps. Profilöverlagringar och fulla profiler får inte utvidga namngiven katalogprofil. Serverns Cast-specialvägar känner igen de nya namnen.
+- HLS-master för nya profiler hämtar AVC-codecstring och dimensioner från färdig init. För stor utdata avvisas och sessionen städas. `VideoOp::Encode.max_frame_rate` är ett bakåtkompatibelt valfritt internt fält.
+- Konservativ H.264 SDR/stereo-katalog; Google TV HD kvar på säker 720p30 tills verifierad. Rotation/SAR-normalisering och audio-only-klassificering återstår. Detaljer och öppna P1-punkter finns i planen; markera inte full formatacceptans som klar.
+- Nästa: stäng kvarvarande P1-geometripunkter och genomför P3 receiver-prototyp; inget driftsatt eller releasat i denna fas.
+
+### 2026-11-12 — Plan för enhetsanpassad Cast
+- Skapade `docs/plans/cast-device-profiles.md` med faser P0–P5, datakontrakt, GUI, fallback, serverkapacitet, regressioner och fysisk acceptans.
+- Uppdaterat beslut: användaren vill undvika felaktiga manuella modellval. Automatisk capability-probing via egen CAF-receiver prioriteras före GUI-leveransen. Okänd mottagare får säker fallback; användaren ska inte behöva välja modell. Sender-label är origin-/browserbunden och friendly name får inte avgöra modell.
+- Auto begränsas av enhetens formatkombinationer; ABR är en separat kapacitetsberoende funktion. Manuella bitrateval får inte kringgå enhetstaket. P0 ska fortfarande isolera Auto-felet; korrekt 720p är inte bevis att EVENT/remux fungerar.
+- Nästa arbete: P0-baslinje och P3-receiverprototyp på Hub och Google TV, därefter P1-kontrakt/profiler. Hosting och registrerat receiver-app-ID är leveransberoenden. Inga profilfunktioner eller receiverappar implementerade i detta dokumentationssteg.
+
+### 2026-11-12 — Cast-driftguide och fysisk Hub-framgång
+- Ny referens: `docs/audits/cast-runbook.md` med flöde, enhetsmatris, testmetod, källkarta, tidigare misslyckade hypoteser och öppna problem. Användarguiden länkar dit och inaktuella uppgifter om kvalitet, enhetsnamn och kapacitet har korrigerats.
+- Försök 3, 17:23 UTC, Bedroom display: 2 Mbps och textspår 38. Kapacitetsretry lyckas, nya LOAD når ready och PLAYING med position 268–305 s. Synlig text och A/V-synk är inte bevisade av loggen.
+- Användaren rapporterar fortsatt Auto-fel. Bifogad Cast-logg gäller 2 Mbps; separat Auto-fångst behövs. Gemensam 1080p-profil är inte modellriktig för Hub, och Auto kan använda remux/EVENT. Kitchen återstår att verifiera med senaste fixen.
+
+### 2026-11-12 — Faktiska Cast-fragment och undertextkapacitet
+- Diagnostisk helfilsläsning återställd till strömmande segmentleverans eftersom båda displayerna fortfarande misslyckades. Bred Rust-testkompilering avbröts när swap var full; serverbygget begränsas till en process.
+- Hämtade init och segment från lokal tjänst med medie-ID 3, Chromecast-profil, 2 Mbps och start noll till `/tmp/mbl-hub-fragments`. FFprobe visar H.264 High 3.1, 1280x640, AAC-LC stereo 48 kHz. Master annonserade felaktigt 1280x960; första EXTINF var 3 s men fragmentets video var 6,006 s.
+- Cast-transkodning använder nu den ordinarie sexsekunderstidslinjen istället för syntetiska korta startsegment. Masterhöjd skalas även vid enkel transkodning. Detta är konkreta avvikelser, men fysisk Hub-verifiering och exakt regressionsintroduktion återstår.
+- Vid explicit kapacitetsfel under Cast-byte frigörs tidigare serversession och förhandling provas en gång till. Misslyckad ersättning avslutar Cast och återställer lokal uppspelning vid sparad mottagarposition. 25 riktade webbtester passerar, inklusive lyckat och misslyckat byte med en transkodningsplats.
+
+### 2026-11-12 — Hub-jämförelse av segmentleverans
+- Verifierat: 23 riktade Player-Cast-tester, HLS-svarstestet, TypeScript och webbbygget passerar.
+- 60-sekunderstestet misslyckades på Bedroom display: LOAD accepterades, men endast master, index, init och segment 0 hämtades (HTTP 200). Försöket började vid 111,751 s, inte noll.
+- Lokalt test återställer v1.2.0:s kompletta filinläsning för HLS-segment. Kodning och spellistor är oförändrade. Detta är diagnostik, inte bekräftad lösning; fysisk jämförelse återstår. Metoden ökar minnesåtgång per samtidig segmentförfrågan.
+- Återställning efter kapacitetsöverlämning bevarar nu positionen som sparades innan lokal video tömdes. Den skrevs tidigare över med noll vid lyckad serverförhandling följd av misslyckad mottagarladdning.
+
+### 2026-11-11 — Hub-regression, kontrollerat timeout-test
+- Användaren bekräftar att Bedroom display fungerade tidigare. Exakt fungerande version är inte fastställd.
+- Försöket 21:55 UTC med 2 Mbps, position noll och utan undertext hämtade master, index, init och segment 0 med HTTP 200 från Fuchsia-mottagaren. Inget segment 1 begärdes före avbrottet. LOAD accepterades men media bekräftades inte.
+- v1.2.0 saknade dagens 15-sekunders bekräftelsegräns. Ett kontrollerat testbygge ökar den till 60 sekunder; detta är inte en bekräftad lösning. 27 Cast-tester passerar, inklusive sen bekräftelse efter 20 sekunder och avbrott efter 60.
+- Releaseanteckningarnas uppgift om progressiv MP4 stämmer inte med v1.2.0-taggens uppspelningskod, som använder HLS för remux/transkodning. Den enkla kodningsvägens FFmpeg-argument och spellisterenderare har ingen motsvarande formatändring sedan taggen; segmentleverans och sessionshantering har ändrats.
+- Nästa steg: installera testbygget och upprepa samma Hub-test. Om bara första fragmentet hämtas även med längre väntan, jämför faktisk init/fragmentdata och äldre segmentleverans. Fysisk verifiering återstår.
+
+### 2026-11-11 — Skilj Google TV från Google Hub
+- Användaren bekräftade att lyckade försök 4 och 5 avsåg Bedroom TV (Chromecast med Google TV), medan det misslyckade försöket 6 avsåg Bedroom display (Google Hub).
+- Cast-loggen registrerar nu receiver.selected med mottagarens namn före serverförhandling, även när laddningen misslyckas. Namnet används inte för att gissa codecstöd.
+
+### 2026-11-11 — Cast-överlämning med en transkodningsplats
+- Vid uttryckligt kapacitetsfel för video stoppar webbspelaren sin lokala session och försöker förhandla Cast en gång till. Misslyckad Cast återställer lokal uppspelning från föregående position.
+- 49 riktade Cast-tester passerade i den sista körningen. En överlappande körning rapporterade även befintlig SDK-timer efter nedmonterad window. TypeScript kontrollerades före tillägget av regressionstestet.
+- Ändringen är lokal. EVENT-spellistans mottagarproblem och övriga HTTP 500 återstår, liksom fysisk verifiering och installation.
+
+### 2026-11-10 — Cast LOAD kan bli obesvarat på Pi
+- Fysiskt försök mot vald Bedroom display anslöt och servern levererade master, media playlist, init och fragment 4 med HTTP 200. Startposition 22,541 s förbereddes på cirka tre sekunder. LOAD gav varken framgång eller fel under över en minut.
+- Webbklientens befintliga bekräftelsetimeout började först efter loadMedia. En separat gräns på 30 sekunder avslutar nu ett obesvarat LOAD genom befintlig felhantering. Regressionstest täcker även ett sent svar.
+- Detta rättar det fastnade vänteläget. Mottagarens grundproblem med strömmen är fortfarande olöst och ändringen är ännu inte installerad på Pi-tjänsten.
 
 ### 2026-11-10 — Faktiska segmentlängder för Cast-remux
 - Versionsmetadata, Windows MSI och changelog är förberedda för v1.3.6. Fysisk verifiering av Cast-fixen återstår.

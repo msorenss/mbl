@@ -25,6 +25,9 @@ MediaInfo {
             height: None,
             bit_depth: None,
             frame_rate: None,
+            square_pixels_unrotated: Some(
+                true,
+            ),
             interlaced: false,
             hdr: None,
             channels: Some(

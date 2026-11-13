@@ -35,6 +35,9 @@ pub struct StreamInfo {
     pub height: Option<u32>,
     pub bit_depth: Option<u8>,
     pub frame_rate: Option<f32>,
+    /// None for cached probes predating geometry verification.
+    #[serde(default)]
+    pub square_pixels_unrotated: Option<bool>,
     pub interlaced: bool,
     pub hdr: Option<HdrKind>,
     // audio

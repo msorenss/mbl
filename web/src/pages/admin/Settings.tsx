@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
 import CastDiagnostics from "../../components/CastDiagnostics";
+import CastReceiverSettings from "../../components/CastReceiverSettings";
 import { RestartServerControl } from "../../components/RestartServerControl";
 import TlsSettings from "../../components/TlsSettings";
 import { Button } from "../../components/ui";
@@ -1241,6 +1242,7 @@ export default function Settings() {
           Use the log below to inspect Chromecast sender/receiver events and server playback
           exchanges.
         </p>
+        <CastReceiverSettings />
         <CastDiagnostics />
       </div>
     </div>

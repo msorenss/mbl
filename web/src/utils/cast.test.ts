@@ -258,7 +258,8 @@ describe("Google Cast lifecycle", () => {
     vi.useFakeTimers();
     try {
       const request = manager?.requestCastSession(media);
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(sdk.context.endCurrentSession).not.toHaveBeenCalled();
       expect(manager?.getState().isCasting).toBe(false);
       expect(client.POST).not.toHaveBeenCalled();
       sdk.player.isMediaLoaded = true;
@@ -278,7 +279,7 @@ describe("Google Cast lifecycle", () => {
     vi.useFakeTimers();
     try {
       const request = manager?.requestCastSession(media);
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(60_000);
       expect(await request).toBe(false);
       expect(manager?.getLastError()).toContain("did not confirm");
       expect(manager?.getState().isCasting).toBe(false);
@@ -653,4 +654,99 @@ describe("SDK unknown telemetry", () => {
       });
     }
   });
+});
+
+it("ends a Cast attempt when LOAD never settles and ignores a late response", async () => {
+  const sdk = await google();
+  let finish!: () => void;
+  sdk.session.loadMedia.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  vi.useFakeTimers();
+  try {
+    const request = manager!.requestCastSession(media);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await request).toBe(false);
+    expect(manager!.getLastError()).toContain("did not respond");
+    expect(sdk.context.endCurrentSession).toHaveBeenCalled();
+    finish();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(manager!.getState().isCasting).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("passes safe receiver limits to preparation before LOAD", async () => {
+  const { session } = await google();
+  const prepare = vi.fn(async () => {
+    expect(session.loadMedia).not.toHaveBeenCalled();
+    return media;
+  });
+  expect(await manager!.requestCastSession(media, undefined, prepare)).toBe(true);
+  expect(prepare).toHaveBeenCalledWith({
+    profile: "cast-safe-720",
+    maxHeight: 720,
+    source: "fallback",
+  });
+  expect(manager!.getState().profileSelection?.profile).toBe("cast-safe-720");
+});
+
+it("does not prepare media when the receiver changes during capability discovery", async () => {
+  const { context } = await google();
+  const prepare = vi.fn(async () => media);
+  let calls = 0;
+  const original = context.getCurrentSession;
+  context.getCurrentSession = () => (++calls <= 1 ? original() : (null as never));
+  expect(await manager!.requestCastSession(media, undefined, prepare)).toBe(false);
+  expect(prepare).not.toHaveBeenCalled();
+});
+
+it("does not advertise enforced limits for raw online URLs", async () => {
+  await google();
+  expect(await manager!.requestCastSession(media)).toBe(true);
+  expect(manager!.getState().profileSelection).toBeNull();
+});
+
+it("does not commit an old receiver profile after a switch during LOAD", async () => {
+  const { context, session } = await google();
+  const originalLoad = session.loadMedia.getMockImplementation()!;
+  session.loadMedia.mockImplementation(async (request) => {
+    await originalLoad(request);
+    context.getCurrentSession = () => null as never;
+  });
+  expect(await manager!.requestCastSession(media, undefined, async () => media)).toBe(false);
+  expect(manager!.getState().profileSelection).toBeNull();
+});
+
+it("records sanitized CAF telemetry from the active receiver", async () => {
+  const { session } = await google();
+  const listeners = new Map<string, (namespace: string, data: string) => void>();
+  Object.assign(session, {
+    addMessageListener: vi.fn((ns: string, cb: (namespace: string, data: string) => void) =>
+      listeners.set(ns, cb),
+    ),
+    removeMessageListener: vi.fn((ns: string) => listeners.delete(ns)),
+    sendMessage: vi.fn().mockRejectedValue(new Error("no capability report")),
+  });
+  expect(await manager!.requestCastSession(media, undefined, async () => media)).toBe(true);
+  const ns = "urn:x-cast:com.mbl.telemetry";
+  listeners.get(ns)?.(
+    ns,
+    JSON.stringify({
+      schemaVersion: 1,
+      revision: 1,
+      event: "ERROR",
+      detailedErrorCode: 301,
+      url: "https://private?token=secret",
+    }),
+  );
+  const { castDiagnostics } = await import("./castDiagnostics");
+  const event = castDiagnostics.getEvents().find((entry) => entry.stage === "receiver.caf.error");
+  expect(event?.details).toEqual({ detailedErrorCode: 301 });
+  manager!.disposeSession();
+  expect(listeners.size).toBe(0);
 });
