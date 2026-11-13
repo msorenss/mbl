@@ -847,13 +847,15 @@ Jellyfin API shim · **in-app AI assistant + natural-language search** (user-con
 
 ## 9. Progress Log
 
-2026-11-13 | Cast P3 receiver | CAF-app, explicita kapabilitetsprober, begränsad telemetri, app-ID-konfiguration och registreringsguide; extern registrering/hosting och fysisk acceptans kvarstår | local, uncommitted
+2026-11-13 | Cast fysisk Hub-checkpoint | e070192 installerad och binärhash verifierad; användaren bekräftar Auto från noll med bild/ljud på Bedroom display. Standardreceiver, en nivå; längre paus/resume och övrig matris återstår | dokumentationscheckpoint
 
-2026-11-13 | Cast P2 sender | Nonce-bundet capability-kontrakt, kombinationsbaserat profilval före förhandling och synligt 720p30-reservläge. P3 receiver/hosting och fysisk acceptans återstår | local, uncommitted
+2026-11-13 | Cast P3 receiver | CAF-app, explicita kapabilitetsprober, begränsad telemetri, app-ID-konfiguration och registreringsguide; extern registrering/hosting och fysisk acceptans kvarstår | e070192
 
-2026-11-13 | Cast P1 geometri | SAR/rotation normaliseras inom profilens båda dimensionstak; 25 riktade tester passerade. Plan och AGENTS uppdaterade före P2; omförhandlingsacceptans och receiverklassificering kvarstår | local, uncommitted
+2026-11-13 | Cast P2 sender | Nonce-bundet capability-kontrakt, kombinationsbaserat profilval före förhandling och synligt 720p30-reservläge. P3 receiver/hosting och fysisk acceptans återstår | e070192
 
-2026-11-12 | Cast P1 servergrund | Namngivna serverprofiler, dimensions-/fps-gränser, låsta profilöverlagringar och faktisk AVC-mastermetadata; återstående geometri/receiverarbete i docs/plans/cast-device-profiles.md | local, uncommitted
+2026-11-13 | Cast P1 geometri | SAR/rotation normaliseras inom profilens båda dimensionstak; 25 riktade tester passerade. Plan och AGENTS uppdaterade före P2; omförhandlingsacceptans och receiverklassificering kvarstår | e070192
+
+2026-11-12 | Cast P1 servergrund | Namngivna serverprofiler, dimensions-/fps-gränser, låsta profilöverlagringar och faktisk AVC-mastermetadata; återstående geometri/receiverarbete i docs/plans/cast-device-profiles.md | e070192
 Append one line per completed task: `YYYY-MM-DD | task | summary | commit`.
 
 ```

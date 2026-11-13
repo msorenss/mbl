@@ -85,6 +85,34 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+
+### 2026-11-13 — Verifierad Hub-checkpoint före fortsatt arbete
+- Användaren bekräftar fungerande bild och ljud för Auto från 00:00 på Bedroom display efter försök 4. Standardreceiver, `cast-safe-720`, en nivå och högst 720p30; detta är inte ABR eller automatisk modellidentifiering.
+- Installerad binär från kodcheckpoint `e070192` verifierad med SHA-256 `6f4612e97845265d5c782c0c949f92e1f8d79a936a464ab01f0ba1cba8ac1674`. Tjänsten är aktiv och startade 2026-11-13 20:04:08 CET. Webbassets är inbäddade med `rust-embed/debug-embed`.
+- Loggunderlaget för 2 Mbps/resume och Auto/start noll finns sammanfattat i Cast-runbook. Auto når PLAYING cirka 4 s efter LOAD; kort paus registreras utan visad frånkoppling. Återupptagning efter längre paus, 30 min uppspelning, undertexter/ljudsynk med spårbyten samt Google TV återstår.
+- Dokumentationscheckpoint på användarens begäran. Ingen ytterligare kodändring, release eller push. P3-registreringen väntar på betalning/app-ID; standardreceiver kan testas vidare.
+
+### 2026-11-13 — Auto från noll på Bedroom display
+- Försök 4 kl. 19:08 UTC: item 3, startMs=0, ingen manuell maxBitrate och `cast-safe-720` fallback. Servern väljer transcode och svarar 200 på första försöket efter cirka 3 s.
+- LOAD 19:08:36,899 → PLAYING 19:08:40,869 (cirka 4 s). Positionen ökar till cirka 9 s. `control.pause` följs av PAUSED och lyckad progress 204; ingen receiverfrånkoppling visas i Cast-exporten. Servern levererar init och segment 0–3 med 200, variant_count=1, och får ett stop-anrop 19:09:03.
+- Detta är Auto med en säker enkel nivå, inte ABR eller verifierad modellidentifiering. Användaren har därefter bekräftat bild och ljud för Auto-testet. Återupptagning efter paus, längre körning och Google TV återstår.
+
+### 2026-11-13 — Hub tar emot nya profilen och rapporterar uppspelning
+- Användarens försök 3 kl. 19:05 UTC på Bedroom display accepterar `cast-safe-720`, 2 Mbps, medie-ID 3 och resume 10,073 s. Det tidigare profilfelet 422 är borta.
+- Första POST får 503, lokal session stoppas och retry får 200 efter cirka 3 s. Ett väntande segment från den stoppade sessionen får 404; den nya sessionen levererar master/init/segment 0–7 med 200 och en kvalitetsnivå.
+- LOAD 19:05:46,794, BUFFERING/ready 19:05:51,068 och PLAYING 19:05:59,115. Positionen går från 10 till 24 s i Cast-loggen. Serverloggen slutar med ett stop-anrop 19:06:23; ingen mottagarkrasch är visad.
+- Detta verifierar profilförhandling och fortskridande rapporterad uppspelning, inte synlig bild/A-V-synk. Användarens bild-/ljudbekräftelse, Auto från noll, längre uppspelning och Google TV återstår.
+
+### 2026-11-13 — Installationsskriptets saknade konfigurationsfil
+- Installeraren stannade tyst efter kontrollsumman eftersom `/etc/mbl/mbl.toml` saknas på värden. MBL stöder frånvarande fil och använder standardinställningar; skriptet krävde felaktigt en befintlig fil.
+- `.dev/checkpoint-e070192/install.sh` accepterar nu saknad konfig, sparar detta i backupen, använder `/var/lib/mbl` som standard för databasbackup och skriver felrad/felkod samt installationssteg. Bash-syntax och konfigurationsfallen kontrollerade. Användaren behöver köra det rättade skriptet igen; installation är ännu inte bekräftad.
+
+### 2026-11-13 — Lokalt checkpoint-testpaket för installation
+- Byggt e070192 med nytt webbbygge och `--features rust-embed/debug-embed`, så även debug-testbinären innehåller webbassets. Paket: `.dev/checkpoint-e070192/` med binär, SHA-256, installationsskript och fysisk testmatris.
+- Isolerat starttest med temporär databas på loopback 18425 passerade: hälsa, exakt webb-index och receiver-HTML med no-cache. Testprocessen avslutad. Ingen fysisk Cast-testning ännu.
+- Tjänsten på 8420 är inte uppdaterad: sudo blockeras av miljöns `no new privileges`. Användaren behöver köra `sudo bash /home/marcus/mbl/.dev/checkpoint-e070192/install.sh` i vanlig terminal. Skriptet tar backup och återställer binären om start-/webbkontrollen misslyckas.
+- Nästa: bekräfta installation, testa standardreceiver på Bedroom display och Bedroom TV med Auto respektive 2 Mbps från 00:00; registrerat receiver-app-ID saknas fortfarande.
+
 ### 2026-11-13 — Checkpoint för Cast-arbetet P1–P3
 - Sparar serverprofiler, geometrinormalisering, senderprofilval, CAF-receiver, tidigare lokala Cast-fixar, tester och dokumentation i en gemensam checkpoint på användarens begäran.
 - Senast verifierat: 269 webbtester, 6 server-webbtester, TypeScript, produktionsbygge och bundle-budget; P1 hade även 25 riktade Rust-tester och grön workspace-Clippy.

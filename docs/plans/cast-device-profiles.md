@@ -2,7 +2,7 @@
 
 Status: P1:s servergrund och geometrinormalisering implementerade lokalt 2026-11-13;
 full omförhandlingsacceptans återstår. P2:s senderdel och P3:s receiverkod är implementerade; registrering/hosting, P4–P5 och fysisk acceptans återstår.
-Ingen automatisk mottagaridentifiering eller driftsättning ingår i P1.
+Checkpoint `e070192` är nu installerad på Pi:n. Kort fysisk Auto-uppspelning från noll på Bedroom display har bekräftats av användaren med bild och ljud (standardreceiver, säker 720p30-profil, en nivå). Full fysisk matris återstår; se driftguiden.
 Prioritet: spelarens kärnfunktion före övriga klienter. Baslinje och incidenter:
 [Cast-driftguiden](../audits/cast-runbook.md).
 

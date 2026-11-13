@@ -191,3 +191,37 @@ avc1.640028 medan uppmätt kodning var High 3.1), Kitchen-verifiering och
 längre tester av paus/sökning/A-V-synk. Full Rust-regression återstår efter
 minnesbegränsad avbruten testkompilering. Fysiskt bekräftad fix får inte
 förväxlas med färdig release eller fullständig acceptans på alla modeller.
+
+
+### 2026-11-13 — Checkpoint, Bedroom display, 2 Mbps
+
+Försök 3, 19:05 UTC, item 3 och resume 10,073 s: nya `cast-safe-720`
+accepteras. 503 följs av frigjord lokal session och lyckad retry (200).
+LOAD till PLAYING tar cirka 12,3 s; SDK-positionen ökar 10→24 s.
+Servern levererar master, init och segment 0–7 med 200, variant_count=1.
+404 för ett väntande gammalt segment inträffar vid stoppet före den nya
+sessionen. Exportens sista stop-anrop är 19:06:23; inget receiverfel visas.
+Källor: användarens exporter 5a6ebd4d-41ab-4b9d-ac4a-71cac9228198 och
+b5d7ba60-2990-482d-a2b2-3fb44342f937. Synlig bild, ljudsynk och Auto är ännu
+inte bekräftade. Markera inte fysisk acceptans klar endast från SDK-status.
+
+
+### 2026-11-13 — Auto från noll på Bedroom display
+- Försök 4 kl. 19:08 UTC: item 3, startMs=0, ingen manuell maxBitrate och `cast-safe-720` fallback. Servern väljer transcode och svarar 200 på första försöket efter cirka 3 s.
+- LOAD 19:08:36,899 → PLAYING 19:08:40,869 (cirka 4 s). Positionen ökar till cirka 9 s. `control.pause` följs av PAUSED och lyckad progress 204; ingen receiverfrånkoppling visas i Cast-exporten. Servern levererar init och segment 0–3 med 200, variant_count=1, och får ett stop-anrop 19:09:03.
+- Detta är Auto med en säker enkel nivå, inte ABR eller verifierad modellidentifiering. Användaren har därefter bekräftat bild och ljud för Auto-testet. Återupptagning efter paus, längre körning och Google TV återstår.
+
+### Bekräftad fysisk checkpoint — 2026-11-13
+
+Användaren bekräftade fungerande bild och ljud i Auto-testet på Bedroom display.
+Verifierad installerad kodcheckpoint: `e070192`, binär SHA-256
+`6f4612e97845265d5c782c0c949f92e1f8d79a936a464ab01f0ba1cba8ac1674`.
+Tjänsten aktiv, start 20:04:08 CET. FFmpeg 7.1.5-0+deb13u1+rpt2.
+Build: `CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo build -p mbl-server --features rust-embed/debug-embed`, efter webbbygge på samma commit.
+
+Standardreceiver och säker 720p30-profil, en nivå. Detta är den fungerande
+referensen inför nästa ändring. Loggarna för Auto är exporter
+`056f6ac4-8baa-4d77-84f9-b1b0b54f323f` och
+`be4a6cb7-a0bc-437d-bc63-950d1423511e`. Inga råa token eller mediefiler checkas in.
+Bekräftelsen omfattar kort Auto-uppspelning från noll; den ersätter inte test av
+längre paus/resume, undertexter, längre uppspelning, Google TV eller P4 ABR.
