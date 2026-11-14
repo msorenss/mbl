@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Changed
+- Device-specific Cast profiles can offer two bounded HLS quality levels when a recent matching hardware self-test demonstrates encoding headroom. Pi/ARM retains one level.
+- Playback statistics report the server's actual quality-level count. Each encoded level consumes an encoder slot, and failed adaptive startup retries with one level.
+
 ## [1.3.6] - 2026-11-10
 
 ### Fixed

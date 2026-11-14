@@ -1942,7 +1942,10 @@ export function Player(props: PlayerProps) {
                       : server().network}
                   </div>
                   <div>Server profile: {server().profileName}</div>
-                  <Show when={server().isHls} fallback={<div>Server transcoding: not used</div>}>
+                  <Show
+                    when={server().isHls}
+                    fallback={<div>Original quality; server transcoding not used</div>}
+                  >
                     <Show
                       when={server().transcode}
                       fallback={<div>Transcode runtime: unavailable</div>}
@@ -1963,6 +1966,17 @@ export function Player(props: PlayerProps) {
                                 ? "Exited with an error"
                                 : "Not running; buffered segments may remain"}
                           </div>
+                          <div>
+                            {runtime().renditionCount > 1
+                              ? `Adaptive streaming: ${runtime().renditionCount} quality levels; player selects quality`
+                              : "One quality level; automatic switching unavailable"}
+                          </div>
+                          <Show when={isCasting() && runtime().renditionCount === 1}>
+                            <p>
+                              If playback keeps buffering, select a lower quality limit in the
+                              player.
+                            </p>
+                          </Show>
                           <div>Transcode restarts: {runtime().restarts}</div>
                         </>
                       )}

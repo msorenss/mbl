@@ -355,43 +355,52 @@ it("does not turn select navigation into player seek shortcuts", async () => {
   expect(video.currentTime).toBe(40);
 });
 
-it("loads server diagnostics only while statistics are open and releases the request on close", async () => {
-  let signal: AbortSignal | undefined;
-  const get = vi.spyOn(client, "GET").mockImplementation(async (_path, options) => {
-    signal = (options as { signal: AbortSignal }).signal;
-    return {
-      data: {
-        sessionId: "session",
-        network: "wan",
-        profileName: "firefox",
-        isHls: true,
-        transcode: {
-          backend: "software",
-          processRunning: true,
-          throttled: true,
-          restarts: 2,
-          lastExitFailed: false,
+it.each([1, 2])(
+  "shows %i server quality levels only while statistics are open",
+  async (renditionCount) => {
+    let signal: AbortSignal | undefined;
+    const get = vi.spyOn(client, "GET").mockImplementation(async (_path, options) => {
+      signal = (options as { signal: AbortSignal }).signal;
+      return {
+        data: {
+          sessionId: "session",
+          network: "wan",
+          profileName: "firefox",
+          isHls: true,
+          transcode: {
+            backend: "software",
+            renditionCount,
+            processRunning: true,
+            throttled: true,
+            restarts: 2,
+            lastExitFailed: false,
+          },
         },
-      },
-      response: new Response(),
-    } as never;
-  });
-  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), container);
-  await tick();
-  expect(get).not.toHaveBeenCalled();
-  const button = container.querySelector<HTMLButtonElement>('[title="Stats for Nerds (s)"]');
-  button?.click();
-  await tick();
-  expect(get).toHaveBeenCalledWith(
-    "/api/v1/playback/{session}/diagnostics",
-    expect.objectContaining({ params: { path: { session: "session" } } }),
-  );
-  expect(container.textContent).toContain("Session request network: wan");
-  expect(container.textContent).toContain("Active backend: software");
-  expect(container.textContent).toContain("Paused ahead of playback");
-  button?.click();
-  expect(signal?.aborted).toBe(true);
-});
+        response: new Response(),
+      } as never;
+    });
+    dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), container);
+    await tick();
+    expect(get).not.toHaveBeenCalled();
+    const button = container.querySelector<HTMLButtonElement>('[title="Stats for Nerds (s)"]');
+    button?.click();
+    await tick();
+    expect(get).toHaveBeenCalledWith(
+      "/api/v1/playback/{session}/diagnostics",
+      expect.objectContaining({ params: { path: { session: "session" } } }),
+    );
+    expect(container.textContent).toContain("Session request network: wan");
+    expect(container.textContent).toContain("Active backend: software");
+    expect(container.textContent).toContain(
+      renditionCount === 2
+        ? "Adaptive streaming: 2 quality levels"
+        : "One quality level; automatic switching unavailable",
+    );
+    expect(container.textContent).toContain("Paused ahead of playback");
+    button?.click();
+    expect(signal?.aborted).toBe(true);
+  },
+);
 it("does not present unavailable server diagnostics as direct play", async () => {
   vi.spyOn(client, "GET").mockResolvedValue({
     error: {},

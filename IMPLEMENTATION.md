@@ -847,6 +847,8 @@ Jellyfin API shim · **in-app AI assistant + natural-language search** (user-con
 
 ## 9. Progress Log
 
+2026-11-14 | Cast P4 lokal implementation | Profilbegränsade renditions, mätt kapacitetsgrind, kodningsplatser per nivå och faktisk nivådiagnostik; fysisk ABR/WAN-acceptans kvarstår; riktade Rust-/webbtester, Clippy, bygge och OpenAPI gröna | P4-checkpoint
+
 2026-11-13 | Cast fysisk Hub-checkpoint | e070192 installerad och binärhash verifierad; användaren bekräftar Auto från noll med bild/ljud på Bedroom display. Standardreceiver, en nivå; längre paus/resume och övrig matris återstår | dokumentationscheckpoint
 
 2026-11-13 | Cast P3 receiver | CAF-app, explicita kapabilitetsprober, begränsad telemetri, app-ID-konfiguration och registreringsguide; extern registrering/hosting och fysisk acceptans kvarstår | e070192

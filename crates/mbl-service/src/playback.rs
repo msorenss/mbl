@@ -239,6 +239,7 @@ pub struct ActivePlaybackSession {
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeDiagnostics {
+    pub rendition_count: usize,
     pub backend: String,
     pub process_running: bool,
     pub throttled: bool,
@@ -934,6 +935,7 @@ impl PlaybackService {
         let transcode = if let Some(hls) = hls {
             let runtime = hls.runtime_status().await;
             Some(TranscodeDiagnostics {
+                rendition_count: runtime.rendition_count,
                 backend: runtime.backend.as_str().into(),
                 process_running: runtime.process_running,
                 throttled: runtime.throttled,
@@ -1302,8 +1304,19 @@ impl PlaybackService {
         let mut renditions = vec![Rendition { name: "0".to_owned(), width, max_bitrate }];
         // Start with two bounded H.264 encodes. Keep the original path for
         // remux, burn-in, costly filters and larger software encodes.
+        let named_cast = !mbl_playback::cast_profiles::modes(&profile.name).is_empty();
+        let cast_capacity = if allow_adaptive && named_cast {
+            if let (Some(hw), Some(source)) = (&self.hw, video_stream) {
+                let fps = source.frame_rate.map(f64::from).unwrap_or(0.0);
+                hw.supports_cast_ladder(selected_backend.as_str(), fps).await.unwrap_or(false)
+            } else {
+                false
+            }
+        } else {
+            true
+        };
         if allow_adaptive
-            && mbl_playback::cast_profiles::modes(&profile.name).is_empty()
+            && cast_capacity
             && (selected_backend.is_gpu()
                 || (selected_backend == Backend::Software
                     && cfg!(target_arch = "x86_64")
@@ -1446,7 +1459,31 @@ impl PlaybackService {
                 fast_start_segments,
                 generated_playlist_start_ms: generated_playlist.then_some(start_ms),
             })
-            .await?;
+            .await;
+        let session = match session {
+            Ok(session) => session,
+            Err(error) if adaptive => {
+                tracing::warn!(%error, "adaptive admission failed; retrying with one rendition");
+                return Box::pin(self.start_hls_session(
+                    user_id,
+                    part_id,
+                    verified_path,
+                    media_info,
+                    decision,
+                    ctx,
+                    profile,
+                    generated_playlist,
+                    false,
+                    start_ms,
+                    duration_ms,
+                    audio_offset_ms,
+                    library_roots,
+                    wait_for_ready,
+                ))
+                .await;
+            }
+            Err(error) => return Err(error),
+        };
         let mut candidate = HlsStartup { session: Some((hls_mgr.clone(), session.clone())) };
         let prepared = if cast_adaptive {
             session.prepare_cast_resume(resume_segment).await

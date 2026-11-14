@@ -5031,6 +5031,7 @@ export interface components {
             backend: string;
             lastExitFailed: boolean;
             processRunning: boolean;
+            renditionCount: number;
             /** Format: int32 */
             restarts: number;
             throttled: boolean;

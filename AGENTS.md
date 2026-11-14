@@ -4,7 +4,7 @@ This document lives at the repository root so every AI agent, contributor, and a
 ---
 ## 1. Current status (quick overview)
 - Current work:
-  - Prioriterad nästa plan: [Enhetsanpassad Cast och adaptiv Automatisk](docs/plans/cast-device-profiles.md). Automatiskt profilval är krav: P0 → P3-prototyp → P1 → färdig P3 → P2 → P4/P5. Ingen modellväljare i normalflödet; okänd mottagare får säker fallback. P1:s servergrund och geometri är implementerade lokalt; full acceptans och automatisk mottagaridentifiering återstår.
+  - Prioriterad nästa plan: [Enhetsanpassad Cast och adaptiv Automatisk](docs/plans/cast-device-profiles.md). Automatiskt profilval är krav: P0 → P3-prototyp → P1 → färdig P3 → P2 → P4/P5. Ingen modellväljare i normalflödet; okänd mottagare får säker fallback. P1–P3-kod och begränsad P4-ABR är implementerade; receiverregistrering och fysisk ABR/WAN-acceptans återstår. Pi:n behåller en säker nivå.
   - Playback performance phases 1–4 are implemented. All three synthetic clips passed physical Cast testing on Bedroom TV.
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
@@ -85,6 +85,12 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+
+### 2026-11-14 — P4 begränsad Cast-ABR, lokal implementation
+- Två nivåer för namngivna Cast-profiler kräver aktuellt matchande självtest, kodningsmarginal och två lediga kodningsplatser. Pi/ARM stannar på en nivå. Varje rendition normaliseras inom enhetens geometri.
+- Kodningskapacitet räknar renditions, inklusive samtidiga livejobb. ABR-inträdes-/startfel faller tillbaka till en nivå; GPU-ABR får inte tyst falla tillbaka till dubbla mjukvarukodningar.
+- Diagnostikens `renditionCount` visas i spelarstatistiken; ingen senderstyrd ABR-loop. Fysisk ABR/WAN-acceptans och hållbar kapacitet är inte verifierade. Ingen installation eller release.
+- Verifierat: 24 riktade Rust-tester, 269 webbtester samt 58 riktade spelartester efter utökad nivåtestning; Clippy för service/transcode med alla targets, TypeScript, produktionsbygge, bundle-budget och OpenAPI-kontroll passerar. Befintlig installerad Hub-checkpoint är oförändrad.
 
 ### 2026-11-14 — Bedroom display återupptar efter 90 sekunders paus
 - Standardreceivern förblir ansluten under pausen. Från 858 s går den tillbaka till PLAYING och når 883 s före nästa förhandling.

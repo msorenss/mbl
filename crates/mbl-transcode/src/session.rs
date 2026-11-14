@@ -235,6 +235,7 @@ impl std::fmt::Debug for HlsSession {
 
 #[derive(Debug, Clone)]
 pub struct SessionRuntime {
+    pub rendition_count: usize,
     pub backend: Backend,
     pub process_running: bool,
     pub throttled: bool,
@@ -248,6 +249,7 @@ impl HlsSession {
         let mut state = self.state.lock().await;
         let running = poll_child_state(&mut state);
         SessionRuntime {
+            rendition_count: self.base_pipeline.output.renditions.len(),
             backend: state.active_backend,
             process_running: running,
             throttled: running && state.paused,
@@ -858,12 +860,15 @@ impl SessionManager {
         self.sessions.read().map(|m| m.len()).unwrap_or(0)
     }
 
-    /// Number of active video-encoding sessions.
+    /// Number of reserved video encoders (one per rendition).
     pub fn active_video_transcode_count(&self) -> usize {
         self.sessions
             .read()
             .map(|m| {
-                m.values().filter(|s| s.is_video_transcode).count()
+                m.values()
+                    .filter(|s| s.is_video_transcode)
+                    .map(|s| s.base_pipeline.output.renditions.len().max(1))
+                    .sum::<usize>()
                     + self.live_video.load(Ordering::Acquire)
             })
             .unwrap_or(0)
@@ -927,9 +932,15 @@ impl SessionManager {
                 Error::Internal(std::io::Error::other("session map lock poisoned").into())
             })?;
             if is_video_transcode {
-                let active_video = map.values().filter(|s| s.is_video_transcode).count()
+                let active_video = map
+                    .values()
+                    .filter(|s| s.is_video_transcode)
+                    .map(|s| s.base_pipeline.output.renditions.len().max(1))
+                    .sum::<usize>()
                     + self.live_video.load(Ordering::Acquire);
-                if active_video >= self.config.max_video_sessions {
+                if active_video.saturating_add(req.pipeline.output.renditions.len().max(1))
+                    > self.config.max_video_sessions
+                {
                     return Err(Error::Unavailable(format!(
                         "maximum concurrent video transcode sessions ({}) reached",
                         self.config.max_video_sessions
@@ -974,7 +985,9 @@ impl SessionManager {
             _ => "h264".to_owned(),
         };
         fallback_backends.retain(|b| {
-            *b == Backend::Software
+            (*b == Backend::Software
+                && (base_pipeline.output.renditions.len() == 1
+                    || base_pipeline.backend == Backend::Software))
                 || ((base_pipeline.output.renditions.len() == 1 || b.is_gpu())
                     && !self.is_backend_bad(*b, &codec_name))
         });

@@ -280,15 +280,31 @@ fn build_abr_ladder_args(
     branches.push(pre_chain);
 
     for (i, r) in p.output.renditions.iter().enumerate() {
-        let scale_expr = match (p.backend, r.width) {
-            (Backend::Vaapi, Some(w)) => format!("scale_vaapi=w={w}:h=-2:format=nv12"),
-            (Backend::Vaapi, None) => "scale_vaapi=format=nv12".to_owned(),
-            (Backend::Qsv, Some(w)) => format!("vpp_qsv=w={w}:h=-2:format=nv12"),
-            (Backend::Qsv, None) => "vpp_qsv=format=nv12".to_owned(),
-            (Backend::Nvenc, Some(w)) => format!("scale_cuda=w={w}:h=-2:format=yuv420p"),
-            (Backend::Nvenc, None) => "scale_cuda=format=yuv420p".to_owned(),
-            (_, Some(w)) => format!("scale=w={w}:h=-2,format=yuv420p"),
-            (_, None) => "format=yuv420p".to_owned(),
+        let scale_expr = if let VideoOp::Encode { bounds: Some((w, h)), .. } = p.video {
+            // Apply the device envelope independently to every branch, including
+            // portrait/anamorphic inputs. Lower renditions also lower that envelope.
+            let branch_width = r.width.unwrap_or(w).min(w);
+            let branch_height =
+                ((u64::from(h) * u64::from(branch_width) / u64::from(w)) as u32 / 2 * 2).max(2);
+            build_video_filter_chain_for_backend(
+                p.backend,
+                false,
+                false,
+                None,
+                Some((branch_width, branch_height)),
+                None,
+            )?
+        } else {
+            match (p.backend, r.width) {
+                (Backend::Vaapi, Some(w)) => format!("scale_vaapi=w={w}:h=-2:format=nv12"),
+                (Backend::Vaapi, None) => "scale_vaapi=format=nv12".to_owned(),
+                (Backend::Qsv, Some(w)) => format!("vpp_qsv=w={w}:h=-2:format=nv12"),
+                (Backend::Qsv, None) => "vpp_qsv=format=nv12".to_owned(),
+                (Backend::Nvenc, Some(w)) => format!("scale_cuda=w={w}:h=-2:format=yuv420p"),
+                (Backend::Nvenc, None) => "scale_cuda=format=yuv420p".to_owned(),
+                (_, Some(w)) => format!("scale=w={w}:h=-2,format=yuv420p"),
+                (_, None) => "format=yuv420p".to_owned(),
+            }
         };
         branches.push(format!("[s{i}]{scale_expr}[v{i}]"));
     }
@@ -342,17 +358,12 @@ fn validate_pipeline(p: &Pipeline, caps: &FfmpegCaps) -> Result<()> {
     {
         return Err(Error::Validation("video frame rate must be between 1 and 120".into()));
     }
-    if let VideoOp::Encode { bounds: Some((w, h)), .. } = &p.video {
-        if !(2..=8192).contains(w) || !(2..=8192).contains(h) || w % 2 != 0 || h % 2 != 0 {
-            return Err(Error::Validation(
-                "video bounds must be even dimensions between 2 and 8192".into(),
-            ));
-        }
-        if p.output.renditions.len() != 1 {
-            return Err(Error::Validation(
-                "bounded geometry currently requires one rendition".into(),
-            ));
-        }
+    if let VideoOp::Encode { bounds: Some((w, h)), .. } = &p.video
+        && (!(2..=8192).contains(w) || !(2..=8192).contains(h) || w % 2 != 0 || h % 2 != 0)
+    {
+        return Err(Error::Validation(
+            "video bounds must be even dimensions between 2 and 8192".into(),
+        ));
     }
     if p.output.segment_secs == 0 {
         return Err(Error::Validation("HLS segment_secs must be >= 1".into()));

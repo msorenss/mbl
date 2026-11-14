@@ -215,6 +215,39 @@ impl HwService {
         Ok(HwSelftestResponse { job_id, capabilities: entries, capacity })
     }
 
+    /// Conservative admission for a two-level Cast ladder. A recent matching
+    /// benchmark is required; platform guesses alone never enable this path.
+    pub async fn supports_cast_ladder(&self, backend: &str, frame_rate: f64) -> Result<bool> {
+        if self.fingerprint.profile.is_pi_or_arm()
+            || !frame_rate.is_finite()
+            || frame_rate <= 0.0
+            || frame_rate > 30.0
+        {
+            return Ok(false);
+        }
+        let ffmpeg_bin = self.resolve_ffmpeg_bin();
+        let probe = blocking(move || Ok(probe_ffmpeg(&ffmpeg_bin))).await?;
+        let entries = rows_to_entries(hw::list_all(&self.db).await?);
+        let capacity = compute_capacity(
+            &self.fingerprint,
+            &probe,
+            &entries,
+            &self.tracker,
+            self.active_video_sessions(),
+        );
+        Ok(capacity.supports_abr_ladder
+            && capacity.preferred_backend == backend
+            && capacity.available_video_sessions >= 2
+            && cast_benchmark_matches(
+                &entries,
+                backend,
+                &probe.binary_hash,
+                &self.fingerprint.driver_fingerprint,
+                frame_rate,
+                now_ms(),
+            ))
+    }
+
     /// Build `(can_transcode_video, Option<HwSummary>, TranscodeCapacity)` for the playback decision engine.
     pub async fn decision_summary(&self) -> Result<(bool, Option<HwSummary>, TranscodeCapacity)> {
         let ffmpeg_bin = self.resolve_ffmpeg_bin();
@@ -259,4 +292,70 @@ fn rows_to_entries(rows: Vec<HwCapabilityRow>) -> Vec<HwCapEntry> {
             tested_at: r.tested_at,
         })
         .collect()
+}
+
+fn cast_benchmark_matches(
+    entries: &[HwCapEntry],
+    backend: &str,
+    hash: &str,
+    driver: &str,
+    frame_rate: f64,
+    now: i64,
+) -> bool {
+    entries.iter().any(|entry| {
+        entry.backend == backend
+            && entry.codec == "h264"
+            && entry.operation == "encode"
+            && entry.ok
+            && entry.ffmpeg_hash == hash
+            && entry.driver_fingerprint == driver
+            && (0..=86_400_000).contains(&now.saturating_sub(entry.tested_at))
+            && entry.fps.is_some_and(|fps| fps.is_finite() && fps >= frame_rate * 3.0)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cast_ladder_requires_recent_matching_successful_measurement() {
+        let mut entry = HwCapEntry {
+            backend: "nvenc".into(),
+            codec: "h264".into(),
+            operation: "encode".into(),
+            ok: true,
+            fps: Some(100.0),
+            error: None,
+            ffmpeg_hash: "binary".into(),
+            driver_fingerprint: "driver".into(),
+            tested_at: 100_000_000,
+        };
+        let accepted = |entry: &HwCapEntry, now| {
+            cast_benchmark_matches(
+                std::slice::from_ref(entry),
+                "nvenc",
+                "binary",
+                "driver",
+                30.0,
+                now,
+            )
+        };
+        assert!(accepted(&entry, 100_000_001));
+        assert!(!accepted(&entry, 200_000_000));
+        assert!(!accepted(&entry, 99_999_999));
+        entry.fps = Some(89.0);
+        assert!(!accepted(&entry, 100_000_001));
+        entry.fps = Some(f64::NAN);
+        assert!(!accepted(&entry, 100_000_001));
+        entry.fps = Some(100.0);
+        entry.ffmpeg_hash = "changed".into();
+        assert!(!accepted(&entry, 100_000_001));
+        entry.ffmpeg_hash = "binary".into();
+        entry.driver_fingerprint = "changed".into();
+        assert!(!accepted(&entry, 100_000_001));
+        entry.driver_fingerprint = "driver".into();
+        entry.ok = false;
+        assert!(!accepted(&entry, 100_000_001));
+    }
 }

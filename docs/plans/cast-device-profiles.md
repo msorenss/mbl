@@ -1,7 +1,7 @@
 # Enhetsanpassad Google Cast och adaptiv Automatisk
 
 Status: P1:s servergrund och geometrinormalisering implementerade lokalt 2026-11-13;
-full omförhandlingsacceptans återstår. P2:s senderdel och P3:s receiverkod är implementerade; registrering/hosting, P4–P5 och fysisk acceptans återstår.
+full omförhandlingsacceptans återstår. P2:s senderdel och P3:s receiverkod är implementerade; registrering/hosting och fysisk acceptans återstår. P4:s begränsade tvånivåväg är implementerad; fysisk ABR/WAN-acceptans återstår, se P4 nedan.
 Checkpoint `e070192` är nu installerad på Pi:n. Kort fysisk Auto-uppspelning från noll på Bedroom display har bekräftats av användaren med bild och ljud (standardreceiver, säker 720p30-profil, en nivå). Full fysisk matris återstår; se driftguiden.
 Prioritet: spelarens kärnfunktion före övriga klienter. Baslinje och incidenter:
 [Cast-driftguiden](../audits/cast-runbook.md).
@@ -205,20 +205,38 @@ Lokalt implementerat 2026-11-13; registrering/hosting och fysisk acceptans åter
 
 ## Fas P4 — Adaptiv kvalitet inom enhetens gränser
 
-- [ ] Skapa högst två nivåer initialt, exempelvis upp till 720p och 480p för
+- [x] Skapa högst två nivåer initialt, exempelvis upp till 720p och 480p för
   Hub. Bitrate bestäms av källan, mätning och budget, inte en fast garanti.
-- [ ] Filtrera varje nivå genom enhetens codec/fps/HDR-gränser. Nivåerna måste
+- [x] Filtrera varje nivå genom enhetens codec/fps/HDR-gränser. Nivåerna måste
   ha kompatibel init, synkroniserade nyckelbilder, ljud och segmentgränser.
-- [ ] Direct Play/remux med en nivå märks som original/en nivå, inte adaptiv.
-- [ ] Låt mottagarspelaren göra ABR när två nivåer finns. Ingen konkurrerande
+- [x] Direct Play/remux med en nivå märks som original/en nivå, inte adaptiv.
+- [x] Låt mottagarspelaren göra ABR när två nivåer finns. Ingen konkurrerande
   sender-loop som laddar om mediet vid varje tillfällig bandbreddssänkning.
-- [ ] Pi: aktivera inte två mjukvarukodningar bara för att klienten stöder ABR.
+- [x] Pi: aktivera inte två mjukvarukodningar bara för att klienten stöder ABR.
   Kräv hållbar uppmätt kodningskapacitet, annars en säker nivå med tydligt besked.
   Utvärdera förkodade versioner/worker som separat kapacitetslösning.
-- [ ] Med en nivå kan ett ihållande problem erbjuda lägre kvalitet eller en
+- [x] Med en nivå kan ett ihållande problem erbjuda lägre kvalitet eller en
   begränsad omförhandling. Bevara position, text, paus och ljud; använd cooldown
   och retry-tak så att uppspelningen inte pendlar mellan kvaliteter.
 - [ ] Verifiera WAN-budget och faktisk receivertrafik, inte browserbandbredd.
+
+Implementerat lokalt 2026-11-14:
+- Namngivna Cast-profiler kan använda den befintliga tvånivåvägen för H.264 SDR,
+  högst 720p och 30 fps, utan inbränd text. Varje FFmpeg-gren normaliserar SAR/rotation
+  och begränsas separat; mastermetadata läses från respektive verklig init.
+- Kräver självtest yngre än 24 timmar för samma FFmpeg och drivrutinsfingeravtryck,
+  minst tre gånger källans fps samt två lediga kodningsplatser. Detta är konservativ
+  inträdeskontroll, inte bevis på hållbar prestanda under verklig belastning.
+  Pi/ARM behåller en nivå. Ingen namnheuristik eller ny receiverapp krävs.
+- Varje rendition tar en plats i den gemensamma VOD/live-budgeten. Misslyckad
+  inträdeskontroll eller förberedelse provar en nivå. GPU-ABR faller inte tyst vidare
+  till två mjukvarukodningar.
+- Statistikpanelen visar faktiskt antal nivåer och erbjuder rådet att sänka
+  kvalitet manuellt vid kvarstående buffring. Befintligt spår-/paus-/positionsbevarande
+  används; ingen automatisk omladdningsloop har lagts till.
+- WAN:s befintliga förhandlingsbudget används. Browserns nätklass är fortfarande
+  inte ett mätbevis för receiver-vägen. Fysisk bandbreddsbegränsning på mottagarens
+  väg, längre belastningstest och verifierad WAN-klassificering återstår.
 
 Acceptans: begränsat nät på receiver-vägen ger nivåbyte utan sessionsbyte när
 ABR är aktivt; aldrig nivå över enhetstaket. En Pi utan kapacitet är stabil med

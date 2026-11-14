@@ -1,17 +1,31 @@
 # Cast: drift, enhetsstöd och regressionsfelsökning
 
-Kontrollerad 2026-11-12 mot arbetskopian efter v1.3.6. Dokumentet beskriver
+Uppdaterad 2026-11-14 mot arbetskopian efter v1.3.6. Dokumentet beskriver
 lokala ändringar; en installerad v1.3.6-release behöver inte innehålla dem.
 Detta är referensen för felsökning. [Användarguiden](../book/src/chromecast.md)
 beskriver reglagen och [historiska granskningen](2026-10-30-cast-diagnostics.md)
 innehåller tidigare fel. Releaseanteckningar är inte bevis för fysisk acceptans.
+
+## P4: lokal kod, ännu inte installerad
+
+Två nivåer kräver ett matchande självtest yngre än 24 timmar, minst tre gånger
+källans bildfrekvens och två lediga kodningsplatser. Endast H.264 SDR upp till
+720p30 utan inbränd text ingår. Pi/ARM behåller en nivå. Statistikens
+`renditionCount` visar antalet erbjudna nivåer, **inte** vilken nivå mottagaren
+spelar just nu. Bekräfta växling genom HLS-anropens variantnummer och fortskridande
+uppspelning; en tvånivåmaster ensam bevisar inte ABR.
+
+Vid misslyckad start provas en nivå. Ingen automatisk sender-loop laddar om vid
+buffring; användaren kan sänka kvaliteten med befintligt reglage. Fysisk ABR/WAN-
+acceptans och långvarig kapacitet måste verifieras separat. Den installerade
+Hub-checkpointen är oförändrad.
 
 ## Verifierat läge
 
 | Mottagare | Identifiering | Resultat och åtgärd |
 |---|---|---|
 | Bedroom TV | Användaren anger Chromecast med Google TV | Tidigare fungerande remux/Automatisk; 12 november fungerade 2 Mbps. Testa varje ändring även här. |
-| Bedroom display | Användaren anger Google Hub | 12 november bekräftad uppspelning vid 2 Mbps och byte till textspår 38. Automatisk misslyckas enligt användaren och är inte löst. Använd tills vidare 2 Mbps för den testade filen. |
+| Bedroom display | Användaren anger Google Hub | 13 november bekräftad Auto från noll med bild/ljud på checkpoint e070192. 14 november bekräftad synlig text och upplevd A/V-synk. Standardreceiver, säker 720p30 och en nivå. |
 | Kitchen display | Exakt modell inte fastställd | 12 november före senaste tidslinjefixen: samma IDLE-fel vid 2 Mbps. Måste testas igen med nya bygget; Bedroom-resultatet bevisar inget för Kitchen. |
 | Andra modeller | Okänd | Kontrollera modell, firmware, codecgränser och fysisk uppspelning separat. |
 

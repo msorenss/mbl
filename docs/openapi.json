@@ -15857,6 +15857,7 @@
       "TranscodeDiagnostics": {
         "type": "object",
         "required": [
+          "renditionCount",
           "backend",
           "processRunning",
           "throttled",
@@ -15872,6 +15873,10 @@
           },
           "processRunning": {
             "type": "boolean"
+          },
+          "renditionCount": {
+            "type": "integer",
+            "minimum": 0
           },
           "restarts": {
             "type": "integer",

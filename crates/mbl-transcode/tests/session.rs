@@ -118,6 +118,11 @@ async fn cast_resume_prepares_head_and_target_for_both_variants() {
         .await
         .unwrap();
 
+    assert_eq!(mgr.active_video_transcode_count(), 2);
+    assert!(!mgr.has_video_transcode_capacity());
+    assert!(mgr.reserve_video_capacity().await.is_err());
+    assert_eq!(session.runtime_status().await.rendition_count, 2);
+
     // Upfront playlists exist immediately.
     assert_eq!(
         session.request_master_playlist().await.unwrap(),

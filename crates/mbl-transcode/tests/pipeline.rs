@@ -915,6 +915,9 @@ async fn transcodes_10s_test_media_to_fmp4_hls_and_verifies_with_ffprobe() {
     // Both variants must offer the same segment boundaries so the browser can
     // switch quality without moving its playhead. Exercise a non-zero start.
     let mut adaptive = pipeline;
+    if let VideoOp::Encode { bounds, .. } = &mut adaptive.video {
+        *bounds = Some((320, 180));
+    }
     adaptive.start_ms = 2_000;
     adaptive.output.start_number = 1;
     adaptive.output.dir = Utf8PathBuf::from_path_buf(tmp.path().join("adaptive")).unwrap();
@@ -1245,5 +1248,36 @@ async fn cast_bounds_normalize_anamorphic_and_rotated_video() {
             .await
             .unwrap();
         assert!(decoded.status.success());
+
+        let mut ladder = p.clone();
+        ladder.output.dir = out.join("adaptive");
+        ladder.output.renditions.push(Rendition {
+            name: "1".into(),
+            width: Some(32),
+            max_bitrate: 100_000,
+        });
+        for name in ["0", "1"] {
+            std::fs::create_dir_all(ladder.output.dir.join(name)).unwrap();
+        }
+        let result = tokio::process::Command::new("ffmpeg")
+            .args(build_args(&ladder, &FfmpegCaps::default()).unwrap())
+            .output()
+            .await
+            .unwrap();
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        for (name, max_w, max_h) in [("0", 64, 48), ("1", 32, 24)] {
+            let result = tokio::process::Command::new("ffprobe")
+                .args(["-v", "error", "-show_streams", "-show_format", "-of", "json"])
+                .arg(ladder.output.dir.join(name).join("ffmpeg.m3u8"))
+                .output()
+                .await
+                .unwrap();
+            assert!(result.status.success());
+            let info = mbl_probe::parse_ffprobe_json(&result.stdout).unwrap();
+            let video = info.primary_video().unwrap();
+            assert!(video.width.unwrap() <= max_w);
+            assert!(video.height.unwrap() <= max_h);
+            assert_eq!(video.square_pixels_unrotated, Some(true));
+        }
     }
 }
