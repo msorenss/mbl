@@ -4,9 +4,26 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.7] - 2026-11-14
+
+### Added
+- Server-owned Cast device profiles with a conservative 720p30 fallback for unknown receivers. Normal playback does not require a manual device-model choice.
+- Optional Custom Web Receiver with capability probing and bounded diagnostics. A registered Cast application ID and receiver hosting are required to use this mode; the standard receiver remains available.
+
+### Fixed
+- Cast encoding normalizes rotation and non-square pixels and keeps output inside the receiver's resolution and frame-rate limits. HLS master metadata comes from the actual encoded initialization segment.
+- Cast handoff retries once after releasing a local encoder on an explicit capacity error, preserving playback position when recovery is needed.
+- Receiver loading has bounded timeouts, and local playback is silenced during handoff.
+- Updated rustix to 1.1.6 for the dependency security advisory.
+
 ### Changed
 - Device-specific Cast profiles can offer two bounded HLS quality levels when a recent matching hardware self-test demonstrates encoding headroom. Pi/ARM retains one level.
 - Playback statistics report the server's actual quality-level count. Each encoded level consumes an encoder slot, and failed adaptive startup retries with one level.
+
+### Validation and limitations
+- Bedroom display (Google Hub) has physically confirmed picture/audio with Auto using the safe single-level profile, plus subtitle visibility and perceived audio/video sync.
+- Two-level adaptive playback has automated coverage for geometry, segment alignment, resume and encoder admission. Physical ABR/WAN acceptance and sustained-load testing remain outstanding.
+- The optional Custom Web Receiver has not yet been physically accepted; registration is still pending.
 
 ## [1.3.6] - 2026-11-10
 

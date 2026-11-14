@@ -9,7 +9,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.6` (2026-11-10; Cast remux segment timing and seek handling).
+- Release prepared: `v1.3.7` (2026-11-14; Cast profiles, playback recovery and capacity-gated ABR).
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -85,6 +85,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+
+### 2026-11-14 — Release v1.3.7 förberedd
+- Användaren har begärt push och release. Versionsmetadata, Windows MSI och changelog uppdaterade till 1.3.7. Releasegrenen kräver grön main-CI för samma commit före paketering.
+- Fysisk ABR/WAN-acceptans och custom-receiverregistrering är tydligt markerade som återstående i releaseanteckningarna.
 
 ### 2026-11-14 — P4 begränsad Cast-ABR, lokal implementation
 - Två nivåer för namngivna Cast-profiler kräver aktuellt matchande självtest, kodningsmarginal och två lediga kodningsplatser. Pi/ARM stannar på en nivå. Varje rendition normaliseras inom enhetens geometri.
