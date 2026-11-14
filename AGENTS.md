@@ -86,6 +86,10 @@ When a milestone is complete and the relevant checks are green:
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
 
+### 2026-11-14 — Bedroom display återupptar efter 90 sekunders paus
+- Standardreceivern förblir ansluten under pausen. Från 858 s går den tillbaka till PLAYING och når 883 s före nästa förhandling.
+- Försök 6 byter till textspår 38 vid 883 s. Efter 503 och ny förhandling når den ersättande strömmen PAUSED, återupptas efter cirka 31 s och når 894 s före reset. Segment 149 ger 404 under bytet. Loggarna bekräftar mottagarstatus och position. Användaren uppger att bild och ljud verkar synkade. Användaren bekräftar att undertexten visades.
+
 ### 2026-11-13 — Verifierad Hub-checkpoint före fortsatt arbete
 - Användaren bekräftar fungerande bild och ljud för Auto från 00:00 på Bedroom display efter försök 4. Standardreceiver, `cast-safe-720`, en nivå och högst 720p30; detta är inte ABR eller automatisk modellidentifiering.
 - Installerad binär från kodcheckpoint `e070192` verifierad med SHA-256 `6f4612e97845265d5c782c0c949f92e1f8d79a936a464ab01f0ba1cba8ac1674`. Tjänsten är aktiv och startade 2026-11-13 20:04:08 CET. Webbassets är inbäddade med `rust-embed/debug-embed`.

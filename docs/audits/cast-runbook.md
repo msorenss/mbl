@@ -225,3 +225,7 @@ referensen inför nästa ändring. Loggarna för Auto är exporter
 `be4a6cb7-a0bc-437d-bc63-950d1423511e`. Inga råa token eller mediefiler checkas in.
 Bekräftelsen omfattar kort Auto-uppspelning från noll; den ersätter inte test av
 längre paus/resume, undertexter, längre uppspelning, Google TV eller P4 ABR.
+
+### 2026-11-14 — Bedroom display återupptar efter 90 sekunders paus
+- Standardreceivern förblir ansluten under pausen. Från 858 s går den tillbaka till PLAYING och når 883 s före nästa förhandling.
+- Försök 6 byter till textspår 38 vid 883 s. Efter 503 och ny förhandling når den ersättande strömmen PAUSED, återupptas efter cirka 31 s och når 894 s före reset. Segment 149 ger 404 under bytet. Loggarna bekräftar mottagarstatus och position. Användaren uppger att bild och ljud verkar synkade. Användaren bekräftar att undertexten visades.
