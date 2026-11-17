@@ -115,8 +115,10 @@ The default Cast application ID (`422EE6A6`, `MBL_RECEIVER_APP_ID` in
 receiver is a static page without MBL sign-in; each sender supplies its own media URLs.
 
 - `.github/workflows/cast-receiver.yml` builds the web app, packages the receiver with
-  `node web/scripts/package-cast-receiver.mjs _site --relative` and deploys it to GitHub Pages on
-  every `v*` tag and on manual dispatch. GitHub Pages must use **GitHub Actions** as its source.
+  `node web/scripts/package-cast-receiver.mjs _site --relative` and deploys it to GitHub Pages when
+  receiver files change on `main`, and on manual dispatch. GitHub Pages must use **GitHub
+  Actions** as its source. Release tags are not a trigger: they are created with the release
+  workflow's token, which cannot start other workflows.
 - The receiver URL registered in the Cast Developer Console must be
   `https://msorenss.github.io/mbl/cast-receiver/index.html`, and the application must be published
   for unregistered devices to start it.

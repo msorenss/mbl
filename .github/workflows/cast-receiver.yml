@@ -2,9 +2,22 @@ name: Cast receiver
 
 # Publishes the static Cast receiver page to GitHub Pages. The Cast application registered
 # with Google points at <pages-url>/cast-receiver/index.html.
+#
+# Runs from main: the github-pages environment only accepts the default branch, and release
+# tags are created by the release workflow's GITHUB_TOKEN, which cannot trigger workflows.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths:
+      - web/cast-receiver/**
+      - web/src/castReceiver.ts
+      - web/src/utils/castReceiver.ts
+      - web/src/utils/castProfile.ts
+      - web/scripts/package-cast-receiver.mjs
+      - web/vite.config.ts
+      - web/package.json
+      - web/pnpm-lock.yaml
+      - .github/workflows/cast-receiver.yml
   workflow_dispatch:
 
 permissions:
