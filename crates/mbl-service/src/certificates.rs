@@ -84,11 +84,11 @@ pub fn expiry(cert: &str, key: &str, domain: &str) -> Result<i64> {
             "Certificate/key mismatch, invalid certificate, or hostname not covered".into(),
         )
     };
-    let chain = rustls_pemfile::certs(&mut cert.as_bytes())
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
+    let chain = CertificateDer::pem_slice_iter(cert.as_bytes())
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(|_| fail())?;
-    let private =
-        rustls_pemfile::private_key(&mut key.as_bytes()).map_err(|_| fail())?.ok_or_else(fail)?;
+    let private = PrivateKeyDer::from_pem_slice(key.as_bytes()).map_err(|_| fail())?;
     let provider = rustls::crypto::aws_lc_rs::default_provider();
     rustls::sign::CertifiedKey::from_der(chain.clone(), private, &provider).map_err(|_| fail())?;
     let leaf = chain.first().ok_or_else(fail)?;
@@ -462,11 +462,11 @@ mod tests {
     /// Validate a served chain the way a TLS client does: signature, validity and host name.
     fn client_accepts(ca_pem: &str, cert_pem: &str, host: &str) -> bool {
         use rustls::client::danger::ServerCertVerifier;
-        use rustls::pki_types::{ServerName, UnixTime};
+        use rustls::pki_types::{CertificateDer, ServerName, UnixTime, pem::PemObject};
 
         let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
         let mut roots = rustls::RootCertStore::empty();
-        for cert in rustls_pemfile::certs(&mut ca_pem.as_bytes()) {
+        for cert in CertificateDer::pem_slice_iter(ca_pem.as_bytes()) {
             roots.add(cert.unwrap()).unwrap();
         }
         let verifier =
@@ -474,7 +474,7 @@ mod tests {
                 .build()
                 .unwrap();
         let chain: Vec<_> =
-            rustls_pemfile::certs(&mut cert_pem.as_bytes()).map(|cert| cert.unwrap()).collect();
+            CertificateDer::pem_slice_iter(cert_pem.as_bytes()).map(|cert| cert.unwrap()).collect();
         let name = ServerName::try_from(host.to_owned()).unwrap();
         verifier.verify_server_cert(&chain[0], &chain[1..], &name, &[], UnixTime::now()).is_ok()
     }
@@ -501,7 +501,8 @@ mod tests {
     fn local_ca_cannot_create_another_authority() {
         use x509_parser::prelude::*;
         let ca = generate_local_ca().expect("ca");
-        let der = rustls_pemfile::certs(&mut ca.cert_pem.as_bytes()).next().unwrap().unwrap();
+        use rustls::pki_types::{CertificateDer, pem::PemObject};
+        let der = CertificateDer::pem_slice_iter(ca.cert_pem.as_bytes()).next().unwrap().unwrap();
         let (_, parsed) = parse_x509_certificate(der.as_ref()).unwrap();
         let constraints = parsed.basic_constraints().unwrap().expect("basic constraints").value;
         assert!(constraints.ca);
