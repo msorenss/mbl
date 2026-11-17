@@ -750,3 +750,21 @@ it("records sanitized CAF telemetry from the active receiver", async () => {
   manager!.disposeSession();
   expect(listeners.size).toBe(0);
 });
+
+it("maps the browser subtitle appearance to a Cast text track style", async () => {
+  const { castTextTrackStyle } = await import("./cast");
+  expect(
+    castTextTrackStyle({ size: "xl", background: "none", color: "yellow", font: "mono" }),
+  ).toMatchObject({
+    fontScale: 1.9,
+    foregroundColor: "#FACC15FF",
+    backgroundColor: "#00000000",
+    fontGenericFamily: "MONOSPACED_SANS_SERIF",
+  });
+  expect(castTextTrackStyle({ size: "md", background: "dim", color: "white" })).toMatchObject({
+    fontScale: 1,
+    foregroundColor: "#FFFFFFFF",
+    backgroundColor: "#000000BF",
+    fontGenericFamily: "SANS_SERIF",
+  });
+});

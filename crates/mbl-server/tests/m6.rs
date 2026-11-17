@@ -493,6 +493,18 @@ async fn m6_3_totp_2fa_lifecycle() {
         )
         .await;
     assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(res.headers.get("x-mbl-login-reason").unwrap(), "totp_required");
+    // A wrong password never reveals the two-factor state.
+    let wrong = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/login",
+            None,
+            Some(json!({ "username": "admin", "password": "wrong-password" })),
+        )
+        .await;
+    assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
+    assert!(wrong.headers.get("x-mbl-login-reason").is_none());
 
     // 5. Logging in with correct TOTP code succeeds
     let res = app

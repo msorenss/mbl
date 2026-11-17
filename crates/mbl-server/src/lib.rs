@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod config;
+pub mod home_network;
 pub mod logging;
 pub mod mdns;
 pub mod mqtt;

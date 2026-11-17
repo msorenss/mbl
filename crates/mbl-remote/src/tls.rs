@@ -33,7 +33,9 @@ fn ca_params(not_before: OffsetDateTime) -> Result<CertificateParams> {
         CertificateParams::new(Vec::<String>::new()).map_err(|e| tls_err("CA params", e))?;
     params.distinguished_name.push(DnType::CommonName, CA_COMMON_NAME);
     params.distinguished_name.push(DnType::OrganizationName, "Media Box Lounge");
-    params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    // Path length 0: the root may sign server certificates but never another CA, so a leaked
+    // server key or a mis-issued certificate cannot be turned into a signing authority.
+    params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
     params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
     params.use_authority_key_identifier_extension = true;
     params.not_before = not_before;
@@ -54,26 +56,46 @@ pub fn generate_local_ca() -> Result<PemPair> {
     })
 }
 
+/// Most names a single certificate may carry.
+const MAX_NAMES: usize = 32;
+
+/// A host is an IP address or a DNS name made of valid labels. A wildcard is accepted only as
+/// the whole left-most label (`*.example.lan`).
+fn valid_host(name: &str) -> bool {
+    if name.parse::<std::net::IpAddr>().is_ok() {
+        return true;
+    }
+    let rest = name.strip_prefix("*.").unwrap_or(name);
+    !rest.is_empty()
+        && name.len() <= 253
+        && rest.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+        })
+}
+
 /// Normalise requested host names: trim, drop empties and duplicates, reject anything that is
-/// not a plausible DNS name or IP address.
+/// not a DNS name or IP address.
 pub fn clean_names(names: &[String]) -> Result<Vec<String>> {
     let mut out: Vec<String> = Vec::new();
     for raw in names {
-        let name = raw.trim().to_ascii_lowercase();
+        let name = raw.trim().trim_end_matches('.').to_ascii_lowercase();
         if name.is_empty() || out.contains(&name) {
             continue;
         }
-        let ok = name.len() <= 253
-            && name
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '*'));
-        if !ok {
-            return Err(Error::Validation(format!("invalid host name: {raw}")));
+        if !valid_host(&name) {
+            return Err(Error::Validation(format!("invalid host name: {}", raw.trim())));
         }
         out.push(name);
     }
     if out.is_empty() {
         return Err(Error::Validation("at least one host name or IP address is required".into()));
+    }
+    if out.len() > MAX_NAMES {
+        return Err(Error::Validation(format!("at most {MAX_NAMES} host names are allowed")));
     }
     Ok(out)
 }
@@ -104,27 +126,6 @@ pub fn issue_server_cert(ca_key_pem: &str, names: &[String]) -> Result<PemPair> 
         key_pem: key.serialize_pem(),
         not_after: (now + Duration::days(SERVER_VALIDITY_DAYS)).unix_timestamp(),
     })
-}
-
-/// Decode an HTTP/1.1 chunked body; any body that is not chunked is returned unchanged.
-pub fn dechunk(body: &str) -> String {
-    let mut rest = body;
-    let mut out = String::new();
-    while let Some((size_line, after)) = rest.split_once("\r\n") {
-        let Ok(size) = usize::from_str_radix(size_line.split(';').next().unwrap_or("").trim(), 16)
-        else {
-            return body.to_string();
-        };
-        if size == 0 {
-            return out;
-        }
-        if after.len() < size || !after.is_char_boundary(size) {
-            return body.to_string();
-        }
-        out.push_str(&after[..size]);
-        rest = after[size..].strip_prefix("\r\n").unwrap_or(&after[size..]);
-    }
-    if out.is_empty() { body.to_string() } else { out }
 }
 
 fn extract_blocks(text: &str, label: &str) -> Vec<String> {
@@ -174,7 +175,26 @@ mod tests {
     #[test]
     fn rejects_bad_names() {
         assert!(clean_names(&[]).is_err());
-        assert!(clean_names(&["bad name!".into()]).is_err());
+        for bad in [
+            "bad name!",
+            "..",
+            "a..b",
+            "*",
+            "a*b.lan",
+            "*.*.lan",
+            "-a.lan",
+            "a-.lan",
+            ":::",
+            "[::1]",
+        ] {
+            assert!(clean_names(&[bad.into()]).is_err(), "{bad} should be rejected");
+        }
+        assert_eq!(
+            clean_names(&["*.Home.Lan.".into(), "::1".into(), "fd7a::1".into()]).expect("names"),
+            vec!["*.home.lan".to_string(), "::1".to_string(), "fd7a::1".to_string()]
+        );
+        let many: Vec<String> = (0..=MAX_NAMES).map(|i| format!("host{i}.lan")).collect();
+        assert!(clean_names(&many).is_err());
         assert_eq!(
             clean_names(&[" Host ".into(), "host".into(), "10.0.0.1".into()]).expect("names"),
             vec!["host".to_string(), "10.0.0.1".to_string()]
@@ -182,12 +202,10 @@ mod tests {
     }
 
     #[test]
-    fn dechunks_and_splits_tailscale_pair() {
+    fn splits_tailscale_pair() {
         let pem = "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n-----BEGIN CERTIFICATE-----\nBBBB\n-----END CERTIFICATE-----\n";
-        let chunked = format!("{:x}\r\n{}\r\n0\r\n\r\n", pem.len(), pem);
-        let (cert, key) = split_pair(&dechunk(&chunked)).expect("pair");
+        let (cert, key) = split_pair(pem).expect("pair");
         assert!(cert.contains("BBBB") && key.contains("AAAA"));
-        assert_eq!(dechunk(pem), pem);
         assert!(split_pair("not found").is_err());
     }
 }

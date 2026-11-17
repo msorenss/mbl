@@ -107,3 +107,20 @@ sedan `receiver.profile` med `source: receiver-probe` före `server.negotiate`.
 passerade. Sex serverintegrationstester passerade, inklusive receiversidans
 HTML, oautentiserade åtkomst och no-cache-header. Receiverpaketet skapades med
 tre assetberoenden. Inga fysiska mottagarresultat ingår i dessa kontroller.
+
+## Shared hosting (default since 1.3.8)
+
+The default Cast application ID (`422EE6A6`, `MBL_RECEIVER_APP_ID` in
+`web/src/utils/castReceiverConfig.ts`) is one receiver shared by every MBL installation. The
+receiver is a static page without MBL sign-in; each sender supplies its own media URLs.
+
+- `.github/workflows/cast-receiver.yml` builds the web app, packages the receiver with
+  `node web/scripts/package-cast-receiver.mjs _site --relative` and deploys it to GitHub Pages on
+  every `v*` tag and on manual dispatch. GitHub Pages must use **GitHub Actions** as its source.
+- The receiver URL registered in the Cast Developer Console must be
+  `https://msorenss.github.io/mbl/cast-receiver/index.html`, and the application must be published
+  for unregistered devices to start it.
+- Every MBL version in use loads the same receiver page. Keep the capability and telemetry
+  messages backwards compatible, or bump their schema version.
+- A self-hosted receiver is still possible: register your own application ID and enter it under
+  Server Settings, or build with `VITE_MBL_CAST_APP_ID`.

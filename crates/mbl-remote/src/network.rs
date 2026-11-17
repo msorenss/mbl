@@ -37,6 +37,48 @@ impl NetworkClass {
     }
 }
 
+static HOME_ADDRESSES: std::sync::RwLock<Vec<IpAddr>> = std::sync::RwLock::new(Vec::new());
+
+/// Record the server's own public addresses (what its public hostname resolves to).
+///
+/// A LAN client that opens MBL through the public hostname is sent back by the router
+/// (NAT hairpin) and arrives from the router's public address, so that exact address is
+/// the home network. Only public addresses are kept.
+pub fn set_home_addresses(addresses: impl IntoIterator<Item = IpAddr>) {
+    let mut kept: Vec<IpAddr> = addresses
+        .into_iter()
+        .map(unmap)
+        .filter(|ip| classify_ip(*ip) == NetworkClass::Wan && !ip.is_unspecified())
+        .collect();
+    kept.sort();
+    kept.dedup();
+    *HOME_ADDRESSES.write().unwrap_or_else(std::sync::PoisonError::into_inner) = kept;
+}
+
+/// The addresses currently treated as the home network's public side.
+pub fn home_addresses() -> Vec<IpAddr> {
+    HOME_ADDRESSES.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+}
+
+fn unmap(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(ip, IpAddr::V4),
+        v4 => v4,
+    }
+}
+
+/// Classify a client: like [`classify_ip`], but the server's own public address counts as LAN.
+pub fn classify_client(ip: IpAddr) -> NetworkClass {
+    let ip = unmap(ip);
+    let class = classify_ip(ip);
+    if class == NetworkClass::Wan
+        && HOME_ADDRESSES.read().unwrap_or_else(std::sync::PoisonError::into_inner).contains(&ip)
+    {
+        return NetworkClass::Lan;
+    }
+    class
+}
+
 /// Classify an IP address into LAN, Tailnet, or WAN.
 pub fn classify_ip(ip: IpAddr) -> NetworkClass {
     match ip {
@@ -173,6 +215,20 @@ mod tests {
         assert_eq!(classify_ip("1.1.1.1".parse().unwrap()), NetworkClass::Wan);
         assert_eq!(classify_ip("100.128.0.1".parse().unwrap()), NetworkClass::Wan); // Beyond /10
         assert_eq!(classify_ip("2606:4700:4700::1111".parse().unwrap()), NetworkClass::Wan);
+    }
+
+    #[test]
+    fn own_public_address_counts_as_lan() {
+        let home: IpAddr = "203.0.113.7".parse().unwrap();
+        assert_eq!(classify_client(home), NetworkClass::Wan);
+        set_home_addresses([home, "192.168.1.5".parse().unwrap(), "100.64.0.9".parse().unwrap()]);
+        assert_eq!(home_addresses(), vec![home]);
+        assert_eq!(classify_client(home), NetworkClass::Lan);
+        assert_eq!(classify_client("::ffff:203.0.113.7".parse().unwrap()), NetworkClass::Lan);
+        assert_eq!(classify_client("203.0.113.8".parse().unwrap()), NetworkClass::Wan);
+        assert_eq!(classify_client("100.64.0.9".parse().unwrap()), NetworkClass::Tailnet);
+        set_home_addresses([]);
+        assert_eq!(classify_client(home), NetworkClass::Wan);
     }
 
     #[test]

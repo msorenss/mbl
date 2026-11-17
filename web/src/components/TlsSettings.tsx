@@ -1,4 +1,4 @@
-import { createResource, createSignal, Show } from "solid-js";
+import { createResource, createSignal, onCleanup, onMount, Show } from "solid-js";
 import client, { getStoredToken } from "../api/client";
 import { apiErrorMessage } from "../api/errors";
 import { useToast } from "../context/ToastContext";
@@ -21,11 +21,20 @@ export default function TlsSettings() {
   const [acmeEmail, setAcmeEmail] = createSignal("");
   const [acmeCertPem, setAcmeCertPem] = createSignal("");
   const [acmeKeyPem, setAcmeKeyPem] = createSignal("");
+  const [acceptTerms, setAcceptTerms] = createSignal(false);
+  const [importCertificate, setImportCertificate] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
 
+  let initialized = false;
+  // The form follows the server on first load and after the user's own actions. Background
+  // status refreshes leave it alone so they never overwrite what is being typed.
+  let syncForm = true;
+  let followUp: number | undefined;
   const [tls, { refetch }] = createResource(async () => {
     const res = await client.GET("/api/v1/system/tls");
+    if (res.data && !syncForm) return res.data;
     if (res.data) {
+      syncForm = false;
       setEnabled(res.data.enabled);
       setPort(res.data.port || 8443);
       if (res.data.hostnames.length > 0) {
@@ -38,16 +47,33 @@ export default function TlsSettings() {
         setAcmeEmail(res.data.acmeEmail);
       }
       if (
-        res.data.mode === "local_ca" ||
-        res.data.mode === "tailscale" ||
-        res.data.mode === "letsencrypt"
+        !initialized &&
+        (res.data.mode === "local_ca" ||
+          res.data.mode === "tailscale" ||
+          res.data.mode === "letsencrypt")
       ) {
         setTab(res.data.mode);
       }
+      initialized = true;
       return res.data;
     }
     return null;
   });
+
+  onMount(() => {
+    const timer = window.setInterval(() => {
+      if (tls()?.jobState === "queued" || tls()?.jobState === "issuing") void refetch();
+    }, 3000);
+    onCleanup(() => {
+      window.clearInterval(timer);
+      window.clearTimeout(followUp);
+    });
+  });
+
+  const reload = () => {
+    syncForm = true;
+    return refetch();
+  };
 
   const saveListener = async (e?: Event) => {
     e?.preventDefault();
@@ -62,14 +88,18 @@ export default function TlsSettings() {
       if (res.error || !res.data) {
         throw new Error(apiErrorMessage(res.error, "Could not update HTTPS settings."));
       }
-      await refetch();
+      await reload();
       showToast({
         title: "HTTPS Updated",
         message: res.data.enabled
-          ? `HTTPS listener active on port ${res.data.port}.`
+          ? `HTTPS enabled on port ${res.data.port}. The listener follows within a few seconds.`
           : "HTTPS listener disabled.",
         type: "success",
       });
+      // The listener applies settings on its next poll; look once more for a bind or
+      // certificate problem it may report.
+      window.clearTimeout(followUp);
+      followUp = window.setTimeout(() => void refetch(), 7000);
     } catch (err) {
       showToast({
         title: "HTTPS Update Failed",
@@ -95,7 +125,7 @@ export default function TlsSettings() {
       if (res.error || !res.data) {
         throw new Error(apiErrorMessage(res.error, "Failed to generate local CA certificate."));
       }
-      await refetch();
+      await reload();
       showToast({
         title: "Local Certificate Issued",
         message: `Certificate issued for ${res.data.hostnames.join(", ")}.`,
@@ -119,10 +149,10 @@ export default function TlsSettings() {
       if (res.error || !res.data) {
         throw new Error(apiErrorMessage(res.error, "Failed to fetch Tailscale certificate."));
       }
-      await refetch();
+      await reload();
       showToast({
-        title: "Tailscale Certificate Ready",
-        message: `Certificate fetched for ${res.data.hostnames.join(", ")}.`,
+        title: "Tailscale Request Queued",
+        message: "MBL is requesting your certificate. Progress appears below.",
         type: "success",
       });
     } catch (err) {
@@ -138,14 +168,31 @@ export default function TlsSettings() {
 
   const handleIssueAcme = async (e: Event) => {
     e.preventDefault();
+    if (importCertificate() && (!acmeCertPem().trim() || !acmeKeyPem().trim())) {
+      showToast({
+        title: "Certificate required",
+        message: "Provide both the certificate chain and private key.",
+        type: "error",
+      });
+      return;
+    }
+    if (!importCertificate() && !acceptTerms()) {
+      showToast({
+        title: "Agreement required",
+        message: "Accept the Let's Encrypt subscriber agreement to request a certificate.",
+        type: "error",
+      });
+      return;
+    }
     setBusy(true);
     try {
       const res = await client.POST("/api/v1/system/tls/acme", {
         body: {
           domain: acmeDomain().trim(),
           email: acmeEmail().trim() || null,
-          certPem: acmeCertPem().trim() || null,
-          keyPem: acmeKeyPem().trim() || null,
+          acceptTerms: acceptTerms(),
+          certPem: importCertificate() ? acmeCertPem().trim() || null : null,
+          keyPem: importCertificate() ? acmeKeyPem().trim() || null : null,
         },
       });
       if (res.error || !res.data) {
@@ -155,10 +202,10 @@ export default function TlsSettings() {
       }
       setAcmeCertPem("");
       setAcmeKeyPem("");
-      await refetch();
+      await reload();
       showToast({
-        title: "Let's Encrypt Certificate Ready",
-        message: `Certificate configured for ${res.data.hostnames.join(", ")}.`,
+        title: "Certificate Request Accepted",
+        message: "Progress and any required action appear below.",
         type: "success",
       });
     } catch (err) {
@@ -366,7 +413,12 @@ export default function TlsSettings() {
             style={{ ...inputStyle, "margin-bottom": "10px" }}
           />
           <div style={{ display: "flex", "flex-wrap": "wrap", gap: "10px" }}>
-            <Button type="submit" variant="primary" size="md" disabled={busy()}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              disabled={busy() || tls()?.jobState === "queued" || tls()?.jobState === "issuing"}
+            >
               {busy() ? "Generating…" : "Generate Local Certificate"}
             </Button>
             <Show when={tls()?.caAvailable}>
@@ -392,11 +444,34 @@ export default function TlsSettings() {
             <code>*.ts.net</code> MagicDNS domain directly from the local Tailscale daemon. No root
             CA installation is needed on client devices.
           </p>
+          <details style={{ "margin-bottom": "12px" }}>
+            <summary>Help me set up Tailscale HTTPS</summary>
+            <ol>
+              <li>Install Tailscale on the computer running MBL and sign in.</li>
+              <li>Open the Tailscale DNS settings and enable MagicDNS and HTTPS Certificates.</li>
+              <li>Return here and select Fetch Tailscale Certificate.</li>
+              <li>
+                Enable the HTTPS listener below and open MBL using its full ts.net name and HTTPS
+                port.
+              </li>
+            </ol>
+            <a
+              href="https://login.tailscale.com/admin/dns"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open Tailscale DNS settings
+            </a>
+            <p>
+              Clients must be able to reach the Tailscale address. For a Nest Hub or Chromecast
+              without Tailscale, use a public hostname that the receiver can reach.
+            </p>
+          </details>
           <Button
             type="button"
             variant="primary"
             size="md"
-            disabled={busy()}
+            disabled={busy() || tls()?.jobState === "queued" || tls()?.jobState === "issuing"}
             onClick={handleIssueTailscale}
           >
             {busy() ? "Fetching…" : "Fetch Tailscale Certificate"}
@@ -407,17 +482,41 @@ export default function TlsSettings() {
       {/* Tab 3: Let's Encrypt (ACME) */}
       <Show when={tab() === "letsencrypt"}>
         <form onSubmit={handleIssueAcme} style={{ "margin-bottom": "18px" }}>
-          <p
-            style={{
-              "font-size": "13px",
-              color: "var(--text-secondary)",
-              margin: "0 0 10px 0",
-            }}
-          >
-            Use a Let's Encrypt certificate for your own public domain. MBL automatically loads{" "}
-            <code>/etc/letsencrypt/live/&lt;domain&gt;/</code> if available, or you can paste the
-            PEM fullchain and private key below.
+          <p>
+            Enter your public hostname. MBL requests the certificate, enables HTTPS and renews it
+            automatically.
           </p>
+          <details style={{ "margin-bottom": "12px" }}>
+            <summary>Show setup instructions</summary>
+            <ol>
+              <li>Point your hostname or DDNS address at your home public IP.</li>
+              <li>
+                In your router, forward external TCP port 80 to the MBL computer on port 8081.
+              </li>
+              <li>
+                Allow inbound TCP port 8081 in the server firewall. Keep this rule for renewal.
+              </li>
+              <li>
+                Enter your hostname and email, accept the subscriber agreement and click Request
+                Certificate.
+              </li>
+            </ol>
+            <p>
+              If your provider uses CGNAT or blocks port 80, use Tailscale on supported clients or
+              import a certificate issued with DNS validation.
+            </p>
+            <p>
+              For Cast, the receiver must reach the hostname from your Wi-Fi. Configure local DNS or
+              NAT loopback if needed.
+            </p>
+            <a
+              href="https://letsencrypt.org/docs/challenge-types/#http-01-challenge"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open verification help
+            </a>
+          </details>
           <div
             style={{
               display: "grid",
@@ -471,63 +570,122 @@ export default function TlsSettings() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              "grid-template-columns": "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "12px",
-              "margin-bottom": "10px",
-            }}
+          <label>
+            <input
+              type="checkbox"
+              checked={importCertificate()}
+              onChange={(e) => setImportCertificate(e.currentTarget.checked)}
+            />{" "}
+            Import an existing certificate instead
+          </label>
+          <Show when={importCertificate()}>
+            <div
+              style={{
+                display: "grid",
+                "grid-template-columns": "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "12px",
+                "margin-bottom": "10px",
+              }}
+            >
+              <div>
+                <label
+                  for="tls-acme-cert"
+                  style={{
+                    display: "block",
+                    "font-size": "12px",
+                    color: "var(--text-secondary)",
+                    "margin-bottom": "4px",
+                  }}
+                >
+                  Certificate Chain PEM
+                </label>
+                <textarea
+                  id="tls-acme-cert"
+                  rows={3}
+                  value={acmeCertPem()}
+                  onInput={(e) => setAcmeCertPem(e.currentTarget.value)}
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                  style={{ ...inputStyle, "font-family": "var(--font-mono)", "font-size": "12px" }}
+                />
+              </div>
+              <div>
+                <label
+                  for="tls-acme-key"
+                  style={{
+                    display: "block",
+                    "font-size": "12px",
+                    color: "var(--text-secondary)",
+                    "margin-bottom": "4px",
+                  }}
+                >
+                  Private Key PEM
+                </label>
+                <textarea
+                  id="tls-acme-key"
+                  rows={3}
+                  value={acmeKeyPem()}
+                  onInput={(e) => setAcmeKeyPem(e.currentTarget.value)}
+                  placeholder="-----BEGIN PRIVATE KEY-----"
+                  style={{ ...inputStyle, "font-family": "var(--font-mono)", "font-size": "12px" }}
+                />
+              </div>
+            </div>
+          </Show>
+          <Show when={!importCertificate()}>
+            <label>
+              <input
+                type="checkbox"
+                checked={acceptTerms()}
+                onChange={(e) => setAcceptTerms(e.currentTarget.checked)}
+              />{" "}
+              I accept the{" "}
+              <a
+                href="https://letsencrypt.org/repository/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Let's Encrypt subscriber agreement
+              </a>
+              .
+            </label>
+          </Show>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            disabled={busy() || tls()?.jobState === "queued" || tls()?.jobState === "issuing"}
           >
-            <div>
-              <label
-                for="tls-acme-cert"
-                style={{
-                  display: "block",
-                  "font-size": "12px",
-                  color: "var(--text-secondary)",
-                  "margin-bottom": "4px",
-                }}
-              >
-                Certificate Chain PEM (optional if in /etc/letsencrypt)
-              </label>
-              <textarea
-                id="tls-acme-cert"
-                rows={3}
-                value={acmeCertPem()}
-                onInput={(e) => setAcmeCertPem(e.currentTarget.value)}
-                placeholder="-----BEGIN CERTIFICATE-----"
-                style={{ ...inputStyle, "font-family": "var(--font-mono)", "font-size": "12px" }}
-              />
-            </div>
-            <div>
-              <label
-                for="tls-acme-key"
-                style={{
-                  display: "block",
-                  "font-size": "12px",
-                  color: "var(--text-secondary)",
-                  "margin-bottom": "4px",
-                }}
-              >
-                Private Key PEM (optional if in /etc/letsencrypt)
-              </label>
-              <textarea
-                id="tls-acme-key"
-                rows={3}
-                value={acmeKeyPem()}
-                onInput={(e) => setAcmeKeyPem(e.currentTarget.value)}
-                placeholder="-----BEGIN PRIVATE KEY-----"
-                style={{ ...inputStyle, "font-family": "var(--font-mono)", "font-size": "12px" }}
-              />
-            </div>
-          </div>
-
-          <Button type="submit" variant="primary" size="md" disabled={busy()}>
-            {busy() ? "Configuring…" : "Activate Let's Encrypt Certificate"}
+            {busy()
+              ? "Submitting…"
+              : importCertificate()
+                ? "Import and Activate Certificate"
+                : "Request Certificate"}
           </Button>
         </form>
       </Show>
+
+      <div role="status" aria-live="polite">
+        <Show when={tls()?.jobState === "queued" || tls()?.jobState === "issuing"}>
+          <p>Requesting certificate… This can take several minutes. You can leave this page.</p>
+        </Show>
+        <Show when={tls()?.jobError}>
+          <p role="alert">{tls()?.jobError}</p>
+        </Show>
+        <Show when={tls()?.listenerError}>
+          <p role="alert">HTTPS is not running with these settings: {tls()?.listenerError}</p>
+        </Show>
+        <Show when={tls()?.automaticRenewal}>
+          <p>Automatic renewal is enabled.</p>
+        </Show>
+        <Show when={tls()?.hasCertificate && tls()?.hostnames?.[0]}>
+          <p>
+            Open MBL at{" "}
+            <a
+              href={`https://${tls()?.hostnames[0]}:${tls()?.port}/`}
+            >{`https://${tls()?.hostnames[0]}:${tls()?.port}/`}</a>
+          </p>
+        </Show>
+      </div>
 
       {/* Listener enable & port */}
       <form
@@ -578,7 +736,12 @@ export default function TlsSettings() {
           </div>
         </div>
 
-        <Button type="submit" variant="secondary" size="md" disabled={busy()}>
+        <Button
+          type="submit"
+          variant="secondary"
+          size="md"
+          disabled={busy() || tls()?.jobState === "queued" || tls()?.jobState === "issuing"}
+        >
           Save HTTPS Listener
         </Button>
       </form>

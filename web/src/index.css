@@ -1016,6 +1016,76 @@ dialog[open],
   }
 }
 
+/* Mini player: playback continues in a corner while the user browses. */
+.mbl-player-viewport.is-minimized {
+  right: max(16px, env(safe-area-inset-right)) !important;
+  bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px)) !important;
+  width: min(360px, calc(100vw - 32px));
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border);
+}
+
+.mbl-player-viewport.is-minimized > *:not(video):not(style):not(.mbl-player-mini) {
+  display: none !important;
+}
+
+.mbl-player-viewport.is-minimized > video {
+  pointer-events: none;
+}
+
+.mbl-player-mini {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+  color: #fff;
+}
+
+.mbl-player-mini-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mbl-player-mini button {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.mbl-player-sub-style {
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 6px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: #fff;
+}
+
+.mbl-player-sub-style label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .mbl-player-header {
   padding: max(24px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) 24px
     max(32px, env(safe-area-inset-left));

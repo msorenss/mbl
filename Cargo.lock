@@ -59,7 +59,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -70,7 +70,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -197,6 +197,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faac5829c2b74c28f830747e7818ccfb684261b5f48a1118b1e2a13d36dfab13"
 dependencies = [
  "aws-lc-sys",
+ "untrusted 0.7.1",
  "zeroize",
 ]
 
@@ -807,7 +808,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -861,7 +862,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1365,6 +1366,8 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rustls",
+ "rustls-native-certs",
+ "rustls-platform-verifier",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -1602,6 +1605,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "instant-acme"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f05ad37c421b962354c358d347d4a6130151df9407978372d3ad7f0c8f71a64"
+dependencies = [
+ "async-trait",
+ "aws-lc-rs",
+ "base64 0.22.1",
+ "bytes",
+ "http",
+ "http-body",
+ "http-body-util",
+ "httpdate",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "rcgen",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1791,7 +1820,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "mbl-analysis"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "camino",
  "image",
@@ -1808,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-api"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -1842,7 +1871,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-auth"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -1858,7 +1887,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-cli"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -1868,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-core"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -1881,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-db"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "camino",
  "mbl-core",
@@ -1896,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-hailo"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "image",
  "mbl-core",
@@ -1911,7 +1940,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-hwaccel"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "camino",
  "insta",
@@ -1931,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-images"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "blurhash",
  "image",
@@ -1948,7 +1977,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-jobs"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "async-trait",
  "camino",
@@ -1966,7 +1995,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-mcp"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "async-trait",
  "axum",
@@ -1999,7 +2028,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-metadata"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "async-trait",
  "camino",
@@ -2024,7 +2053,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-node"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -2039,7 +2068,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-parser"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "proptest",
  "regex",
@@ -2051,7 +2080,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-platform"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "camino",
  "rustix",
@@ -2064,7 +2093,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-playback"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "insta",
  "mbl-core",
@@ -2077,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-probe"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "insta",
  "mbl-core",
@@ -2089,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-remote"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "async-trait",
  "mbl-core",
@@ -2106,7 +2135,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-scanner"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "async-trait",
  "camino",
@@ -2130,7 +2159,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-server"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2184,14 +2213,16 @@ dependencies = [
 
 [[package]]
 name = "mbl-service"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "async-trait",
+ "axum",
  "camino",
  "dunce",
  "getrandom 0.4.3",
  "hmac",
  "image",
+ "instant-acme",
  "mbl-analysis",
  "mbl-auth",
  "mbl-core",
@@ -2210,6 +2241,8 @@ dependencies = [
  "quick-xml",
  "regex",
  "reqwest",
+ "rustls",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -2218,11 +2251,12 @@ dependencies = [
  "tokio",
  "tracing",
  "utoipa",
+ "x509-parser",
 ]
 
 [[package]]
 name = "mbl-stream"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "axum",
  "http-body-util",
@@ -2235,7 +2269,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-transcode"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "camino",
  "getrandom 0.4.3",
@@ -2253,7 +2287,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-tv"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "clap",
  "mbl-core",
@@ -2269,7 +2303,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-ui-kit"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -2277,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "mbl-worker"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -2435,7 +2469,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2807,7 +2841,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2910,6 +2944,7 @@ version = "0.14.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8774e05a7d0de114588e6a28fe7e71694b82614ed569d86d8b389dfbc98b8ad8"
 dependencies = [
+ "aws-lc-rs",
  "pem",
  "ring",
  "rustls-pki-types",
@@ -3015,7 +3050,7 @@ dependencies = [
  "cfg-if",
  "getrandom 0.2.17",
  "libc",
- "untrusted",
+ "untrusted 0.9.0",
  "windows-sys 0.52.0",
 ]
 
@@ -3103,7 +3138,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3130,6 +3165,15 @@ dependencies = [
  "rustls-pki-types",
  "schannel",
  "security-framework",
+]
+
+[[package]]
+name = "rustls-pemfile"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]
@@ -3160,7 +3204,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3178,7 +3222,7 @@ dependencies = [
  "aws-lc-rs",
  "ring",
  "rustls-pki-types",
- "untrusted",
+ "untrusted 0.9.0",
 ]
 
 [[package]]
@@ -3481,7 +3525,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3764,10 +3808,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4288,6 +4332,12 @@ checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
 
 [[package]]
 name = "untrusted"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
+
+[[package]]
+name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
@@ -4513,7 +4563,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4744,6 +4794,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d43b0f71ce057da06bc0851b23ee24f3f86190b07203dd8f567d0b706a185202"
 dependencies = [
  "asn1-rs",
+ "aws-lc-rs",
  "data-encoding",
  "der-parser",
  "lazy_static",
@@ -4757,7 +4808,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "1.3.7"
+version = "1.3.8"
 dependencies = [
  "anyhow",
  "camino",

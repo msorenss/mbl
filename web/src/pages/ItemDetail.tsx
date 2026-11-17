@@ -26,6 +26,25 @@ export function ItemDetail() {
   const [selectedVersionId, setSelectedVersionId] = createSignal<number | null>(null);
   const [selectedAudioIdx, setSelectedAudioIdx] = createSignal<number | null>(null);
   const [selectedSubIdx, setSelectedSubIdx] = createSignal<number | null>(null);
+  const QUALITY_KEY = "mbl.playback.quality";
+  const [selectedQuality, setSelectedQualitySignal] = createSignal<number>(
+    (() => {
+      try {
+        const stored = Number(localStorage.getItem(QUALITY_KEY));
+        return Number.isSafeInteger(stored) && stored > 0 ? stored : 0;
+      } catch {
+        return 0;
+      }
+    })(),
+  );
+  const setSelectedQuality = (value: number) => {
+    setSelectedQualitySignal(value);
+    try {
+      localStorage.setItem(QUALITY_KEY, String(value));
+    } catch {
+      /* The choice still applies to this playback. */
+    }
+  };
   const [loadError, setLoadError] = createSignal<string | null>(null);
   let loadVersion = 0;
   const [loading, setLoading] = createSignal(true);
@@ -144,7 +163,7 @@ export function ItemDetail() {
   const audioStreams = () => primaryPart()?.streams.filter((s) => s.kind === "audio") || [];
   const subStreams = () => primaryPart()?.streams.filter((s) => s.kind === "subtitle") || [];
 
-  const handlePlay = (startOffset = 0) => {
+  const handlePlay = (startOffset = 0, castFirst = false) => {
     const it = item();
     if (!it) return;
     playItem({
@@ -156,6 +175,8 @@ export function ItemDetail() {
       audioStreamIndex: selectedAudioIdx() ?? undefined,
       subtitleStreamIndex: selectedSubIdx(),
       initialStartMs: startOffset,
+      maxBitrate: selectedQuality() || undefined,
+      castFirst,
       title: it.title,
       subtitle: it.originallyAvailableAt ? it.originallyAvailableAt.substring(0, 4) : undefined,
     });
@@ -353,6 +374,16 @@ export function ItemDetail() {
                   {t("fromBeginning")}
                 </Button>
               )}
+
+              <Button
+                size="md"
+                variant="secondary"
+                disabled={!primaryPart()}
+                onClick={() => handlePlay(Math.max(0, viewOffsetMs()), true)}
+              >
+                <span>⎚</span>
+                <span>Cast to TV</span>
+              </Button>
 
               <Button
                 size="md"
@@ -564,7 +595,42 @@ export function ItemDetail() {
                 "flex-wrap": "wrap",
               }}
             >
-              {audioStreams().length > 1 && (
+              {primaryPart() && (
+                <div>
+                  <label
+                    for="quality-select"
+                    style={{
+                      display: "block",
+                      "font-size": "var(--font-size-xs)",
+                      "font-weight": "bold",
+                      color: "var(--text-muted)",
+                      "margin-bottom": "4px",
+                    }}
+                  >
+                    Quality
+                  </label>
+                  <select
+                    id="quality-select"
+                    value={selectedQuality()}
+                    onChange={(e) => setSelectedQuality(Number(e.currentTarget.value))}
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-primary)",
+                      padding: "6px 10px",
+                      "border-radius": "var(--radius-sm)",
+                    }}
+                  >
+                    <option value={0}>Automatic</option>
+                    <option value={2000000}>2 Mbps</option>
+                    <option value={4000000}>4 Mbps</option>
+                    <option value={8000000}>8 Mbps</option>
+                    <option value={20000000}>20 Mbps</option>
+                  </select>
+                </div>
+              )}
+
+              {audioStreams().length > 0 && (
                 <div>
                   <label
                     for="audio-stream-select"

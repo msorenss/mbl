@@ -5,7 +5,7 @@
 mod pool;
 pub mod repo;
 
-pub use pool::{Db, DbOptions};
+pub use pool::{Db, DbOptions, restrict_to_owner};
 
 /// Map a UNIQUE constraint violation to `Conflict`, everything else through the default mapping.
 pub(crate) fn map_unique(err: sqlx::Error, message: &str) -> mbl_core::Error {

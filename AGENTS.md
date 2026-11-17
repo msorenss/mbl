@@ -9,7 +9,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.7` (2026-11-14; Cast profiles, playback recovery and capacity-gated ABR).
+- Release prepared: `v1.3.8` (2026-11-17; built-in Let's Encrypt, shared Cast receiver, player additions). Not tagged or pushed.
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -85,6 +85,55 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+
+### 2026-11-17 — Release 1.3.8 förberedd: Cast-undertextstil, hemnät som LAN, 2FA-besked
+- Paketet ligger i `.dev/rc-1.3.8/` (release-profil utan LTO, eftersom fat LTO inte ryms i Pi:ns minne; `install.sh` som tidigare).
+- Cast: `web/src/utils/cast.ts` skickar undertextstilen (storlek, typsnitt, färg, bakgrund) som `textTrackStyle` i LOAD och uppdaterar den under uppspelning med `setTextStyle`. Fungerar med både standard- och egen mottagare; mottagarkoden är oförändrad.
+- Snabbfixar från 2026-11-16: förvalda undertexter/ljudspår följer med vid "Cast to TV", större undertextstorlekar (22/30/42/58 px), ljudspårsväljare på detaljsidan även med ett spår.
+- Hemnät: `crates/mbl-server/src/home_network.rs` slår var femte minut upp `tls_hostnames` och `public_url`. `mbl_remote::classify_client` räknar serverns egen publika adress som LAN (NAT-hairpin via externa värdnamnet). Används av `ClientNetwork` i `mbl-api`. MCP-transporten har egen klassning och är oförändrad. Misslyckad DNS-uppslagning behåller senaste svaret.
+- 2FA: `AuthService::login_explained` ger orsak först när lösenordet är rätt. Rutten sätter svarshuvudet `x-mbl-login-reason` (`totp_required`, `totp_invalid`, `admin_totp_setup_required`). `web/src/pages/Login.tsx` visar förklaring och märket "2FA enabled". Statuskoderna är oförändrade.
+- `422EE6A6` är incheckad standardmottagare (`MBL_RECEIVER_APP_ID` i `web/src/utils/castReceiverConfig.ts`). `.github/workflows/cast-receiver.yml` publicerar mottagaren till GitHub Pages vid `v*`-tagg eller manuell körning; `package-cast-receiver.mjs --relative` skriver relativa länkar. Före push av release: slå på Pages (källa GitHub Actions), byt mottagar-URL i Cast-konsolen till `https://msorenss.github.io/mbl/cast-receiver/index.html` och publicera appen. Annars kan bara registrerade testenheter casta, och ingen automatisk återgång till standardmottagaren finns. HTTP-media från HTTPS-mottagaren är inte provat.
+- Version höjd till 1.3.8 (Cargo, changelog, README, Windows-paket, OpenAPI). Committat lokalt; ingen tagg eller push.
+- Verifierat på Pi: workspace-Clippy med alla targets och `-D warnings`, nextest 515/515 (0 skipped), `just web-check` (bundle 147,57 KB gzip), isolerat starttest av release-binären (SHA-256 `ad5607ab…`). Fysisk Cast, hairpin-klassningen mot riktig router och webbläsarprov av de nya delarna återstår.
+
+### 2026-11-16 — Testbygge på Pi: Let's Encrypt, fjärruppspelning och spelarändringar
+- Testbygge i `.dev/test-4ef3458-tls/` (debug med inbäddad webb, `install.sh` som tidigare). Målkatalogen låg i tmpfs under `/tmp` och försvinner vid omstart. Allt är ocommittat; workspace-Clippy och nextest är inte körda.
+- Let's Encrypt-certifikat för `mbl.tplinkdns.com` utfärdat via MBL:s ACME. Traefik äger port 80 på Pi:n: `/home/marcus/traefik-config/dynamic.yml` skickar `/.well-known/acme-challenge/` till `172.18.0.1:8081`, och HTTPS-omdirigeringen i `/home/marcus/docker-compose.yml` har prioritet 1000 (standardprioriteten går inte att slå). Routern ska skicka extern 80 till Pi:ns 80. Säkerhetskopior med ändelsen `.bak-20261116`.
+- `crates/mbl-service/src/certificates.rs`: ACME-fel loggar och visar CA:ns orsak ("Reported cause"). Ett tidigare försök underkändes trots att verifierarna fick 200; orsaken sparades inte då.
+- `crates/mbl-hwaccel/src/ffmpeg.rs`: `piDrmDecode` anger bara H.264 som kodare. WAN/tailnet valde annars AV1/HEVC och fick 422 från pipelinen.
+- Spelaren (`web/src/components/Player.tsx`): Cast-omladdning pausar inte när gamla strömmen går till viloläge; andra trycket på spela inom 20 s under Cast-uppstart ignoreras; tillbaka-knappen och webbläsarens bakåt minimerar till minispelare, ✕ stoppar; undertextmenyn har storlek, typsnitt, färg och bakgrund (nytt fält `font` i `SubtitleStylePreferences`, OpenAPI och typer regenererade); `castFirst` och `maxBitrate` i `PlayRequest`.
+- `web/src/pages/ItemDetail.tsx`: kvalitetsval före start (sparas i `mbl.playback.quality`) och knappen "Cast to TV" som går direkt till Cast utan lokal omkodning först.
+- `web/src/pages/admin/RemoteAccess.tsx`: läsning av en felad resurs kraschade sidan; 403 förklaras nu (admin endast LAN/tailnet).
+- Verifierat: 276 webbtester (30 i Cast-sviten, fyra nya), `tsc -b`, bundle 147,50 KB gzip, `pi_drm_decode_only_offers_h264_encoding`, två användartester, isolerat starttest. De nya spelarfunktionerna är inte provade i webbläsare eller på Bedroom display.
+- Öppet: via värdnamnet hämtar Nest Hub från den publika adressen och klassas som WAN (låg bitrate, admin 403). Displayen stod 27 s i buffring utan anrop efter en lång paus; oförklarat. Segment 0 kodas alltid först för Cast (cirka 3,5 s). 503 före varje Cast-byte beror troligen på en enda omkodningsplats. Felöversatta ord i engelska felmeddelanden ("Verifiera", "Spela in") är inte rättade. Undertextstilen skickas inte till Cast-mottagaren.
+
+### 2026-11-16 — TLS-granskning: härdad lyssnare, lokal förnyelse och tester
+- Granskning av TLS-koden följd av rättningar. Arbetet gjordes i en molnsession mot arbetskopian på Pi:n och är inte committat.
+- `crates/mbl-server/src/tls.rs`: lyssnaren är omskriven kring en `Supervisor`. Läsfel i inställningarna behåller nuvarande lyssnare i stället för att stänga HTTPS. Ny port binds innan den gamla släpps. Misslyckad konfiguration (upptagen port, oanvändbart certifikat) försöks igen var 30:e sekund och orsaken sparas i `tls_listener_error`. Bindadressen klarar IPv6. `run_with` tar `Timing` så tester kan köra snabbt.
+- `crates/mbl-service/src/certificates.rs`: lokal CA-utfärdning flyttad hit (`issue_local`) och det lokala servercertifikatet förnyas automatiskt 30 dagar före utgång. Förnyelse skapar aldrig en ny rot. Oläsbar sparad begäran rensas i stället för att ge fel var tionde sekund. `lock_mutation` väntar högst 5 s, så ett API-anrop hänger inte bakom en pågående ACME-utfärdning. Tailscale-fel visar nu orsaken.
+- `crates/mbl-remote/src/tls.rs`: rot-CA får `pathlen 0`. `clean_names` kräver giltiga DNS-etiketter eller IP-adresser, jokertecken endast som hel första etikett, högst 32 namn. Befintliga rötter påverkas inte; ny rot krävs för att få begränsningen.
+- `crates/mbl-remote/src/tailscale.rs`: LocalAPI-transporten kontrollerar HTTP-status, avkodar chunked på bytenivå, kräver giltig UTF-8, har 120 s timeout och 4 MiB tak. Felsvar från tailscaled förs vidare.
+- `crates/mbl-api/src/routes/tls.rs`: `PATCH` validerar hela begäran innan något sparas, nekar port 8081 och kräver både certifikat och nyckel. `TlsStatus.listenerError` är nytt; OpenAPI och `schema.d.ts` är regenererade.
+- `crates/mbl-db/src/pool.rs`: databasen, WAL-filerna och säkerhetskopior sätts till 0600 på Unix (`restrict_to_owner`), även MCP-verktyget `create_backup`.
+- `web/src/components/TlsSettings.tsx`: visar lyssnarfel och bakgrundsuppdateringar skriver inte längre över det användaren håller på att skriva.
+- Sessionscookies får `Secure` per anslutning: HTTPS-lyssnaren märker sina förfrågningar med `mbl_api::extract::SecureTransport` och extraktorn `SecureCookies` används i inloggning, utloggning, setup, inbjudan och Tailscale-inloggning. Vanlig HTTP på LAN fungerar som förut; `public_url` med https gäller fortfarande bakom omvänd proxy. `X-Forwarded-Proto` används medvetet inte.
+- Nya tester: `crates/mbl-server/tests/tls.rs` (7 st, kör riktig HTTPS-lyssnare med TLS-klient), kedjevalidering mot roten, lokal förnyelse, HTTP-svarstolkning, filbehörigheter och ett webbtest.
+- Verifiering i molnsessionen (x86_64, rustc 1.97 med `--ignore-rust-version` eftersom 1.99.1 inte gick att hämta): `cargo test -p mbl-remote -p mbl-db -p mbl-service -p mbl-api -p mbl-mcp -p mbl-server` 319/319 (därefter 214/214 för mbl-api och mbl-server efter cookie-ändringen), webb 271/271, `tsc -b`, Vite-bygge, bundle 147,47 KB gzip, MCP-paritet 176/176, fmt rent, OpenAPI i synk. Clippy gav inga varningar i ändrade filer. Kör `cargo clippy --workspace --all-targets -- -D warnings` och nextest på Pi:n med 1.99.1 före commit.
+- Beslut 2026-11-16: nycklar i klartext i `settings` (CA-nyckel, servernyckel, ACME-konto, följer med i säkerhetskopior) väntar tills vidare. HSTS görs inte nu: med lokal CA kan en webbläsare som sett HSTS inte klicka förbi ett certifikatfel och HTTP-porten slutar fungera för den värden. Namnbegränsningar på rot-CA:n är inte införda.
+
+### 2026-11-16 — Automatiserad Let's Encrypt (ACME HTTP-01) och sömlös förnyelse
+- Inbyggd ACME-klient i `crates/mbl-service/src/certificates.rs` med `instant-acme` och Axum HTTP-01-verifieringsrouter på port 8081.
+- Automatisk certifikatomladdning i `crates/mbl-server/src/tls.rs` via `RustlsConfig::reload_from_pem` vid certifikatuppdatering utan att bryta aktiva anslutningar.
+- Bakgrundsjobb `certificates::tick` i serverloopen som hanterar beständiga köade certifikatbegäranden och automatisk förnyelse 30 dagar före utgång.
+- Exakt certifikatvalidering och utgångstidsberäkning med `x509-parser` och SAN-domänmatchning (ersätter tidigare hårdkodade +90 dagar).
+- Förenklat webbgränssnitt i `web/src/components/TlsSettings.tsx` med "Request Certificate", villkorsgodkännande och utfällbar port 80→8081-guide. Manuell PEM-import bevarad som alternativ.
+- Verifiering: Rust-enhetstester (`domain_name_validation`, `certificate_expiry_and_matching`) passerar, `cargo xtask openapi-check` och `cargo xtask mcp-parity` (100 %, 176/176) passerar, `just web-check` (alla tester gröna, bundle 147.47 KB gzip) och Clippy med `-D warnings` passerar utan anmärkning.
+
+### 2026-11-15 — TLS GUI första del, automatiken återstår
+- Tailscale och Let's Encrypt har utfällbara stegvisa guider med länkar till DNS-inställningar respektive ACME-klienter. Importknappen beskriver nu import.
+- Två befintliga TLS-webbtester passerar. Ingen driftsättning eller commit.
+- Användarens mål är automatisk utfärdning/förnyelse med värdnamn och e-post. Detta är fortfarande oimplementerat. Fortsätt med ACME HTTP-01, bakgrundsjobb, förnyelse, verkligt certifikatutgångsdatum och Tailscale-förkontroll. Befintliga API-rutter sätter felaktigt utgångstid till nu+90 dagar.
+- Tailscale kräver nåbar ts.net-adress från klienten. Nest Hub behöver en nåbar receiver-URL. HTTPS-lyssnaren läser redan in ändrade inställningar.
 
 ### 2026-11-14 — Release v1.3.7 förberedd
 - Användaren har begärt push och release. Versionsmetadata, Windows MSI och changelog uppdaterade till 1.3.7. Releasegrenen kräver grön main-CI för samma commit före paketering.

@@ -14,7 +14,9 @@ use mbl_service::{
 };
 
 use crate::dto::{LoginRequest, LoginResponse, SessionDto, UserDto};
-use crate::extract::{AuthUser, ClientNetwork, SESSION_COOKIE, client_ip, device_info};
+use crate::extract::{
+    AuthUser, ClientNetwork, SESSION_COOKIE, SecureCookies, client_ip, device_info,
+};
 use crate::{ApiError, AppState};
 
 const COOKIE_MAX_AGE_SECS: u64 = 30 * 24 * 60 * 60;
@@ -43,6 +45,7 @@ async fn login(
     State(state): State<AppState>,
     extensions: Extensions,
     ClientNetwork(net): ClientNetwork,
+    SecureCookies(secure): SecureCookies,
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, ApiError> {
@@ -51,7 +54,7 @@ async fn login(
     let result = state
         .services
         .auth
-        .login_with_options(
+        .login_explained(
             &req.username,
             &req.password,
             req.totp_code.as_deref(),
@@ -59,10 +62,21 @@ async fn login(
             net.is_wan(),
         )
         .await;
-    if result.is_err() {
-        tracing::warn!(username = %req.username, ip = %client_ip(&extensions), "failed login");
+    match result {
+        Ok(result) => Ok(login_response(StatusCode::OK, result, secure)),
+        Err((error, reason)) => {
+            tracing::warn!(username = %req.username, ip = %client_ip(&extensions), reason, "failed login");
+            let mut response = ApiError(error).into_response();
+            // The reason is only set once the password was correct, so it reveals nothing to
+            // someone who does not already hold the password.
+            if let Some(reason) = reason {
+                response
+                    .headers_mut()
+                    .insert("x-mbl-login-reason", HeaderValue::from_static(reason));
+            }
+            Ok(response)
+        }
     }
-    Ok(login_response(StatusCode::OK, result?, state.secure_cookies))
 }
 
 /// Build the token response and set the session cookie.
@@ -87,9 +101,10 @@ fn session_cookie(value: &str, max_age_secs: u64, secure: bool) -> HeaderValue {
 async fn logout(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
+    SecureCookies(secure): SecureCookies,
 ) -> Result<Response, ApiError> {
     state.services.auth.logout(auth.session_id).await?;
-    let cookie = session_cookie("", 0, state.secure_cookies);
+    let cookie = session_cookie("", 0, secure);
     Ok((StatusCode::NO_CONTENT, [(SET_COOKIE, cookie)]).into_response())
 }
 
@@ -218,12 +233,13 @@ pub(crate) async fn totp_disable(
     responses((status = 201, body = LoginResponse), (status = 400)))]
 pub(crate) async fn register_invite(
     State(state): State<AppState>,
+    SecureCookies(secure): SecureCookies,
     headers: HeaderMap,
     Json(req): Json<RegisterInviteRequest>,
 ) -> Result<Response, ApiError> {
     let device = device_info(&headers, None, None);
     let result = state.services.auth.register_invite(req, &device).await?;
-    Ok(login_response(StatusCode::CREATED, result, state.secure_cookies))
+    Ok(login_response(StatusCode::CREATED, result, secure))
 }
 
 /// Log in via Tailscale identity (opt-in, LAN/Tailnet/loopback only).
@@ -232,6 +248,7 @@ pub(crate) async fn register_invite(
 pub(crate) async fn login_tailscale(
     State(state): State<AppState>,
     extensions: Extensions,
+    SecureCookies(secure): SecureCookies,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let peer_addr = extensions.get::<ConnectInfo<SocketAddr>>().map(|ci| ci.0);
@@ -254,5 +271,5 @@ pub(crate) async fn login_tailscale(
 
     let device = device_info(&headers, None, None);
     let result = state.services.auth.login_tailscale(identity, &device).await?;
-    Ok(login_response(StatusCode::OK, result, state.secure_cookies))
+    Ok(login_response(StatusCode::OK, result, secure))
 }

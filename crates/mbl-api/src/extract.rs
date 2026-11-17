@@ -72,7 +72,7 @@ impl FromRequestParts<AppState> for ClientNetwork {
         let fwd_header = parts.headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
         let client_ip = mbl_remote::resolve_client_ip(peer_addr, fwd_header, &[]);
 
-        Ok(Self(mbl_remote::classify_ip(client_ip)))
+        Ok(Self(mbl_remote::classify_client(client_ip)))
     }
 }
 
@@ -106,6 +106,30 @@ pub fn client_ip(parts_or_extensions: &axum::http::Extensions) -> String {
     parts_or_extensions
         .get::<ConnectInfo<SocketAddr>>()
         .map_or_else(|| "unknown".to_owned(), |ci| ci.0.ip().to_string())
+}
+
+/// Marks a request that arrived on the server's own HTTPS listener. The listener adds it as a
+/// request extension; the plain HTTP listener never does.
+#[derive(Debug, Clone, Copy)]
+pub struct SecureTransport;
+
+/// Whether a session cookie set by this response must carry `Secure`.
+///
+/// True when the request came in over the built-in HTTPS listener, or when the configured
+/// public URL is HTTPS (TLS terminated by a reverse proxy). Client-supplied headers such as
+/// `X-Forwarded-Proto` are deliberately not consulted.
+#[derive(Debug, Clone, Copy)]
+pub struct SecureCookies(pub bool);
+
+impl FromRequestParts<AppState> for SecureCookies {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(state.secure_cookies || parts.extensions.get::<SecureTransport>().is_some()))
+    }
 }
 
 /// Client IP address from TCP ConnectInfo or X-Forwarded-For header.

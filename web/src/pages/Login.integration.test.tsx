@@ -35,3 +35,24 @@ it("submits the authentication code with credentials", async () => {
   await Promise.resolve();
   expect(auth.login).toHaveBeenCalledWith("admin", "secret", "123456");
 });
+it("tells the user when the account has two-factor authentication enabled", async () => {
+  auth.login.mockResolvedValueOnce(false);
+  (auth as unknown as { loginReason: () => string }).loginReason = () => "totp_required";
+  dispose = render(() => createComponent(Login, {}), document.body);
+  for (const [id, value] of [
+    ["username", "admin"],
+    ["password", "secret"],
+  ]) {
+    const input = document.getElementById(id) as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  expect(document.querySelector('[data-testid="two-factor-badge"]')).toBeNull();
+  document
+    .querySelector("form")
+    ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(document.querySelector('[data-testid="two-factor-badge"]')).not.toBeNull();
+  expect(document.body.textContent).toContain("Two-factor authentication is enabled");
+  delete (auth as unknown as { loginReason?: unknown }).loginReason;
+});

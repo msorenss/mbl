@@ -7,7 +7,7 @@
       "name": "AGPL-3.0-or-later",
       "identifier": "AGPL-3.0-or-later"
     },
-    "version": "1.3.7"
+    "version": "1.3.8"
   },
   "paths": {
     "/.well-known/oauth-authorization-server": {
@@ -8004,6 +8004,10 @@
           "domain"
         ],
         "properties": {
+          "acceptTerms": {
+            "type": "boolean",
+            "description": "Required for automatic issuance to accept the certificate authority terms."
+          },
           "certPem": {
             "type": [
               "string",
@@ -15270,6 +15274,10 @@
             "type": "string",
             "description": "`\"white\" | \"yellow\" | \"cyan\"`, default `\"white\"`."
           },
+          "font": {
+            "type": "string",
+            "description": "`\"sans\" | \"serif\" | \"mono\"`, default `\"sans\"`."
+          },
           "size": {
             "type": "string",
             "description": "`\"sm\" | \"md\" | \"lg\" | \"xl\"`, default `\"md\"`."
@@ -15611,7 +15619,10 @@
           "mode",
           "hostnames",
           "hasCertificate",
-          "caAvailable"
+          "caAvailable",
+          "jobState",
+          "automaticRenewal",
+          "challengePort"
         ],
         "properties": {
           "acmeEmail": {
@@ -15621,9 +15632,17 @@
             ],
             "description": "Configured Let's Encrypt contact email (if any)."
           },
+          "automaticRenewal": {
+            "type": "boolean"
+          },
           "caAvailable": {
             "type": "boolean",
             "description": "The local root CA exists and can be downloaded for installation on devices."
+          },
+          "challengePort": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           },
           "enabled": {
             "type": "boolean",
@@ -15645,6 +15664,22 @@
             "items": {
               "type": "string"
             }
+          },
+          "jobError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobState": {
+            "type": "string"
+          },
+          "listenerError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the HTTPS listener is not serving the configured certificate and port, if it is not."
           },
           "mode": {
             "type": "string",
@@ -16707,6 +16742,7 @@
             "default": {
               "background": "dim",
               "color": "white",
+              "font": "sans",
               "size": "md"
             }
           },

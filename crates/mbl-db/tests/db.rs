@@ -193,3 +193,32 @@ async fn invitation_redemption_is_atomic_and_failed_creation_does_not_consume_it
         Some(winner)
     );
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn database_files_are_readable_by_their_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = temp_db_path(&dir);
+    let db = Db::connect(&path, &DbOptions::default()).await.unwrap();
+    SettingsRepo::new(db.clone()).set("tls_key_pem", "secret").await.unwrap();
+
+    let mut checked = 0;
+    for entry in std::fs::read_dir(dir.path()).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            let mode = entry.metadata().unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "{:?}", entry.file_name());
+            checked += 1;
+        }
+    }
+    assert!(checked >= 1);
+
+    // A database that was world-readable before the upgrade is tightened on the next start.
+    db.close().await;
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let db = Db::connect(&path, &DbOptions::default()).await.unwrap();
+    assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+    db.close().await;
+}

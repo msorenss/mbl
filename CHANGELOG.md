@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.8] - 2026-11-17
+
+### Added
+- Built-in Let's Encrypt certificates (ACME HTTP-01) with automatic renewal, automatic renewal of the local-CA server certificate, and a hardened HTTPS listener that keeps serving through settings errors and reports why it could not start.
+- The MBL Cast receiver is the default Cast application and is hosted from the project's GitHub Pages site. The Google standard receiver remains selectable per browser under Server Settings.
+- Subtitle appearance (size, font, colour, background) in the player menu, applied in the browser and on Cast receivers, including live changes while casting.
+- Quality, audio track and subtitle can be chosen on the item page before playback starts, and "Cast to TV" starts directly on the receiver without a local transcode first.
+- Mini player: the back button keeps playback running while you browse MBL.
+- The sign-in page tells an account holder when two-factor authentication is enabled or the code was rejected, and explains when an administrator must enable it. Nothing is revealed before the password is correct.
+
+### Changed
+- Clients on the home network that open MBL through its public hostname are classified as LAN. The server resolves its own public address from the certificate hostname and public URL. MCP connections keep their existing classification.
+- Session cookies carry `Secure` on HTTPS connections; the database and backups are owner-only on Unix.
+
+### Fixed
+- Remote playback on Raspberry Pi 5 no longer fails with a validation error: the Pi decode backend only offers H.264 encoding.
+- A Cast reload after a subtitle or quality change no longer pauses when the old stream goes idle, and a second press on play during Cast start-up no longer pauses the receiver.
+- The Remote Access page no longer crashes on an error response and explains the LAN/tailnet restriction.
+- Let's Encrypt failures show the certificate authority's reported cause.
+
+### Validation and limitations
+- Let's Encrypt issuance and the custom receiver are confirmed on a Raspberry Pi 5 with a Nest Hub. Subtitle styling on receivers, the home-network classification behind a real router and the sign-in notices have automated coverage only.
+- The default receiver needs the Cast application to be published and its receiver URL to point at the GitHub Pages site; until then only registered test devices can start it.
+- Subtitle font choices on Cast are limited to the receiver's generic families.
+
 ## [1.3.7] - 2026-11-14
 
 ### Added

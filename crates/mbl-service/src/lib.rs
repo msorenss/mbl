@@ -4,6 +4,7 @@
 //! performs its own permission checks; adapters never authorize on their own.
 
 pub mod auth;
+pub mod certificates;
 pub mod collections;
 pub mod companion;
 pub mod downloads;

@@ -71,6 +71,7 @@ export interface SubtitleStyle {
   size: "sm" | "md" | "lg" | "xl";
   background: "none" | "dim" | "solid";
   color: "white" | "yellow" | "cyan";
+  font?: "sans" | "serif" | "mono";
 }
 
 interface ThemeContextValue {
@@ -252,6 +253,7 @@ export function ThemeProvider(props: ParentProps) {
             size: d.subtitleStyle.size || "md",
             background: d.subtitleStyle.background || "dim",
             color: d.subtitleStyle.color || "white",
+            font: d.subtitleStyle.font || "sans",
           });
         }
         applyAttributes();

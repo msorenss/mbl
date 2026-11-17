@@ -140,6 +140,7 @@ const VALID_LOCALES: &[&str] = &[
 const VALID_SUB_SIZES: &[&str] = &["sm", "md", "lg", "xl"];
 const VALID_SUB_BACKGROUNDS: &[&str] = &["none", "dim", "solid"];
 const VALID_SUB_COLORS: &[&str] = &["white", "yellow", "cyan"];
+const VALID_SUB_FONTS: &[&str] = &["sans", "serif", "mono"];
 
 #[derive(Debug, Clone)]
 pub struct UserService {
@@ -424,6 +425,9 @@ fn validate_subtitle_style(sub: &SubtitleStylePreferences) -> Result<()> {
     }
     if !VALID_SUB_COLORS.contains(&sub.color.as_str()) {
         return Err(Error::Validation(format!("invalid subtitle color: {}", sub.color)));
+    }
+    if !VALID_SUB_FONTS.contains(&sub.font.as_str()) {
+        return Err(Error::Validation(format!("invalid subtitle font: {}", sub.font)));
     }
     Ok(())
 }

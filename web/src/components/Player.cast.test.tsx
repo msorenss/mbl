@@ -639,6 +639,73 @@ it("keeps a receiver pause made while its audio change is negotiating", async ()
   expect(prepared?.autoplay).toBe(false);
 });
 
+it("keeps a Cast replacement playing when the old stream goes idle during the reload", async () => {
+  vi.spyOn(client, "GET").mockResolvedValue({
+    data: { title: "Movie" },
+    response: new Response(),
+  } as never);
+  vi.mocked(client.POST).mockResolvedValue({
+    data: {
+      sessionId: "old",
+      partId: 22,
+      url: "http://192.168.1.20/movie.mp4",
+      subtitles: [],
+      markers: [],
+      startMs: 0,
+      durationMs: 600000,
+      audioStreamIndex: 1,
+      audioTracks: [
+        { index: 1, title: "English", codec: "aac" },
+        { index: 3, title: "Swedish", codec: "aac" },
+      ],
+    },
+    response: new Response(),
+  } as never);
+  let resolve!: (value: unknown) => void;
+  let prepared: { autoplay?: boolean } | undefined;
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    prepared = await prepare();
+    return true;
+  });
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = {
+    ...state,
+    isCasting: true,
+    supportsAutoplayNext: true,
+    playerState: "playing",
+    currentTime: 12,
+  };
+  emit(state);
+  vi.mocked(client.POST).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }) as never,
+  );
+  const audio = document.querySelector("#player-audio-track") as HTMLSelectElement;
+  audio.value = "3";
+  audio.dispatchEvent(new Event("change", { bubbles: true }));
+  state = { ...state, playerState: "idle" };
+  emit(state);
+  resolve({
+    data: {
+      sessionId: "new",
+      partId: 22,
+      url: "http://192.168.1.20/new.mp4",
+      subtitles: [],
+      markers: [],
+      startMs: 12000,
+      durationMs: 600000,
+      audioStreamIndex: 3,
+    },
+    response: new Response(),
+  });
+  await tick();
+  await tick();
+  expect(prepared?.autoplay).toBe(true);
+});
+
 it("commits a prepared Cast replacement at the latest receiver time", async () => {
   vi.spyOn(client, "GET").mockResolvedValue({
     data: { title: "Movie" },
@@ -1216,4 +1283,87 @@ it("restores local playback at the receiver position if replacement Cast fails",
     expect.objectContaining({ body: { positionMs: 139295 } }),
   );
   expect(order.slice(0, 4)).toEqual(["start", "start", "stop", "start"]);
+});
+
+it("opens the Cast chooser first without starting a local stream", async () => {
+  let prepared: { currentTime?: number } | undefined;
+  cast.requestCastSession.mockImplementation(async (_media, _video, prepare) => {
+    prepared = await prepare();
+    return true;
+  });
+  dispose = render(
+    () =>
+      createComponent(Player, {
+        itemId: 7,
+        castFirst: true,
+        maxBitrate: 2000000,
+        initialStartMs: 60000,
+        audioStreamIndex: 3,
+        subtitleStreamIndex: 5,
+        onClose: vi.fn(),
+      }),
+    document.body,
+  );
+  await tick();
+  await tick();
+  const starts = vi
+    .mocked(client.POST)
+    .mock.calls.filter((call) => (call[0] as string) === "/api/v1/playback");
+  expect(starts).toHaveLength(1);
+  expect(starts[0][1]).toEqual(
+    expect.objectContaining({
+      body: expect.objectContaining({
+        maxBitrate: 2000000,
+        startMs: 60000,
+        audioStreamIndex: 3,
+        subtitleStreamIndex: 5,
+      }),
+    }),
+  );
+  expect(prepared).toBeDefined();
+});
+
+it("falls back to local playback when a Cast-first start is canceled", async () => {
+  cast.requestCastSession.mockResolvedValue(false);
+  dispose = render(
+    () => createComponent(Player, { itemId: 7, castFirst: true, onClose: vi.fn() }),
+    document.body,
+  );
+  await tick();
+  await tick();
+  const starts = vi
+    .mocked(client.POST)
+    .mock.calls.filter((call) => (call[0] as string) === "/api/v1/playback");
+  expect(starts).toHaveLength(1);
+  expect(document.querySelector("video")).not.toBeNull();
+});
+
+it("keeps playing in the mini player and stops only on request", async () => {
+  const onClose = vi.fn();
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose }), document.body);
+  await tick();
+  const viewport = document.querySelector(".mbl-player-viewport") as HTMLElement;
+  document.querySelector<HTMLButtonElement>('[aria-label="Keep playing and browse MBL"]')?.click();
+  expect(viewport.classList.contains("is-minimized")).toBe(true);
+  expect(onClose).not.toHaveBeenCalled();
+  document.querySelector<HTMLButtonElement>('[aria-label="Expand player"]')?.click();
+  expect(viewport.classList.contains("is-minimized")).toBe(false);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  expect(viewport.classList.contains("is-minimized")).toBe(true);
+  document
+    .querySelector<HTMLButtonElement>('.mbl-player-mini [aria-label="Stop playback"]')
+    ?.click();
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it("ignores a second play press while the receiver is still starting", async () => {
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = { ...state, isCasting: true, playerState: "paused" };
+  emit(state);
+  const video = document.querySelector("video") as HTMLVideoElement;
+  video.click();
+  video.click();
+  expect(cast.play).toHaveBeenCalledTimes(1);
+  expect(cast.pause).not.toHaveBeenCalled();
 });

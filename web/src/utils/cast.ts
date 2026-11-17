@@ -32,6 +32,39 @@ export interface CastMediaOptions {
     format?: string;
   }>;
   subtitleIndex?: number | null;
+  textStyle?: CastTextStyle;
+}
+
+/** Subtitle appearance shared with the browser player's settings. */
+export interface CastTextStyle {
+  size: string;
+  background: string;
+  color: string;
+  font?: string;
+}
+
+/** Google Cast TextTrackStyle matching the browser's subtitle appearance. */
+export function castTextTrackStyle(style: CastTextStyle): Record<string, unknown> {
+  return {
+    fontScale:
+      style.size === "sm" ? 0.8 : style.size === "lg" ? 1.4 : style.size === "xl" ? 1.9 : 1,
+    foregroundColor:
+      style.color === "yellow" ? "#FACC15FF" : style.color === "cyan" ? "#06B6D4FF" : "#FFFFFFFF",
+    backgroundColor:
+      style.background === "none"
+        ? "#00000000"
+        : style.background === "solid"
+          ? "#000000FF"
+          : "#000000BF",
+    fontGenericFamily:
+      style.font === "serif"
+        ? "SERIF"
+        : style.font === "mono"
+          ? "MONOSPACED_SANS_SERIF"
+          : "SANS_SERIF",
+    edgeType: "DROP_SHADOW",
+    edgeColor: "#000000CC",
+  };
 }
 
 export type RemoteCommand = {
@@ -151,7 +184,7 @@ declare global {
           };
           Track?: new (id: number, type: string) => Record<string, unknown>;
           TrackType?: { TEXT: string };
-          EditTracksInfoRequest?: new (ids: number[]) => unknown;
+          EditTracksInfoRequest?: new (ids?: number[]) => unknown;
           GenericMediaMetadata: new () => Record<string, unknown>;
           LoadRequest: new (
             mediaInfo: unknown,
@@ -300,6 +333,29 @@ class CastManager {
         },
         (error?: unknown) => {
           castDiagnostics.error("subtitles.error", error);
+          resolve(false);
+        },
+      ),
+    );
+  }
+
+  /** Apply subtitle appearance on the receiver without changing the active track. */
+  public setTextStyle(style: CastTextStyle): Promise<boolean> {
+    if (this.mode !== "google") return Promise.resolve(false);
+    const media = window.cast?.framework?.CastContext.getInstance()
+      .getCurrentSession()
+      ?.getMediaSession();
+    const Request = window.chrome?.cast?.media?.EditTracksInfoRequest;
+    if (!media || !Request) return Promise.resolve(false);
+    const request = new Request() as Record<string, unknown>;
+    request.textTrackStyle = castTextTrackStyle(style);
+    castDiagnostics.record("subtitles.style", { size: style.size, font: style.font ?? "sans" });
+    return new Promise((resolve) =>
+      media.editTracksInfo(
+        request,
+        () => resolve(true),
+        (error?: unknown) => {
+          castDiagnostics.error("subtitles.style_error", error);
           resolve(false);
         },
       ),
@@ -861,6 +917,10 @@ class CastManager {
               ),
             );
           }
+          if (media.textStyle)
+            (mediaInfo as unknown as Record<string, unknown>).textTrackStyle = castTextTrackStyle(
+              media.textStyle,
+            );
           const request = new chromeCastMedia.LoadRequest(mediaInfo);
           request.activeTrackIds = hasSelectedTrack ? [selected + 1] : [];
           request.autoplay = media.autoplay ?? true;

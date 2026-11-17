@@ -97,5 +97,6 @@ describe("CAF receiver", () => {
     expect(receiverConfiguration()).toEqual({ appId: "CC1AD845", custom: false });
     expect(() => saveReceiverConfiguration("https://bad")).toThrow();
     saveReceiverConfiguration(null);
+    expect(receiverConfiguration()).toEqual({ appId: "422EE6A6", custom: true });
   });
 });

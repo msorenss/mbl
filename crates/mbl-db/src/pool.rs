@@ -64,6 +64,7 @@ impl Db {
             .connect_with(base_options(path, opts).read_only(true))
             .await?;
 
+        restrict_to_owner(path.as_std_path());
         tracing::info!(%path, "database ready");
         Ok(Self { read, write })
     }
@@ -71,6 +72,31 @@ impl Db {
     pub async fn close(&self) {
         self.read.close().await;
         self.write.close().await;
+    }
+}
+
+/// Limit a database file, and its WAL companions, to the account that owns it. The database
+/// holds password hashes, API tokens and TLS private keys, so no other local account should be
+/// able to read it or a copy of it. Best effort: a failure is logged and startup continues.
+pub fn restrict_to_owner(path: &std::path::Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for suffix in ["", "-wal", "-shm"] {
+            let mut file = path.as_os_str().to_owned();
+            file.push(suffix);
+            match std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    tracing::warn!(%error, file = %file.to_string_lossy(), "could not restrict database permissions");
+                }
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
     }
 }
 
@@ -105,6 +131,7 @@ async fn backup_before_migrate(pool: &SqlitePool, db_path: &Utf8Path) -> Result<
     std::fs::create_dir_all(&dir)?;
     let target = dir.join(format!("pre-migrate-{}.db", mbl_core::time::now_ms()));
     sqlx::query("VACUUM INTO ?").bind(target.as_str()).execute(pool).await?;
+    restrict_to_owner(target.as_std_path());
     tracing::info!(backup = %target, "backed up database before migrating");
     Ok(target)
 }

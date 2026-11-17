@@ -267,6 +267,8 @@ pub async fn execute(
             let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new(vacuum_query);
             match qb.build().execute(&db.write).await {
                 Ok(_) => {
+                    // The copy contains the same secrets as the live database.
+                    mbl_db::restrict_to_owner(&target_path);
                     let size = fs::metadata(&target_path).map(|m| m.len()).unwrap_or(0);
                     let out = json!({
                         "filename": backup_filename,

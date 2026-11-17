@@ -98,7 +98,14 @@ impl FfmpegProbeCaps {
                     out.push("h264".to_owned());
                 }
             }
-            "piDrmDecode" | "software" => {
+            // Pi 5 decodes in hardware but encodes with libx264 only; the pipeline
+            // rejects any other codec on this backend.
+            "piDrmDecode" => {
+                if self.has_encoder("libx264") || self.encoders.is_empty() {
+                    out.push("h264".to_owned());
+                }
+            }
+            "software" => {
                 if self.has_encoder("libx264") || self.encoders.is_empty() {
                     out.push("h264".to_owned());
                 }
@@ -316,6 +323,16 @@ pub fn parse_filters(output: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pi_drm_decode_only_offers_h264_encoding() {
+        let caps = FfmpegProbeCaps {
+            encoders: vec!["libx264".into(), "libx265".into(), "libsvtav1".into()],
+            ..Default::default()
+        };
+        assert_eq!(caps.supported_encode_codecs_for_backend("piDrmDecode"), ["h264"]);
+        assert_eq!(caps.supported_encode_codecs_for_backend("software"), ["h264", "hevc", "av1"]);
+    }
 
     const SAMPLE_VERSION: &str =
         "ffmpeg version 7.0.2-mbl Copyright (c) 2000-2024 the FFmpeg developers\nbuilt with gcc 13";

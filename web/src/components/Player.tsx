@@ -1,5 +1,5 @@
 import Hls from "hls.js";
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
 import { findNextEpisode } from "../api/nextEpisode";
@@ -40,6 +40,10 @@ export interface PlayerProps {
   onStopped?: () => void;
   autoplayNext?: boolean;
   onPlayNext?: (request: PlayRequest) => void;
+  /** Quality limit in bit/s chosen before playback; 0 or undefined is automatic. */
+  maxBitrate?: number;
+  /** Go straight to the Cast chooser instead of starting a local stream first. */
+  castFirst?: boolean;
 }
 
 export function Player(props: PlayerProps) {
@@ -71,7 +75,10 @@ export function Player(props: PlayerProps) {
   let dialogueBoostFilter: BiquadFilterNode | null = null;
   let compressorNode: DynamicsCompressorNode | null = null;
 
-  const { subtitleStyle, nightMode, setNightMode, audioOffsetMs, setAudioOffsetMs } = useTheme();
+  const theme = useTheme();
+  const { subtitleStyle, nightMode, setNightMode, audioOffsetMs, setAudioOffsetMs } = theme;
+  const updateSubtitleStyle = (patch: Partial<ReturnType<typeof subtitleStyle>>) =>
+    theme.setSubtitleStyle?.({ ...subtitleStyle(), ...patch });
   const [audioSyncMs, setAudioSyncMs] = createSignal(
     Math.min(10000, Math.max(-10000, audioOffsetMs?.() ?? 0)),
   );
@@ -79,7 +86,9 @@ export function Player(props: PlayerProps) {
   const [selectedAudioIndex, setSelectedAudioIndex] = createSignal<number | undefined>(
     props.audioStreamIndex,
   );
-  const [quality, setQuality] = createSignal(0);
+  const [quality, setQuality] = createSignal(props.maxBitrate ?? 0);
+  const [minimized, setMinimized] = createSignal(false);
+  let castPlayRequestedAt = 0;
   const [adaptiveLevels, setAdaptiveLevels] = createSignal(0);
   const [changingQuality, setChangingQuality] = createSignal(false);
   const [controlNotice, setControlNotice] = createSignal("");
@@ -134,7 +143,9 @@ export function Player(props: PlayerProps) {
   const [isMuted, setIsMuted] = createSignal(false);
   const [showControls, setShowControls] = createSignal(true);
   const [showResumePrompt, setShowResumePrompt] = createSignal(false);
-  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = createSignal<number>(-1);
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = createSignal<number>(
+    props.subtitleStreamIndex ?? -1,
+  );
   const [showSubtitlesMenu, setShowSubtitlesMenu] = createSignal(false);
   const [showSpeedMenu, setShowSpeedMenu] = createSignal(false);
   const [playbackRate, setPlaybackRate] = createSignal(1.0);
@@ -149,6 +160,16 @@ export function Player(props: PlayerProps) {
 
   // Chromecast & Remote Playback state (M12)
   const [isCasting, setIsCasting] = createSignal(false);
+  // Keep the receiver's subtitle appearance in step with the browser setting.
+  createEffect(
+    on(
+      subtitleStyle,
+      (style) => {
+        if (isCasting()) void castManager.setTextStyle(style);
+      },
+      { defer: true },
+    ),
+  );
   const [castDevice, setCastDevice] = createSignal<string | null>(null);
   const [isCastAvailable, setIsCastAvailable] = createSignal(false);
   const [castConnecting, setCastConnecting] = createSignal(false);
@@ -675,6 +696,7 @@ export function Player(props: PlayerProps) {
         partId: mediaPartId(),
         profile: getDeviceProfileInput(),
         startMs,
+        maxBitrate: quality() || undefined,
         audioOffsetMs: offset,
         audioStreamIndex: selectedAudioIndex(),
         subtitleStreamIndex: props.subtitleStreamIndex ?? undefined,
@@ -814,11 +836,28 @@ export function Player(props: PlayerProps) {
 
   onMount(() => {
     const initialStart = props.initialStartMs ?? 0;
-    if (initialStart > 10000) {
+    if (props.castFirst) {
+      // No local stream is started, so the server transcodes once, for the receiver.
+      setLoading(false);
+      void startReceiverPlayback(
+        props.itemId,
+        initialStart,
+        true,
+        props.audioStreamIndex,
+        props.subtitleStreamIndex,
+      ).then((casting) => {
+        if (!casting && !disposed && !isCasting() && !playbackData())
+          void startPlaybackSession(initialStart);
+      });
+    } else if (initialStart > 10000) {
       setShowResumePrompt(true);
     } else {
       startPlaybackSession(initialStart);
     }
+    // Browser Back keeps playback running in the mini player while the page behind changes.
+    const onPopState = () => setMinimized(true);
+    window.addEventListener("popstate", onPopState);
+    onCleanup(() => window.removeEventListener("popstate", onPopState));
 
     progressInterval = window.setInterval(heartbeat, 5000);
     const onVisible = () => {
@@ -828,7 +867,7 @@ export function Player(props: PlayerProps) {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const vid = videoRef;
-      if (!vid) return;
+      if (!vid || minimized()) return;
       if (
         e.key !== "Escape" &&
         e.target instanceof HTMLElement &&
@@ -1011,7 +1050,6 @@ export function Player(props: PlayerProps) {
       return false;
     }
     const previous = playbackData();
-    if (!previous) return false;
     const resumeLocalAfterCancel = !isCasting() && isPlaying();
     setShowSpeedMenu(false);
     setShowSubtitlesMenu(false);
@@ -1032,7 +1070,7 @@ export function Player(props: PlayerProps) {
     try {
       const success = await castManager.requestCastSession(
         {
-          contentId: previous.url,
+          contentId: previous?.url ?? "",
           title: mediaTitle(),
           subtitle: itemId === props.itemId ? props.subtitle : undefined,
           currentTime: startMs / 1000,
@@ -1106,9 +1144,19 @@ export function Player(props: PlayerProps) {
             currentTime: negotiatedStartMs / 1000,
             duration: result.data.durationMs / 1000,
             itemId,
-            autoplay: preserveReceiverState ? isPlaying() : autoplay,
+            // Only an explicit pause or play during the reload overrides the
+            // request; the old stream going idle or buffering must not pause it.
+            autoplay: preserveReceiverState
+              ? (() => {
+                  const receiver = castManager.getState().playerState;
+                  if (receiver === "paused") return false;
+                  if (receiver === "playing") return true;
+                  return autoplay;
+                })()
+              : autoplay,
             subtitles: result.data.subtitles,
             subtitleIndex: result.data.burnedSubtitleStreamIndex != null ? null : subtitleIndex,
+            textStyle: subtitleStyle(),
           };
         },
       );
@@ -1120,8 +1168,10 @@ export function Player(props: PlayerProps) {
         setEnded(false);
       }
       if (success && accepted && !disposed) {
-        if (stoppedSession === previous.sessionId) await stoppingSession;
-        else await stopSession(previous.sessionId, Math.floor(oldPosition * 1000));
+        if (previous) {
+          if (stoppedSession === previous.sessionId) await stoppingSession;
+          else await stopSession(previous.sessionId, Math.floor(oldPosition * 1000));
+        }
         setPlaybackData(accepted);
         setFailedPositionMs(null);
         setSessionExpired(false);
@@ -1222,8 +1272,15 @@ export function Player(props: PlayerProps) {
     if (castConnecting()) return;
     if (isCasting()) {
       if (isPlaying()) {
+        castPlayRequestedAt = 0;
         castManager.pause();
+      } else if (Date.now() - castPlayRequestedAt < 20000) {
+        // The receiver toggles on every command, so a second press while it is
+        // still buffering the first one would pause it again.
+        setControlNotice("The receiver is starting playback…");
       } else {
+        castPlayRequestedAt = Date.now();
+        setControlNotice("Starting playback on the receiver…");
         castManager.play();
       }
       return;
@@ -1407,7 +1464,7 @@ export function Player(props: PlayerProps) {
   const subCueStyle = () => {
     const s = subtitleStyle();
     const fontSize =
-      s.size === "sm" ? "14px" : s.size === "lg" ? "24px" : s.size === "xl" ? "32px" : "18px";
+      s.size === "sm" ? "22px" : s.size === "lg" ? "42px" : s.size === "xl" ? "58px" : "30px";
     const bg =
       s.background === "none"
         ? "transparent"
@@ -1415,8 +1472,15 @@ export function Player(props: PlayerProps) {
           ? "#000000"
           : "rgba(0, 0, 0, 0.75)";
     const color = s.color === "yellow" ? "#facc15" : s.color === "cyan" ? "#06b6d4" : "#ffffff";
+    const family =
+      s.font === "serif"
+        ? "Georgia, 'Times New Roman', serif"
+        : s.font === "mono"
+          ? "ui-monospace, 'Courier New', monospace"
+          : "system-ui, 'Segoe UI', Arial, sans-serif";
     return `
       video::cue {
+        font-family: ${family};
         font-size: ${fontSize};
         background-color: ${bg};
         color: ${color};
@@ -1430,20 +1494,38 @@ export function Player(props: PlayerProps) {
     <div
       ref={playerContainerRef}
       class="mbl-player-viewport"
+      classList={{ "is-minimized": minimized() }}
       onMouseMove={resetHideControlsTimer}
       style={{
         position: "fixed",
-        inset: 0,
+        inset: minimized() ? "auto" : 0,
         background: "#000",
         "z-index": 9999,
         display: "flex",
         "align-items": "center",
         "justify-content": "center",
-        cursor: showControls() ? "default" : "none",
+        cursor: minimized() || showControls() ? "default" : "none",
         "user-select": "none",
       }}
     >
       <style>{subCueStyle()}</style>
+      <Show when={minimized()}>
+        <div class="mbl-player-mini">
+          <span class="mbl-player-mini-title">
+            {isCasting() ? "Casting: " : ""}
+            {mediaTitle() || "MBL"}
+          </span>
+          <button type="button" aria-label={isPlaying() ? "Pause" : "Play"} onClick={togglePlay}>
+            {isPlaying() ? "❚❚" : "▶"}
+          </button>
+          <button type="button" aria-label="Expand player" onClick={() => setMinimized(false)}>
+            ⤢
+          </button>
+          <button type="button" aria-label="Stop playback" onClick={handleClose}>
+            ✕
+          </button>
+        </div>
+      </Show>
 
       {/* Resume Prompt Modal */}
       <Show when={showResumePrompt()}>
@@ -2070,8 +2152,12 @@ export function Player(props: PlayerProps) {
         >
           <button
             type="button"
-            onClick={handleClose}
-            title="Back / Close (Esc)"
+            onClick={() => {
+              if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+              setMinimized(true);
+            }}
+            aria-label="Keep playing and browse MBL"
+            title="Keep playing and browse MBL"
             style={{
               background: "rgba(255, 255, 255, 0.1)",
               border: "none",
@@ -2087,6 +2173,24 @@ export function Player(props: PlayerProps) {
             }}
           >
             &larr;
+          </button>
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Stop playback"
+            title="Stop playback (Esc)"
+            style={{
+              background: "rgba(255, 255, 255, 0.1)",
+              border: "none",
+              color: "#fff",
+              width: "40px",
+              height: "40px",
+              "border-radius": "var(--radius-full)",
+              cursor: "pointer",
+              "font-size": "16px",
+            }}
+          >
+            ✕
           </button>
           <div class="mbl-player-title">
             <div style={{ "font-size": "18px", "font-weight": "700", color: "#fff" }}>
@@ -2598,6 +2702,61 @@ export function Player(props: PlayerProps) {
                         </button>
                       )}
                     </For>
+                    <div class="mbl-player-sub-style">
+                      <label>
+                        Size
+                        <select
+                          value={subtitleStyle().size}
+                          onChange={(e) =>
+                            updateSubtitleStyle({ size: e.currentTarget.value as "sm" })
+                          }
+                        >
+                          <option value="sm">Small</option>
+                          <option value="md">Medium</option>
+                          <option value="lg">Large</option>
+                          <option value="xl">Extra large</option>
+                        </select>
+                      </label>
+                      <label>
+                        Font
+                        <select
+                          value={subtitleStyle().font ?? "sans"}
+                          onChange={(e) =>
+                            updateSubtitleStyle({ font: e.currentTarget.value as "sans" })
+                          }
+                        >
+                          <option value="sans">Sans-serif</option>
+                          <option value="serif">Serif</option>
+                          <option value="mono">Monospace</option>
+                        </select>
+                      </label>
+                      <label>
+                        Color
+                        <select
+                          value={subtitleStyle().color}
+                          onChange={(e) =>
+                            updateSubtitleStyle({ color: e.currentTarget.value as "white" })
+                          }
+                        >
+                          <option value="white">White</option>
+                          <option value="yellow">Yellow</option>
+                          <option value="cyan">Cyan</option>
+                        </select>
+                      </label>
+                      <label>
+                        Background
+                        <select
+                          value={subtitleStyle().background}
+                          onChange={(e) =>
+                            updateSubtitleStyle({ background: e.currentTarget.value as "dim" })
+                          }
+                        >
+                          <option value="none">None</option>
+                          <option value="dim">Dimmed</option>
+                          <option value="solid">Solid</option>
+                        </select>
+                      </label>
+                    </div>
                   </div>
                 </Show>
               </div>

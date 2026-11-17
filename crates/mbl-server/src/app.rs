@@ -229,10 +229,34 @@ impl Server {
             stop.clone(),
         ));
 
+        let cert_db = self.db.clone();
+        let cert_stop = stop.clone();
+        let certificates = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    () = cert_stop.cancelled() => break,
+                    result = mbl_service::certificates::tick(&cert_db) => {
+                        if let Err(error) = result {
+                            tracing::warn!(%error, "Certificate maintenance failed");
+                        }
+                    }
+                }
+                tokio::select! {
+                    () = cert_stop.cancelled() => break,
+                    () = tokio::time::sleep(std::time::Duration::from_secs(10)) => {}
+                }
+            }
+        });
         let https = tokio::spawn(crate::tls::run(
             self.db.clone(),
             self.router.clone(),
             self.config.server.bind.clone(),
+            stop.clone(),
+        ));
+
+        let home_network = tokio::spawn(crate::home_network::run(
+            self.db.clone(),
+            self.config.server.public_url.clone(),
             stop.clone(),
         ));
 
@@ -269,6 +293,8 @@ impl Server {
         let _ = playback.await;
         let _ = recordings.await;
         let _ = https.await;
+        let _ = certificates.await;
+        let _ = home_network.await;
         let _ = mqtt.await;
         if let Some(mdns) = mdns {
             let _ = mdns.await;

@@ -176,42 +176,62 @@ impl AuthService {
         device: &DeviceInfo,
         is_wan: bool,
     ) -> Result<LoginResult> {
-        let creds = self.users.get_credentials(username.trim()).await?;
+        self.login_explained(username, password, totp_code, device, is_wan)
+            .await
+            .map_err(|(error, _)| error)
+    }
+
+    /// Like [`Self::login_with_options`], but a failure that happens after the password was
+    /// accepted carries a reason the client may show (`totp_required`, `totp_invalid`,
+    /// `admin_totp_setup_required`). Nothing is revealed before the password is correct.
+    pub async fn login_explained(
+        &self,
+        username: &str,
+        password: &str,
+        totp_code: Option<&str>,
+        device: &DeviceInfo,
+        is_wan: bool,
+    ) -> std::result::Result<LoginResult, (Error, Option<&'static str>)> {
+        let plain = |error: Error| (error, None);
+        let creds = self.users.get_credentials(username.trim()).await.map_err(plain)?;
         let hash =
             creds.as_ref().map_or_else(|| mbl_auth::dummy_hash().to_owned(), |(_, h)| h.clone());
         let password = password.to_owned();
-        let ok = blocking(move || Ok(mbl_auth::verify_password(&password, &hash))).await?;
+        let ok = blocking(move || Ok(mbl_auth::verify_password(&password, &hash)))
+            .await
+            .map_err(plain)?;
 
         let Some((user, _)) = creds else {
-            return Err(Error::Unauthorized);
+            return Err(plain(Error::Unauthorized));
         };
         if !ok {
-            return Err(Error::Unauthorized);
+            return Err(plain(Error::Unauthorized));
         }
 
         // Check TOTP 2FA
-        let totp_info = m6::get_user_totp(&self.db, user.id).await?;
+        let totp_info = m6::get_user_totp(&self.db, user.id).await.map_err(plain)?;
         let (totp_secret, totp_enabled) = totp_info.unwrap_or((None, false));
 
         // M6.3: Admins on WAN connections require TOTP 2FA
         if user.is_admin && is_wan && !totp_enabled {
-            return Err(Error::Forbidden);
+            return Err((Error::Forbidden, Some("admin_totp_setup_required")));
         }
 
         if totp_enabled {
             let Some(secret) = totp_secret else {
-                return Err(Error::Internal("TOTP enabled but secret missing".into()));
+                return Err(plain(Error::Internal("TOTP enabled but secret missing".into())));
             };
-            let Some(candidate_code) = totp_code else {
-                return Err(Error::Unauthorized);
+            let candidate_code = totp_code.map(str::trim).filter(|code| !code.is_empty());
+            let Some(candidate_code) = candidate_code else {
+                return Err((Error::Unauthorized, Some("totp_required")));
             };
             let now_secs = (now_ms() / 1000) as u64;
             if !mbl_auth::totp::verify_code(&secret, candidate_code, now_secs) {
-                return Err(Error::Unauthorized);
+                return Err((Error::Unauthorized, Some("totp_invalid")));
             }
         }
 
-        self.start_session(user, device).await
+        self.start_session(user, device).await.map_err(plain)
     }
 
     /// Issue a new session token for an already-authenticated user (used by Quick-Connect in M5.8).

@@ -14,6 +14,10 @@ export default function RemoteAccess() {
   >(null);
   const [status, { refetch }] = createResource(async () => {
     const result = await client.GET("/api/v1/system/remote-status");
+    if (result.response?.status === 403)
+      throw new Error(
+        "Remote access settings can only be opened from the home network or Tailscale. Open MBL with its local address, for example http://192.168.x.x:8420.",
+      );
     if (result.error || !result.data) throw new Error("Could not load remote access settings.");
     setLanOnly(result.data.isAdminLanOnly);
     setTailscaleAuth(result.data.isTailscaleAuthEnabled);
@@ -55,9 +59,21 @@ export default function RemoteAccess() {
     <div class="mbl-page" style={{ "max-width": "840px", display: "grid", gap: "20px" }}>
       <h1 style={{ margin: 0, "font-size": "24px", "font-weight": "700" }}>Remote access</h1>
       <Show when={error() || status.error}>
-        <p role="alert">{error() || "Could not load remote access settings. Please reload."}</p>
+        <p role="alert">
+          {error() ||
+            (status.error instanceof Error
+              ? status.error.message
+              : "Could not load remote access settings. Please reload.")}
+        </p>
       </Show>
-      <Show when={status()} fallback={<p>Loading remote access…</p>}>
+      <Show
+        when={!status.error && status()}
+        fallback={
+          <Show when={!status.error}>
+            <p>Loading remote access…</p>
+          </Show>
+        }
+      >
         {(info) => (
           <>
             <section class="mbl-card-section" style={{ display: "grid", gap: "14px" }}>

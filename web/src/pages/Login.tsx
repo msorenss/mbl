@@ -13,7 +13,9 @@ export function Login() {
   const [totpCode, setTotpCode] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [isSubmitting, setIsSubmitting] = createSignal(false);
-  const { login, user, needsSetup, loading } = useAuth();
+  const { login, user, needsSetup, loading, loginReason } = useAuth();
+  const [twoFactor, setTwoFactor] = createSignal(false);
+  let totpInput: HTMLInputElement | undefined;
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -41,7 +43,22 @@ export function Login() {
       showToast({ title: "Welcome back", message: "Successfully logged in", type: "success" });
       navigate("/");
     } else {
-      setError("Sign-in failed. Check your credentials and authentication code.");
+      const reason = loginReason?.() ?? null;
+      if (reason === "totp_required" || reason === "totp_invalid") {
+        setTwoFactor(true);
+        setError(
+          reason === "totp_required"
+            ? "Two-factor authentication is enabled for this account. Enter the 6-digit code from your authenticator app."
+            : "The authentication code was not accepted. Enter the current 6-digit code from your authenticator app.",
+        );
+        totpInput?.focus();
+      } else if (reason === "admin_totp_setup_required") {
+        setError(
+          "Administrator accounts need two-factor authentication to sign in from outside the home network. Sign in from the home network and enable it under Account.",
+        );
+      } else {
+        setError("Sign-in failed. Check your credentials and authentication code.");
+      }
     }
   };
 
@@ -192,9 +209,27 @@ export function Login() {
               }}
             >
               {t("authCodeIfEnabled")}
+              <Show when={twoFactor()}>
+                <span
+                  data-testid="two-factor-badge"
+                  style={{
+                    "margin-left": "8px",
+                    padding: "2px 8px",
+                    "border-radius": "999px",
+                    background: "var(--accent)",
+                    color: "#fff",
+                    "font-size": "11px",
+                    "font-weight": "700",
+                  }}
+                >
+                  2FA enabled
+                </span>
+              </Show>
             </label>
             <input
               id="totp-code"
+              ref={totpInput}
+              required={twoFactor()}
               type="text"
               inputmode="numeric"
               autocomplete="one-time-code"
@@ -211,6 +246,7 @@ export function Login() {
                 "border-radius": "var(--radius-sm)",
                 color: "var(--text-primary)",
                 "font-size": "14px",
+                "border-color": twoFactor() ? "var(--accent)" : "var(--border)",
               }}
             />
           </div>

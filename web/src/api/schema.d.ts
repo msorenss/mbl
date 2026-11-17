@@ -2953,6 +2953,8 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         AcmeRequest: {
+            /** @description Required for automatic issuance to accept the certificate authority terms. */
+            acceptTerms?: boolean;
             /** @description Optional PEM certificate chain (if importing an existing Let's Encrypt / ACME certificate). */
             certPem?: string | null;
             /** @description Public DNS domain name for the Let's Encrypt certificate. */
@@ -4866,6 +4868,8 @@ export interface components {
             background: string;
             /** @description `"white" | "yellow" | "cyan"`, default `"white"`. */
             color: string;
+            /** @description `"sans" | "serif" | "mono"`, default `"sans"`. */
+            font?: string;
             /** @description `"sm" | "md" | "lg" | "xl"`, default `"md"`. */
             size: string;
         };
@@ -4962,8 +4966,11 @@ export interface components {
         TlsStatus: {
             /** @description Configured Let's Encrypt contact email (if any). */
             acmeEmail?: string | null;
+            automaticRenewal: boolean;
             /** @description The local root CA exists and can be downloaded for installation on devices. */
             caAvailable: boolean;
+            /** Format: int32 */
+            challengePort: number;
             /** @description Serve HTTPS when a certificate is available. */
             enabled: boolean;
             /**
@@ -4973,6 +4980,10 @@ export interface components {
             expiresAt?: number | null;
             hasCertificate: boolean;
             hostnames: string[];
+            jobError?: string | null;
+            jobState: string;
+            /** @description Why the HTTPS listener is not serving the configured certificate and port, if it is not. */
+            listenerError?: string | null;
             /** @description `none`, `local_ca`, `tailscale`, or `letsencrypt`. */
             mode: string;
             /** Format: int32 */
@@ -5268,6 +5279,7 @@ export interface components {
              * @default {
              *       "background": "dim",
              *       "color": "white",
+             *       "font": "sans",
              *       "size": "md"
              *     }
              */

@@ -84,6 +84,46 @@ describe("TlsSettings", () => {
     expect(document.body.textContent).toContain("Fetch Tailscale Certificate");
 
     button("3. Let's Encrypt (ACME)").click();
-    expect(document.body.textContent).toContain("Activate Let's Encrypt Certificate");
+    expect(document.body.textContent).toContain("Request Certificate");
+    expect(document.body.textContent).toContain("Import an existing certificate instead");
+  });
+
+  it("shows why the listener is not running and keeps edits during background refreshes", async () => {
+    vi.useFakeTimers();
+    try {
+      const getSpy = vi.spyOn(client, "GET").mockResolvedValue({
+        data: {
+          enabled: true,
+          port: 8443,
+          mode: "local_ca",
+          hostnames: ["mbl.lan"],
+          caAvailable: true,
+          hasCertificate: true,
+          expiresAt: 1999999999,
+          acmeEmail: null,
+          jobState: "issuing",
+          listenerError: "cannot listen on 0.0.0.0:8443: Address already in use",
+        },
+        response: new Response(),
+      } as never);
+
+      dispose = render(() => createComponent(TlsSettings, {}), document.body);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const alert = [...document.querySelectorAll('[role="alert"]')].map((el) => el.textContent);
+      expect(alert.join(" ")).toContain("Address already in use");
+
+      const port = document.getElementById("tls-port") as HTMLInputElement;
+      expect(port.value).toBe("8443");
+      port.value = "9443";
+      port.dispatchEvent(new Event("input", { bubbles: true }));
+
+      const before = getSpy.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(3100);
+      expect(getSpy.mock.calls.length).toBeGreaterThan(before);
+      expect((document.getElementById("tls-port") as HTMLInputElement).value).toBe("9443");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

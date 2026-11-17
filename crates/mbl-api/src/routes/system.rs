@@ -8,7 +8,7 @@ use mbl_db::repo::settings::SettingsRepo;
 use serde::{Deserialize, Serialize};
 
 use crate::dto::{LoginResponse, SetupRequest, SetupStatus};
-use crate::extract::{AdminUser, AuthUser, device_info};
+use crate::extract::{AdminUser, AuthUser, SecureCookies, device_info};
 use crate::logs::ServerLogEntry;
 use crate::routes::auth::login_response;
 use crate::{ApiError, AppState, ServerInfo};
@@ -216,6 +216,7 @@ async fn setup_status(State(state): State<AppState>) -> Result<Json<SetupStatus>
     responses((status = 201, body = LoginResponse), (status = 409)))]
 async fn setup(
     State(state): State<AppState>,
+    SecureCookies(secure): SecureCookies,
     headers: HeaderMap,
     Json(req): Json<SetupRequest>,
 ) -> Result<Response, ApiError> {
@@ -225,7 +226,7 @@ async fn setup(
         .auth
         .setup(&req.username, &req.password, req.display_name.as_deref(), &device)
         .await?;
-    Ok(login_response(StatusCode::CREATED, result, state.secure_cookies))
+    Ok(login_response(StatusCode::CREATED, result, secure))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]

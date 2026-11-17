@@ -11,6 +11,10 @@ export interface PlayRequest {
   subtitleStreamIndex?: number | null;
   title?: string;
   subtitle?: string;
+  /** Quality limit in bit/s chosen before playback. */
+  maxBitrate?: number;
+  /** Open the Cast chooser first instead of starting a local stream. */
+  castFirst?: boolean;
 }
 
 interface PlayerContextType {
@@ -51,6 +55,8 @@ export function PlayerProvider(props: { children: JSX.Element }) {
             onStopped={() => setPlaybackRevision((v) => v + 1)}
             onPlayNext={playItem}
             autoplayNext={item.autoplayNext}
+            maxBitrate={item.maxBitrate}
+            castFirst={item.castFirst}
           />
         )}
       </Show>

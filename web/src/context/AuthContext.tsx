@@ -9,6 +9,7 @@ interface AuthContextValue {
   loading: () => boolean;
   needsSetup: () => boolean;
   login: (username: string, password: string, totpCode?: string) => Promise<boolean>;
+  loginReason?: () => string | null;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   checkSetup: () => Promise<boolean>;
@@ -20,6 +21,8 @@ export function AuthProvider(props: { children: JSX.Element }) {
   const [user, setUser] = createSignal<UserDto | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [needsSetup, setNeedsSetup] = createSignal(false);
+  // Why the last sign-in failed after the password was accepted (two-factor states).
+  const [loginReason, setLoginReason] = createSignal<string | null>(null);
 
   const checkSetup = async () => {
     try {
@@ -50,9 +53,11 @@ export function AuthProvider(props: { children: JSX.Element }) {
   const login = async (username: string, password: string, totpCode?: string): Promise<boolean> => {
     setLoading(true);
     try {
-      const { data, error } = await client.POST("/api/v1/auth/login", {
+      setLoginReason(null);
+      const { data, error, response } = await client.POST("/api/v1/auth/login", {
         body: { username, password, totpCode: totpCode?.trim() || undefined },
       });
+      if (!data) setLoginReason(response?.headers?.get("x-mbl-login-reason") ?? null);
       if (data && !error) {
         setStoredToken(data.token);
         setUser(data.user);
@@ -94,6 +99,7 @@ export function AuthProvider(props: { children: JSX.Element }) {
         loading,
         needsSetup,
         login,
+        loginReason,
         logout,
         refreshUser,
         checkSetup,

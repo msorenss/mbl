@@ -13,11 +13,23 @@ pub struct SubtitleStylePreferences {
     pub background: String,
     /// `"white" | "yellow" | "cyan"`, default `"white"`.
     pub color: String,
+    /// `"sans" | "serif" | "mono"`, default `"sans"`.
+    #[serde(default = "default_subtitle_font")]
+    pub font: String,
+}
+
+fn default_subtitle_font() -> String {
+    "sans".to_owned()
 }
 
 impl Default for SubtitleStylePreferences {
     fn default() -> Self {
-        Self { size: "md".to_owned(), background: "dim".to_owned(), color: "white".to_owned() }
+        Self {
+            size: "md".to_owned(),
+            background: "dim".to_owned(),
+            color: "white".to_owned(),
+            font: default_subtitle_font(),
+        }
     }
 }
 

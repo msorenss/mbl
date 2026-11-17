@@ -104,8 +104,7 @@ impl TailscaleClient {
         {
             return Err(Error::Validation("invalid Tailscale domain name".into()));
         }
-        let body = self.transport.request(&format!("/localapi/v0/cert/{domain}?type=pair")).await?;
-        Ok(crate::tls::dechunk(&body))
+        self.transport.request(&format!("/localapi/v0/cert/{domain}?type=pair")).await
     }
 
     /// Look up the identity of a peer IP address (`/localapi/v0/whois?addr=...`).
@@ -121,76 +120,115 @@ struct LocalSocketTransport {
     path: PathBuf,
 }
 
+/// Upper bound for one LocalAPI exchange. Certificate issuance can take about a minute.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+/// LocalAPI responses are small; refuse to buffer anything unreasonable.
+const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
+
+fn local_api_request(path_and_query: &str) -> String {
+    format!(
+        "GET {path_and_query} HTTP/1.1\r\nHost: local-tailscaled.sock\r\nSec-Tailscale: localapi\r\nConnection: close\r\n\r\n"
+    )
+}
+
+async fn exchange<S>(mut stream: S, path_and_query: &str) -> Result<String>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    stream
+        .write_all(local_api_request(path_and_query).as_bytes())
+        .await
+        .map_err(|e| Error::Unavailable(format!("Tailscale request failed: {e}")))?;
+    let mut response = Vec::new();
+    stream
+        .take(MAX_RESPONSE_BYTES)
+        .read_to_end(&mut response)
+        .await
+        .map_err(|e| Error::Unavailable(format!("Tailscale response failed: {e}")))?;
+    parse_http_response(&response)
+}
+
+/// Split a raw HTTP/1.1 response into its body, decoding chunked transfer encoding and turning
+/// any non-2xx status into an error that carries tailscaled's own explanation.
+pub(crate) fn parse_http_response(raw: &[u8]) -> Result<String> {
+    let malformed = || Error::Unavailable("Tailscale returned a malformed response".into());
+    let split = raw.windows(4).position(|w| w == b"\r\n\r\n").ok_or_else(malformed)?;
+    let head = std::str::from_utf8(&raw[..split]).map_err(|_| malformed())?;
+    let mut lines = head.split("\r\n");
+    let status: u16 = lines
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|code| code.parse().ok())
+        .ok_or_else(malformed)?;
+    let chunked = lines.any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.trim().eq_ignore_ascii_case("transfer-encoding")
+                && value.to_ascii_lowercase().contains("chunked")
+        })
+    });
+    let body = &raw[split + 4..];
+    let body = if chunked { dechunk_bytes(body).ok_or_else(malformed)? } else { body.to_vec() };
+    let body = String::from_utf8(body).map_err(|_| malformed())?;
+    if !(200..300).contains(&status) {
+        let detail: String = body.trim().chars().take(300).collect();
+        return Err(Error::Unavailable(format!("Tailscale returned HTTP {status}: {detail}")));
+    }
+    Ok(body)
+}
+
+fn dechunk_bytes(mut rest: &[u8]) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    loop {
+        let line_end = rest.windows(2).position(|w| w == b"\r\n")?;
+        let size_line = std::str::from_utf8(&rest[..line_end]).ok()?;
+        let size = usize::from_str_radix(size_line.split(';').next()?.trim(), 16).ok()?;
+        rest = &rest[line_end + 2..];
+        if size == 0 {
+            return Some(out);
+        }
+        if rest.len() < size {
+            return None;
+        }
+        out.extend_from_slice(&rest[..size]);
+        rest = rest[size..].strip_prefix(b"\r\n")?;
+    }
+}
+
 #[async_trait::async_trait]
 impl TailscaleTransport for LocalSocketTransport {
     async fn request(&self, path_and_query: &str) -> Result<String> {
         #[cfg(unix)]
         {
-            use tokio::io::{AsyncReadExt, AsyncWriteExt};
-            use tokio::net::UnixStream;
-
             if !self.path.exists() {
                 return Err(Error::Unavailable(format!(
                     "Tailscale socket not found at {}",
                     self.path.display()
                 )));
             }
-
-            let mut stream = UnixStream::connect(&self.path)
+            let path = self.path.clone();
+            let exchange = async move {
+                let stream = tokio::net::UnixStream::connect(&path).await.map_err(|e| {
+                    Error::Unavailable(format!("failed to connect to tailscaled: {e}"))
+                })?;
+                exchange(stream, path_and_query).await
+            };
+            tokio::time::timeout(REQUEST_TIMEOUT, exchange)
                 .await
-                .map_err(|e| Error::Unavailable(format!("failed to connect to tailscaled: {e}")))?;
-
-            let req = format!(
-                "GET {path_and_query} HTTP/1.1\r\nHost: local-tailscaled.sock\r\nSec-Tailscale: localapi\r\nConnection: close\r\n\r\n"
-            );
-            stream
-                .write_all(req.as_bytes())
-                .await
-                .map_err(|e| Error::Internal(format!("socket write failed: {e}").into()))?;
-
-            let mut response = Vec::new();
-            stream
-                .read_to_end(&mut response)
-                .await
-                .map_err(|e| Error::Internal(format!("socket read failed: {e}").into()))?;
-
-            let resp_str = String::from_utf8_lossy(&response);
-            if let Some((_headers, body)) = resp_str.split_once("\r\n\r\n") {
-                Ok(body.to_string())
-            } else {
-                Ok(resp_str.to_string())
-            }
+                .map_err(|_| Error::Unavailable("Tailscale did not respond in time".into()))?
         }
 
         #[cfg(windows)]
         {
-            use tokio::io::{AsyncReadExt, AsyncWriteExt};
             use tokio::net::windows::named_pipe::ClientOptions;
 
-            let mut stream = ClientOptions::new().open(&self.path).map_err(|e| {
+            let stream = ClientOptions::new().open(&self.path).map_err(|e| {
                 Error::Unavailable(format!("failed to connect to Tailscale named pipe: {e}"))
             })?;
-
-            let req = format!(
-                "GET {path_and_query} HTTP/1.1\r\nHost: local-tailscaled.sock\r\nSec-Tailscale: localapi\r\nConnection: close\r\n\r\n"
-            );
-            stream
-                .write_all(req.as_bytes())
+            tokio::time::timeout(REQUEST_TIMEOUT, exchange(stream, path_and_query))
                 .await
-                .map_err(|e| Error::Internal(format!("named pipe write failed: {e}").into()))?;
-
-            let mut response = Vec::new();
-            stream
-                .read_to_end(&mut response)
-                .await
-                .map_err(|e| Error::Internal(format!("named pipe read failed: {e}").into()))?;
-
-            let resp_str = String::from_utf8_lossy(&response);
-            if let Some((_headers, body)) = resp_str.split_once("\r\n\r\n") {
-                Ok(body.to_string())
-            } else {
-                Ok(resp_str.to_string())
-            }
+                .map_err(|_| Error::Unavailable("Tailscale did not respond in time".into()))?
         }
 
         #[cfg(not(any(unix, windows)))]
@@ -311,6 +349,35 @@ impl TailscaleTransport for MockTailscaleTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn http_responses_are_decoded_and_errors_keep_their_reason() {
+        let plain = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}";
+        assert_eq!(parse_http_response(plain).unwrap(), "{}");
+
+        let pem = "-----BEGIN CERTIFICATE-----\nBBBB\n-----END CERTIFICATE-----\n";
+        let (first, second) = pem.split_at(10);
+        let chunked = format!(
+            "HTTP/1.1 200 OK\r\ntransfer-encoding: Chunked\r\n\r\n{:x}\r\n{first}\r\n{:x};ext=1\r\n{second}\r\n0\r\n\r\n",
+            first.len(),
+            second.len()
+        );
+        assert_eq!(parse_http_response(chunked.as_bytes()).unwrap(), pem);
+
+        let denied = b"HTTP/1.1 500 Internal Server Error\r\n\r\nyour Tailscale account does not support getting TLS certs";
+        let error = parse_http_response(denied).unwrap_err().to_string();
+        assert!(error.contains("500") && error.contains("does not support"), "{error}");
+
+        for broken in [
+            &b"garbage"[..],
+            b"HTTP/1.1 abc OK\r\n\r\nbody",
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nbody",
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nff\r\nshort",
+            b"HTTP/1.1 200 OK\r\n\r\n\xff\xfe",
+        ] {
+            assert!(parse_http_response(broken).is_err());
+        }
+    }
 
     #[tokio::test]
     async fn test_parse_tailscale_status_and_whois() {

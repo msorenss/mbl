@@ -23,7 +23,10 @@ pub use mqtt::{
     build_measurement_sensor_discovery, build_player_discovery, build_sensor_discovery,
     create_mqtt_client, parse_broker_url, parse_incoming_command, playback_event_topic,
 };
-pub use network::{NetworkClass, classify_ip, resolve_client_ip};
+pub use network::{
+    NetworkClass, classify_client, classify_ip, home_addresses, resolve_client_ip,
+    set_home_addresses,
+};
 pub use reachability::{ReachabilityReport, RemoteRecommendation, analyze_reachability};
 pub use tailscale::{
     TailscaleClient, TailscalePeer, TailscaleStatus, TailscaleTransport, TailscaleWhois,
