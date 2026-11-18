@@ -3,7 +3,7 @@
 //! - Remote Library Nodes (`remote_nodes`, `remote_node_libraries`, `remote_node_pairing_codes`)
 
 use mbl_core::{
-    NodeCapabilities, NodeId, NodeLibrary, Result, UserId, WorkerCapabilities, WorkerId,
+    LibraryId, NodeCapabilities, NodeId, NodeLibrary, Result, UserId, WorkerCapabilities, WorkerId,
     WorkerPathMapping, time::now_ms,
 };
 use serde::{Deserialize, Serialize};
@@ -297,15 +297,17 @@ pub async fn register_node(
     base_url: &str,
     token_hash: &[u8],
     caps: &NodeCapabilities,
+    stream_secret: &str,
 ) -> Result<NodeId> {
     let now = now_ms();
     let caps_json = serde_json::to_string(caps).unwrap_or_else(|_| "{}".into());
 
     let res = sqlx::query(
         r#"INSERT INTO remote_nodes (
-               name, base_url, auth_token_hash, status, last_seen_at, capabilities, created_at
+               name, base_url, auth_token_hash, status, last_seen_at, capabilities, created_at,
+               stream_secret
            )
-           VALUES (?, ?, ?, 'online', ?, ?, ?)"#,
+           VALUES (?, ?, ?, 'online', ?, ?, ?, ?)"#,
     )
     .bind(name)
     .bind(base_url)
@@ -313,6 +315,7 @@ pub async fn register_node(
     .bind(now)
     .bind(caps_json)
     .bind(now)
+    .bind(stream_secret)
     .execute(&db.write)
     .await?;
 
@@ -379,11 +382,86 @@ pub async fn update_node_heartbeat(
     Ok(())
 }
 
+/// Delete a node together with the MBL libraries that mirror its folders.
 pub async fn delete_node(db: &Db, id: NodeId) -> Result<bool> {
+    let mut tx = db.write.begin().await?;
+    sqlx::query(
+        "DELETE FROM libraries WHERE id IN
+           (SELECT library_id FROM remote_node_library_links WHERE node_id = ?)",
+    )
+    .bind(id.0)
+    .execute(&mut *tx)
+    .await?;
     let res =
-        sqlx::query("DELETE FROM remote_nodes WHERE id = ?").bind(id.0).execute(&db.write).await?;
-
+        sqlx::query("DELETE FROM remote_nodes WHERE id = ?").bind(id.0).execute(&mut *tx).await?;
+    tx.commit().await?;
     Ok(res.rows_affected() > 0)
+}
+
+/// Key for signing file URLs on this node (`None` for nodes paired before 1.3.9).
+pub async fn node_stream_secret(db: &Db, id: NodeId) -> Result<Option<String>> {
+    let secret: Option<Option<String>> =
+        sqlx::query_scalar("SELECT stream_secret FROM remote_nodes WHERE id = ?")
+            .bind(id.0)
+            .fetch_optional(&db.read)
+            .await?;
+    Ok(secret.flatten().filter(|s| !s.is_empty()))
+}
+
+/// MBL library mirroring `(node, remote library)`, if one exists.
+pub async fn linked_library(
+    db: &Db,
+    node_id: NodeId,
+    remote_library_id: i64,
+) -> Result<Option<LibraryId>> {
+    let id: Option<i64> = sqlx::query_scalar(
+        "SELECT library_id FROM remote_node_library_links WHERE node_id = ? AND remote_library_id = ?",
+    )
+    .bind(node_id.0)
+    .bind(remote_library_id)
+    .fetch_optional(&db.read)
+    .await?;
+    Ok(id.map(LibraryId))
+}
+
+pub async fn link_library(
+    db: &Db,
+    node_id: NodeId,
+    remote_library_id: i64,
+    library_id: LibraryId,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO remote_node_library_links (node_id, remote_library_id, library_id)
+         VALUES (?, ?, ?)
+         ON CONFLICT (node_id, remote_library_id) DO UPDATE SET library_id = excluded.library_id",
+    )
+    .bind(node_id.0)
+    .bind(remote_library_id)
+    .bind(library_id.0)
+    .execute(&db.write)
+    .await?;
+    Ok(())
+}
+
+/// All `(remote library, MBL library)` links of a node.
+pub async fn linked_libraries(db: &Db, node_id: NodeId) -> Result<Vec<(i64, LibraryId)>> {
+    let rows: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT remote_library_id, library_id FROM remote_node_library_links WHERE node_id = ?",
+    )
+    .bind(node_id.0)
+    .fetch_all(&db.read)
+    .await?;
+    Ok(rows.into_iter().map(|(remote, id)| (remote, LibraryId(id))).collect())
+}
+
+/// Whether `library_id` mirrors a storage node folder.
+pub async fn is_node_library(db: &Db, library_id: LibraryId) -> Result<bool> {
+    let found: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM remote_node_library_links WHERE library_id = ?")
+            .bind(library_id.0)
+            .fetch_optional(&db.read)
+            .await?;
+    Ok(found.is_some())
 }
 
 pub async fn sync_node_libraries(

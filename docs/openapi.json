@@ -270,6 +270,38 @@
         }
       }
     },
+    "/api/v1/auth/quick-connect/lookup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Show which device waits behind a Quick-Connect code before approving it.",
+        "operationId": "quick_connect_lookup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickConnectAuthorizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickConnectPending"
+                }
+              }
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
     "/api/v1/auth/quick-connect/poll": {
       "post": {
         "tags": [
@@ -378,6 +410,38 @@
         "responses": {
           "204": {},
           "404": {}
+        }
+      }
+    },
+    "/api/v1/auth/switch-profile": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Switch this device to a managed profile, using its PIN when one is set. Ends the current\nsession; full accounts sign in with their password instead (422).",
+        "operationId": "switch_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {},
+          "429": {}
         }
       }
     },
@@ -4158,6 +4222,58 @@
         ]
       }
     },
+    "/api/v1/nodes/{id}/catalog/probes": {
+      "post": {
+        "tags": [
+          "nodes"
+        ],
+        "operationId": "upload_probes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeProbeUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Probe results imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeProbeUploadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized node"
+          },
+          "422": {
+            "description": "Too many files"
+          }
+        },
+        "security": [
+          {
+            "node_bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/nodes/{id}/libraries": {
       "get": {
         "tags": [
@@ -4208,6 +4324,7 @@
         "tags": [
           "nodes"
         ],
+        "summary": "Where a signed-in client should play a node-hosted item from: a signed URL straight to the\nstorage node on the local network, otherwise the server's own (relayed) stream URLs.",
         "operationId": "smart_handover",
         "parameters": [
           {
@@ -4241,7 +4358,7 @@
             }
           },
           "404": {
-            "description": "Node not found"
+            "description": "Item has no file on this node, or no access"
           }
         },
         "security": [
@@ -5604,6 +5721,141 @@
         ]
       }
     },
+    "/api/v1/requests/arr/{service}": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "get_arr_settings",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "path",
+            "description": "radarr, sonarr or lidarr",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download service settings (the API key is never returned)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrSettings"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "update_arr_settings",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "path",
+            "description": "radarr, sonarr or lidarr",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateArrSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing address, key, root folder or quality profile"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/requests/arr/{service}/test": {
+      "post": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "test_arr_connection",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "path",
+            "description": "radarr, sonarr or lidarr",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestArrConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Connected; lists root folders and quality profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrConnectionReport"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service did not answer or rejected the key"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/requests/hardlink-analysis": {
       "get": {
         "tags": [
@@ -5672,6 +5924,57 @@
         ]
       }
     },
+    "/api/v1/requests/music/search": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "search_music",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Artist or album name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "artist or album",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artists or albums found through Lidarr",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MusicSearchHit"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Lidarr is not connected or did not answer"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/requests/{id}/status": {
       "patch": {
         "tags": [
@@ -5702,10 +6005,13 @@
         },
         "responses": {
           "204": {
-            "description": "Request status updated"
+            "description": "Request status updated; approving adds the title to Radarr/Sonarr when turned on"
           },
           "403": {
             "description": "Admin required"
+          },
+          "503": {
+            "description": "Radarr/Sonarr did not add the title; the status is unchanged"
           }
         },
         "security": [
@@ -5896,48 +6202,6 @@
             "description": "Range not satisfiable"
           }
         }
-      }
-    },
-    "/api/v1/stream/hls/{sessionId}/segments/{filename}": {
-      "put": {
-        "tags": [
-          "workers"
-        ],
-        "operationId": "upload_segment",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "filename",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Segment stored"
-          },
-          "400": {
-            "description": "Invalid segment path"
-          },
-          "401": {
-            "description": "Unauthorized worker"
-          }
-        },
-        "security": [
-          {
-            "worker_bearer_auth": []
-          }
-        ]
       }
     },
     "/api/v1/stream/hls/{session}/master.m3u8": {
@@ -7574,6 +7838,49 @@
         ]
       }
     },
+    "/api/v1/webhooks/{id}/test": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "operationId": "test_webhook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Webhook ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery result of a test event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookTestResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Unknown webhook"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/workers": {
       "get": {
         "tags": [
@@ -7627,6 +7934,105 @@
           },
           "401": {
             "description": "Unauthorized worker"
+          }
+        },
+        "security": [
+          {
+            "worker_bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/jobs/{jobId}/files/{rendition}/{filename}": {
+      "put": {
+        "tags": [
+          "workers"
+        ],
+        "summary": "Upload one output file of a running job: `init.mp4`, `<n>.m4s` or the EVENT playlist `ffmpeg.m3u8`.",
+        "operationId": "upload_job_file",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rendition",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "File stored"
+          },
+          "401": {
+            "description": "Unauthorized worker"
+          },
+          "404": {
+            "description": "Job is not running"
+          },
+          "422": {
+            "description": "Invalid file name or rendition"
+          }
+        },
+        "security": [
+          {
+            "worker_bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/jobs/{jobId}/report": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "summary": "Report how a transcode job ended.",
+        "operationId": "report_job",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerJobReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Report accepted"
+          },
+          "401": {
+            "description": "Unauthorized worker"
+          },
+          "404": {
+            "description": "Unknown job"
           }
         },
         "security": [
@@ -7693,6 +8099,45 @@
         "security": [
           {
             "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workers/poll": {
+      "post": {
+        "tags": [
+          "workers"
+        ],
+        "summary": "Long-poll for transcode assignments. The worker reports its proven encoders and the jobs it is\nstill running; the response arrives as soon as there is work, or empty after about 25 seconds.",
+        "operationId": "poll_jobs",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerPollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Assignments and control messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerPollResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized worker"
+          }
+        },
+        "security": [
+          {
+            "worker_bearer_auth": []
           }
         ]
       }
@@ -8197,6 +8642,108 @@
           }
         }
       },
+      "ArrConnectionReport": {
+        "type": "object",
+        "required": [
+          "rootFolders",
+          "qualityProfiles",
+          "metadataProfiles"
+        ],
+        "properties": {
+          "metadataProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrOption"
+            },
+            "description": "Lidarr only; empty for Radarr and Sonarr."
+          },
+          "qualityProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrOption"
+            }
+          },
+          "rootFolders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ArrKind": {
+        "type": "string",
+        "enum": [
+          "radarr",
+          "sonarr",
+          "lidarr"
+        ]
+      },
+      "ArrOption": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ArrSettings": {
+        "type": "object",
+        "description": "Stored settings for one service. The API key is never returned to clients.",
+        "required": [
+          "kind",
+          "enabled",
+          "url",
+          "hasApiKey",
+          "rootFolder"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "hasApiKey": {
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ArrKind"
+          },
+          "metadataProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Lidarr only."
+          },
+          "qualityProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "rootFolder": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "ArtworkId": {
         "type": "integer",
         "format": "int64"
@@ -8486,6 +9033,16 @@
       "ChannelId": {
         "type": "integer",
         "format": "int64"
+      },
+      "CheckStatus": {
+        "type": "string",
+        "description": "Result of one diagnostic step.",
+        "enum": [
+          "ok",
+          "warn",
+          "fail",
+          "skipped"
+        ]
       },
       "CodecLimit": {
         "type": "object",
@@ -8796,19 +9353,34 @@
         "type": "object",
         "required": [
           "kind",
-          "tmdbId",
           "title"
         ],
         "properties": {
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist name for albums."
+          },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "description": "\"movie\", \"show\", \"artist\" or \"album\"."
+          },
+          "musicbrainzId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "MusicBrainz artist ID or release group ID for artists and albums."
           },
           "title": {
             "type": "string"
           },
           "tmdbId": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "TMDB ID for movies and shows."
           },
           "year": {
             "type": [
@@ -11414,6 +11986,13 @@
             ],
             "format": "int64"
           },
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist name for album requests."
+          },
           "createdAt": {
             "type": "integer",
             "format": "int64"
@@ -11423,6 +12002,13 @@
           },
           "kind": {
             "type": "string"
+          },
+          "musicbrainzId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "MusicBrainz ID of the artist or release group (music requests)."
           },
           "status": {
             "type": "string"
@@ -11467,6 +12053,52 @@
           "seasonNumber": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "MusicSearchHit": {
+        "type": "object",
+        "description": "An artist or album found through Lidarr, ready to be requested.",
+        "required": [
+          "kind",
+          "title",
+          "musicbrainzId",
+          "inLidarr"
+        ],
+        "properties": {
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist name of an album."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inLidarr": {
+            "type": "boolean",
+            "description": "Already in Lidarr."
+          },
+          "kind": {
+            "type": "string",
+            "description": "\"artist\" or \"album\"."
+          },
+          "musicbrainzId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -11553,12 +12185,59 @@
           "totalItems"
         ],
         "properties": {
+          "needProbe": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeFileRef"
+            },
+            "description": "New or changed files the node should probe and upload (bounded; sync again for more)."
+          },
           "syncedLibraries": {
             "type": "integer",
             "format": "int32",
             "minimum": 0
           },
           "totalItems": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "NodeFileEntry": {
+        "type": "object",
+        "description": "One media file on a node, by path relative to its library root (`/` separated).",
+        "required": [
+          "path",
+          "size",
+          "mtime"
+        ],
+        "properties": {
+          "mtime": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Modification time in Unix milliseconds."
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "NodeFileRef": {
+        "type": "object",
+        "description": "A file the server wants probe data for.",
+        "required": [
+          "remoteLibraryId",
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "remoteLibraryId": {
             "type": "integer",
             "format": "int64"
           }
@@ -11600,12 +12279,23 @@
           "itemCount"
         ],
         "properties": {
+          "files": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/NodeFileEntry"
+            },
+            "description": "Complete file listing of the library. When present the server mirrors it as a regular\nMBL library; when absent only the summary is stored."
+          },
           "itemCount": {
             "type": "integer",
             "format": "int64"
           },
           "kind": {
-            "type": "string"
+            "type": "string",
+            "description": "`movie`, `show`, `music`, `photo` or `homevideo`."
           },
           "name": {
             "type": "string"
@@ -11667,6 +12357,13 @@
           },
           "serverVersion": {
             "type": "string"
+          },
+          "streamSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Key the node uses to verify the server's signed file URLs. Absent from servers before 1.3.9."
           }
         }
       },
@@ -11684,6 +12381,72 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "NodeProbeUpload": {
+        "type": "object",
+        "description": "Probe upload for files the server asked for.",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeProbedFile"
+            }
+          }
+        }
+      },
+      "NodeProbeUploadResponse": {
+        "type": "object",
+        "description": "Result of a probe upload.",
+        "required": [
+          "imported",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "imported": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "NodeProbedFile": {
+        "type": "object",
+        "description": "FFprobe result for one node file (`probe` is MBL's `MediaInfo` JSON).",
+        "required": [
+          "remoteLibraryId",
+          "path",
+          "size",
+          "mtime",
+          "probe"
+        ],
+        "properties": {
+          "mtime": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "path": {
+            "type": "string"
+          },
+          "probe": {
+            "type": "object"
+          },
+          "remoteLibraryId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -13764,6 +14527,28 @@
           }
         }
       },
+      "QuickConnectPending": {
+        "type": "object",
+        "description": "A device waiting for approval behind a Quick-Connect code.",
+        "required": [
+          "deviceName",
+          "clientName",
+          "expiresInSecs"
+        ],
+        "properties": {
+          "clientName": {
+            "type": "string"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "expiresInSecs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "QuickConnectPollRequest": {
         "type": "object",
         "description": "Request from the TV client polling whether its Quick-Connect secret has been authorized (M5.8).",
@@ -13804,6 +14589,26 @@
           }
         }
       },
+      "ReachabilityCheck": {
+        "type": "object",
+        "description": "One diagnostic step: `publicIp`, `routerWan`, `dns`, `port`, `certificate`, `tailscale`.",
+        "required": [
+          "id",
+          "status",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckStatus"
+          }
+        }
+      },
       "ReachabilityReport": {
         "type": "object",
         "description": "Outcome of the CGNAT and external reachability inspection.",
@@ -13814,6 +14619,13 @@
           "details"
         ],
         "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReachabilityCheck"
+            },
+            "description": "Individual checks run by the server (public address, router, DNS, port, certificate)."
+          },
           "details": {
             "type": "string"
           },
@@ -13829,11 +14641,27 @@
               "null"
             ]
           },
+          "httpsPort": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "HTTPS port the server listens on, when HTTPS is enabled.",
+            "minimum": 0
+          },
           "isCgnat": {
             "type": "boolean"
           },
           "isDirectReachable": {
             "type": "boolean"
+          },
+          "publicHostnames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Public host names configured for the server (certificate names and `public_url`)."
           },
           "recommendation": {
             "$ref": "#/components/schemas/RemoteRecommendation"
@@ -15295,6 +16123,25 @@
           }
         }
       },
+      "SwitchProfileRequest": {
+        "type": "object",
+        "description": "Switch to a managed profile.",
+        "required": [
+          "userId"
+        ],
+        "properties": {
+          "pin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required when the profile has a PIN."
+          },
+          "userId": {
+            "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
       "SystemHealthReport": {
         "type": "object",
         "description": "System health snapshot including thermal/power monitoring and platform defaults (M5.1, M5.2).",
@@ -15518,6 +16365,24 @@
             }
           },
           "nodeName": {
+            "type": "string"
+          }
+        }
+      },
+      "TestArrConnection": {
+        "type": "object",
+        "description": "Connection test input. Without `apiKey` the stored key is used.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
             "type": "string"
           }
         }
@@ -16182,6 +17047,47 @@
           "scanning"
         ]
       },
+      "UpdateArrSettings": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "url",
+          "rootFolder"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New key; omit or leave empty to keep the stored one."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "metadataProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Lidarr only: which releases (albums, singles, EPs…) an added artist gets."
+          },
+          "qualityProfileId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "rootFolder": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateChannelRequest": {
         "type": "object",
         "properties": {
@@ -16760,7 +17666,8 @@
           "username",
           "displayName",
           "isAdmin",
-          "hasPin"
+          "hasPin",
+          "isManaged"
         ],
         "properties": {
           "displayName": {
@@ -16774,6 +17681,10 @@
           },
           "isAdmin": {
             "type": "boolean"
+          },
+          "isManaged": {
+            "type": "boolean",
+            "description": "Managed profiles can be entered with their PIN; other accounts need their password."
           },
           "username": {
             "type": "string"
@@ -17133,6 +18044,33 @@
           }
         }
       },
+      "WebhookTestResult": {
+        "type": "object",
+        "description": "Outcome of `POST /api/v1/webhooks/{id}/test`.",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "HTTP status returned by the receiver, when it answered.",
+            "minimum": 0
+          }
+        }
+      },
       "WorkerBatchEstimate": {
         "type": "object",
         "description": "Batch offload estimation returned for dry-run optimization requests.",
@@ -17213,80 +18151,23 @@
           }
         }
       },
-      "WorkerControl": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "action"
-            ],
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "pause"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "action"
-            ],
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "resume"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "action"
-            ],
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "cancel"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "params",
-              "action"
-            ],
-            "properties": {
-              "action": {
-                "type": "string",
-                "enum": [
-                  "seek"
-                ]
-              },
-              "params": {
-                "type": "object",
-                "required": [
-                  "segment_number"
-                ],
-                "properties": {
-                  "segment_number": {
-                    "type": "integer",
-                    "format": "int64",
-                    "minimum": 0
-                  }
-                }
-              }
-            }
-          }
+      "WorkerEncoder": {
+        "type": "object",
+        "description": "One working encoder on a worker, proven by the worker's own FFmpeg self-test.",
+        "required": [
+          "backend",
+          "codec"
         ],
-        "description": "Dynamic control actions sent to an active worker session."
+        "properties": {
+          "backend": {
+            "type": "string",
+            "description": "Transcode backend name (`nvenc`, `qsv`, `vaapi`, `d3d11Amf`, `software`)."
+          },
+          "codec": {
+            "type": "string",
+            "description": "Video codec (`h264`, `hevc`, `av1`)."
+          }
+        }
       },
       "WorkerHeartbeat": {
         "type": "object",
@@ -17315,106 +18196,138 @@
         "type": "integer",
         "format": "int64"
       },
-      "WorkerJobSpec": {
+      "WorkerJob": {
         "type": "object",
-        "description": "Typed job specification dispatched to a transcode worker.",
+        "description": "A transcode assignment. The server never sends command lines: `pipeline` is the server's\ntyped transcode model (`mbl_transcode::Pipeline`), which the worker turns into FFmpeg arguments\nitself after replacing the input with `sourcePath` and the output with a local directory.",
         "required": [
-          "sessionId",
-          "partId",
-          "sourceUrl",
-          "targetFormat",
-          "segmentDurationSecs",
-          "uploadUrlTemplate"
+          "jobId",
+          "sourcePath",
+          "renditions",
+          "pipeline"
         ],
         "properties": {
-          "audioBitrateKbps": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "audioChannels": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "audioCodec": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "burnSubtitleStream": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "height": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "partId": {
-            "$ref": "#/components/schemas/PartId"
-          },
-          "segmentDurationSecs": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 0
-          },
-          "sessionId": {
+          "jobId": {
             "type": "string"
           },
-          "sourceUrl": {
-            "type": "string"
+          "pipeline": {
+            "type": "object"
           },
-          "startTimeOffsetSecs": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
+          "renditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rendition directory names; uploads go to `/api/v1/workers/jobs/{jobId}/files/{rendition}/{file}`."
           },
-          "targetFormat": {
-            "type": "string"
-          },
-          "uploadUrlTemplate": {
-            "type": "string"
-          },
-          "videoBitrateKbps": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "videoCodec": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "width": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
+          "sourcePath": {
+            "type": "string",
+            "description": "Server-relative signed source URL (`/api/v1/stream/worker/source/{partId}?token=…`)."
           }
         }
+      },
+      "WorkerJobOutcome": {
+        "type": "string",
+        "description": "Final outcome of a job reported by the worker.",
+        "enum": [
+          "finished",
+          "failed"
+        ]
+      },
+      "WorkerJobReport": {
+        "type": "object",
+        "description": "Job outcome report.",
+        "required": [
+          "outcome"
+        ],
+        "properties": {
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short reason for a failure (FFmpeg's last error lines), never shown to end users verbatim."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/WorkerJobOutcome"
+          }
+        }
+      },
+      "WorkerMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "job",
+              "type"
+            ],
+            "properties": {
+              "job": {
+                "$ref": "#/components/schemas/WorkerJob"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "start"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "jobId",
+              "type"
+            ],
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stop"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "jobId",
+              "type"
+            ],
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "pause"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "jobId",
+              "type"
+            ],
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "resume"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Instruction delivered to a worker in a poll response."
       },
       "WorkerPairRequest": {
         "type": "object",
@@ -17491,6 +18404,55 @@
           },
           "workerPrefix": {
             "type": "string"
+          }
+        }
+      },
+      "WorkerPollRequest": {
+        "type": "object",
+        "description": "Long-poll request: the worker reports what it can run right now and waits for work.",
+        "required": [
+          "encoders",
+          "maxJobs",
+          "paused",
+          "activeJobIds"
+        ],
+        "properties": {
+          "activeJobIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Jobs the worker is still running; anything else the server believes is running has failed."
+          },
+          "encoders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerEncoder"
+            }
+          },
+          "maxJobs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "True while the host is busy with something else (for example a game) and must not get new jobs."
+          }
+        }
+      },
+      "WorkerPollResponse": {
+        "type": "object",
+        "description": "Poll response; an empty list means the wait timed out and the worker should poll again.",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerMessage"
+            }
           }
         }
       },

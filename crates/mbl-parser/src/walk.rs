@@ -92,7 +92,7 @@ pub fn walk_from(root: &str, start: &str, kind: LibraryKind) -> Vec<FoundFile> {
             tracing::warn!(path = %path.display(), "skipping non-UTF-8 path");
             continue;
         };
-        if mbl_parser::is_sample(path_str) {
+        if crate::is_sample(path_str) {
             continue;
         }
         let Ok(meta) = entry.metadata() else { continue };

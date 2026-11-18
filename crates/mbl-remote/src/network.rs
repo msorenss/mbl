@@ -68,6 +68,20 @@ fn unmap(ip: IpAddr) -> IpAddr {
 }
 
 /// Classify a client: like [`classify_ip`], but the server's own public address counts as LAN.
+/// Host part of a configured public URL (`https://host:port/path` → `host`).
+pub fn url_host(url: &str) -> Option<String> {
+    let rest = url.trim().split_once("://").map_or(url.trim(), |(_, rest)| rest);
+    let authority = rest.split(['/', '?', '#']).next()?.rsplit('@').next()?;
+    let host = if let Some(v6) = authority.strip_prefix('[') {
+        v6.split(']').next()?
+    } else {
+        authority.rsplit_once(':').map_or(authority, |(host, port)| {
+            if port.bytes().all(|b| b.is_ascii_digit()) { host } else { authority }
+        })
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+}
+
 pub fn classify_client(ip: IpAddr) -> NetworkClass {
     let ip = unmap(ip);
     let class = classify_ip(ip);

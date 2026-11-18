@@ -85,13 +85,21 @@ pub(crate) async fn file(
 ) -> Result<Response, ApiError> {
     let resolved = state.services.downloads.resolve_file(&auth.actor, id).await?;
     let range = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
-    let mut res = mbl_stream::serve_direct_file(
-        &resolved.path,
-        resolved.container.as_deref(),
-        range,
-        method == Method::HEAD,
-    )
-    .await?;
+    let mut res = match resolved.path.to_str() {
+        Some(raw) if mbl_service::stream::is_node_path(raw) => {
+            mbl_service::nodes::relay_node_file(&state.db, raw, range, method == Method::HEAD)
+                .await?
+        }
+        _ => {
+            mbl_stream::serve_direct_file(
+                &resolved.path,
+                resolved.container.as_deref(),
+                range,
+                method == Method::HEAD,
+            )
+            .await?
+        }
+    };
     if let Ok(v) = HeaderValue::from_str(&content_disposition(&resolved.file_name)) {
         res.headers_mut().insert(header::CONTENT_DISPOSITION, v);
     }

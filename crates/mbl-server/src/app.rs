@@ -74,6 +74,11 @@ pub(crate) async fn build_runtime(
     hls_cfg.ahead_segments = config.transcode.ahead_segments.max(1);
     hls_cfg.temp_quota_bytes = config.transcode.temp_quota_mb.saturating_mul(1024 * 1024);
     let hls_manager = mbl_transcode::SessionManager::new(hls_cfg)?;
+    // Paired transcode workers take eligible encodes; the shared broker lives in both the
+    // session manager and the worker API.
+    let workers = mbl_service::WorkerService::new(Arc::new(db.clone()));
+    let dispatcher = Arc::new(mbl_transcode::RemoteDispatcher::new(workers.source_signer()));
+    let hls_manager = hls_manager.with_remote(dispatcher.clone());
 
     let events = EventBus::default();
     let mut runner =
@@ -89,6 +94,7 @@ pub(crate) async fn build_runtime(
         Some(runner.queue()),
         probe_concurrency,
     );
+    let node_scanner = scanner.clone();
     runner.register(Arc::new(ScanHandler { scanner }));
 
     let settings_repo = mbl_db::repo::settings::SettingsRepo::new(db.clone());
@@ -140,6 +146,8 @@ pub(crate) async fn build_runtime(
     let stop = state.stop.clone();
     state.services.stream =
         state.services.stream.with_hls(hls_manager).with_cache_dir(paths.cache.as_std_path());
+    state.services.workers = workers.with_dispatcher(dispatcher);
+    state.services.nodes = state.services.nodes.clone().with_scanner(node_scanner);
     state.services.online = state.services.online.with_tools(tools.clone());
     state.services.livetv = state
         .services
@@ -164,10 +172,16 @@ pub(crate) async fn build_runtime(
         .with_stream(state.services.stream.clone())
         .with_hw(state.services.hw.clone())
         .with_remote_policy(state.services.remote.bandwidth().clone(), &config.server.public_url);
+    runner.register(Arc::new(mbl_service::MarkerAnalysisJobHandler {
+        intelligence: state.services.intelligence.clone(),
+        playback: state.services.playback.clone(),
+    }));
     runner.register(Arc::new(mbl_service::TrickplayJobHandler {
         intelligence: state.services.intelligence.clone(),
         playback: state.services.playback.clone(),
     }));
+    state.services.remote =
+        state.services.remote.clone().with_public_url(config.server.public_url.clone());
     state.services.remote.restore_policy().await?;
     runner.set_activity_probe(Arc::new(state.services.playback.clone()));
     let services = state.services.clone();
@@ -180,6 +194,7 @@ pub(crate) async fn build_runtime(
             allowed_origins: config.mcp.allowed_origins.clone(),
         },
     )
+    .with_public_url(config.server.public_url.clone())
     .with_logs_dir(Some(paths.logs.clone()))
     .with_jobs(Some(runner.queue()));
     let router = mbl_api::router(state)
@@ -262,6 +277,11 @@ impl Server {
 
         let mqtt =
             tokio::spawn(crate::mqtt::run(self.db.clone(), self.services.clone(), stop.clone()));
+        let webhooks = tokio::spawn(crate::webhooks::run(
+            self.db.clone(),
+            self.services.clone(),
+            stop.clone(),
+        ));
 
         let mdns = if self.config.server.mdns {
             Some(tokio::spawn(crate::mdns::run(
@@ -296,6 +316,7 @@ impl Server {
         let _ = certificates.await;
         let _ = home_network.await;
         let _ = mqtt.await;
+        let _ = webhooks.await;
         if let Some(mdns) = mdns {
             let _ = mdns.await;
         }

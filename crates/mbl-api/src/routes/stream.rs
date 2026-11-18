@@ -105,13 +105,7 @@ pub async fn direct(
     );
     let actor = authenticate_stream(&state, &headers, query.token.as_deref(), part_id).await?;
     let resolved = state.services.stream.resolve_part(&actor, part_id).await?;
-    let res = mbl_stream::serve_direct_file(
-        &resolved.path,
-        resolved.container.as_deref(),
-        range_header,
-        is_head,
-    )
-    .await;
+    let res = state.services.stream.serve_part(&resolved, range_header, is_head).await;
     let elapsed_ms = start_time.elapsed().as_millis();
     match &res {
         Ok(response) => {

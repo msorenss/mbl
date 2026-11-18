@@ -31,7 +31,7 @@ if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
 # Ensure staging directory
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-foreach ($binary in @("mbl-server.exe", "mbl-tv.exe", "mbl-worker.exe", "mbl-node.exe")) {
+foreach ($binary in @("mbl-server.exe", "mbl-cli.exe", "mbl-tv.exe", "mbl-worker.exe", "mbl-node.exe")) {
     $source = Join-Path $BinDir $binary
     if (-not (Test-Path $source)) {
         throw "Required release binary not found: $source"

@@ -202,7 +202,7 @@ pub fn definitions() -> Vec<RegisteredTool> {
                     "properties": {
                         "name": { "type": "string", "description": "Webhook descriptive name" },
                         "url": { "type": "string", "description": "Destination HTTP(S) URL" },
-                        "events": { "type": "array", "items": { "type": "string" }, "description": "Events to listen for (e.g. [\"library.scan_finished\", \"playback.started\"])" },
+                        "events": { "type": "array", "items": { "type": "string" }, "description": "Events to listen for (e.g. [\"library.scan_completed\", \"playback.started\"])" },
                         "secret": { "type": "string", "description": "Optional HMAC-SHA256 signature secret" },
                         "dry_run": { "type": "boolean", "description": "Preview without creating" }
                     },
@@ -222,16 +222,18 @@ pub fn definitions() -> Vec<RegisteredTool> {
             scope: Scope::Read,
             definition: ToolDefinition {
                 name: "create_media_request".into(),
-                description: "Submit a user request for a missing movie or TV show via TMDB ID.".into(),
+                description: "Submit a user request for a missing movie or TV show (by TMDB ID) or a music artist or album (by MusicBrainz ID).".into(),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
-                        "kind": { "type": "string", "enum": ["movie", "show"], "description": "Media kind" },
-                        "tmdb_id": { "type": "integer", "description": "TMDB numeric ID" },
-                        "title": { "type": "string", "description": "Media title" },
+                        "kind": { "type": "string", "enum": ["movie", "show", "artist", "album"], "description": "Media kind" },
+                        "tmdb_id": { "type": "integer", "description": "TMDB numeric ID (movie, show)" },
+                        "musicbrainz_id": { "type": "string", "description": "MusicBrainz artist ID or release group ID (artist, album)" },
+                        "artist": { "type": "string", "description": "Artist name (album)" },
+                        "title": { "type": "string", "description": "Media title (artist name for an artist)" },
                         "year": { "type": "integer", "description": "Release year" }
                     },
-                    "required": ["kind", "tmdb_id", "title"],
+                    "required": ["kind", "title"],
                     "additionalProperties": false
                 }),
                 annotations: Some(ToolAnnotations {
@@ -507,10 +509,8 @@ pub async fn execute(
                 .get("kind")
                 .and_then(Value::as_str)
                 .ok_or_else(|| JsonRpcError::invalid_params("missing required parameter: kind"))?;
-            let tmdb_id = args
-                .get("tmdb_id")
-                .and_then(Value::as_i64)
-                .ok_or_else(|| JsonRpcError::invalid_params("missing tmdb_id"))?;
+            let tmdb_id = args.get("tmdb_id").and_then(Value::as_i64).unwrap_or_default();
+            let text = |key: &str| args.get(key).and_then(Value::as_str).map(str::to_owned);
             let title = args
                 .get("title")
                 .and_then(Value::as_str)
@@ -526,6 +526,8 @@ pub async fn execute(
                         tmdb_id,
                         title: title.to_string(),
                         year,
+                        musicbrainz_id: text("musicbrainz_id"),
+                        artist: text("artist"),
                     },
                 )
                 .await

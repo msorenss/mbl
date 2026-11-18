@@ -104,6 +104,10 @@
                         Remove="both"
                         Wait="yes" />
       </Component>
+      <!-- Command-line client, also used as the stdio bridge for AI agents (mbl-cli mcp) -->
+      <Component Id="MblCliExe" Guid="8a1f3c52-6d0e-4b7a-9c21-5e4f7d3b9a10" Win64="yes">
+        <File Id="mbl_cli_exe" Source="mbl-cli.exe" KeyPath="yes" />
+      </Component>
       <!-- Bundled FFmpeg and FFprobe binaries for out-of-the-box metadata probing, scanning and hardware transcoding -->
       <Component Id="MblFfmpegBinaries" Guid="778899aa-bbcc-ddee-ff00-112233445566" Win64="yes">
         <File Id="ffmpeg_exe" Source="ffmpeg.exe" KeyPath="yes" />

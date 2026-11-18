@@ -97,6 +97,25 @@ pub struct QuickConnectAuthorizeRequest {
     pub code: String,
 }
 
+/// A device waiting for approval behind a Quick-Connect code.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickConnectPending {
+    pub device_name: String,
+    pub client_name: String,
+    pub expires_in_secs: u64,
+}
+
+const MAX_PENDING_QUICK_CONNECT: i64 = 50;
+
+/// Device and client labels come from an unauthenticated request; keep them short and printable.
+fn clean_device_label(value: Option<&str>, fallback: &str) -> String {
+    let cleaned: String =
+        value.unwrap_or("").chars().filter(|c| !c.is_control()).take(64).collect();
+    let cleaned = cleaned.trim();
+    if cleaned.is_empty() { fallback.to_owned() } else { cleaned.to_owned() }
+}
+
 /// Request from the TV client polling whether its Quick-Connect secret has been authorized (M5.8).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -397,6 +416,10 @@ impl MediaIntelligenceService {
         part_id: PartId,
     ) -> Result<Option<TrickplayManifest>> {
         let part = self.stream.resolve_part(actor, part_id).await?;
+        // Seek previews are generated from local files only; storage-node media has none.
+        if part.path.to_str().is_some_and(crate::stream::is_node_path) {
+            return Ok(None);
+        }
         let source = TrickplaySource::read(&part.path, part.duration_ms).await?;
         let _guard = self.trickplay_admission.lock().await;
         if let Some(cache) = self.cached_trickplay(part_id, &source).await? {
@@ -449,6 +472,11 @@ impl MediaIntelligenceService {
     /// Called only by the background handler; source paths are revalidated against library roots.
     pub async fn generate_trickplay_part(&self, part_id: PartId) -> Result<TrickplayManifest> {
         let part = self.stream.resolve_part(&Actor::admin(mbl_core::UserId(0)), part_id).await?;
+        if part.path.to_str().is_some_and(crate::stream::is_node_path) {
+            return Err(Error::Validation(
+                "seek previews are not built for storage-node media".into(),
+            ));
+        }
         let source = TrickplaySource::read(&part.path, part.duration_ms).await?;
         if let Some(cache) = self.cached_trickplay(part_id, &source).await? {
             return Ok(cache.manifest);
@@ -609,14 +637,23 @@ impl MediaIntelligenceService {
         if !actor.is_admin {
             return Err(Error::Forbidden);
         }
-        let children = items::children(&self.db, &ItemFilter::for_user(actor), season_id).await?;
+        self.analyze_season_markers(season_id).await
+    }
 
-        let markers_repo = MarkersRepo::new(self.db.clone());
-        let ffmpeg_bin = self
-            .stream
+    fn ffmpeg_bin(&self) -> PathBuf {
+        self.stream
             .hls_manager()
             .map(|m| m.config().ffmpeg_bin.clone())
-            .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+            .unwrap_or_else(|| PathBuf::from("ffmpeg"))
+    }
+
+    /// Intro (chapters, else audio fingerprints shared between episodes) and credits for every
+    /// episode of a season. Episodes on storage nodes or with missing files are skipped.
+    pub async fn analyze_season_markers(&self, season_id: ItemId) -> Result<Vec<MarkerRow>> {
+        let filter = ItemFilter::for_user(&Actor::admin(mbl_core::UserId(0)));
+        let children = items::children(&self.db, &filter, season_id).await?;
+        let markers_repo = MarkersRepo::new(self.db.clone());
+        let ffmpeg_bin = self.ffmpeg_bin();
         let now = now_ms();
 
         let mut fingerprints = Vec::new();
@@ -627,6 +664,9 @@ impl MediaIntelligenceService {
             let Some(part) = parts.first() else {
                 continue;
             };
+            if crate::stream::is_node_path(&part.path) || !Path::new(&part.path).exists() {
+                continue;
+            }
             ep_parts.insert(ep.id, part.id);
 
             let chapters: Vec<Chapter> = media::part_chapters(&self.db, part.id)
@@ -678,17 +718,26 @@ impl MediaIntelligenceService {
                 .await?;
         }
 
-        // Also run credits detection on each episode
-        for ep in &children {
-            let _ = self.detect_item_credits_internal(ep.id, &ffmpeg_bin).await;
-        }
-
         let mut out = Vec::new();
         for ep in &children {
+            let Some(part_id) = ep_parts.get(&ep.id).copied() else { continue };
+            let _ = self.detect_item_credits_internal(ep.id, &ffmpeg_bin).await;
+            markers_repo.mark_analyzed(ep.id, part_id, now_ms()).await?;
             let mut ep_markers = markers_repo.list_for_item(ep.id).await?;
             out.append(&mut ep_markers);
         }
         Ok(out)
+    }
+
+    /// Credits for a movie (chapters, else black frames with silence near the end).
+    pub async fn analyze_movie_markers(&self, movie_id: ItemId) -> Result<()> {
+        let parts = media::parts_for_item(&self.db, movie_id).await?;
+        let Some(part) = parts.first() else { return Ok(()) };
+        if crate::stream::is_node_path(&part.path) || !Path::new(&part.path).exists() {
+            return Ok(());
+        }
+        let _ = self.detect_item_credits_internal(movie_id, &self.ffmpeg_bin()).await;
+        MarkersRepo::new(self.db.clone()).mark_analyzed(movie_id, part.id, now_ms()).await
     }
 
     async fn detect_item_credits_internal(
@@ -737,35 +786,65 @@ impl MediaIntelligenceService {
         &self,
         req: QuickConnectInitRequest,
     ) -> Result<QuickConnectInitResponse> {
-        let mut buf = [0u8; 20];
-        getrandom::fill(&mut buf).map_err(Error::internal)?;
-        let num = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]) % 900_000 + 100_000;
-        let code = format!("{num:06}");
-        let mut secret = String::with_capacity(32);
-        for b in &buf[4..20] {
-            use std::fmt::Write;
-            let _ = write!(&mut secret, "{b:02x}");
-        }
-
         let now = now_ms();
+        let repo = QuickConnectRepo::new(self.db.clone());
+        // Anyone can start a code; cap how many can wait at once.
+        if repo.count_pending(now).await? >= MAX_PENDING_QUICK_CONNECT {
+            return Err(Error::Unavailable(
+                "Too many devices are waiting for approval; try again in a few minutes".into(),
+            ));
+        }
         let expires_in_secs = 600u64;
         let expires_at = now + (expires_in_secs as i64) * 1000;
-        let device_name = req.device_name.unwrap_or_else(|| "MBL TV".into());
-        let client_name = req.client_name.unwrap_or_else(|| "mbl-tv".into());
+        let device_name = clean_device_label(req.device_name.as_deref(), "MBL TV");
+        let client_name = clean_device_label(req.client_name.as_deref(), "mbl-tv");
+        for _ in 0..8 {
+            let mut buf = [0u8; 36];
+            getrandom::fill(&mut buf).map_err(Error::internal)?;
+            let num = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]) % 900_000 + 100_000;
+            let code = format!("{num:06}");
+            let mut secret = String::with_capacity(64);
+            for b in &buf[4..36] {
+                use std::fmt::Write;
+                let _ = write!(&mut secret, "{b:02x}");
+            }
+            if repo.insert(&code, &secret, &device_name, &client_name, now, expires_at).await? {
+                return Ok(QuickConnectInitResponse { code, secret, expires_in_secs });
+            }
+        }
+        Err(Error::Unavailable("Could not allocate a code; try again".into()))
+    }
 
-        QuickConnectRepo::new(self.db.clone())
-            .insert(&code, &secret, &device_name, &client_name, now, expires_at)
-            .await?;
-
-        Ok(QuickConnectInitResponse { code, secret, expires_in_secs })
+    /// Show which device is waiting behind a code, so the user can confirm before approving.
+    pub async fn quick_connect_lookup(
+        &self,
+        _actor: &Actor,
+        code: &str,
+    ) -> Result<QuickConnectPending> {
+        let now = now_ms();
+        let row = QuickConnectRepo::new(self.db.clone())
+            .get_by_code(code.trim(), now)
+            .await?
+            .filter(|row| row.user_id.is_none())
+            .ok_or(Error::NotFound)?;
+        Ok(QuickConnectPending {
+            device_name: row.device_name,
+            client_name: row.client_name,
+            expires_in_secs: u64::try_from((row.expires_at - now) / 1000).unwrap_or(0),
+        })
     }
 
     /// Authorize a pending 6-digit Quick-Connect code on behalf of `actor` (M5.8).
+    /// The code is claimed first, so a used or expired code never creates a session.
     pub async fn quick_connect_authorize(&self, actor: &Actor, code: &str) -> Result<()> {
         let now = now_ms();
-        let qc_repo = QuickConnectRepo::new(self.db.clone());
-        let row = qc_repo.get_by_code(code.trim(), now).await?.ok_or(Error::NotFound)?;
-        let token = self
+        let code = code.trim();
+        let repo = QuickConnectRepo::new(self.db.clone());
+        let row = repo.get_by_code(code, now).await?.ok_or(Error::NotFound)?;
+        if !repo.claim(code, actor.user_id, now).await? {
+            return Err(Error::Conflict("quick-connect code already used or expired".into()));
+        }
+        let token = match self
             .auth
             .create_session_for_user(
                 actor.user_id,
@@ -774,25 +853,29 @@ impl MediaIntelligenceService {
                     client_name: Some(row.client_name),
                 },
             )
-            .await?;
-        let updated = qc_repo.authorize(code.trim(), actor.user_id, &token, now).await?;
-        if !updated {
-            return Err(Error::Conflict("quick-connect code already used or expired".into()));
-        }
-        Ok(())
+            .await
+        {
+            Ok(token) => token,
+            Err(e) => {
+                let _ = repo.release(code, actor.user_id).await;
+                return Err(e);
+            }
+        };
+        repo.set_token(code, actor.user_id, &token).await
     }
 
-    /// Poll a Quick-Connect secret from the TV client (M5.8).
+    /// Poll a Quick-Connect secret from the TV client (M5.8). The token is returned once.
     pub async fn quick_connect_poll(&self, secret: &str) -> Result<QuickConnectPollResponse> {
         let qc = QuickConnectRepo::new(self.db.clone())
             .poll_by_secret(secret.trim(), now_ms())
             .await?
             .ok_or(Error::NotFound)?;
 
+        let user_id = if qc.session_token.is_some() { qc.user_id } else { None };
         Ok(QuickConnectPollResponse {
             authorized: qc.session_token.is_some(),
             token: qc.session_token,
-            user_id: qc.user_id,
+            user_id,
         })
     }
 
@@ -1060,6 +1143,66 @@ async fn extract_video_keyframe(
     }
     let buf = image::RgbImage::from_raw(640, 640, out.stdout[..640 * 640 * 3].to_vec())?;
     Some(image::DynamicImage::ImageRgb8(buf))
+}
+
+/// Background intro/credits analysis for a library (`{"libraryId": n}`), queued after scans.
+/// Yields to playback and thermal throttling like trickplay; finished items are recorded, so
+/// a yielded run continues where it stopped.
+pub struct MarkerAnalysisJobHandler {
+    pub intelligence: MediaIntelligenceService,
+    pub playback: crate::PlaybackService,
+}
+#[async_trait]
+impl JobHandler for MarkerAnalysisJobHandler {
+    fn kind(&self) -> &'static str {
+        kinds::MEDIA_INTRO_DETECT
+    }
+    async fn run(&self, ctx: JobCtx, payload: serde_json::Value) -> Result<()> {
+        let library = LibraryId(
+            payload["libraryId"]
+                .as_i64()
+                .ok_or_else(|| Error::Validation("marker analysis without libraryId".into()))?,
+        );
+        let repo = MarkersRepo::new(ctx.db.clone());
+        let mut seen = std::collections::HashSet::new();
+        loop {
+            let batch: Vec<_> = repo
+                .pending_marker_analysis(library, 50)
+                .await?
+                .into_iter()
+                .filter(|target| !seen.contains(target))
+                .collect();
+            if batch.is_empty() {
+                return Ok(());
+            }
+            for target in batch {
+                seen.insert(target.clone());
+                let (id, kind) = &target;
+                let work = async {
+                    if kind == "season" {
+                        self.intelligence.analyze_season_markers(*id).await.map(|_| ())
+                    } else {
+                        self.intelligence.analyze_movie_markers(*id).await
+                    }
+                };
+                tokio::select! {
+                    () = ctx.cancel.cancelled() => return Ok(()),
+                    () = async {
+                        loop {
+                            if mbl_jobs::ActivityProbe::playback_active(&self.playback)
+                                || mbl_jobs::ActivityProbe::thermal_throttled(&self.playback) { break; }
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        }
+                    } => return Err(mbl_jobs::yield_to_idle()),
+                    result = work => {
+                        if let Err(error) = result {
+                            tracing::warn!(item_id = %id, error = %error, "marker analysis failed");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub struct TrickplayJobHandler {

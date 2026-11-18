@@ -5,7 +5,7 @@ use mbl_db::repo::media::{self, NewItem, NewPart, NewStream, VersionSummary};
 use mbl_probe::{HdrKind, MediaInfo};
 use sqlx::SqliteConnection;
 
-use crate::walk::FoundFile;
+use mbl_parser::walk::FoundFile;
 
 /// What was written for one file.
 #[derive(Debug, Default)]

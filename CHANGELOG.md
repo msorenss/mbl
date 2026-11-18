@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- Transcode workers now take real work: `mbl-worker run` proves its encoders with an FFmpeg self-test, long-polls the server and encodes HLS sessions with its own FFmpeg, uploading output as it is produced. Sessions on a worker do not use a local encoder slot. If the worker fails, is revoked or stops responding for 15 seconds, the server continues locally from the next segment.
+
+- Storage nodes now share real folders: `mbl-node library add` shares a folder, and `mbl-node run` lists it, probes new files with its own FFprobe and serves them through URLs the server signs. Each folder becomes an ordinary MBL library; direct play is relayed by the server, transcoding reads the node file, and LAN clients can get a signed direct URL from the handover endpoint. Works on Windows and Linux.
+
+- Remote access diagnostics check the real path from the internet: public address, the router's WAN address over UPnP, DNS of the public host names, the forwarded HTTPS port (and port 80 for Let's Encrypt), the certificate and Tailscale. The admin page shows each check with an explanation instead of raw JSON, and the tailnet address of the server.
+- `mbl-cli` is included in the Debian package, the Linux tarballs, the Windows ZIP and the MSI, so the stdio configurations generated for Claude Desktop and other AI agents work after installation.
+
+- Quick Connect approval page (**Sign in a device**, `/connect`, also `/connect?code=123456`): enter the 6-digit code a TV or app shows, see which device it is, and approve it. New `POST /api/v1/auth/quick-connect/lookup` shows the waiting device before approval.
+- Profile switching: managed profiles are entered with their PIN (or directly without one) through `POST /api/v1/auth/switch-profile`. The previous session on the device ends, so returning to a full account needs its password. The profile list now shows which profiles have a PIN.
+- Intro and credits markers are found automatically: after a scan, an idle background job analyses new episodes (chapters, else audio fingerprints shared within the season) and movies (chapters, else black frames with silence). Each file is analysed once; the job yields to playback.
+- Webhooks are delivered: `playback.started`, `playback.stopped`, `media.added`, `library.scan_completed` and `library.unavailable`, signed with `X-MBL-Signature` when a secret is set, with one retry. Administration → Server settings has a webhook section with a Test button (`POST /api/v1/webhooks/{id}/test`).
+- Radarr and Sonarr: the Requests page has a section where an administrator enters address and API key, tests the connection and picks root folder and quality profile. Approving a request then adds the movie to Radarr (looked up by TMDB ID) or the show to Sonarr (looked up through `tmdb:` so Sonarr gets its TVDB ID) and starts a search. A title already there is not added twice. If the service refuses, the request stays pending and the reason is shown. Requests become *available* once the title appears in a library. Requests can also be declined. New routes `GET/PUT /api/v1/requests/arr/{service}` and `POST /api/v1/requests/arr/{service}/test`; the API key is never returned.
+- Requests approved while their download service was off can be sent later with *Send to Radarr/Sonarr/Lidarr*; the page says when nothing was sent. Diagnostic logs name the service and the error code when a connection test, save or add fails.
+- Lidarr and music requests: requests can be for an artist or an album. The request form searches music through Lidarr (which looks up MusicBrainz), and approving adds the artist with all its albums, or only the chosen album, to Lidarr and starts a search. Lidarr uses API v1 and also needs a metadata profile, chosen after Test connection. Music requests become available when the artist (or the album under that artist) appears in a music library. New route `GET /api/v1/requests/music/search`; requests carry `musicbrainzId` and `artist`; the MCP tool `create_media_request` accepts artists and albums.
+- Translations cover every visible text in all 22 languages, including messages with names or numbers and the server's remote-access explanations. A test fails when a new English text has no translation.
+
+### Changed
+- Worker pairing reports the encoders that passed the self-test instead of a fixed NVENC list. The worker configuration defaults to `%ProgramData%\MBL\worker.json` on Windows.
+
+- Storage nodes paired with earlier versions only reported placeholder libraries; pair them again. The node configuration defaults to `%ProgramData%\MBL\node.json` on Windows and the Windows node package now includes FFmpeg.
+
+### Fixed
+- Text in other languages was sometimes half translated ("Could not Belastning library"), because missing phrases were translated word by word. Word-by-word translation is now only used when every word is known; otherwise the English text is shown until a translation exists.
+- Profile switching with a PIN also works for ordinary (non-managed) accounts that an administrator has given a PIN. Before, such a profile went to the sign-in page and never asked for the PIN. Administrator accounts still need their password.
+- The MCP `create_webhook` tool suggested the event name `library.scan_finished`, which does not exist.
+- The `mbl` Debian package no longer contains `mbl-worker` and `mbl-node`. They are in their own packages, and installing one of them next to `mbl` failed because both packages owned the same files.
+- OAuth metadata for MCP clients contained relative URLs, which clients reject. Issuer and endpoints are now absolute, built from `server.public_url` or the request address.
+- `/mcp` answers requests without valid credentials with `401` and a `WWW-Authenticate` header pointing to the protected-resource metadata, so MCP clients can start OAuth sign-in. Before, a request without credentials got `403 invalid_origin`.
+- The earlier reachability test treated the server's Tailscale address as the router's WAN address and always reported CGNAT when Tailscale was running.
+- MCP connections use the same network classification as the web API, including the home network reached through the public host name.
+- The MCP tool `get_online_history` reports why it failed (for example that WebTV is turned off) instead of a generic error.
+
+### Security
+- Quick Connect hands out the session token once and only after the code is claimed, so a used code never creates a second session. Device labels from the unauthenticated request are shortened and cleaned, and at most 50 codes can wait at once.
+- Profile PIN checks (`/users/{id}/pin/verify` and profile switching) are limited to 5 attempts, then 10 per hour per profile.
+- Webhook secrets are no longer returned by the API after creation.
+- The node handover endpoint now requires sign-in, checks library access and uses the server's network classification instead of a client-supplied `X-Forwarded-For` header.
+- Signed worker source URLs use a random key per server start instead of a fixed built-in key, which let anyone forge a token and read media files without signing in.
+- The session-wide `PUT /api/v1/stream/hls/{sessionId}/segments/{filename}` upload is removed. Workers can only upload `init.mp4`, fragments and the playlist of a job assigned to them.
+
 ## [1.3.8] - 2026-11-17
 
 ### Added

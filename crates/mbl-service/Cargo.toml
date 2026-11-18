@@ -29,6 +29,7 @@ mbl-platform.workspace = true
 mbl-playback.workspace = true
 mbl-probe.workspace = true
 mbl-remote.workspace = true
+mbl-scanner.workspace = true
 mbl-stream.workspace = true
 mbl-transcode.workspace = true
 hmac.workspace = true

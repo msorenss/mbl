@@ -32,6 +32,10 @@ path = "/api/v1/auth/quick-connect"
 reason = "Interactive 6-digit TV pairing flow."
 
 [[exclusions]]
+path = "/api/v1/auth/quick-connect/lookup"
+reason = "Interactive 6-digit TV pairing: shows the waiting device before approval."
+
+[[exclusions]]
 path = "/api/v1/auth/quick-connect/authorize"
 reason = "Interactive 6-digit TV pairing authorization."
 
@@ -82,6 +86,10 @@ reason = "Interactive 2FA disablement."
 [[exclusions]]
 path = "/api/v1/auth/register-invite"
 reason = "Public user registration via invite code."
+
+[[exclusions]]
+path = "/api/v1/auth/switch-profile"
+reason = "Interactive profile switch on a shared device; replaces the caller's session."
 
 [[exclusions]]
 path = "/api/v1/auth/tailscale"
@@ -168,8 +176,16 @@ path = "/api/v1/stream/worker/source/{partId}"
 reason = "Binary media byte-range stream for transcode workers."
 
 [[exclusions]]
-path = "/api/v1/stream/hls/{sessionId}/segments/{filename}"
-reason = "Binary segment PUT upload for transcode workers."
+path = "/api/v1/workers/jobs/{jobId}/files/{rendition}/{filename}"
+reason = "Binary HLS output upload from a transcode worker job."
+
+[[exclusions]]
+path = "/api/v1/workers/poll"
+reason = "Transcode worker daemon long-poll for job assignments."
+
+[[exclusions]]
+path = "/api/v1/workers/jobs/{jobId}/report"
+reason = "Transcode worker daemon job outcome report."
 
 [[exclusions]]
 path = "/api/v1/workers/heartbeat"
@@ -178,6 +194,10 @@ reason = "Transcode worker daemon heartbeat telemetry."
 [[exclusions]]
 path = "/api/v1/nodes/{id}/sync-catalog"
 reason = "Remote storage node daemon delta catalog sync."
+
+[[exclusions]]
+path = "/api/v1/nodes/{id}/catalog/probes"
+reason = "Storage node daemon upload of FFprobe results for its files."
 
 [[exclusions]]
 path = "/api/v1/nodes/{id}/stream/handover/{itemId}"
@@ -290,3 +310,19 @@ reason = "Binary media download (Range/HEAD) for client devices."
 [[exclusions]]
 path = "/api/v1/system/update"
 reason = "Checks GitHub releases for server software updates and downloads; human administrator operation."
+
+[[exclusions]]
+path = "/api/v1/webhooks/{id}/test"
+reason = "Sends a live HTTP request to the receiver; an admin UI check, not an agent action."
+
+[[exclusions]]
+path = "/api/v1/requests/arr/{service}"
+reason = "Radarr/Sonarr address and API key are human-only credentials; approving a request through the existing request tools already uses them."
+
+[[exclusions]]
+path = "/api/v1/requests/arr/{service}/test"
+reason = "Interactive connection test for Radarr/Sonarr credentials in the admin UI."
+
+[[exclusions]]
+path = "/api/v1/requests/music/search"
+reason = "Interactive autocomplete for the request form through Lidarr; agents create music requests with a MusicBrainz ID via create_media_request."

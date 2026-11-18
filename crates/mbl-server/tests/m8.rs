@@ -237,20 +237,14 @@ async fn m8_worker_source_token_and_segment_upload() {
     assert_eq!(res.status, StatusCode::PARTIAL_CONTENT);
     assert_eq!(res.headers.get(header::CONTENT_RANGE).unwrap(), "bytes 0-15/52");
 
-    // 5. Worker uploads finished segment chunk via PUT
-    let upload_url = "/api/v1/stream/hls/sess_test_123/segments/segment_00000.m4s";
-    let segment_bytes = b"fMP4_SEGMENT_DATA_TEST_BYTES";
-
+    // 5. The retired session-wide upload route is gone; uploads now require a running job.
     let put_req = Request::builder()
         .method(Method::PUT)
-        .uri(upload_url)
+        .uri("/api/v1/workers/jobs/unknown/files/0/0.m4s")
         .header(header::AUTHORIZATION, format!("Bearer {worker_token}"))
-        .header(header::CONTENT_TYPE, "video/iso.segment")
-        .body(Body::from(&segment_bytes[..]))
+        .body(Body::from(&b"fMP4"[..]))
         .unwrap();
-
-    let put_res = app.send(put_req).await;
-    assert_eq!(put_res.status, StatusCode::NO_CONTENT);
+    assert_eq!(app.send(put_req).await.status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -327,8 +321,12 @@ async fn m8_remote_node_federation_and_handover() {
     assert_eq!(libs.len(), 2);
     assert_eq!(libs[0]["name"], "NAS 4K Movies");
 
-    // 5. Smart handover test:
-    // Case A: LAN client IP -> Direct Play handover granted
+    // 5. Handover needs a signed-in user and an item that actually lives on this node; the
+    // full LAN/WAN flow with real files is covered by `node_storage`.
+    let anonymous = app
+        .call(Method::GET, &format!("/api/v1/nodes/{node_id}/stream/handover/999"), None, None)
+        .await;
+    assert_eq!(anonymous.status, StatusCode::UNAUTHORIZED);
     let mut lan_req = Request::builder()
         .method(Method::GET)
         .uri(format!("/api/v1/nodes/{node_id}/stream/handover/999"))
@@ -338,27 +336,7 @@ async fn m8_remote_node_federation_and_handover() {
     lan_req
         .extensions_mut()
         .insert(ConnectInfo("192.168.1.75:51234".parse::<SocketAddr>().unwrap()));
-
-    let lan_res = app.send(lan_req).await;
-    assert_eq!(lan_res.status, StatusCode::OK);
-    assert_eq!(lan_res.body["requiresRelay"], false);
-    assert_eq!(lan_res.body["directPlayUrl"], "http://192.168.1.150:8430/api/v1/stream/direct/999");
-
-    // Case B: WAN client IP -> Requires Relay
-    let mut wan_req = Request::builder()
-        .method(Method::GET)
-        .uri(format!("/api/v1/nodes/{node_id}/stream/handover/999"))
-        .header(header::AUTHORIZATION, format!("Bearer {admin_token}"))
-        .body(Body::empty())
-        .unwrap();
-    wan_req
-        .extensions_mut()
-        .insert(ConnectInfo("203.0.113.42:51234".parse::<SocketAddr>().unwrap()));
-
-    let wan_res = app.send(wan_req).await;
-    assert_eq!(wan_res.status, StatusCode::OK);
-    assert_eq!(wan_res.body["requiresRelay"], true);
-    assert_eq!(wan_res.body["directPlayUrl"], serde_json::Value::Null);
+    assert_eq!(app.send(lan_req).await.status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

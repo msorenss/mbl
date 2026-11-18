@@ -25,9 +25,11 @@ pub use mqtt::{
 };
 pub use network::{
     NetworkClass, classify_client, classify_ip, home_addresses, resolve_client_ip,
-    set_home_addresses,
+    set_home_addresses, url_host,
 };
-pub use reachability::{ReachabilityReport, RemoteRecommendation, analyze_reachability};
+pub use reachability::{
+    CheckStatus, ReachabilityCheck, ReachabilityReport, RemoteRecommendation, analyze_reachability,
+};
 pub use tailscale::{
     TailscaleClient, TailscalePeer, TailscaleStatus, TailscaleTransport, TailscaleWhois,
 };

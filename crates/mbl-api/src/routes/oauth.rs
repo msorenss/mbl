@@ -8,7 +8,7 @@
 //! - Refresh token rotation and token revocation (`/oauth/revoke`)
 
 use axum::extract::{Query, State};
-use axum::http::StatusCode;
+use axum::http::{Extensions, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Form, Json, Router};
@@ -72,27 +72,34 @@ pub struct OAuthProtectedResourceMetadata {
     security(),
     responses((status = 200, body = OAuthAuthorizationServerMetadata))
 )]
-pub(crate) async fn oauth_authorization_server_metadata() -> Json<OAuthAuthorizationServerMetadata>
-{
+pub(crate) async fn oauth_authorization_server_metadata(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    extensions: Extensions,
+) -> Json<OAuthAuthorizationServerMetadata> {
+    // RFC 8414: the issuer and endpoints are absolute URLs of this server.
+    let base = base_url(&state, &headers, &extensions);
     Json(OAuthAuthorizationServerMetadata {
-        issuer: "/".into(),
-        authorization_endpoint: "/oauth/authorize".into(),
-        token_endpoint: "/oauth/token".into(),
-        registration_endpoint: "/oauth/register".into(),
-        revocation_endpoint: "/oauth/revoke".into(),
+        issuer: base.clone(),
+        authorization_endpoint: format!("{base}/oauth/authorize"),
+        token_endpoint: format!("{base}/oauth/token"),
+        registration_endpoint: format!("{base}/oauth/register"),
+        revocation_endpoint: format!("{base}/oauth/revoke"),
         response_types_supported: vec!["code".into()],
         grant_types_supported: vec!["authorization_code".into(), "refresh_token".into()],
         code_challenge_methods_supported: vec!["S256".into()],
         token_endpoint_auth_methods_supported: vec!["none".into()],
-        scopes_supported: vec![
-            "read".into(),
-            "playback".into(),
-            "library".into(),
-            "users".into(),
-            "remote".into(),
-            "admin".into(),
-        ],
+        scopes_supported: scopes(),
     })
+}
+
+fn scopes() -> Vec<String> {
+    ["read", "playback", "library", "users", "remote", "admin"].map(String::from).to_vec()
+}
+
+fn base_url(state: &AppState, headers: &HeaderMap, extensions: &Extensions) -> String {
+    mbl_service::http_base::request_base_url(headers, extensions, &state.info.listen.public_url)
+        .unwrap_or_else(|| format!("http://localhost:{}", state.info.listen.port))
 }
 
 #[utoipa::path(
@@ -102,18 +109,16 @@ pub(crate) async fn oauth_authorization_server_metadata() -> Json<OAuthAuthoriza
     security(),
     responses((status = 200, body = OAuthProtectedResourceMetadata))
 )]
-pub(crate) async fn oauth_protected_resource_metadata() -> Json<OAuthProtectedResourceMetadata> {
+pub(crate) async fn oauth_protected_resource_metadata(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    extensions: Extensions,
+) -> Json<OAuthProtectedResourceMetadata> {
+    let base = base_url(&state, &headers, &extensions);
     Json(OAuthProtectedResourceMetadata {
-        resource: "/mcp".into(),
-        authorization_servers: vec!["/".into()],
-        scopes_supported: vec![
-            "read".into(),
-            "playback".into(),
-            "library".into(),
-            "users".into(),
-            "remote".into(),
-            "admin".into(),
-        ],
+        resource: format!("{base}/mcp"),
+        authorization_servers: vec![base],
+        scopes_supported: scopes(),
     })
 }
 

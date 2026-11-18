@@ -30,6 +30,8 @@ mbl-images = { path = "crates/mbl-images" }
 mbl-jobs = { path = "crates/mbl-jobs" }
 mbl-playback = { path = "crates/mbl-playback" }
 mbl-transcode = { path = "crates/mbl-transcode" }
+mbl-worker = { path = "crates/mbl-worker" }
+mbl-node = { path = "crates/mbl-node" }
 mbl-stream = { path = "crates/mbl-stream" }
 mbl-platform = { path = "crates/mbl-platform" }
 mbl-hwaccel = { path = "crates/mbl-hwaccel" }
@@ -69,7 +71,7 @@ rumqttc = { version = "0.24", default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
 quick-xml = { version = "0.42.0", features = ["serialize"] }
 regex = "1.13.1"
-reqwest = { version = "0.13.5", default-features = false, features = ["default-tls", "http2", "json", "query"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["default-tls", "http2", "json", "query", "stream"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha1 = "0.11.0"

@@ -138,6 +138,32 @@ pub struct WorkerSourceTokenClaims {
     pub expires_at_ms: i64,
 }
 
+/// Signature for a storage-node file URL: HMAC-SHA256 over the library, expiry and relative
+/// path, base64url encoded. The node verifies it with [`verify_node_file`].
+pub fn sign_node_file(secret: &[u8], library: i64, rel_path: &str, expires_at_ms: i64) -> String {
+    let message = format!("n1:{library}:{expires_at_ms}:{rel_path}");
+    URL_SAFE_NO_PAD.encode(hmac_sha256(secret, message.as_bytes()))
+}
+
+/// Check a storage-node file URL signature and expiry.
+pub fn verify_node_file(
+    secret: &[u8],
+    library: i64,
+    rel_path: &str,
+    expires_at_ms: i64,
+    signature: &str,
+    now_ms: i64,
+) -> bool {
+    if secret.is_empty() || now_ms > expires_at_ms {
+        return false;
+    }
+    let Ok(provided) = URL_SAFE_NO_PAD.decode(signature) else {
+        return false;
+    };
+    let message = format!("n1:{library}:{expires_at_ms}:{rel_path}");
+    constant_time_eq(&provided, &hmac_sha256(secret, message.as_bytes()))
+}
+
 /// Sign worker claims with `secret` using HMAC-SHA256 (`<payload_b64>.<sig_b64>`).
 pub fn sign_worker_source_token(secret: &[u8; 32], claims: WorkerSourceTokenClaims) -> String {
     let payload =
@@ -265,6 +291,17 @@ mod tests {
         assert_eq!(a.value.len(), 43);
         assert_eq!(hash_token(&a.value), a.hash);
         assert_eq!(a.hash.len(), 32);
+    }
+
+    #[test]
+    fn node_file_signatures_bind_path_library_and_expiry() {
+        let sig = sign_node_file(b"secret", 2, "Movies/a.mkv", 1_000);
+        assert!(verify_node_file(b"secret", 2, "Movies/a.mkv", 1_000, &sig, 999));
+        assert!(!verify_node_file(b"secret", 2, "Movies/a.mkv", 1_000, &sig, 1_001));
+        assert!(!verify_node_file(b"secret", 3, "Movies/a.mkv", 1_000, &sig, 999));
+        assert!(!verify_node_file(b"secret", 2, "Movies/b.mkv", 1_000, &sig, 999));
+        assert!(!verify_node_file(b"other", 2, "Movies/a.mkv", 1_000, &sig, 999));
+        assert!(!verify_node_file(b"", 2, "Movies/a.mkv", 1_000, &sig, 999));
     }
 
     #[test]

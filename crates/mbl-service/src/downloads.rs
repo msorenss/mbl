@@ -182,10 +182,14 @@ impl DownloadService {
         let now = now_ms();
 
         let Some(profile) = quality.profile() else {
-            let size = tokio::fs::metadata(&resolved.path)
-                .await
-                .map(|m| i64::try_from(m.len()).unwrap_or(i64::MAX))
-                .map_err(|_| Error::NotFound)?;
+            let size = if crate::stream::is_node_path(&part.path) {
+                part.size
+            } else {
+                tokio::fs::metadata(&resolved.path)
+                    .await
+                    .map(|m| i64::try_from(m.len()).unwrap_or(i64::MAX))
+                    .map_err(|_| Error::NotFound)?
+            };
             let (row, created) = downloads::insert_or_get(
                 &self.db,
                 actor.user_id,
@@ -406,7 +410,15 @@ impl DownloadService {
                 }
             };
         let partial = target.with_extension("partial.mp4");
-        match self.ffmpeg(ctx, &resolved.path, &partial, profile).await {
+        let input = match self.stream.media_input(&resolved.path).await {
+            Ok(input) => input,
+            Err(e) => {
+                let msg = format!("source file unavailable: {e}");
+                self.finish(payload.part_id, quality_str, "failed", None, None, Some(&msg)).await?;
+                return Ok(());
+            }
+        };
+        match self.ffmpeg(ctx, &input, &partial, profile).await {
             Ok(()) => {
                 tokio::fs::rename(&partial, &target).await.map_err(Error::internal)?;
                 let size = file_size(&target).await;

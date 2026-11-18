@@ -21,6 +21,7 @@ mbl-hwaccel.workspace = true
 mbl-jobs.workspace = true
 mbl-playback.workspace = true
 mbl-platform.workspace = true
+mbl-remote.workspace = true
 mbl-service.workspace = true
 reqwest.workspace = true
 serde.workspace = true

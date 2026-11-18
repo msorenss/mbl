@@ -172,6 +172,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/quick-connect/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Show which device waits behind a Quick-Connect code before approving it. */
+        post: operations["quick_connect_lookup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/quick-connect/poll": {
         parameters: {
             query?: never;
@@ -235,6 +252,26 @@ export interface paths {
         post?: never;
         /** Revoke one of the current user's sessions. */
         delete: operations["revoke_session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/switch-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch this device to a managed profile, using its PIN when one is set. Ends the current
+         *     session; full accounts sign in with their password instead (422).
+         */
+        post: operations["switch_profile"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1491,6 +1528,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{id}/catalog/probes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["upload_probes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{id}/libraries": {
         parameters: {
             query?: never;
@@ -1514,6 +1567,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Where a signed-in client should play a node-hosted item from: a signed URL straight to the
+         *     storage node on the local network, otherwise the server's own (relayed) stream URLs.
+         */
         get: operations["smart_handover"];
         put?: never;
         post?: never;
@@ -1962,6 +2019,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/requests/arr/{service}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_arr_settings"];
+        put: operations["update_arr_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/arr/{service}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["test_arr_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/requests/hardlink-analysis": {
         parameters: {
             query?: never;
@@ -1986,6 +2075,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["inspect_missing_episodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/music/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_music"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2070,22 +2175,6 @@ export interface paths {
         /** Stream a media part directly with HTTP `Range` (`206` / `416`) and `HEAD` support. */
         get: operations["direct"];
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/stream/hls/{sessionId}/segments/{filename}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["upload_segment"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2771,6 +2860,22 @@ export interface paths {
         patch: operations["toggle_webhook"];
         trace?: never;
     };
+    "/api/v1/webhooks/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["test_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workers": {
         parameters: {
             query?: never;
@@ -2803,6 +2908,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workers/jobs/{jobId}/files/{rendition}/{filename}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload one output file of a running job: `init.mp4`, `<n>.m4s` or the EVENT playlist `ffmpeg.m3u8`. */
+        put: operations["upload_job_file"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/jobs/{jobId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report how a transcode job ended. */
+        post: operations["report_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workers/pair": {
         parameters: {
             query?: never;
@@ -2829,6 +2968,26 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["generate_worker_pairing_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Long-poll for transcode assignments. The worker reports its proven encoders and the jobs it is
+         *     still running; the response arrives as soon as there is work, or empty after about 25 seconds.
+         */
+        post: operations["poll_jobs"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3009,6 +3168,35 @@ export interface components {
             scopes: string[];
             userId: components["schemas"]["UserId"];
         };
+        ArrConnectionReport: {
+            /** @description Lidarr only; empty for Radarr and Sonarr. */
+            metadataProfiles: components["schemas"]["ArrOption"][];
+            qualityProfiles: components["schemas"]["ArrOption"][];
+            rootFolders: string[];
+            version?: string | null;
+        };
+        /** @enum {string} */
+        ArrKind: "radarr" | "sonarr" | "lidarr";
+        ArrOption: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        /** @description Stored settings for one service. The API key is never returned to clients. */
+        ArrSettings: {
+            enabled: boolean;
+            hasApiKey: boolean;
+            kind: components["schemas"]["ArrKind"];
+            /**
+             * Format: int64
+             * @description Lidarr only.
+             */
+            metadataProfileId?: number | null;
+            /** Format: int64 */
+            qualityProfileId?: number | null;
+            rootFolder: string;
+            url: string;
+        };
         /** Format: int64 */
         ArtworkId: number;
         ArtworkInfo: {
@@ -3081,6 +3269,11 @@ export interface components {
         };
         /** Format: int64 */
         ChannelId: number;
+        /**
+         * @description Result of one diagnostic step.
+         * @enum {string}
+         */
+        CheckStatus: "ok" | "warn" | "fail" | "skipped";
         /** @description Per-video-codec capability limits enforced before direct play or direct stream (remux). */
         CodecLimit: {
             codec: string;
@@ -3158,10 +3351,18 @@ export interface components {
             filterConfig?: string | null;
         };
         CreateMediaRequest: {
+            /** @description Artist name for albums. */
+            artist?: string | null;
+            /** @description "movie", "show", "artist" or "album". */
             kind: string;
+            /** @description MusicBrainz artist ID or release group ID for artists and albums. */
+            musicbrainzId?: string | null;
             title: string;
-            /** Format: int64 */
-            tmdbId: number;
+            /**
+             * Format: int64
+             * @description TMDB ID for movies and shows.
+             */
+            tmdbId?: number;
             /** Format: int32 */
             year?: number | null;
         };
@@ -3824,10 +4025,14 @@ export interface components {
         MediaRequestRow: {
             /** Format: int64 */
             arrId?: number | null;
+            /** @description Artist name for album requests. */
+            artist?: string | null;
             /** Format: int64 */
             createdAt: number;
             id: components["schemas"]["RequestId"];
             kind: string;
+            /** @description MusicBrainz ID of the artist or release group (music requests). */
+            musicbrainzId?: string | null;
             status: string;
             title: string;
             /** Format: int64 */
@@ -3842,6 +4047,20 @@ export interface components {
             missingEpisodeNumbers: number[];
             /** Format: int64 */
             seasonNumber: number;
+        };
+        /** @description An artist or album found through Lidarr, ready to be requested. */
+        MusicSearchHit: {
+            /** @description Artist name of an album. */
+            artist?: string | null;
+            imageUrl?: string | null;
+            /** @description Already in Lidarr. */
+            inLidarr: boolean;
+            /** @description "artist" or "album". */
+            kind: string;
+            musicbrainzId: string;
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
         };
         /**
          * @description Network classification of the playback session.
@@ -3869,10 +4088,29 @@ export interface components {
         };
         /** @description Catalog sync response returned by central server. */
         NodeCatalogSyncResponse: {
+            /** @description New or changed files the node should probe and upload (bounded; sync again for more). */
+            needProbe?: components["schemas"]["NodeFileRef"][];
             /** Format: int32 */
             syncedLibraries: number;
             /** Format: int64 */
             totalItems: number;
+        };
+        /** @description One media file on a node, by path relative to its library root (`/` separated). */
+        NodeFileEntry: {
+            /**
+             * Format: int64
+             * @description Modification time in Unix milliseconds.
+             */
+            mtime: number;
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
+        /** @description A file the server wants probe data for. */
+        NodeFileRef: {
+            path: string;
+            /** Format: int64 */
+            remoteLibraryId: number;
         };
         /** @description Smart handover response for direct playback or relay. */
         NodeHandoverResponse: {
@@ -3884,8 +4122,14 @@ export interface components {
         NodeId: number;
         /** @description Single library summary exported by a storage node. */
         NodeLibrary: {
+            /**
+             * @description Complete file listing of the library. When present the server mirrors it as a regular
+             *     MBL library; when absent only the summary is stored.
+             */
+            files?: components["schemas"]["NodeFileEntry"][] | null;
             /** Format: int64 */
             itemCount: number;
+            /** @description `movie`, `show`, `music`, `photo` or `homevideo`. */
             kind: string;
             name: string;
             /** Format: int64 */
@@ -3905,11 +4149,35 @@ export interface components {
             nodeId: components["schemas"]["NodeId"];
             serverName: string;
             serverVersion: string;
+            /** @description Key the node uses to verify the server's signed file URLs. Absent from servers before 1.3.9. */
+            streamSecret?: string | null;
         };
         NodePairingCodeResponse: {
             code: string;
             /** Format: int32 */
             expiresInSecs: number;
+        };
+        /** @description Probe upload for files the server asked for. */
+        NodeProbeUpload: {
+            files: components["schemas"]["NodeProbedFile"][];
+        };
+        /** @description Result of a probe upload. */
+        NodeProbeUploadResponse: {
+            /** Format: int32 */
+            failed: number;
+            /** Format: int32 */
+            imported: number;
+        };
+        /** @description FFprobe result for one node file (`probe` is MBL's `MediaInfo` JSON). */
+        NodeProbedFile: {
+            /** Format: int64 */
+            mtime: number;
+            path: string;
+            probe: Record<string, never>;
+            /** Format: int64 */
+            remoteLibraryId: number;
+            /** Format: int64 */
+            size: number;
         };
         /**
          * @description Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).
@@ -4481,6 +4749,13 @@ export interface components {
             expiresInSecs: number;
             secret: string;
         };
+        /** @description A device waiting for approval behind a Quick-Connect code. */
+        QuickConnectPending: {
+            clientName: string;
+            deviceName: string;
+            /** Format: int64 */
+            expiresInSecs: number;
+        };
         /** @description Request from the TV client polling whether its Quick-Connect secret has been authorized (M5.8). */
         QuickConnectPollRequest: {
             secret: string;
@@ -4491,13 +4766,28 @@ export interface components {
             token?: string | null;
             userId?: components["schemas"]["UserId"] | null;
         };
+        /** @description One diagnostic step: `publicIp`, `routerWan`, `dns`, `port`, `certificate`, `tailscale`. */
+        ReachabilityCheck: {
+            detail: string;
+            id: string;
+            status: components["schemas"]["CheckStatus"];
+        };
         /** @description Outcome of the CGNAT and external reachability inspection. */
         ReachabilityReport: {
+            /** @description Individual checks run by the server (public address, router, DNS, port, certificate). */
+            checks?: components["schemas"]["ReachabilityCheck"][];
             details: string;
             detectedPublicIp?: string | null;
             detectedWanIp?: string | null;
+            /**
+             * Format: int32
+             * @description HTTPS port the server listens on, when HTTPS is enabled.
+             */
+            httpsPort?: number | null;
             isCgnat: boolean;
             isDirectReachable: boolean;
+            /** @description Public host names configured for the server (certificate names and `public_url`). */
+            publicHostnames?: string[];
             recommendation: components["schemas"]["RemoteRecommendation"];
         };
         ReachabilityTestRequest: {
@@ -4876,6 +5166,12 @@ export interface components {
         SuccessResponse: {
             success: boolean;
         };
+        /** @description Switch to a managed profile. */
+        SwitchProfileRequest: {
+            /** @description Required when the profile has a PIN. */
+            pin?: string | null;
+            userId: components["schemas"]["UserId"];
+        };
         /** @description System health snapshot including thermal/power monitoring and platform defaults (M5.1, M5.2). */
         SystemHealthReport: {
             activePlaybackSessions: number;
@@ -4928,6 +5224,11 @@ export interface components {
             loginName: string;
             nodeIps: string[];
             nodeName: string;
+        };
+        /** @description Connection test input. Without `apiKey` the stored key is used. */
+        TestArrConnection: {
+            apiKey?: string | null;
+            url: string;
         };
         TestTmdbRequest: {
             apiKey?: string | null;
@@ -5123,6 +5424,20 @@ export interface components {
         TunerKind: "hdhomerun" | "m3u";
         /** @enum {string} */
         TunerStatus: "online" | "offline" | "scanning";
+        UpdateArrSettings: {
+            /** @description New key; omit or leave empty to keep the stored one. */
+            apiKey?: string | null;
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Lidarr only: which releases (albums, singles, EPs…) an added artist gets.
+             */
+            metadataProfileId?: number | null;
+            /** Format: int64 */
+            qualityProfileId?: number | null;
+            rootFolder: string;
+            url: string;
+        };
         UpdateChannelRequest: {
             channelNumber?: string | null;
             epgChannelId?: string | null;
@@ -5295,6 +5610,8 @@ export interface components {
             hasPin: boolean;
             id: components["schemas"]["UserId"];
             isAdmin: boolean;
+            /** @description Managed profiles can be entered with their PIN; other accounts need their password. */
+            isManaged: boolean;
             username: string;
         };
         /** @description Security and access profile for a user. */
@@ -5392,6 +5709,16 @@ export interface components {
             secret?: string | null;
             url: string;
         };
+        /** @description Outcome of `POST /api/v1/webhooks/{id}/test`. */
+        WebhookTestResult: {
+            error?: string | null;
+            ok: boolean;
+            /**
+             * Format: int32
+             * @description HTTP status returned by the receiver, when it answered.
+             */
+            status?: number | null;
+        };
         /** @description Batch offload estimation returned for dry-run optimization requests. */
         WorkerBatchEstimate: {
             canOffload: boolean;
@@ -5412,23 +5739,12 @@ export interface components {
             supportedVideoEncoders: string[];
             supportsHardwareTonemap: boolean;
         };
-        /** @description Dynamic control actions sent to an active worker session. */
-        WorkerControl: {
-            /** @enum {string} */
-            action: "pause";
-        } | {
-            /** @enum {string} */
-            action: "resume";
-        } | {
-            /** @enum {string} */
-            action: "cancel";
-        } | {
-            /** @enum {string} */
-            action: "seek";
-            params: {
-                /** Format: int64 */
-                segment_number: number;
-            };
+        /** @description One working encoder on a worker, proven by the worker's own FFmpeg self-test. */
+        WorkerEncoder: {
+            /** @description Transcode backend name (`nvenc`, `qsv`, `vaapi`, `d3d11Amf`, `software`). */
+            backend: string;
+            /** @description Video codec (`h264`, `hevc`, `av1`). */
+            codec: string;
         };
         /** @description Heartbeat message sent periodically by workers. */
         WorkerHeartbeat: {
@@ -5438,31 +5754,47 @@ export interface components {
         };
         /** Format: int64 */
         WorkerId: number;
-        /** @description Typed job specification dispatched to a transcode worker. */
-        WorkerJobSpec: {
-            /** Format: int32 */
-            audioBitrateKbps?: number | null;
-            /** Format: int32 */
-            audioChannels?: number | null;
-            audioCodec?: string | null;
-            /** Format: int32 */
-            burnSubtitleStream?: number | null;
-            /** Format: int32 */
-            height?: number | null;
-            partId: components["schemas"]["PartId"];
-            /** Format: int32 */
-            segmentDurationSecs: number;
-            sessionId: string;
-            sourceUrl: string;
-            /** Format: double */
-            startTimeOffsetSecs?: number | null;
-            targetFormat: string;
-            uploadUrlTemplate: string;
-            /** Format: int32 */
-            videoBitrateKbps?: number | null;
-            videoCodec?: string | null;
-            /** Format: int32 */
-            width?: number | null;
+        /**
+         * @description A transcode assignment. The server never sends command lines: `pipeline` is the server's
+         *     typed transcode model (`mbl_transcode::Pipeline`), which the worker turns into FFmpeg arguments
+         *     itself after replacing the input with `sourcePath` and the output with a local directory.
+         */
+        WorkerJob: {
+            jobId: string;
+            pipeline: Record<string, never>;
+            /** @description Rendition directory names; uploads go to `/api/v1/workers/jobs/{jobId}/files/{rendition}/{file}`. */
+            renditions: string[];
+            /** @description Server-relative signed source URL (`/api/v1/stream/worker/source/{partId}?token=…`). */
+            sourcePath: string;
+        };
+        /**
+         * @description Final outcome of a job reported by the worker.
+         * @enum {string}
+         */
+        WorkerJobOutcome: "finished" | "failed";
+        /** @description Job outcome report. */
+        WorkerJobReport: {
+            /** @description Short reason for a failure (FFmpeg's last error lines), never shown to end users verbatim. */
+            message?: string | null;
+            outcome: components["schemas"]["WorkerJobOutcome"];
+        };
+        /** @description Instruction delivered to a worker in a poll response. */
+        WorkerMessage: {
+            job: components["schemas"]["WorkerJob"];
+            /** @enum {string} */
+            type: "start";
+        } | {
+            jobId: string;
+            /** @enum {string} */
+            type: "stop";
+        } | {
+            jobId: string;
+            /** @enum {string} */
+            type: "pause";
+        } | {
+            jobId: string;
+            /** @enum {string} */
+            type: "resume";
         };
         /** @description Worker pairing request payload. */
         WorkerPairRequest: {
@@ -5484,6 +5816,20 @@ export interface components {
         WorkerPathMapping: {
             serverPrefix: string;
             workerPrefix: string;
+        };
+        /** @description Long-poll request: the worker reports what it can run right now and waits for work. */
+        WorkerPollRequest: {
+            /** @description Jobs the worker is still running; anything else the server believes is running has failed. */
+            activeJobIds: string[];
+            encoders: components["schemas"]["WorkerEncoder"][];
+            /** Format: int32 */
+            maxJobs: number;
+            /** @description True while the host is busy with something else (for example a game) and must not get new jobs. */
+            paused: boolean;
+        };
+        /** @description Poll response; an empty list means the wait timed out and the worker should poll again. */
+        WorkerPollResponse: {
+            messages: components["schemas"]["WorkerMessage"][];
         };
         WorkerRow: {
             capabilities: components["schemas"]["WorkerCapabilities"];
@@ -5786,6 +6132,41 @@ export interface operations {
             };
         };
     };
+    quick_connect_lookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickConnectAuthorizeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickConnectPending"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     quick_connect_poll: {
         parameters: {
             query?: never;
@@ -5881,6 +6262,41 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    switch_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwitchProfileRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9074,6 +9490,46 @@ export interface operations {
             };
         };
     };
+    upload_probes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeProbeUpload"];
+            };
+        };
+        responses: {
+            /** @description Probe results imported */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeProbeUploadResponse"];
+                };
+            };
+            /** @description Unauthorized node */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many files */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_libraries: {
         parameters: {
             query?: never;
@@ -9131,7 +9587,7 @@ export interface operations {
                     "application/json": components["schemas"]["NodeHandoverResponse"];
                 };
             };
-            /** @description Node not found */
+            /** @description Item has no file on this node, or no access */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10319,6 +10775,104 @@ export interface operations {
             };
         };
     };
+    get_arr_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description radarr, sonarr or lidarr */
+                service: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Download service settings (the API key is never returned) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrSettings"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_arr_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description radarr, sonarr or lidarr */
+                service: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateArrSettings"];
+            };
+        };
+        responses: {
+            /** @description Settings saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrSettings"];
+                };
+            };
+            /** @description Missing address, key, root folder or quality profile */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    test_arr_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description radarr, sonarr or lidarr */
+                service: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestArrConnection"];
+            };
+        };
+        responses: {
+            /** @description Connected; lists root folders and quality profiles */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrConnectionReport"];
+                };
+            };
+            /** @description The service did not answer or rejected the key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     analyze_hardlinks: {
         parameters: {
             query?: never;
@@ -10369,6 +10923,38 @@ export interface operations {
             };
         };
     };
+    search_music: {
+        parameters: {
+            query: {
+                /** @description Artist or album name */
+                query: string;
+                /** @description artist or album */
+                kind: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Artists or albums found through Lidarr */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MusicSearchHit"][];
+                };
+            };
+            /** @description Lidarr is not connected or did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     update_request_status: {
         parameters: {
             query?: never;
@@ -10385,7 +10971,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Request status updated */
+            /** @description Request status updated; approving adds the title to Radarr/Sonarr when turned on */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -10394,6 +10980,13 @@ export interface operations {
             };
             /** @description Admin required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Radarr/Sonarr did not add the title; the status is unchanged */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10543,41 +11136,6 @@ export interface operations {
             };
             /** @description Range not satisfiable */
             416: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    upload_segment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                sessionId: string;
-                filename: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Segment stored */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invalid segment path */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized worker */
-            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12200,6 +12758,43 @@ export interface operations {
             };
         };
     };
+    test_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delivery result of a test event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookTestResult"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown webhook */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_workers: {
         parameters: {
             query?: never;
@@ -12249,6 +12844,87 @@ export interface operations {
             };
             /** @description Unauthorized worker */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    upload_job_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+                rendition: string;
+                filename: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized worker */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Job is not running */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid file name or rendition */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    report_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerJobReport"];
+            };
+        };
+        responses: {
+            /** @description Report accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized worker */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown job */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12307,6 +12983,37 @@ export interface operations {
             };
             /** @description Forbidden (Admin only) */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    poll_jobs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerPollRequest"];
+            };
+        };
+        responses: {
+            /** @description Assignments and control messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerPollResponse"];
+                };
+            };
+            /** @description Unauthorized worker */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

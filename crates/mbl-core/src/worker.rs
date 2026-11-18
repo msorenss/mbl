@@ -4,27 +4,88 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{PartId, WorkerId};
+use crate::WorkerId;
 
-/// Typed job specification dispatched to a transcode worker.
+/// One working encoder on a worker, proven by the worker's own FFmpeg self-test.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerEncoder {
+    /// Transcode backend name (`nvenc`, `qsv`, `vaapi`, `d3d11Amf`, `software`).
+    pub backend: String,
+    /// Video codec (`h264`, `hevc`, `av1`).
+    pub codec: String,
+}
+
+/// Long-poll request: the worker reports what it can run right now and waits for work.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkerJobSpec {
-    pub session_id: String,
-    pub part_id: PartId,
-    pub source_url: String,
-    pub target_format: String,
-    pub segment_duration_secs: u32,
-    pub video_codec: Option<String>,
-    pub audio_codec: Option<String>,
-    pub video_bitrate_kbps: Option<u32>,
-    pub audio_bitrate_kbps: Option<u32>,
-    pub width: Option<u32>,
-    pub height: Option<u32>,
-    pub audio_channels: Option<u32>,
-    pub start_time_offset_secs: Option<f64>,
-    pub burn_subtitle_stream: Option<u32>,
-    pub upload_url_template: String,
+pub struct WorkerPollRequest {
+    pub encoders: Vec<WorkerEncoder>,
+    pub max_jobs: u32,
+    /// True while the host is busy with something else (for example a game) and must not get new jobs.
+    pub paused: bool,
+    /// Jobs the worker is still running; anything else the server believes is running has failed.
+    pub active_job_ids: Vec<String>,
+}
+
+/// A transcode assignment. The server never sends command lines: `pipeline` is the server's
+/// typed transcode model (`mbl_transcode::Pipeline`), which the worker turns into FFmpeg arguments
+/// itself after replacing the input with `sourcePath` and the output with a local directory.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerJob {
+    pub job_id: String,
+    /// Server-relative signed source URL (`/api/v1/stream/worker/source/{partId}?token=…`).
+    pub source_path: String,
+    /// Rendition directory names; uploads go to `/api/v1/workers/jobs/{jobId}/files/{rendition}/{file}`.
+    pub renditions: Vec<String>,
+    #[schema(value_type = Object)]
+    pub pipeline: serde_json::Value,
+}
+
+/// Instruction delivered to a worker in a poll response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum WorkerMessage {
+    Start {
+        job: WorkerJob,
+    },
+    #[serde(rename_all = "camelCase")]
+    Stop {
+        job_id: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Pause {
+        job_id: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Resume {
+        job_id: String,
+    },
+}
+
+/// Poll response; an empty list means the wait timed out and the worker should poll again.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerPollResponse {
+    pub messages: Vec<WorkerMessage>,
+}
+
+/// Final outcome of a job reported by the worker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkerJobOutcome {
+    Finished,
+    Failed,
+}
+
+/// Job outcome report.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerJobReport {
+    pub outcome: WorkerJobOutcome,
+    /// Short reason for a failure (FFmpeg's last error lines), never shown to end users verbatim.
+    pub message: Option<String>,
 }
 
 /// Worker hardware capabilities reported during pairing and health checks.
@@ -47,16 +108,6 @@ pub struct WorkerStatus {
     pub active_sessions: u32,
     pub cpu_usage_percent: f32,
     pub gpu_usage_percent: Option<f32>,
-}
-
-/// Dynamic control actions sent to an active worker session.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-#[serde(tag = "action", content = "params", rename_all = "camelCase")]
-pub enum WorkerControl {
-    Pause,
-    Resume,
-    Cancel,
-    Seek { segment_number: u64 },
 }
 
 /// Heartbeat message sent periodically by workers.

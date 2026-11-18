@@ -204,7 +204,7 @@ async fn m10_security_threat_model() {
     let invalid_webhook = json!({
         "name": "Malicious Webhook",
         "url": "file:///etc/passwd",
-        "events": ["playback.start"]
+        "events": ["playback.started"]
     });
     let res =
         app.call(Method::POST, "/api/v1/webhooks", Some(&admin_token), Some(invalid_webhook)).await;
@@ -213,7 +213,7 @@ async fn m10_security_threat_model() {
     let js_webhook = json!({
         "name": "XSS Webhook",
         "url": "javascript:alert(1)",
-        "events": ["playback.start"]
+        "events": ["playback.started"]
     });
     let res =
         app.call(Method::POST, "/api/v1/webhooks", Some(&admin_token), Some(js_webhook)).await;
@@ -223,7 +223,7 @@ async fn m10_security_threat_model() {
     let valid_webhook = json!({
         "name": "Valid Discord Webhook",
         "url": "https://example.com/webhook",
-        "events": ["playback.start"]
+        "events": ["playback.started"]
     });
     let res =
         app.call(Method::POST, "/api/v1/webhooks", Some(&admin_token), Some(valid_webhook)).await;

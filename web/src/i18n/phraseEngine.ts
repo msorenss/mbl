@@ -5,6 +5,7 @@ import {
   FOR_EXAMPLE_PREFIX_22,
   MORE_SENTENCES_22,
 } from "./allUiStrings";
+import { UI_PATTERNS_22, UI_PHRASES_22 } from "./uiPhrases";
 
 // Order of the 22 non-English locales in each row:
 // 0:sv, 1:de, 2:fr, 3:es, 4:pt, 5:it, 6:nl, 7:pl, 8:tr, 9:ru, 10:uk,
@@ -3618,6 +3619,7 @@ function registerPhraseMap(dict: Record<string, Row22>) {
     }
   }
 }
+registerPhraseMap(UI_PHRASES_22);
 registerPhraseMap(PAGE_PHRASES_22);
 registerPhraseMap(COMPLETE_SENTENCES_22);
 registerPhraseMap(MORE_SENTENCES_22);
@@ -3629,6 +3631,38 @@ const ALL_GLOSSARY_TERMS_22: ReadonlyArray<readonly [string, Row22]> = [
   ...Object.entries(UI_VOCABULARY_22),
   ...GLOSSARY_TERMS_22,
 ].sort((a, b) => b[0].length - a[0].length);
+
+// Phrases with placeholders ({0}, {1}, …) for strings that embed names, numbers or addresses.
+const PATTERNS: ReadonlyArray<{ re: RegExp; row: Row22 }> = Object.entries(UI_PATTERNS_22)
+  .map(([en, row]) => {
+    const parts = en.split(/\{(\d+)\}/);
+    let source = "^";
+    for (let i = 0; i < parts.length; i++) {
+      source +=
+        i % 2 === 0 ? parts[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : `(?<p${parts[i]}>.+?)`;
+    }
+    return { re: new RegExp(`${source}$`, "i"), row };
+  })
+  // Longer literal text first, so a specific pattern wins over a generic one.
+  .sort((a, b) => b.re.source.length - a.re.source.length);
+
+function lookupPattern(text: string, idx: number): string | undefined {
+  for (const { re, row } of PATTERNS) {
+    const m = re.exec(text);
+    if (m?.groups) {
+      const groups = m.groups;
+      return row[idx].replace(/\{(\d+)\}/g, (_, n: string) => groups[`p${n}`] ?? "");
+    }
+  }
+  return undefined;
+}
+
+/** Words that may stay in English inside a composed translation (names, codes, units). */
+function onlyNamesLeft(text: string): boolean {
+  const words = (text.match(/[A-Za-z][A-Za-z'-]*/g) ?? []).filter((w) => w.length > 1);
+  // Acronyms (HTTPS, NVENC) anywhere; capitalised names (Tailscale) after the first word.
+  return words.every((w, i) => /^[A-Z0-9][A-Z0-9-]+$/.test(w) || (i > 0 && /^[A-Z]/.test(w)));
+}
 
 const LOCALE_INDEX = new Map<AppLocale, number>();
 NON_EN_LOCALES.forEach((loc, idx) => {
@@ -3731,6 +3765,10 @@ export function lookupExtendedPhrase(
   const direct = lookupDirectOrExact(trimmed, loc, idx, primaryLookup);
   if (direct) return direct;
 
+  // 1b. Phrases with embedded values ("Certificate issued for {0}.")
+  const patterned = lookupPattern(trimmed, idx);
+  if (patterned) return patterned;
+
   // 2. "e.g. <rest>" placeholder prefix
   const egMatch = trimmed.match(/^e\.g\.\s+(.+)$/i);
   if (egMatch) {
@@ -3770,20 +3808,23 @@ export function lookupExtendedPhrase(
     }
   }
 
-  // 5. Compound strings separated by " — ", " · ", " • ", ": ", "; ", " / ", " & ", or ". "
-  for (const sep of [" — ", " · ", " • ", ": ", "; ", " / ", " & ", ". "]) {
+  // 5. Compound strings separated by " — ", " · ", " • ", ": ", "; ", " / ", " & ", ", " or ". ".
+  // Every part must translate (or be a name/code), otherwise the result would be mixed.
+  for (const sep of [" — ", " · ", " • ", ": ", "; ", " / ", " & ", ", ", ". "]) {
     if (trimmed.includes(sep)) {
       const parts = trimmed.split(sep);
       let changed = false;
+      let complete = true;
       const mappedParts = parts.map((p) => {
-        const sub = lookupExtendedPhrase(p, loc, primaryLookup);
+        const sub = p.trim() ? lookupExtendedPhrase(p, loc, primaryLookup) : undefined;
         if (sub && sub !== p.trim()) {
           changed = true;
           return p.replace(p.trim(), sub);
         }
+        if (p.trim() && !onlyNamesLeft(p) && !/^[\d\s.,:%+-]+$/.test(p)) complete = false;
         return p;
       });
-      if (changed) {
+      if (changed && complete) {
         return mappedParts.join(sep);
       }
     }
@@ -3813,22 +3854,31 @@ export function lookupExtendedPhrase(
     return undefined;
   }
 
+  // Replace known terms, but only accept the result when no English words are left;
+  // a half-translated sentence reads worse than the original.
+  const MARK = "\u0000";
   let composed = trimmed;
-  let replacedAny = false;
   for (const [enTerm, row] of ALL_GLOSSARY_TERMS_22) {
     const escaped = enTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`\\b${escaped}\\b`, "gi");
-    if (re.test(composed)) {
-      const target = row[idx];
-      composed = composed.replace(re, () => {
-        replacedAny = true;
-        return target;
-      });
+    // Only touch text that has not been translated yet (outside markers).
+    const pieces = composed.split(MARK);
+    let changed = false;
+    for (let i = 0; i < pieces.length; i += 2) {
+      if (re.test(pieces[i])) {
+        re.lastIndex = 0;
+        pieces[i] = pieces[i].replace(re, () => `${MARK}${row[idx]}${MARK}`);
+        changed = true;
+      }
     }
+    if (changed) composed = pieces.join(MARK);
   }
-
-  if (replacedAny && composed !== trimmed) {
-    return composed;
+  if (composed !== trimmed) {
+    const untranslated = composed
+      .split(MARK)
+      .filter((_, i) => i % 2 === 0)
+      .join(" ");
+    if (onlyNamesLeft(untranslated)) return composed.split(MARK).join("");
   }
 
   return undefined;

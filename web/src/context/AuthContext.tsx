@@ -12,6 +12,8 @@ interface AuthContextValue {
   loginReason?: () => string | null;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Switch to a managed profile; returns an error message, or null on success. */
+  switchProfile: (userId: number, pin?: string) => Promise<string | null>;
   checkSetup: () => Promise<boolean>;
 }
 
@@ -71,6 +73,24 @@ export function AuthProvider(props: { children: JSX.Element }) {
     return false;
   };
 
+  const switchProfile = async (userId: number, pin?: string): Promise<string | null> => {
+    try {
+      const { data, error, response } = await client.POST("/api/v1/auth/switch-profile", {
+        body: { userId, pin: pin || undefined },
+      });
+      if (data && !error) {
+        setStoredToken(data.token);
+        setUser(data.user);
+        return null;
+      }
+      if (response?.status === 429) return "Too many attempts. Wait a while and try again.";
+      const message = (error as { error?: { message?: string } } | undefined)?.error?.message;
+      return message || "Could not switch profile.";
+    } catch {
+      return "Could not reach the server.";
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -102,6 +122,7 @@ export function AuthProvider(props: { children: JSX.Element }) {
         loginReason,
         logout,
         refreshUser,
+        switchProfile,
         checkSetup,
       }}
     >

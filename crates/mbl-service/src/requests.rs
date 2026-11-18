@@ -1,5 +1,6 @@
 //! Built-in Media Requests, Sonarr/Radarr Bridge & Hardlink Storage Hygiene (M7.20).
 
+use crate::arr::{ArrKind, ArrService};
 use mbl_core::{Actor, Error, RequestId, Result};
 use mbl_db::Db;
 use mbl_db::repo::m7;
@@ -14,10 +15,19 @@ use utoipa::ToSchema;
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMediaRequest {
-    pub kind: String, // "movie" or "show"
+    /// "movie", "show", "artist" or "album".
+    pub kind: String,
+    /// TMDB ID for movies and shows.
+    #[serde(default)]
     pub tmdb_id: i64,
     pub title: String,
     pub year: Option<i32>,
+    /// MusicBrainz artist ID or release group ID for artists and albums.
+    #[serde(default)]
+    pub musicbrainz_id: Option<String>,
+    /// Artist name for albums.
+    #[serde(default)]
+    pub artist: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -40,12 +50,15 @@ pub struct StorageHardlinkReport {
 #[derive(Debug, Clone)]
 pub struct MediaRequestService {
     db: Arc<Db>,
-    http_client: reqwest::Client,
+    pub arr: ArrService,
 }
+
+const STATUSES: [&str; 4] = ["pending", "approved", "declined", "available"];
 
 impl MediaRequestService {
     pub fn new(db: Arc<Db>) -> Self {
-        Self { db, http_client: reqwest::Client::new() }
+        let arr = ArrService::new((*db).clone());
+        Self { db, arr }
     }
 
     pub async fn create_request(
@@ -53,14 +66,40 @@ impl MediaRequestService {
         actor: &Actor,
         req: CreateMediaRequest,
     ) -> Result<MediaRequestRow> {
-        let user_id = actor.user_id;
+        let title = req.title.trim();
+        if title.is_empty() || title.chars().count() > 300 {
+            return Err(Error::Validation("Enter a title of at most 300 characters".into()));
+        }
+        let mbid = req.musicbrainz_id.as_deref().map(str::trim).filter(|m| !m.is_empty());
+        match req.kind.as_str() {
+            "movie" | "show" if req.tmdb_id < 1 => {
+                return Err(Error::Validation("Movies and shows need a TMDB ID".into()));
+            }
+            "movie" | "show" => {}
+            "artist" | "album" => {
+                let valid = mbid.is_some_and(|m| {
+                    m.len() == 36 && m.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+                });
+                if !valid {
+                    return Err(Error::Validation(
+                        "Artists and albums need a MusicBrainz ID (search to fill it in)".into(),
+                    ));
+                }
+            }
+            other => return Err(Error::Validation(format!("Unknown request kind '{other}'"))),
+        }
+        let music = matches!(req.kind.as_str(), "artist" | "album");
         let id = m7::create_media_request(
             &self.db,
-            user_id,
-            &req.kind,
-            req.tmdb_id,
-            &req.title,
-            req.year,
+            actor.user_id,
+            &m7::NewMediaRequest {
+                kind: &req.kind,
+                tmdb_id: if music { 0 } else { req.tmdb_id },
+                title,
+                year: req.year,
+                musicbrainz_id: if music { mbid } else { None },
+                artist: req.artist.as_deref().map(str::trim).filter(|a| !a.is_empty() && music),
+            },
         )
         .await?;
 
@@ -73,6 +112,8 @@ impl MediaRequestService {
         actor: &Actor,
         status: Option<&str>,
     ) -> Result<Vec<MediaRequestRow>> {
+        // Requests whose title has shown up in a library are fulfilled.
+        m7::mark_requests_available_from_library(&self.db).await?;
         let user_filter = if actor.is_admin { None } else { Some(actor.user_id) };
         m7::list_media_requests(&self.db, user_filter, status).await
     }
@@ -85,85 +126,46 @@ impl MediaRequestService {
         arr_id: Option<i64>,
     ) -> Result<()> {
         actor.require_admin()?;
+        if !STATUSES.contains(&status) {
+            return Err(Error::Validation(format!("Unknown status '{status}'")));
+        }
+        let current = m7::list_media_requests(&self.db, None, None)
+            .await?
+            .into_iter()
+            .find(|r| r.id == id)
+            .ok_or(Error::NotFound)?;
+        // Approving hands the title to Radarr/Sonarr/Lidarr when that service is turned on. If
+        // adding fails the request keeps its old status so the admin can retry. Approving an
+        // already approved request that was never sent is a resend, which needs the service on.
+        let resend = current.status == "approved" && current.arr_id.is_none();
+        let arr_id = if status == "approved" && (current.status != "approved" || resend) {
+            let added = self.arr.add(&current).await.inspect_err(|e| {
+                let service = ArrKind::for_request(&current.kind).map_or("none", ArrKind::name);
+                tracing::warn!(
+                    service,
+                    failure = e.code(),
+                    "adding title to download service failed"
+                );
+            })?;
+            match added {
+                Some((_, added)) => Some(added),
+                None if resend => {
+                    tracing::info!("resend skipped: download service is turned off");
+                    let service = ArrKind::for_request(&current.kind)
+                        .map_or("No download service", ArrKind::name);
+                    return Err(Error::Validation(format!(
+                        "{service} is turned off, so nothing was sent"
+                    )));
+                }
+                None => arr_id,
+            }
+        } else {
+            arr_id
+        };
         if !m7::update_media_request_status(&self.db, id, status, arr_id).await? {
             return Err(Error::NotFound);
         }
         Ok(())
-    }
-
-    /// Forward approved request to Radarr (movie) or Sonarr (series).
-    pub async fn forward_to_arr(
-        &self,
-        actor: &Actor,
-        request_id: RequestId,
-        arr_url: &str,
-        api_key: &str,
-        root_folder_path: &str,
-        quality_profile_id: i64,
-    ) -> Result<i64> {
-        actor.require_admin()?;
-        let requests = m7::list_media_requests(&self.db, None, None).await?;
-        let req = requests.into_iter().find(|r| r.id == request_id).ok_or(Error::NotFound)?;
-
-        let endpoint = if req.kind == "movie" {
-            format!("{}/api/v3/movie", arr_url.trim_end_matches('/'))
-        } else {
-            format!("{}/api/v3/series", arr_url.trim_end_matches('/'))
-        };
-
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct ArrPayload<'a> {
-            title: &'a str,
-            tmdb_id: i64,
-            quality_profile_id: i64,
-            root_folder_path: &'a str,
-            monitored: bool,
-            add_options: ArrAddOptions,
-        }
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct ArrAddOptions {
-            search_for_missing_movie: bool,
-            search_for_missing_episodes: bool,
-        }
-        #[derive(Deserialize)]
-        struct ArrResp {
-            id: i64,
-        }
-
-        let body = ArrPayload {
-            title: &req.title,
-            tmdb_id: req.tmdb_id,
-            quality_profile_id,
-            root_folder_path,
-            monitored: true,
-            add_options: ArrAddOptions {
-                search_for_missing_movie: req.kind == "movie",
-                search_for_missing_episodes: req.kind == "show",
-            },
-        };
-
-        let resp = self
-            .http_client
-            .post(&endpoint)
-            .header("X-Api-Key", api_key)
-            .json(&body)
-            .send()
-            .await
-            .map_err(Error::internal)?;
-
-        if !resp.status().is_success() {
-            return Err(Error::External(format!(
-                "Radarr/Sonarr returned status {}",
-                resp.status()
-            )));
-        }
-
-        let res_body: ArrResp = resp.json().await.map_err(Error::internal)?;
-        m7::update_media_request_status(&self.db, request_id, "approved", Some(res_body.id))
-            .await?;
-        Ok(res_body.id)
     }
 
     /// Detect missing episode numbers in a list of existing episode indices.

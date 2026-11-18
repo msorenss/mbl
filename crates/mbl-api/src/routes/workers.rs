@@ -2,13 +2,14 @@
 //! segment uploads, and Wake-on-LAN dispatch.
 
 use axum::body::Bytes;
-use axum::extract::{Path as AxumPath, Query, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, State};
 use axum::http::{HeaderMap, Method, StatusCode, header};
 use axum::response::Response;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use mbl_core::{
-    Actor, Error, PartId, UserId, WorkerHeartbeat, WorkerId, WorkerPairRequest, WorkerPairResponse,
+    Actor, Error, PartId, UserId, WorkerHeartbeat, WorkerId, WorkerJobReport, WorkerPairRequest,
+    WorkerPairResponse, WorkerPollRequest, WorkerPollResponse,
 };
 use mbl_db::repo::m8::WorkerRow;
 use serde::{Deserialize, Serialize};
@@ -39,7 +40,13 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/workers/{id}/wake", post(wake_worker))
         .route("/api/v1/workers/heartbeat", post(heartbeat))
         .route("/api/v1/stream/worker/source/{partId}", get(stream_source))
-        .route("/api/v1/stream/hls/{sessionId}/segments/{filename}", put(upload_segment))
+        .route("/api/v1/workers/poll", post(poll_jobs))
+        .route("/api/v1/workers/jobs/{jobId}/report", post(report_job))
+        .route(
+            "/api/v1/workers/jobs/{jobId}/files/{rendition}/{filename}",
+            put(upload_job_file)
+                .layer(DefaultBodyLimit::max(mbl_service::workers::MAX_WORKER_UPLOAD_BYTES)),
+        )
 }
 
 #[utoipa::path(
@@ -213,42 +220,84 @@ async fn stream_source(
     let range_header = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
     let is_head = method == Method::HEAD;
 
-    Ok(mbl_stream::serve_direct_file(
-        &resolved.path,
-        resolved.container.as_deref(),
-        range_header,
-        is_head,
-    )
-    .await?)
+    Ok(state.services.stream.serve_part(&resolved, range_header, is_head).await?)
 }
 
-#[utoipa::path(
-    put,
-    path = "/api/v1/stream/hls/{sessionId}/segments/{filename}",
-    params(
-        ("sessionId" = String, Path),
-        ("filename" = String, Path)
-    ),
-    responses(
-        (status = 204, description = "Segment stored"),
-        (status = 400, description = "Invalid segment path"),
-        (status = 401, description = "Unauthorized worker")
-    ),
-    security(("worker_bearer_auth" = []))
-)]
-async fn upload_segment(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    AxumPath((session_id, filename)): AxumPath<(String, String)>,
-    body: Bytes,
-) -> Result<StatusCode, ApiError> {
+async fn authenticate_worker(state: &AppState, headers: &HeaderMap) -> Result<WorkerRow, ApiError> {
     let auth_header = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .ok_or(Error::Unauthorized)?;
+    Ok(state.services.workers.authenticate(auth_header).await?)
+}
 
-    let _worker = state.services.workers.authenticate(auth_header).await?;
-    state.services.workers.store_segment(&session_id, &filename, &body).await?;
+/// Long-poll for transcode assignments. The worker reports its proven encoders and the jobs it is
+/// still running; the response arrives as soon as there is work, or empty after about 25 seconds.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workers/poll",
+    request_body = WorkerPollRequest,
+    responses(
+        (status = 200, description = "Assignments and control messages", body = WorkerPollResponse),
+        (status = 401, description = "Unauthorized worker"),
+    ),
+    security(("worker_bearer_auth" = []))
+)]
+async fn poll_jobs(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<WorkerPollRequest>,
+) -> Result<Json<WorkerPollResponse>, ApiError> {
+    let worker = authenticate_worker(&state, &headers).await?;
+    let response =
+        state.services.workers.poll(&worker, &req, std::time::Duration::from_secs(25)).await?;
+    Ok(Json(response))
+}
 
+/// Report how a transcode job ended.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workers/jobs/{jobId}/report",
+    params(("jobId" = String, Path)),
+    request_body = WorkerJobReport,
+    responses(
+        (status = 204, description = "Report accepted"),
+        (status = 401, description = "Unauthorized worker"),
+        (status = 404, description = "Unknown job"),
+    ),
+    security(("worker_bearer_auth" = []))
+)]
+async fn report_job(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath(job_id): AxumPath<String>,
+    Json(report): Json<WorkerJobReport>,
+) -> Result<StatusCode, ApiError> {
+    let worker = authenticate_worker(&state, &headers).await?;
+    state.services.workers.report_job(&worker, &job_id, &report)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Upload one output file of a running job: `init.mp4`, `<n>.m4s` or the EVENT playlist `ffmpeg.m3u8`.
+#[utoipa::path(
+    put,
+    path = "/api/v1/workers/jobs/{jobId}/files/{rendition}/{filename}",
+    params(("jobId" = String, Path), ("rendition" = String, Path), ("filename" = String, Path)),
+    responses(
+        (status = 204, description = "File stored"),
+        (status = 401, description = "Unauthorized worker"),
+        (status = 404, description = "Job is not running"),
+        (status = 422, description = "Invalid file name or rendition"),
+    ),
+    security(("worker_bearer_auth" = []))
+)]
+async fn upload_job_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath((job_id, rendition, filename)): AxumPath<(String, String, String)>,
+    body: Bytes,
+) -> Result<StatusCode, ApiError> {
+    let worker = authenticate_worker(&state, &headers).await?;
+    state.services.workers.store_job_file(&worker, &job_id, &rendition, &filename, &body).await?;
     Ok(StatusCode::NO_CONTENT)
 }

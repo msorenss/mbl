@@ -96,6 +96,10 @@ impl WatchService {
         Self { db, events }
     }
 
+    pub fn events(&self) -> &EventBus {
+        &self.events
+    }
+
     /// Mark an item (and its descendants if it is a show, season, artist, or album) watched.
     pub async fn mark_watched(&self, actor: &Actor, item_id: ItemId) -> Result<()> {
         let (library_id, ids) =

@@ -1,7 +1,36 @@
-import { createResource, createSignal, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
 import client from "../../api/client";
 import type { components } from "../../api/schema";
 import { Badge, Button } from "../../components/ui";
+import type { BadgeVariant } from "../../components/ui/Badge";
+
+type CheckStatus = components["schemas"]["CheckStatus"];
+
+const CHECK_LABELS: Record<string, string> = {
+  publicIp: "Public address",
+  routerWan: "Router",
+  dns: "DNS",
+  port: "HTTPS port",
+  port80: "Port 80",
+  certificate: "Certificate",
+  tailscale: "Tailscale",
+};
+
+const STATUS_LABELS: Record<CheckStatus, string> = {
+  ok: "OK",
+  warn: "Check",
+  fail: "Problem",
+  skipped: "Skipped",
+};
+
+const statusVariant = (status: CheckStatus): BadgeVariant =>
+  status === "ok"
+    ? "success"
+    : status === "warn"
+      ? "warning"
+      : status === "fail"
+        ? "danger"
+        : "default";
 
 export default function RemoteAccess() {
   const [error, setError] = createSignal("");
@@ -91,6 +120,13 @@ export default function RemoteAccess() {
                   Tailscale: {info().tailscale ? "Available" : "Unavailable"}
                 </Badge>
               </div>
+              <Show when={info().tailscale?.magicDnsName}>
+                {(name) => (
+                  <p style={{ margin: 0, "font-size": "var(--font-size-sm)" }}>
+                    Tailnet address: <strong>{name().replace(/\.$/, "")}</strong>
+                  </p>
+                )}
+              </Show>
               <p style={{ margin: 0, "font-size": "var(--font-size-sm)" }}>
                 Active WAN sessions: <strong>{info().activeWanSessions}</strong>
               </p>
@@ -181,18 +217,84 @@ export default function RemoteAccess() {
                   color: "var(--text-secondary)",
                 }}
               >
-                The current diagnostic uses available network information; it does not establish
-                that this server is reachable from the internet.
+                Checks the public address, the router's WAN address (UPnP), DNS for the public host
+                name, the forwarded HTTPS port, the certificate and Tailscale. The server contacts
+                api.ipify.org once to learn its public address.
               </p>
               <div>
                 <Button variant="secondary" disabled={busy()} onClick={diagnose}>
-                  Run diagnostics
+                  {busy() ? "Checking…" : "Run diagnostics"}
                 </Button>
               </div>
               <Show when={diagnosis()}>
-                <pre style={{ "white-space": "pre-wrap", "overflow-wrap": "anywhere", margin: 0 }}>
-                  {JSON.stringify(diagnosis(), null, 2)}
-                </pre>
+                {(report) => (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    <div
+                      role="status"
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        "align-items": "center",
+                        "flex-wrap": "wrap",
+                      }}
+                    >
+                      <Badge
+                        variant={
+                          report().isDirectReachable
+                            ? "success"
+                            : report().isCgnat
+                              ? "danger"
+                              : "warning"
+                        }
+                      >
+                        {report().isDirectReachable
+                          ? "Reachable from the internet"
+                          : report().isCgnat
+                            ? "Behind CGNAT"
+                            : "Not confirmed reachable"}
+                      </Badge>
+                      <span style={{ "font-size": "var(--font-size-sm)" }}>{report().details}</span>
+                    </div>
+                    <ul
+                      aria-label="Diagnostic checks"
+                      style={{
+                        margin: 0,
+                        padding: 0,
+                        "list-style": "none",
+                        display: "grid",
+                        gap: "8px",
+                      }}
+                    >
+                      <For each={report().checks ?? []}>
+                        {(check) => (
+                          <li
+                            style={{
+                              display: "grid",
+                              "grid-template-columns": "minmax(110px, auto) 1fr",
+                              gap: "10px",
+                              "align-items": "start",
+                              "font-size": "var(--font-size-sm)",
+                            }}
+                          >
+                            <Badge variant={statusVariant(check.status)}>
+                              {CHECK_LABELS[check.id] ?? check.id}: {STATUS_LABELS[check.status]}
+                            </Badge>
+                            <span style={{ "overflow-wrap": "anywhere" }}>{check.detail}</span>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                    <Show when={(report().publicHostnames ?? []).length > 0 && report().httpsPort}>
+                      <p style={{ margin: 0, "font-size": "var(--font-size-sm)" }}>
+                        Remote address:{" "}
+                        <strong>
+                          https://{(report().publicHostnames ?? [])[0]}
+                          {report().httpsPort === 443 ? "" : `:${report().httpsPort}`}
+                        </strong>
+                      </p>
+                    </Show>
+                  </div>
+                )}
               </Show>
             </section>
           </>

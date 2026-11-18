@@ -17,6 +17,8 @@ use tokio::sync::Mutex;
 
 use crate::args::build_args;
 use crate::pipeline::{Backend, FfmpegCaps, Pipeline, VideoOp};
+use crate::remote::{RemoteDispatcher, RemoteJobState};
+use mbl_core::WorkerId;
 
 /// Default number of segments after which an ahead FFmpeg process is paused.
 pub const DEFAULT_AHEAD_SEGMENTS: u32 = 10;
@@ -109,6 +111,13 @@ struct SessionState {
     last_requested_segment: u32,
     last_access: Instant,
     restart_count: u32,
+    /// Remote job currently encoding this session on a transcode worker.
+    remote_job: Option<String>,
+    remote_worker: Option<(WorkerId, Backend)>,
+    /// Set after a remote failure: the session encodes locally from then on.
+    remote_disabled: bool,
+    /// A remote job just failed; the next segment wait restarts encoding locally.
+    remote_failover: bool,
 }
 
 #[derive(Default)]
@@ -218,6 +227,9 @@ pub struct HlsSession {
     generated_playlist_start_ms: Option<u64>,
     bad_backends: Arc<RwLock<HashMap<(Backend, String), Instant>>>,
     bad_backend_ttl: Duration,
+    remote: Option<Arc<RemoteDispatcher>>,
+    /// Mirrors `state.remote_job.is_some()` for lock-free capacity accounting.
+    remote_active: AtomicBool,
     state: Mutex<SessionState>,
 }
 
@@ -241,13 +253,15 @@ pub struct SessionRuntime {
     pub throttled: bool,
     pub restarts: u32,
     pub last_exit_failed: bool,
+    /// Transcode worker and its backend when encoding runs remotely.
+    pub remote_worker: Option<(WorkerId, Backend)>,
 }
 
 impl HlsSession {
     /// Capture backend and process state under one lock so diagnostics cannot mix snapshots.
     pub async fn runtime_status(&self) -> SessionRuntime {
         let mut state = self.state.lock().await;
-        let running = poll_child_state(&mut state);
+        let running = self.poll_running(&mut state);
         SessionRuntime {
             rendition_count: self.base_pipeline.output.renditions.len(),
             backend: state.active_backend,
@@ -255,7 +269,82 @@ impl HlsSession {
             throttled: running && state.paused,
             restarts: state.restart_count,
             last_exit_failed: state.last_exit_failed,
+            remote_worker: if state.remote_job.is_some() { state.remote_worker } else { None },
         }
+    }
+
+    /// Whether the encoder (local FFmpeg or remote worker job) is still running.
+    fn poll_running(&self, st: &mut SessionState) -> bool {
+        if let Some(job_id) = st.remote_job.clone() {
+            let outcome = self.remote.as_ref().map(|remote| (remote.state(&job_id), remote));
+            match outcome {
+                Some((RemoteJobState::Running, _)) => return true,
+                Some((RemoteJobState::Finished, remote)) => {
+                    remote.forget(&job_id);
+                    st.last_exit_failed = false;
+                }
+                Some((RemoteJobState::Failed(reason), remote)) => {
+                    remote.forget(&job_id);
+                    tracing::warn!(
+                        session_id = %self.id,
+                        job_id,
+                        %reason,
+                        "transcode worker failed; continuing with local encoding"
+                    );
+                    st.remote_disabled = true;
+                    st.remote_failover = true;
+                    // A remote failure says nothing about local hardware backends.
+                    st.last_exit_failed = false;
+                }
+                None => {}
+            }
+            st.remote_job = None;
+            st.paused = false;
+            self.remote_active.store(false, Ordering::Release);
+            return false;
+        }
+        poll_child_state(st)
+    }
+
+    /// Stop whichever encoder is running.
+    async fn stop_executor(&self, st: &mut SessionState) {
+        if let Some(job_id) = st.remote_job.take() {
+            if let Some(remote) = &self.remote {
+                remote.stop(&job_id);
+            }
+            st.paused = false;
+            self.remote_active.store(false, Ordering::Release);
+        }
+        kill_existing_child(st).await;
+    }
+
+    fn pause_exec(&self, st: &mut SessionState) -> bool {
+        if let Some(job_id) = &st.remote_job {
+            if let Some(remote) = &self.remote {
+                remote.pause(job_id);
+            }
+            st.paused = true;
+            return true;
+        }
+        st.pause_child()
+    }
+
+    fn resume_exec(&self, st: &mut SessionState) {
+        if let Some(job_id) = &st.remote_job {
+            if st.paused
+                && let Some(remote) = &self.remote
+            {
+                remote.resume(job_id);
+            }
+            st.paused = false;
+            return;
+        }
+        st.resume_child();
+    }
+
+    /// Whether this session's encoder currently runs on a transcode worker.
+    pub fn is_remote(&self) -> bool {
+        self.remote_active.load(Ordering::Acquire)
     }
 
     /// Validate the initial init/closed fragment for every advertised rendition under one deadline.
@@ -298,7 +387,7 @@ impl HlsSession {
                 }
                 let mut state = self.state.lock().await;
                 state.ensure_open()?;
-                if !poll_child_state(&mut state) && state.last_exit_failed {
+                if !self.poll_running(&mut state) && state.last_exit_failed {
                     if state.fallback_backends.is_empty() {
                         return Err(Error::Unavailable(
                             "FFmpeg failed during playback startup".into(),
@@ -325,7 +414,7 @@ impl HlsSession {
                 state.ensure_open()?;
                 state.last_requested_segment = u32::MAX;
                 if state.paused {
-                    state.resume_child();
+                    self.resume_exec(&mut state);
                 }
             }
             loop {
@@ -333,7 +422,7 @@ impl HlsSession {
                     let mut state = self.state.lock().await;
                     state.ensure_open()?;
                     state.last_access = Instant::now();
-                    if !poll_child_state(&mut state) && state.last_exit_failed {
+                    if !self.poll_running(&mut state) && state.last_exit_failed {
                         return Err(Error::Unavailable(
                             "FFmpeg failed preparing Cast timeline".into(),
                         ));
@@ -414,7 +503,7 @@ impl HlsSession {
             let mut st = self.state.lock().await;
             st.ensure_open()?;
             st.last_access = Instant::now();
-            let running = poll_child_state(&mut st);
+            let running = self.poll_running(&mut st);
             let progress = st.rendition(rendition)?;
             if !progress.init_written {
                 progress.refresh(rendition_dir.as_std_path()).await;
@@ -424,7 +513,7 @@ impl HlsSession {
             }
             if running {
                 if st.paused {
-                    st.resume_child();
+                    self.resume_exec(&mut st);
                 }
             } else {
                 if self.generated_playlist_start_ms.is_some() {
@@ -441,12 +530,12 @@ impl HlsSession {
             }
         }
 
-        let deadline = Instant::now() + self.segment_wait_timeout;
+        let mut deadline = Instant::now() + self.segment_wait_timeout;
         loop {
             {
                 let mut st = self.state.lock().await;
                 st.ensure_open()?;
-                let running = poll_child_state(&mut st);
+                let running = self.poll_running(&mut st);
                 let progress = st.rendition(rendition)?;
                 if !progress.init_written {
                     progress.refresh(rendition_dir.as_std_path()).await;
@@ -455,7 +544,12 @@ impl HlsSession {
                     return Ok(init_path);
                 }
                 if !running {
-                    if self.generated_playlist_start_ms.is_none()
+                    if std::mem::take(&mut st.remote_failover) {
+                        let start_seg = st.last_requested_segment;
+                        st.restart_count = st.restart_count.saturating_add(1);
+                        self.spawn_at_segment_locked(&mut st, start_seg).await?;
+                        deadline = Instant::now() + self.segment_wait_timeout;
+                    } else if self.generated_playlist_start_ms.is_none()
                         && st.last_exit_failed
                         && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
                         && !st.fallback_backends.is_empty()
@@ -492,7 +586,7 @@ impl HlsSession {
             st.ensure_open()?;
             st.last_access = Instant::now();
 
-            let running = poll_child_state(&mut st);
+            let running = self.poll_running(&mut st);
             let current_start_segment = st.current_start_segment;
             let paused = st.paused;
             let progress = st.rendition(rendition)?;
@@ -505,7 +599,7 @@ impl HlsSession {
 
             // Resume FFmpeg if it was paused and the client has caught up within `ahead_segments`.
             if st.paused && head.saturating_sub(segment_num) <= self.ahead_segments {
-                st.resume_child();
+                self.resume_exec(&mut st);
             }
 
             if complete && file_has_data(&seg_path).await {
@@ -524,7 +618,7 @@ impl HlsSession {
                     ));
                 }
                 if st.paused {
-                    st.resume_child();
+                    self.resume_exec(&mut st);
                 }
             } else {
                 if !running
@@ -540,19 +634,23 @@ impl HlsSession {
             }
         }
 
-        let deadline = Instant::now() + self.segment_wait_timeout;
+        let mut deadline = Instant::now() + self.segment_wait_timeout;
         loop {
             {
                 let mut st = self.state.lock().await;
                 st.ensure_open()?;
-                let running = poll_child_state(&mut st);
+                let running = self.poll_running(&mut st);
                 let progress = st.rendition(rendition)?;
                 progress.refresh(rendition_dir.as_std_path()).await;
                 if progress.completed.contains(&segment_num) && file_has_data(&seg_path).await {
                     return Ok(seg_path);
                 }
                 if !running {
-                    if self.generated_playlist_start_ms.is_none()
+                    if std::mem::take(&mut st.remote_failover) {
+                        st.restart_count = st.restart_count.saturating_add(1);
+                        self.spawn_at_segment_locked(&mut st, segment_num).await?;
+                        deadline = Instant::now() + self.segment_wait_timeout;
+                    } else if self.generated_playlist_start_ms.is_none()
                         && st.last_exit_failed
                         && st.last_spawn_at.elapsed() <= Duration::from_secs(5)
                         && !st.fallback_backends.is_empty()
@@ -578,9 +676,9 @@ impl HlsSession {
     /// Evaluate ahead-segment distance and pause/resume FFmpeg accordingly.
     pub async fn tick_throttle(&self) {
         let mut st = self.state.lock().await;
-        let running = poll_child_state(&mut st);
+        let running = self.poll_running(&mut st);
         if !running {
-            st.resume_child();
+            self.resume_exec(&mut st);
             return;
         }
         let primary = self.base_pipeline.output.renditions.first().map_or("0", |r| r.name.as_str());
@@ -593,7 +691,7 @@ impl HlsSession {
         let head = progress.head.unwrap_or(start);
 
         let ahead = head.saturating_sub(st.last_requested_segment);
-        if ahead > self.ahead_segments && !st.paused && st.pause_child() {
+        if ahead > self.ahead_segments && !st.paused && self.pause_exec(&mut st) {
             tracing::debug!(
                 session_id = %self.id,
                 head,
@@ -602,7 +700,7 @@ impl HlsSession {
                 "paused FFmpeg process (ahead of client)"
             );
         } else if ahead <= self.ahead_segments && st.paused {
-            st.resume_child();
+            self.resume_exec(&mut st);
             tracing::debug!(
                 session_id = %self.id,
                 head,
@@ -631,7 +729,7 @@ impl HlsSession {
     /// OS PID of the currently running FFmpeg child process, if any.
     pub async fn ffmpeg_pid(&self) -> Option<u32> {
         let mut st = self.state.lock().await;
-        if poll_child_state(&mut st) { st.child.as_ref().and_then(Child::id) } else { None }
+        if self.poll_running(&mut st) { st.child.as_ref().and_then(Child::id) } else { None }
     }
 
     /// Last request timestamp on this session.
@@ -669,7 +767,7 @@ impl HlsSession {
     pub async fn shutdown(&self) {
         let mut st = self.state.lock().await;
         st.closed = true;
-        kill_existing_child(&mut st).await;
+        self.stop_executor(&mut st).await;
         for attempt in 0..5 {
             match tokio::fs::remove_dir_all(self.dir.as_std_path()).await {
                 Ok(()) => return,
@@ -725,7 +823,7 @@ impl HlsSession {
 
     async fn spawn_at_segment_locked(&self, st: &mut SessionState, segment_num: u32) -> Result<()> {
         st.ensure_open()?;
-        kill_existing_child(st).await;
+        self.stop_executor(st).await;
 
         let rendition_count = self.base_pipeline.output.renditions.len().max(1);
         for idx in 0..rendition_count {
@@ -756,16 +854,29 @@ impl HlsSession {
         p.backend = st.active_backend;
         p.start_ms = self.segment_start_ms(segment_num);
         p.output.start_number = segment_num;
+        st.remote_failover = false;
 
-        let args = build_args(&p, &self.caps)?;
-        let child = Command::new(&self.ffmpeg_bin)
-            .args(&args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| Error::Unavailable(format!("failed to spawn ffmpeg: {e}")))?;
+        let remote = if st.remote_disabled || self.generated_playlist_start_ms.is_some() {
+            None
+        } else {
+            self.remote.as_ref().and_then(|remote| remote.start(self.part_id, &p))
+        };
+        if let Some(assignment) = remote {
+            st.remote_job = Some(assignment.job_id);
+            st.remote_worker = Some((assignment.worker_id, assignment.backend));
+            self.remote_active.store(true, Ordering::Release);
+        } else {
+            let args = build_args(&p, &self.caps)?;
+            let child = Command::new(&self.ffmpeg_bin)
+                .args(&args)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| Error::Unavailable(format!("failed to spawn ffmpeg: {e}")))?;
+            st.child = Some(child);
+        }
 
         let cast_goal_ms = self
             .generated_playlist_start_ms
@@ -786,7 +897,6 @@ impl HlsSession {
         st.paused = false;
         st.last_exit_failed = false;
         st.last_spawn_at = Instant::now();
-        st.child = Some(child);
         Ok(())
     }
 
@@ -814,6 +924,7 @@ pub struct SessionManager {
     sessions: Arc<RwLock<HashMap<String, Arc<HlsSession>>>>,
     bad_backends: Arc<RwLock<HashMap<(Backend, String), Instant>>>,
     bad_backend_ttl: Duration,
+    remote: Option<Arc<RemoteDispatcher>>,
 }
 
 impl SessionManager {
@@ -828,7 +939,18 @@ impl SessionManager {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             bad_backends: Arc::new(RwLock::new(HashMap::new())),
             bad_backend_ttl: Duration::from_secs(600),
+            remote: None,
         })
+    }
+
+    /// Offload eligible video encodes to paired transcode workers.
+    pub fn with_remote(mut self, remote: Arc<RemoteDispatcher>) -> Self {
+        self.remote = Some(remote);
+        self
+    }
+
+    pub fn remote(&self) -> Option<&Arc<RemoteDispatcher>> {
+        self.remote.as_ref()
     }
 
     pub fn with_bad_backend_ttl(mut self, ttl: Duration) -> Self {
@@ -866,7 +988,7 @@ impl SessionManager {
             .read()
             .map(|m| {
                 m.values()
-                    .filter(|s| s.is_video_transcode)
+                    .filter(|s| s.is_video_transcode && !s.is_remote())
                     .map(|s| s.base_pipeline.output.renditions.len().max(1))
                     .sum::<usize>()
                     + self.live_video.load(Ordering::Acquire)
@@ -934,12 +1056,15 @@ impl SessionManager {
             if is_video_transcode {
                 let active_video = map
                     .values()
-                    .filter(|s| s.is_video_transcode)
+                    .filter(|s| s.is_video_transcode && !s.is_remote())
                     .map(|s| s.base_pipeline.output.renditions.len().max(1))
                     .sum::<usize>()
                     + self.live_video.load(Ordering::Acquire);
+                // A session a worker will encode does not need a local encoder slot. If the
+                // worker later fails, the session falls back locally even when that overshoots.
                 if active_video.saturating_add(req.pipeline.output.renditions.len().max(1))
                     > self.config.max_video_sessions
+                    && !self.remote.as_ref().is_some_and(|r| r.can_accept(&req.pipeline))
                 {
                     return Err(Error::Unavailable(format!(
                         "maximum concurrent video transcode sessions ({}) reached",
@@ -1015,6 +1140,8 @@ impl SessionManager {
             generated_playlist_start_ms: req.generated_playlist_start_ms,
             bad_backends: self.bad_backends.clone(),
             bad_backend_ttl: self.bad_backend_ttl,
+            remote: self.remote.clone(),
+            remote_active: AtomicBool::new(false),
             state: Mutex::new(SessionState {
                 closed: false,
                 child: None,
@@ -1030,6 +1157,10 @@ impl SessionManager {
                 last_requested_segment: initial_segment,
                 last_access: Instant::now(),
                 restart_count: 0,
+                remote_job: None,
+                remote_worker: None,
+                remote_disabled: false,
+                remote_failover: false,
             }),
         });
 

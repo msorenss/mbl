@@ -21,6 +21,22 @@ Every incoming request is categorized into one of four trust tiers based on sour
 ### Admin LAN-Only Policy
 By default, administrative endpoints (`/api/v1/users`, `/api/v1/settings`, `/api/v1/mcp`) and dangerous mutations are strictly barred on `Wan` connections unless explicitly relaxed by the admin with mandatory TOTP 2FA.
 
+## Network diagnostics
+
+**Administration → Remote access → Run diagnostics** checks, in order:
+
+| Check | What it does |
+|---|---|
+| Public address | Asks `api.ipify.org` which address the internet sees. This is the only outside service the diagnostic contacts, and only when an administrator runs it. |
+| Router | Asks the router for its WAN address over UPnP (IGD `GetExternalIPAddress`). A WAN address in `100.64.0.0/10`, or one that differs from the public address, means CGNAT or double NAT: port forwarding on your router cannot work. If UPnP is off, compare the WAN address on the router's admin page yourself. |
+| DNS | Resolves the certificate host names and the host in `server.public_url`, and compares them with the public address. A mismatch usually means the dynamic DNS client has not updated. |
+| HTTPS port | Connects to the public address on the HTTPS port. From inside the home network this needs NAT loopback on the router; if it fails, test from mobile data before concluding that the forward is missing. |
+| Port 80 | For Let's Encrypt certificates: renewal needs external port 80 forwarded to the server (port 8081, or through a reverse proxy). |
+| Certificate | HTTPS on, certificate present and days left. A local-CA certificate works but must be installed on every device outside the home. |
+| Tailscale | Whether Tailscale runs and the tailnet name of the server. |
+
+The result says *Reachable from the internet* only when the HTTPS port actually answered on the public address. The same report is available to AI agents through the MCP tool `run_reachability_test`.
+
 ## Fair WAN Bandwidth Sharing
 
 When external users stream simultaneously over WAN, MBL enforces a strict bandwidth cap (`wan_upload_limit_kbps`) with dynamic fair-share rebalancing. If upload bandwidth is saturated, active transcode streams are downgraded gracefully to prevent buffering for other users.

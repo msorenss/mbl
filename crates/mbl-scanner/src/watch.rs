@@ -154,7 +154,8 @@ impl LibraryWatcher {
     async fn load_roots(&self) -> mbl_core::Result<Vec<Root>> {
         let mut roots = Vec::new();
         for lib in LibrariesRepo::new(self.db.clone()).list().await? {
-            for path in lib.paths {
+            for path in lib.paths.into_iter().filter(|p| !p.starts_with(mbl_core::NODE_URI_SCHEME))
+            {
                 let p = path.clone();
                 let network = tokio::task::spawn_blocking(move || {
                     mbl_platform::netfs::is_network_path(Path::new(&p))

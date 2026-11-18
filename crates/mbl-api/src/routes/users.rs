@@ -230,5 +230,6 @@ pub(crate) async fn verify_pin(
     Path(id): Path<UserId>,
     Json(req): Json<VerifyPinRequest>,
 ) -> Result<Json<bool>, ApiError> {
+    state.pin_limiter.check(id.0)?;
     Ok(Json(state.services.users.verify_pin(&auth.actor, id, &req.pin).await?))
 }

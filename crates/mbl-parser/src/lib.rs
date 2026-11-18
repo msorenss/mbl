@@ -3,6 +3,9 @@
 //! Pure functions, no I/O. Paths may use `/` or `\` separators and may be absolute or relative to
 //! a library root; only the last few components are looked at.
 
+/// Filesystem walking (the only I/O here), shared by the scanner and storage nodes.
+pub mod walk;
+
 mod common;
 mod episode;
 mod extra;

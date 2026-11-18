@@ -848,24 +848,34 @@ expression: tools
   },
   {
     "name": "create_media_request",
-    "description": "Submit a user request for a missing movie or TV show via TMDB ID.",
+    "description": "Submit a user request for a missing movie or TV show (by TMDB ID) or a music artist or album (by MusicBrainz ID).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "artist": {
+          "description": "Artist name (album)",
+          "type": "string"
+        },
         "kind": {
           "description": "Media kind",
           "enum": [
             "movie",
-            "show"
+            "show",
+            "artist",
+            "album"
           ],
           "type": "string"
         },
+        "musicbrainz_id": {
+          "description": "MusicBrainz artist ID or release group ID (artist, album)",
+          "type": "string"
+        },
         "title": {
-          "description": "Media title",
+          "description": "Media title (artist name for an artist)",
           "type": "string"
         },
         "tmdb_id": {
-          "description": "TMDB numeric ID",
+          "description": "TMDB numeric ID (movie, show)",
           "type": "integer"
         },
         "year": {
@@ -875,7 +885,6 @@ expression: tools
       },
       "required": [
         "kind",
-        "tmdb_id",
         "title"
       ],
       "type": "object"

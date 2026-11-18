@@ -367,6 +367,11 @@ export function Workers() {
                 --base-url &lt;NODE_URL&gt;
               </code>
             </div>
+            <p class="text-xs text-gray-400">
+              Then share folders on the node with{" "}
+              <code>mbl-node library add --name Movies --kind movie --path &lt;FOLDER&gt;</code> and
+              start <code>mbl-node run</code>. Each folder appears here as a library.
+            </p>
 
             <div class="flex justify-end pt-2">
               <Button

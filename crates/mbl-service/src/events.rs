@@ -27,7 +27,11 @@ impl EventService {
             Event::JobUpdated { .. } => actor.is_admin,
             Event::ScanProgress { library_id, .. }
             | Event::LibraryUpdated { library_id }
-            | Event::LibraryUnavailable { library_id, .. } => actor.can_access_library(*library_id),
+            | Event::LibraryUnavailable { library_id, .. }
+            | Event::ScanCompleted { library_id, .. } => actor.can_access_library(*library_id),
+            Event::PlaybackStarted { user_id, .. } | Event::PlaybackStopped { user_id, .. } => {
+                actor.is_admin || actor.user_id == *user_id
+            }
             Event::ItemUpdated { item_id } => {
                 if actor.library_access == LibraryAccess::All {
                     return true;

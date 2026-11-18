@@ -1,21 +1,20 @@
 //! Remote Library Node API endpoints (M8.10, M8.11): pairing, status, catalog delta sync,
 //! and LAN direct play handover.
 
-use axum::extract::{ConnectInfo, Path as AxumPath, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use mbl_core::{
     Error, ItemId, NodeCatalogSyncRequest, NodeCatalogSyncResponse, NodeHandoverResponse, NodeId,
-    NodePairRequest, NodePairResponse,
+    NodePairRequest, NodePairResponse, NodeProbeUpload, NodeProbeUploadResponse,
 };
 use mbl_db::repo::m8::{RemoteNodeLibraryRow, RemoteNodeRow};
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
 use utoipa::ToSchema;
 
 use crate::error::ApiError;
-use crate::extract::AuthUser;
+use crate::extract::{AuthUser, ClientNetwork};
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -31,7 +30,14 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/nodes/pair", post(pair_node))
         .route("/api/v1/nodes", get(list_nodes))
         .route("/api/v1/nodes/{id}", get(get_node).delete(delete_node))
-        .route("/api/v1/nodes/{id}/sync-catalog", post(sync_catalog))
+        .route(
+            "/api/v1/nodes/{id}/sync-catalog",
+            post(sync_catalog).layer(DefaultBodyLimit::max(64 * 1024 * 1024)),
+        )
+        .route(
+            "/api/v1/nodes/{id}/catalog/probes",
+            post(upload_probes).layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
         .route("/api/v1/nodes/{id}/libraries", get(list_libraries))
         .route("/api/v1/nodes/{id}/stream/handover/{itemId}", get(smart_handover))
 }
@@ -180,6 +186,37 @@ async fn list_libraries(
 }
 
 #[utoipa::path(
+    post,
+    path = "/api/v1/nodes/{id}/catalog/probes",
+    params(("id" = i64, Path)),
+    request_body = NodeProbeUpload,
+    responses(
+        (status = 200, description = "Probe results imported", body = NodeProbeUploadResponse),
+        (status = 401, description = "Unauthorized node"),
+        (status = 422, description = "Too many files"),
+    ),
+    security(("node_bearer_auth" = []))
+)]
+async fn upload_probes(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    AxumPath(id): AxumPath<NodeId>,
+    Json(upload): Json<NodeProbeUpload>,
+) -> Result<Json<NodeProbeUploadResponse>, ApiError> {
+    let auth_header = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .ok_or(Error::Unauthorized)?;
+    let node = state.services.nodes.authenticate(auth_header).await?;
+    if node.id != id {
+        return Err(Error::Unauthorized.into());
+    }
+    Ok(Json(state.services.nodes.upload_probes(id, upload).await?))
+}
+
+/// Where a signed-in client should play a node-hosted item from: a signed URL straight to the
+/// storage node on the local network, otherwise the server's own (relayed) stream URLs.
+#[utoipa::path(
     get,
     path = "/api/v1/nodes/{id}/stream/handover/{itemId}",
     params(
@@ -188,44 +225,22 @@ async fn list_libraries(
     ),
     responses(
         (status = 200, description = "Smart handover evaluation", body = NodeHandoverResponse),
-        (status = 404, description = "Node not found"),
+        (status = 404, description = "Item has no file on this node, or no access"),
     ),
     security(("bearer_auth" = []))
 )]
 async fn smart_handover(
-    auth: _AuthOrIp,
+    auth: AuthUser,
+    ClientNetwork(net): ClientNetwork,
     State(state): State<AppState>,
     AxumPath((id, item_id)): AxumPath<(NodeId, ItemId)>,
 ) -> Result<Json<NodeHandoverResponse>, ApiError> {
-    let handover = state.services.nodes.get_handover(id, item_id, auth.client_ip).await?;
-    Ok(Json(handover))
-}
-
-/// Helper extractor to obtain client IP address for handover decision
-pub struct _AuthOrIp {
-    pub client_ip: Option<std::net::IpAddr>,
-}
-
-impl<S> axum::extract::FromRequestParts<S> for _AuthOrIp
-where
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
-
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        let client_ip =
-            parts.extensions.get::<ConnectInfo<SocketAddr>>().map(|ci| ci.0.ip()).or_else(|| {
-                parts
-                    .headers
-                    .get("x-forwarded-for")
-                    .and_then(|h| h.to_str().ok())
-                    .and_then(|s| s.split(',').next())
-                    .and_then(|s| s.trim().parse().ok())
-            });
-
-        Ok(_AuthOrIp { client_ip })
+    for part in mbl_db::repo::media::parts_for_item(&state.db, item_id).await? {
+        if mbl_core::parse_node_path(&part.path).is_some_and(|(node, _, _)| node == id) {
+            let resolved = state.services.stream.resolve_part(&auth.actor, part.id).await?;
+            let path = resolved.path.to_string_lossy().into_owned();
+            return Ok(Json(state.services.nodes.handover(&path, net.is_lan()).await?));
+        }
     }
+    Err(Error::NotFound.into())
 }

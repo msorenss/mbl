@@ -127,6 +127,35 @@ impl StreamService {
         })
     }
 
+    /// FFmpeg input for a verified part path: the path itself, or a signed URL (valid 12 hours)
+    /// for files on a storage node.
+    pub async fn media_input(&self, path: &Path) -> Result<PathBuf> {
+        match path.to_str() {
+            Some(raw) if is_node_path(raw) => Ok(PathBuf::from(
+                crate::nodes::signed_node_file_url(&self.db, raw, 12 * 3600).await?,
+            )),
+            _ => Ok(path.to_path_buf()),
+        }
+    }
+
+    /// Serve a resolved part with Range support: from disk, or relayed from its storage node.
+    pub async fn serve_part(
+        &self,
+        part: &ResolvedPart,
+        range: Option<&str>,
+        head: bool,
+    ) -> Result<axum::response::Response> {
+        match part.path.to_str() {
+            Some(raw) if is_node_path(raw) => {
+                crate::nodes::relay_node_file(&self.db, raw, range, head).await
+            }
+            _ => {
+                mbl_stream::serve_direct_file(&part.path, part.container.as_deref(), range, head)
+                    .await
+            }
+        }
+    }
+
     /// Resolve, convert (if needed), and cache a subtitle stream (`.vtt` or `.ass`) for `part_id`.
     pub async fn resolve_subtitle(
         &self,
@@ -170,6 +199,7 @@ impl StreamService {
             }
             None => {
                 let media_path = verify_under_library_roots(&part.path, &lib.paths)?;
+                let media_path = self.media_input(&media_path).await?;
                 SubtitleSource::Embedded { media_path, stream_index, codec }
             }
         };
@@ -191,6 +221,16 @@ impl StreamService {
 
 /// Ensure `raw_path` contains no parent-directory traversal (`..`) and resolves inside one of `roots`.
 pub fn verify_under_library_roots(raw_path: &str, roots: &[String]) -> Result<PathBuf> {
+    // Storage-node files are addressed by URI; the node itself confines them to its folder.
+    if raw_path.starts_with(mbl_core::NODE_URI_SCHEME) {
+        let (node, library, _) = mbl_core::parse_node_path(raw_path).ok_or(Error::Forbidden)?;
+        let root = mbl_core::node_library_root(node, library);
+        if roots.contains(&root) {
+            return Ok(PathBuf::from(raw_path));
+        }
+        tracing::warn!(path = raw_path, "rejected storage-node path outside library roots");
+        return Err(Error::Forbidden);
+    }
     let raw = Path::new(raw_path);
     if !raw.is_absolute() || raw.components().any(|c| matches!(c, Component::ParentDir)) {
         tracing::warn!(path = raw_path, "rejected relative or parent-traversing media path");
@@ -234,6 +274,11 @@ fn path_starts_with(path: &Path, root: &Path) -> bool {
     } else {
         path.starts_with(root)
     }
+}
+
+/// Whether a part path points at a storage node.
+pub fn is_node_path(path: &str) -> bool {
+    path.starts_with(mbl_core::NODE_URI_SCHEME)
 }
 
 #[cfg(test)]

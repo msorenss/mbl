@@ -64,7 +64,8 @@ async fn stream_audio(
         );
     }
 
-    let args = build_audio_transcode_args(&resolved.path, codec, bitrate, seek);
+    let input = state.services.stream.media_input(&resolved.path).await?;
+    let args = build_audio_transcode_args(&input, codec, bitrate, seek);
 
     let ffmpeg_path = state.services.stream.ffmpeg_bin();
     let child = Command::new(ffmpeg_path)

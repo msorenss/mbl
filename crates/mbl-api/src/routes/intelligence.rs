@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/stream/trickplay/{partId}/index.json", get(trickplay_manifest))
         .route("/api/v1/stream/trickplay/{partId}/{sprite}", get(trickplay_sprite))
         .route("/api/v1/auth/quick-connect", post(quick_connect_init))
+        .route("/api/v1/auth/quick-connect/lookup", post(quick_connect_lookup))
         .route("/api/v1/auth/quick-connect/authorize", post(quick_connect_authorize))
         .route("/api/v1/auth/quick-connect/poll", post(quick_connect_poll))
         .route("/api/v1/items/{id}/index-scenes", post(index_item_scenes))
@@ -223,6 +224,22 @@ pub(crate) async fn quick_connect_init(
 ) -> Result<Json<QuickConnectInitResponse>, ApiError> {
     let res = state.services.intelligence.quick_connect_init(req).await?;
     Ok(Json(res))
+}
+
+/// Show which device waits behind a Quick-Connect code before approving it.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/quick-connect/lookup",
+    tag = "auth",
+    request_body = QuickConnectAuthorizeRequest,
+    responses((status = 200, body = mbl_service::QuickConnectPending), (status = 401), (status = 404))
+)]
+pub(crate) async fn quick_connect_lookup(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Json(req): Json<QuickConnectAuthorizeRequest>,
+) -> Result<Json<mbl_service::QuickConnectPending>, ApiError> {
+    Ok(Json(state.services.intelligence.quick_connect_lookup(&auth.actor, &req.code).await?))
 }
 
 /// Authorize a 6-digit Quick-Connect TV code using the caller's active session (M5.8).

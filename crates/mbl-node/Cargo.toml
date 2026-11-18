@@ -9,14 +9,24 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+axum.workspace = true
 clap.workspace = true
+dunce.workspace = true
+mbl-auth.workspace = true
 mbl-core.workspace = true
+mbl-parser.workspace = true
+mbl-probe.workspace = true
+mbl-stream.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
@@ -26,7 +36,7 @@ name = "mbl-node"
 maintainer = "MBL Contributors <dev@mbl.media>"
 copyright = "2026 MBL contributors"
 license-file = ["../../LICENSE", "4"]
-depends = "$auto"
+depends = "$auto, ffmpeg"
 section = "video"
 priority = "optional"
 extended-description = """\

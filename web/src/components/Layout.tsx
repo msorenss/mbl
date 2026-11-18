@@ -270,6 +270,12 @@ export function Layout(props: { children?: JSX.Element }) {
         onSelect: () => navigate("/account"),
       },
       {
+        id: "connect-device",
+        label: t("Sign in a device"),
+        icon: <AppIcon name="remote" size={18} />,
+        onSelect: () => navigate("/connect"),
+      },
+      {
         id: "appearance",
         label: `${t("appearance")} & ${t("theme")}`,
         icon: <AppIcon name="appearance" size={18} />,
@@ -1009,6 +1015,7 @@ export function Layout(props: { children?: JSX.Element }) {
                   { href: "/requests", icon: "requests", label: () => t("mediaRequests") },
                   { href: "/profiles", icon: "profiles", label: () => t("switchProfile") },
                   { href: "/account", icon: "account", label: () => t("accountSecurity") },
+                  { href: "/connect", icon: "remote", label: () => t("Sign in a device") },
                 ] as NavItemDef[]
               }
             >

@@ -120,16 +120,19 @@ pub struct UserProfileDto {
     pub display_name: String,
     pub is_admin: bool,
     pub has_pin: bool,
+    /// Managed profiles can be entered with their PIN; other accounts need their password.
+    pub is_managed: bool,
 }
 
-impl From<User> for UserProfileDto {
-    fn from(u: User) -> Self {
+impl From<(User, bool, bool)> for UserProfileDto {
+    fn from((u, is_managed, has_pin): (User, bool, bool)) -> Self {
         Self {
             id: u.id,
             username: u.username,
             display_name: u.display_name,
             is_admin: u.is_admin,
-            has_pin: false,
+            has_pin,
+            is_managed,
         }
     }
 }

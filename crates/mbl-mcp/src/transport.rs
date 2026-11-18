@@ -48,6 +48,8 @@ pub struct McpState {
     pub limiter: Arc<McpRateLimiter>,
     pub logs_dir: Option<Utf8PathBuf>,
     pub jobs: Option<JobQueue>,
+    /// Configured public URL, used for OAuth discovery links in authentication challenges.
+    pub public_url: String,
 }
 
 impl McpState {
@@ -63,7 +65,13 @@ impl McpState {
             limiter: Arc::new(McpRateLimiter::default()),
             logs_dir: None,
             jobs: None,
+            public_url: String::new(),
         }
+    }
+
+    pub fn with_public_url(mut self, public_url: impl Into<String>) -> Self {
+        self.public_url = public_url.into();
+        self
     }
 
     pub fn with_limiter(mut self, limiter: Arc<McpRateLimiter>) -> Self {
@@ -222,6 +230,30 @@ pub fn bearer_token(headers: &HeaderMap) -> Option<String> {
         .then(|| token.trim().to_owned())
 }
 
+/// `401` with a `WWW-Authenticate` challenge pointing at the OAuth protected-resource metadata.
+fn unauthorized(
+    state: &McpState,
+    headers: &HeaderMap,
+    extensions: &Extensions,
+    message: &str,
+) -> Response {
+    let mut response = json_status(
+        StatusCode::UNAUTHORIZED,
+        json!({ "error": { "code": "unauthorized", "message": message } }),
+    );
+    let challenge =
+        match mbl_service::http_base::request_base_url(headers, extensions, &state.public_url) {
+            Some(base) => {
+                format!("Bearer resource_metadata=\"{base}/.well-known/oauth-protected-resource\"")
+            }
+            None => "Bearer".to_owned(),
+        };
+    if let Ok(value) = header::HeaderValue::from_str(&challenge) {
+        response.headers_mut().insert(header::WWW_AUTHENTICATE, value);
+    }
+    response
+}
+
 fn check_guards(
     state: &McpState,
     headers: &HeaderMap,
@@ -236,12 +268,27 @@ fn check_guards(
     }
 
     let client_ip = extract_client_ip(headers, extensions);
-    let net_class = classify_ip(client_ip);
+    // Same classification as the REST API, including the server's own public address (a home
+    // device reaching MBL through its public hostname) counting as LAN.
+    let net_class = match mbl_remote::classify_client(client_ip) {
+        mbl_remote::NetworkClass::Lan => NetworkClass::Lan,
+        mbl_remote::NetworkClass::Tailnet => NetworkClass::Tailnet,
+        mbl_remote::NetworkClass::Wan => NetworkClass::Wan,
+    };
     if !cfg.allow_wan && net_class == NetworkClass::Wan {
         return Err(Box::new(json_status(
             StatusCode::FORBIDDEN,
             json!({ "error": { "code": "wan_forbidden", "message": "MCP is not allowed over WAN" } }),
         )));
+    }
+
+    // A non-browser client without credentials is told how to sign in (MCP authorization:
+    // 401 with the protected-resource metadata link) instead of a bare refusal.
+    if headers.get(header::ORIGIN).is_none()
+        && !has_bearer_token(headers)
+        && !has_session_cookie(headers)
+    {
+        return Err(Box::new(unauthorized(state, headers, extensions, "Authentication required")));
     }
 
     if !validate_origin(headers, &cfg.allowed_origins) {
@@ -257,14 +304,17 @@ fn check_guards(
 async fn resolve_or_anonymous_caller(
     state: &McpState,
     headers: &HeaderMap,
+    extensions: &Extensions,
     net_class: NetworkClass,
 ) -> std::result::Result<Caller, Box<Response>> {
     if has_bearer_token(headers) || has_session_cookie(headers) {
         match resolve_caller(&state.services, headers, net_class).await {
             Ok(caller) => Ok(caller),
-            Err(Error::Unauthorized) => Err(Box::new(json_status(
-                StatusCode::UNAUTHORIZED,
-                json!({ "error": { "code": "unauthorized", "message": "Invalid, expired, or revoked token" } }),
+            Err(Error::Unauthorized) => Err(Box::new(unauthorized(
+                state,
+                headers,
+                extensions,
+                "Invalid, expired, or revoked token",
             ))),
             Err(Error::Forbidden) => Err(Box::new(json_status(
                 StatusCode::FORBIDDEN,
@@ -298,10 +348,13 @@ async fn handle_post(State(state): State<McpState>, req: Request<Body>) -> Respo
         Err(resp) => return *resp,
     };
 
-    let caller = match resolve_or_anonymous_caller(&state, &parts.headers, net_class).await {
-        Ok(c) => c,
-        Err(resp) => return *resp,
-    };
+    let caller =
+        match resolve_or_anonymous_caller(&state, &parts.headers, &parts.extensions, net_class)
+            .await
+        {
+            Ok(c) => c,
+            Err(resp) => return *resp,
+        };
 
     let bytes: Bytes = match body.collect().await {
         Ok(collected) => collected.to_bytes(),

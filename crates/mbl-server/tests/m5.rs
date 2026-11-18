@@ -330,6 +330,26 @@ async fn m5_5_6_7_8_13_trickplay_markers_quick_connect_and_hailo_intelligence() 
     assert_eq!(qc_poll1.status, StatusCode::OK);
     assert_eq!(qc_poll1.body["authorized"], false);
 
+    let qc_lookup = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/quick-connect/lookup",
+            Some(&admin_session),
+            Some(json!({ "code": code })),
+        )
+        .await;
+    assert_eq!(qc_lookup.status, StatusCode::OK);
+    assert_eq!(qc_lookup.body["deviceName"], "Living Room Pi TV");
+    let qc_anon = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/quick-connect/lookup",
+            None,
+            Some(json!({ "code": code })),
+        )
+        .await;
+    assert_eq!(qc_anon.status, StatusCode::UNAUTHORIZED);
+
     let qc_auth = app
         .call(
             Method::POST,
@@ -350,7 +370,31 @@ async fn m5_5_6_7_8_13_trickplay_markers_quick_connect_and_hailo_intelligence() 
         .await;
     assert_eq!(qc_poll2.status, StatusCode::OK);
     assert_eq!(qc_poll2.body["authorized"], true);
-    assert!(qc_poll2.body["token"].as_str().unwrap().len() > 10);
+    let tv_token = qc_poll2.body["token"].as_str().unwrap().to_owned();
+    assert!(tv_token.len() > 10);
+    let me = app.call(Method::GET, "/api/v1/auth/me", Some(&tv_token), None).await;
+    assert_eq!(me.status, StatusCode::OK);
+
+    // The token is handed out once; the secret is useless afterwards.
+    let qc_poll3 = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/quick-connect/poll",
+            None,
+            Some(json!({ "secret": secret })),
+        )
+        .await;
+    assert_eq!(qc_poll3.status, StatusCode::NOT_FOUND);
+    // A used code cannot be approved again.
+    let qc_again = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/quick-connect/authorize",
+            Some(&admin_session),
+            Some(json!({ "code": code })),
+        )
+        .await;
+    assert_eq!(qc_again.status, StatusCode::NOT_FOUND);
 
     // --- M5.13 Hailo-10H AI Scene Search & Spoiler-Free Recap (REST + MCP) ---
     let idx_res = app

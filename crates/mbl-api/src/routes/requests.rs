@@ -2,10 +2,14 @@
 
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::StatusCode;
-use axum::routing::{get, patch};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use mbl_core::{ItemId, RequestId};
-use mbl_service::{CreateMediaRequest, MediaRequestRow, MissingEpisodeInfo, StorageHardlinkReport};
+use mbl_service::{
+    ArrConnectionReport, ArrKind, ArrSettings, CreateMediaRequest, MediaRequestRow,
+    MissingEpisodeInfo, MusicSearchHit, StorageHardlinkReport, TestArrConnection,
+    UpdateArrSettings,
+};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use utoipa::ToSchema;
@@ -13,6 +17,12 @@ use utoipa::ToSchema;
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::state::AppState;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MusicSearchQuery {
+    pub query: String,
+    pub kind: String,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListRequestsQuery {
@@ -32,6 +42,107 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/requests/{id}/status", patch(update_request_status))
         .route("/api/v1/requests/missing-episodes/{showId}", get(inspect_missing_episodes))
         .route("/api/v1/requests/hardlink-analysis", get(analyze_hardlinks))
+        .route("/api/v1/requests/arr/{service}", get(get_arr_settings).put(update_arr_settings))
+        .route("/api/v1/requests/arr/{service}/test", post(test_arr_connection))
+        .route("/api/v1/requests/music/search", get(search_music))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/requests/music/search",
+    params(
+        ("query" = String, Query, description = "Artist or album name"),
+        ("kind" = String, Query, description = "artist or album")
+    ),
+    responses(
+        (status = 200, description = "Artists or albums found through Lidarr", body = Vec<MusicSearchHit>),
+        (status = 503, description = "Lidarr is not connected or did not answer")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn search_music(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Query(q): Query<MusicSearchQuery>,
+) -> Result<Json<Vec<MusicSearchHit>>, ApiError> {
+    Ok(Json(state.services.requests.arr.search_music(&auth.actor, &q.kind, &q.query).await?))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/requests/arr/{service}",
+    params(("service" = String, Path, description = "radarr, sonarr or lidarr")),
+    responses(
+        (status = 200, description = "Download service settings (the API key is never returned)", body = ArrSettings),
+        (status = 403, description = "Admin required")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn get_arr_settings(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(service): AxumPath<String>,
+) -> Result<Json<ArrSettings>, ApiError> {
+    let kind = ArrKind::parse(&service)?;
+    Ok(Json(state.services.requests.arr.get_settings(&auth.actor, kind).await?))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v1/requests/arr/{service}",
+    params(("service" = String, Path, description = "radarr, sonarr or lidarr")),
+    request_body = UpdateArrSettings,
+    responses(
+        (status = 200, description = "Settings saved", body = ArrSettings),
+        (status = 422, description = "Missing address, key, root folder or quality profile")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn update_arr_settings(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(service): AxumPath<String>,
+    Json(body): Json<UpdateArrSettings>,
+) -> Result<Json<ArrSettings>, ApiError> {
+    let kind = ArrKind::parse(&service)?;
+    let result = state.services.requests.arr.update_settings(&auth.actor, kind, body).await;
+    if let Err(e) = &result {
+        tracing::warn!(
+            service = kind.name(),
+            failure = e.code(),
+            "download service settings not saved"
+        );
+    }
+    Ok(Json(result?))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/requests/arr/{service}/test",
+    params(("service" = String, Path, description = "radarr, sonarr or lidarr")),
+    request_body = TestArrConnection,
+    responses(
+        (status = 200, description = "Connected; lists root folders and quality profiles", body = ArrConnectionReport),
+        (status = 503, description = "The service did not answer or rejected the key")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn test_arr_connection(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(service): AxumPath<String>,
+    Json(body): Json<TestArrConnection>,
+) -> Result<Json<ArrConnectionReport>, ApiError> {
+    let kind = ArrKind::parse(&service)?;
+    let result = state.services.requests.arr.test_connection(&auth.actor, kind, body).await;
+    if let Err(e) = &result {
+        tracing::warn!(
+            service = kind.name(),
+            failure = e.code(),
+            "download service connection test failed"
+        );
+    }
+    Ok(Json(result?))
 }
 
 #[utoipa::path(
@@ -80,8 +191,9 @@ async fn create_request(
     ),
     request_body = UpdateRequestStatusInput,
     responses(
-        (status = 204, description = "Request status updated"),
-        (status = 403, description = "Admin required")
+        (status = 204, description = "Request status updated; approving adds the title to Radarr/Sonarr when turned on"),
+        (status = 403, description = "Admin required"),
+        (status = 503, description = "Radarr/Sonarr did not add the title; the status is unchanged")
     ),
     security(("bearer_auth" = []))
 )]

@@ -2,7 +2,7 @@
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::{get, patch};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use mbl_core::WebhookId;
 use mbl_service::{CreateWebhookRequest, WebhookRow};
@@ -23,6 +23,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/v1/webhooks", get(list_webhooks).post(create_webhook))
         .route("/api/v1/webhooks/{id}", patch(toggle_webhook).delete(delete_webhook))
+        .route("/api/v1/webhooks/{id}/test", post(test_webhook))
 }
 
 #[utoipa::path(
@@ -103,4 +104,23 @@ async fn delete_webhook(
 ) -> Result<StatusCode, ApiError> {
     state.services.webhooks.delete_webhook(&auth.actor, WebhookId(id)).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/webhooks/{id}/test",
+    params(("id" = i64, Path, description = "Webhook ID")),
+    responses(
+        (status = 200, description = "Delivery result of a test event", body = mbl_service::WebhookTestResult),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Unknown webhook")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn test_webhook(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<mbl_service::WebhookTestResult>, ApiError> {
+    Ok(Json(state.services.webhooks.test_webhook(&auth.actor, WebhookId(id)).await?))
 }

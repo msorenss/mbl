@@ -24,22 +24,22 @@ MBL implements RFC 7636 Proof Key for Code Exchange (PKCE) with SHA-256 challeng
 - Dynamic Client Registration: `POST /oauth/register`
 - Interactive User Consent & Token Exchange: `POST /oauth/token`
 
-## Connecting Claude Desktop
+The metadata documents contain absolute URLs. MBL builds them from `server.public_url` when it is set, otherwise from the address the client used. A request to `/mcp` without credentials, or with an invalid token, is answered with `401` and `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"`, so MCP clients that support OAuth can start the sign-in flow on their own. Set `server.public_url` when MBL runs behind a reverse proxy, so the URLs point to the public address.
 
-Add MBL to your `claude_desktop_config.json`:
+## Connecting Claude Desktop and other stdio clients
+
+Clients that start a local program use `mbl-cli`, which is installed next to `mbl-server` (`/usr/bin/mbl-cli` in the Debian package, `C:\Program Files\MBL\bin\mbl-cli.exe` in the Windows installer). Create a token under **Administration → AI Agents**; the wizard shows the finished configuration. For Claude Desktop, `claude_desktop_config.json` looks like this:
 
 ```json
 {
   "mcpServers": {
     "mbl": {
-      "command": "mbl-mcp",
-      "args": [
-        "--server", "http://localhost:8420",
-        "--token", "mbl_sec_admin_token_here"
-      ]
+      "command": "mbl-cli",
+      "args": ["mcp", "--server", "http://192.168.1.50:8420"],
+      "env": { "MBL_TOKEN": "mbl_…" }
     }
   }
 }
 ```
 
-Or connect directly via Server-Sent Events (SSE) or WebSocket streaming endpoints.
+Clients that speak Streamable HTTP (Cursor, VS Code) connect directly to `http://<server>:8420/mcp` with the header `Authorization: Bearer <token>`.

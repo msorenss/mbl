@@ -5,14 +5,17 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use camino::Utf8PathBuf;
 use mbl_auth::{
     WorkerSourceTokenClaims, hash_token, sign_worker_source_token, verify_worker_source_token,
 };
 use mbl_core::{
-    Actor, Error, PartId, Result, WorkerHeartbeat, WorkerId, WorkerPairRequest, WorkerPairResponse,
-    time::now_ms,
+    Actor, Error, PartId, Result, WorkerHeartbeat, WorkerId, WorkerJobReport, WorkerPairRequest,
+    WorkerPairResponse, WorkerPollRequest, WorkerPollResponse, time::now_ms,
 };
+use mbl_transcode::RemoteDispatcher;
+
+/// Largest single file a worker may upload.
+pub const MAX_WORKER_UPLOAD_BYTES: usize = mbl_transcode::remote::MAX_UPLOAD_BYTES;
 use mbl_db::Db;
 use mbl_db::repo::m8::{self, WorkerRow};
 use serde::{Deserialize, Serialize};
@@ -33,18 +36,18 @@ pub struct WorkerBatchEstimate {
 pub struct WorkerService {
     db: Arc<Db>,
     stream_secret: [u8; 32],
-    transcode_dir: Utf8PathBuf,
+    dispatcher: Option<Arc<RemoteDispatcher>>,
 }
 
 impl WorkerService {
     pub fn new(db: Arc<Db>) -> Self {
-        let transcode_dir =
-            std::env::var("MBL_TRANSCODE_DIR").map(Utf8PathBuf::from).unwrap_or_else(|_| {
-                Utf8PathBuf::from_path_buf(std::env::temp_dir().join("mbl_transcode"))
-                    .unwrap_or_else(|_| Utf8PathBuf::from("/tmp/mbl_transcode"))
-            });
-
-        Self { db, stream_secret: [42u8; 32], transcode_dir }
+        // Source tokens only need to outlive the running process, so a fresh random key per
+        // start is enough and never leaves the machine.
+        let mut stream_secret = [0u8; 32];
+        if let Err(error) = getrandom::fill(&mut stream_secret) {
+            tracing::error!(%error, "no randomness for worker source tokens; worker media access is disabled");
+        }
+        Self { db, stream_secret, dispatcher: None }
     }
 
     pub fn with_stream_secret(mut self, secret: [u8; 32]) -> Self {
@@ -52,9 +55,68 @@ impl WorkerService {
         self
     }
 
-    pub fn with_transcode_dir(mut self, dir: impl Into<Utf8PathBuf>) -> Self {
-        self.transcode_dir = dir.into();
+    /// Attach the job broker shared with the HLS session manager.
+    pub fn with_dispatcher(mut self, dispatcher: Arc<RemoteDispatcher>) -> Self {
+        self.dispatcher = Some(dispatcher);
         self
+    }
+
+    pub fn dispatcher(&self) -> Option<&Arc<RemoteDispatcher>> {
+        self.dispatcher.as_ref()
+    }
+
+    /// A signer for the dispatcher: source URLs live for 12 hours, long enough for one film.
+    pub fn source_signer(&self) -> mbl_transcode::SourceSigner {
+        let service = self.clone();
+        Arc::new(move |worker_id, part_id| {
+            service.generate_source_token(worker_id, part_id, 12 * 3600)
+        })
+    }
+
+    fn require_dispatcher(&self) -> Result<&Arc<RemoteDispatcher>> {
+        self.dispatcher.as_ref().ok_or_else(|| {
+            Error::Unavailable("transcode offload is not available on this server".into())
+        })
+    }
+
+    /// Long-poll for work: returns queued messages, or an empty list after `wait`.
+    pub async fn poll(
+        &self,
+        worker: &WorkerRow,
+        req: &WorkerPollRequest,
+        wait: std::time::Duration,
+    ) -> Result<WorkerPollResponse> {
+        let dispatcher = self.require_dispatcher()?;
+        let state = if req.paused { "paused_gaming" } else { "idle" };
+        m8::update_worker_heartbeat(&self.db, worker.id, state, now_ms()).await?;
+        let notify = dispatcher.register_poll(worker.id, req);
+        let notified = notify.notified();
+        let mut messages = dispatcher.take_messages(worker.id);
+        if messages.is_empty() {
+            let _ = tokio::time::timeout(wait, notified).await;
+            messages = dispatcher.take_messages(worker.id);
+        }
+        Ok(WorkerPollResponse { messages })
+    }
+
+    pub fn report_job(
+        &self,
+        worker: &WorkerRow,
+        job_id: &str,
+        report: &WorkerJobReport,
+    ) -> Result<()> {
+        self.require_dispatcher()?.report(worker.id, job_id, report)
+    }
+
+    pub async fn store_job_file(
+        &self,
+        worker: &WorkerRow,
+        job_id: &str,
+        rendition: &str,
+        filename: &str,
+        data: &[u8],
+    ) -> Result<()> {
+        self.require_dispatcher()?.store_upload(worker.id, job_id, rendition, filename, data).await
     }
 
     pub fn db(&self) -> &Db {
@@ -134,10 +196,17 @@ impl WorkerService {
 
     pub async fn delete_worker(&self, actor: &Actor, id: WorkerId) -> Result<bool> {
         actor.require_admin()?;
-        m8::delete_worker(&self.db, id).await
+        let deleted = m8::delete_worker(&self.db, id).await?;
+        if let Some(dispatcher) = &self.dispatcher {
+            dispatcher.remove_worker(id);
+        }
+        Ok(deleted)
     }
 
     pub async fn record_heartbeat(&self, heartbeat: WorkerHeartbeat) -> Result<()> {
+        if let Some(dispatcher) = &self.dispatcher {
+            dispatcher.touch(heartbeat.worker_id);
+        }
         m8::update_worker_heartbeat(
             &self.db,
             heartbeat.worker_id,
@@ -192,37 +261,6 @@ impl WorkerService {
     pub fn verify_source_token(&self, token: &str, part_id: PartId) -> Result<WorkerId> {
         let claims = verify_worker_source_token(&self.stream_secret, token, part_id, now_ms())?;
         Ok(claims.worker_id)
-    }
-
-    /// Save an uploaded segment chunk into the session transcode directory.
-    pub async fn store_segment(&self, session_id: &str, filename: &str, data: &[u8]) -> Result<()> {
-        if session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") {
-            return Err(Error::Validation("Invalid session ID".into()));
-        }
-        if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
-            return Err(Error::Validation("Invalid segment filename".into()));
-        }
-        if !filename.ends_with(".m4s")
-            && !filename.ends_with(".ts")
-            && !filename.ends_with(".mp4")
-            && !filename.ends_with(".m3u8")
-        {
-            return Err(Error::Validation(
-                "Segment filename must end with .m4s, .ts, .mp4, or .m3u8".into(),
-            ));
-        }
-
-        let session_dir = self.transcode_dir.join(session_id);
-        tokio::fs::create_dir_all(session_dir.as_std_path())
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to create transcode dir: {e}").into()))?;
-
-        let file_path = session_dir.join(filename);
-        tokio::fs::write(file_path.as_std_path(), data)
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to write segment file: {e}").into()))?;
-
-        Ok(())
     }
 
     /// Select an idle transcode worker for job dispatch.

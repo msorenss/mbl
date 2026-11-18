@@ -75,7 +75,8 @@ async fn origin_header_validation() {
     let res = app.send(req).await;
     assert_eq!(res.status, StatusCode::FORBIDDEN);
 
-    // 2. Request without Origin AND without Bearer token is rejected with 403.
+    // 2. Request without Origin AND without credentials gets a 401 challenge
+    //    pointing at the protected-resource metadata (MCP authorization spec).
     let req = Request::builder()
         .method(Method::POST)
         .uri("/mcp")
@@ -84,7 +85,25 @@ async fn origin_header_validation() {
         .body(Body::from(rpc_body.to_string()))
         .unwrap();
     let res = app.send(req).await;
-    assert_eq!(res.status, StatusCode::FORBIDDEN);
+    assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+    let challenge = res.headers[header::WWW_AUTHENTICATE].to_str().unwrap();
+    assert_eq!(
+        challenge,
+        "Bearer resource_metadata=\"http://localhost:8420/.well-known/oauth-protected-resource\""
+    );
+
+    // 2b. An invalid token gets the same challenge.
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/mcp")
+        .header(header::HOST, "localhost:8420")
+        .header(header::AUTHORIZATION, "Bearer mbl_not_a_real_token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(rpc_body.to_string()))
+        .unwrap();
+    let res = app.send(req).await;
+    assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+    assert!(res.headers.contains_key(header::WWW_AUTHENTICATE));
 
     // 3. Same-origin is allowed.
     let req = Request::builder()

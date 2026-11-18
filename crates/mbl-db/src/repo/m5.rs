@@ -88,6 +88,53 @@ pub struct MarkersRepo {
 }
 
 impl MarkersRepo {
+    /// Seasons (for episodes) and movies in a library with a local file that has not been
+    /// analysed for intro/credits yet. Returns `(item_id, kind)` with kind `season` or `movie`.
+    pub async fn pending_marker_analysis(
+        &self,
+        library_id: mbl_core::LibraryId,
+        limit: i64,
+    ) -> Result<Vec<(ItemId, String)>> {
+        let rows = sqlx::query(
+            "SELECT DISTINCT CASE WHEN i.kind = 'episode' THEN i.parent_id ELSE i.id END AS target,
+                    CASE WHEN i.kind = 'episode' THEN 'season' ELSE 'movie' END AS target_kind
+             FROM media_items i
+             JOIN media_versions v ON v.item_id = i.id
+             JOIN media_parts p ON p.version_id = v.id
+             LEFT JOIN marker_analysis a ON a.item_id = i.id AND a.part_id = p.id
+             WHERE i.library_id = ? AND i.kind IN ('episode', 'movie')
+               AND (i.kind = 'movie' OR i.parent_id IS NOT NULL)
+               AND p.missing_since IS NULL AND p.path NOT LIKE 'mblnode://%'
+               AND a.item_id IS NULL
+             ORDER BY target
+             LIMIT ?",
+        )
+        .bind(library_id.0)
+        .bind(limit)
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_err)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| (ItemId(r.get::<i64, _>("target")), r.get::<String, _>("target_kind")))
+            .collect())
+    }
+
+    /// Record that `item_id` was analysed with `part_id`.
+    pub async fn mark_analyzed(&self, item_id: ItemId, part_id: PartId, now: i64) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO marker_analysis (item_id, part_id, analyzed_at) VALUES (?, ?, ?)
+             ON CONFLICT(item_id) DO UPDATE SET part_id = excluded.part_id, analyzed_at = excluded.analyzed_at",
+        )
+        .bind(item_id.0)
+        .bind(part_id.0)
+        .bind(now)
+        .execute(&self.db.write)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
     pub fn new(db: Db) -> Self {
         Self { db }
     }
@@ -462,16 +509,16 @@ impl QuickConnectRepo {
         client_name: &str,
         now: i64,
         expires_at: i64,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         sqlx::query("DELETE FROM quick_connect_codes WHERE expires_at <= ?")
             .bind(now)
             .execute(&self.db.write)
             .await
             .map_err(db_err)?;
 
-        sqlx::query(
+        let inserted = sqlx::query(
             "INSERT INTO quick_connect_codes (code, secret, device_name, client_name, created_at, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(code) DO NOTHING",
         )
         .bind(code)
         .bind(secret)
@@ -482,7 +529,7 @@ impl QuickConnectRepo {
         .execute(&self.db.write)
         .await
         .map_err(db_err)?;
-        Ok(())
+        Ok(inserted.rows_affected() > 0)
     }
 
     pub async fn get_by_code(&self, code: &str, now: i64) -> Result<Option<QuickConnectRow>> {
@@ -508,20 +555,25 @@ impl QuickConnectRepo {
         }))
     }
 
-    pub async fn authorize(
-        &self,
-        code: &str,
-        user_id: UserId,
-        session_token: &str,
-        now: i64,
-    ) -> Result<bool> {
+    /// Number of codes waiting for approval (limits unauthenticated code creation).
+    pub async fn count_pending(&self, now: i64) -> Result<i64> {
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM quick_connect_codes WHERE expires_at > ? AND user_id IS NULL",
+        )
+        .bind(now)
+        .fetch_one(&self.db.read)
+        .await
+        .map_err(db_err)
+    }
+
+    /// Reserve a pending code for `user_id`. Returns `false` when it is unknown, expired or
+    /// already taken, so at most one approval creates a session.
+    pub async fn claim(&self, code: &str, user_id: UserId, now: i64) -> Result<bool> {
         let res = sqlx::query(
-            "UPDATE quick_connect_codes
-             SET user_id = ?, session_token = ?
+            "UPDATE quick_connect_codes SET user_id = ?
              WHERE code = ? AND expires_at > ? AND user_id IS NULL",
         )
         .bind(user_id.0)
-        .bind(session_token)
         .bind(code)
         .bind(now)
         .execute(&self.db.write)
@@ -530,21 +582,61 @@ impl QuickConnectRepo {
         Ok(res.rows_affected() > 0)
     }
 
+    /// Attach the session token after a successful claim.
+    pub async fn set_token(&self, code: &str, user_id: UserId, session_token: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE quick_connect_codes SET session_token = ?
+             WHERE code = ? AND user_id = ? AND session_token IS NULL",
+        )
+        .bind(session_token)
+        .bind(code)
+        .bind(user_id.0)
+        .execute(&self.db.write)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Release a claim whose session could not be created.
+    pub async fn release(&self, code: &str, user_id: UserId) -> Result<()> {
+        sqlx::query(
+            "UPDATE quick_connect_codes SET user_id = NULL
+             WHERE code = ? AND user_id = ? AND session_token IS NULL",
+        )
+        .bind(code)
+        .bind(user_id.0)
+        .execute(&self.db.write)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    /// Poll by secret. A row with a token is deleted in the same statement, so the token is
+    /// handed out exactly once.
     pub async fn poll_by_secret(&self, secret: &str, now: i64) -> Result<Option<QuickConnectRow>> {
-        let row = sqlx::query(
-            "SELECT code, secret, device_name, client_name, user_id, session_token, created_at, expires_at
-             FROM quick_connect_codes WHERE secret = ? AND expires_at > ?",
+        let delivered = sqlx::query(
+            "DELETE FROM quick_connect_codes
+             WHERE secret = ? AND expires_at > ? AND session_token IS NOT NULL
+             RETURNING code, secret, device_name, client_name, user_id, session_token, created_at, expires_at",
         )
         .bind(secret)
         .bind(now)
-        .fetch_optional(&self.db.read)
+        .fetch_optional(&self.db.write)
         .await
         .map_err(db_err)?;
-
-        let Some(r) = row else {
-            return Ok(None);
+        let row = match delivered {
+            Some(row) => Some(row),
+            None => sqlx::query(
+                "SELECT code, secret, device_name, client_name, user_id, session_token, created_at, expires_at
+                 FROM quick_connect_codes WHERE secret = ? AND expires_at > ?",
+            )
+            .bind(secret)
+            .bind(now)
+            .fetch_optional(&self.db.read)
+            .await
+            .map_err(db_err)?,
         };
-        let qc = QuickConnectRow {
+        Ok(row.map(|r| QuickConnectRow {
             code: r.get("code"),
             secret: r.get("secret"),
             device_name: r.get("device_name"),
@@ -553,18 +645,7 @@ impl QuickConnectRepo {
             session_token: r.get("session_token"),
             created_at: r.get("created_at"),
             expires_at: r.get("expires_at"),
-        };
-
-        // Once the TV client receives its session token, delete the one-time code row.
-        if qc.session_token.is_some() {
-            sqlx::query("DELETE FROM quick_connect_codes WHERE secret = ?")
-                .bind(secret)
-                .execute(&self.db.write)
-                .await
-                .map_err(db_err)?;
-        }
-
-        Ok(Some(qc))
+        }))
     }
 }
 

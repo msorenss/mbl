@@ -196,7 +196,10 @@ export default function UserPermissions(props: { user: components["schemas"]["Us
           <hr />
           <h3>Profile PIN</h3>
           <p>
-            {hasPin() ? "PIN is set." : "No PIN is set."} A PIN does not replace account sign-in.
+            {hasPin() ? "PIN is set." : "No PIN is set."}{" "}
+            {props.user.isAdmin
+              ? "Administrators always switch in with their password."
+              : "With a PIN, others on this device switch to the profile with the PIN instead of the password."}
           </p>
           <label for={`pin-${props.user.id}`}>New PIN</label>{" "}
           <input

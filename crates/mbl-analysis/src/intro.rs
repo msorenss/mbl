@@ -175,6 +175,7 @@ pub async fn fingerprint_media_file(
             std::ffi::OsString::from("s16le"),
             std::ffi::OsString::from("-"),
         ])
+        .kill_on_drop(true)
         .output()
         .await
         .map_err(Error::internal)?;

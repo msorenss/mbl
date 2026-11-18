@@ -3,16 +3,54 @@
 use serde::Serialize;
 use tokio::sync::broadcast;
 
-use crate::{ItemId, JobId, LibraryId};
+use crate::{ItemId, JobId, LibraryId, UserId};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "type", content = "data", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Event {
-    JobUpdated { job_id: JobId, kind: String, status: String, progress: f32 },
-    ScanProgress { library_id: LibraryId, scanned: u64, total: Option<u64>, done: bool },
-    LibraryUpdated { library_id: LibraryId },
-    LibraryUnavailable { library_id: LibraryId, path: String },
-    ItemUpdated { item_id: ItemId },
+    JobUpdated {
+        job_id: JobId,
+        kind: String,
+        status: String,
+        progress: f32,
+    },
+    ScanProgress {
+        library_id: LibraryId,
+        scanned: u64,
+        total: Option<u64>,
+        done: bool,
+    },
+    LibraryUpdated {
+        library_id: LibraryId,
+    },
+    LibraryUnavailable {
+        library_id: LibraryId,
+        path: String,
+    },
+    ItemUpdated {
+        item_id: ItemId,
+    },
+    /// A library scan finished; `added` counts new items.
+    ScanCompleted {
+        library_id: LibraryId,
+        added: u64,
+        missing: u64,
+    },
+    /// Playback was confirmed by the client's first progress report.
+    PlaybackStarted {
+        user_id: UserId,
+        item_id: ItemId,
+        session_id: String,
+    },
+    /// A confirmed playback session ended (stopped, expired or replaced).
+    PlaybackStopped {
+        user_id: UserId,
+        item_id: ItemId,
+        session_id: String,
+        position_ms: u64,
+        duration_ms: u64,
+        completed: bool,
+    },
 }
 
 /// Cheap-to-clone broadcast bus. Slow subscribers miss events rather than block publishers.

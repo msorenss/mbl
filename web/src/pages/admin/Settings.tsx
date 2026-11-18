@@ -6,6 +6,7 @@ import CastReceiverSettings from "../../components/CastReceiverSettings";
 import { RestartServerControl } from "../../components/RestartServerControl";
 import TlsSettings from "../../components/TlsSettings";
 import { Button } from "../../components/ui";
+import WebhookSettings from "../../components/WebhookSettings";
 import { useToast } from "../../context/ToastContext";
 import { useI18n } from "../../i18n";
 
@@ -707,6 +708,7 @@ export default function Settings() {
 
       {/* 1.5. HTTPS & TLS Certificates Section */}
       <TlsSettings />
+      <WebhookSettings />
 
       {/* 2. Library Scanning & Automation Section */}
       <div

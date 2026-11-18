@@ -1,11 +1,36 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import ArrSettings from "../components/ArrSettings";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
 type MediaRequest = components["schemas"]["MediaRequestRow"];
 type TmdbSearchHit = components["schemas"]["TmdbSearchHit"];
+type MusicSearchHit = components["schemas"]["MusicSearchHit"];
+
+const KIND_LABEL: Record<string, string> = {
+  movie: "Movie",
+  show: "TV Show",
+  artist: "Artist",
+  album: "Album",
+};
+
+const SERVICE: Record<string, string> = {
+  movie: "Radarr",
+  show: "Sonarr",
+  artist: "Lidarr",
+  album: "Lidarr",
+};
+
+const isMusicKind = (kind: string) => kind === "artist" || kind === "album";
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  declined: "Declined",
+  available: "Available",
+};
 
 export default function Requests() {
   const { user } = useAuth();
@@ -19,6 +44,10 @@ export default function Requests() {
   const [tmdb, setTmdb] = createSignal("");
   const [year, setYear] = createSignal("");
   const [searchResults, setSearchResults] = createSignal<TmdbSearchHit[]>([]);
+  const [musicResults, setMusicResults] = createSignal<MusicSearchHit[]>([]);
+  const [mbid, setMbid] = createSignal("");
+  const [artist, setArtist] = createSignal("");
+  const isMusic = () => isMusicKind(kind());
   const [searching, setSearching] = createSignal(false);
   const [selectedPoster, setSelectedPoster] = createSignal<string | null>(null);
 
@@ -67,6 +96,95 @@ export default function Requests() {
     }
   };
 
+  const findMusic = async (query: string) => {
+    const res = await client.GET("/api/v1/requests/music/search", {
+      params: { query: { query, kind: kind() } },
+    });
+    if (!res.data) {
+      const message = (res.error as { error?: { message?: string } } | undefined)?.error?.message;
+      throw new Error(message || "Music search failed.");
+    }
+    return res.data;
+  };
+
+  const searchMusic = async () => {
+    const q = title().trim();
+    if (!q) {
+      setError("Enter a name to search for.");
+      return;
+    }
+    setError("");
+    setSearching(true);
+    try {
+      const hits = await findMusic(q);
+      setMusicResults(hits);
+      if (hits.length === 0) setError("No matches found.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Music search failed.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectMusic = (hit: MusicSearchHit) => {
+    setTitle(hit.title);
+    setMbid(hit.musicbrainzId);
+    setArtist(hit.artist ?? "");
+    setYear(hit.year ? String(hit.year) : "");
+    setSelectedPoster(hit.imageUrl || null);
+    setMusicResults([]);
+    setError("");
+  };
+
+  const submitMusic = async () => {
+    let id = mbid();
+    // Without a picked result, use the best search match.
+    if (!id && title().trim()) {
+      setBusy(true);
+      try {
+        const hit = (await findMusic(title().trim()))[0];
+        if (hit) {
+          selectMusic(hit);
+          id = hit.musicbrainzId;
+        }
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Music search failed.");
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+    if (!title().trim() || !id) {
+      setError("Search for the artist or album and pick a match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await client.POST("/api/v1/requests", {
+        body: {
+          title: title().trim(),
+          kind: kind(),
+          musicbrainzId: id,
+          artist: artist() || undefined,
+          year: year().trim() ? Number(year()) : undefined,
+        },
+      });
+      if (result.error || !result.data)
+        throw new Error("Request could not be submitted. Your entries have been kept.");
+      setRequests((previous) => [result.data, ...previous]);
+      setTitle("");
+      setMbid("");
+      setArtist("");
+      setYear("");
+      setSelectedPoster(null);
+      setNotice("Request submitted for review.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Submission failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const selectHit = (hit: TmdbSearchHit) => {
     setTitle(hit.title);
     setTmdb(String(hit.id));
@@ -82,6 +200,10 @@ export default function Requests() {
     if (busy()) return;
     setError("");
     setNotice("");
+    if (isMusic()) {
+      await submitMusic();
+      return;
+    }
 
     let resolvedTmdb = tmdb().trim();
     let resolvedYear = year().trim();
@@ -157,9 +279,23 @@ export default function Requests() {
         params: { path: { id: request.id } },
         body: { status },
       });
-      if (result.error) throw new Error("Status could not be saved.");
-      setRequests((rows) => rows.map((row) => (row.id === request.id ? { ...row, status } : row)));
-      setNotice("Status saved.");
+      if (result.error) {
+        const message = (result.error as { error?: { message?: string } }).error?.message;
+        throw new Error(
+          message?.replace(/^(external service|validation|unavailable|conflict): /, "") ||
+            "Status could not be saved.",
+        );
+      }
+      await load();
+      const saved = requests().find((row) => row.id === request.id);
+      const service = SERVICE[request.kind] ?? "Radarr";
+      setNotice(
+        status !== "approved"
+          ? "Status saved."
+          : saved?.arrId
+            ? `"${request.title}" was sent to ${service}.`
+            : `Approved. Nothing was sent to ${service} because it is turned off.`,
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Status update failed.");
     } finally {
@@ -171,8 +307,9 @@ export default function Requests() {
     <div style={{ "max-width": "900px", margin: "0 auto", padding: "16px 0" }}>
       <h1 style={{ "margin-bottom": "6px" }}>Media Requests</h1>
       <p style={{ color: "var(--text-secondary)", "margin-bottom": "20px" }}>
-        Request a movie or TV show. Search TMDB directly by title or enter a known TMDB ID. Approval
-        records the decision for automated library acquisition.
+        Request a movie or TV show. Search TMDB directly by title or enter a known TMDB ID. When
+        Radarr, Sonarr or Lidarr is connected, approving a request starts the download. Music is
+        searched through Lidarr.
       </p>
 
       <form
@@ -207,7 +344,7 @@ export default function Requests() {
               disabled={busy() || searching()}
               value={title()}
               onInput={(event) => setTitle(event.currentTarget.value)}
-              placeholder="e.g. Inception or Severance"
+              placeholder={isMusic() ? "e.g. ABBA or Arrival" : "e.g. Inception or Severance"}
               style={{
                 flex: 1,
                 padding: "8px 12px",
@@ -222,9 +359,9 @@ export default function Requests() {
               variant="secondary"
               size="sm"
               disabled={busy() || searching() || !title().trim()}
-              onClick={searchTmdb}
+              onClick={() => (isMusic() ? searchMusic() : searchTmdb())}
             >
-              {searching() ? "Searching…" : "🔍 Search TMDB"}
+              {searching() ? "Searching…" : isMusic() ? "🔍 Search music" : "🔍 Search TMDB"}
             </Button>
           </div>
         </div>
@@ -296,6 +433,58 @@ export default function Requests() {
           </div>
         </Show>
 
+        <Show when={musicResults().length > 0}>
+          <div
+            style={{
+              background: "var(--bg-base)",
+              border: "1px solid var(--accent)",
+              "border-radius": "var(--radius-md)",
+              padding: "12px",
+              "max-height": "280px",
+              overflow: "auto",
+              display: "grid",
+              gap: "8px",
+            }}
+          >
+            <For each={musicResults()}>
+              {(hit) => (
+                <button
+                  type="button"
+                  onClick={() => selectMusic(hit)}
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    "align-items": "center",
+                    padding: "8px",
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    "border-radius": "var(--radius-sm)",
+                    cursor: "pointer",
+                    "text-align": "left",
+                  }}
+                >
+                  <Show when={hit.imageUrl}>
+                    <img
+                      src={hit.imageUrl!}
+                      alt=""
+                      style={{ width: "40px", height: "40px", "object-fit": "cover" }}
+                    />
+                  </Show>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ "font-weight": "600", "font-size": "13px" }}>
+                      {hit.title} {hit.year ? `(${hit.year})` : ""}
+                    </div>
+                    <div style={{ "font-size": "11px", color: "var(--text-muted)" }}>
+                      {hit.artist ?? KIND_LABEL[hit.kind]}
+                      <Show when={hit.inLidarr}> · In Lidarr</Show>
+                    </div>
+                  </div>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+
         <div
           style={{
             display: "grid",
@@ -319,7 +508,13 @@ export default function Requests() {
               id="request-kind"
               disabled={busy()}
               value={kind()}
-              onChange={(event) => setKind(event.currentTarget.value)}
+              onChange={(event) => {
+                setKind(event.currentTarget.value);
+                setMbid("");
+                setArtist("");
+                setSearchResults([]);
+                setMusicResults([]);
+              }}
               style={{
                 width: "100%",
                 padding: "8px 12px",
@@ -331,38 +526,54 @@ export default function Requests() {
             >
               <option value="movie">Movie</option>
               <option value="show">TV show</option>
+              <option value="artist">Artist</option>
+              <option value="album">Album</option>
             </select>
           </div>
 
-          <div>
-            <label
-              for="request-tmdb"
-              style={{
-                display: "block",
-                "font-weight": "600",
-                "font-size": "13px",
-                "margin-bottom": "6px",
-              }}
-            >
-              TMDB ID (optional if searching)
-            </label>
-            <input
-              id="request-tmdb"
-              inputmode="numeric"
-              disabled={busy()}
-              value={tmdb()}
-              onInput={(event) => setTmdb(event.currentTarget.value)}
-              placeholder="e.g. 157336"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                background: "var(--bg-base)",
-                border: "1px solid var(--border)",
-                "border-radius": "var(--radius-sm)",
-                color: "var(--text-primary)",
-              }}
-            />
-          </div>
+          <Show
+            when={!isMusic()}
+            fallback={
+              <div style={{ "font-size": "12px", color: "var(--text-muted)", "align-self": "end" }}>
+                <Show when={mbid()} fallback={"Search to pick the artist or album."}>
+                  <Show when={artist()}>
+                    <div>{artist()}</div>
+                  </Show>
+                  <div>{`MusicBrainz ID: ${mbid()}`}</div>
+                </Show>
+              </div>
+            }
+          >
+            <div>
+              <label
+                for="request-tmdb"
+                style={{
+                  display: "block",
+                  "font-weight": "600",
+                  "font-size": "13px",
+                  "margin-bottom": "6px",
+                }}
+              >
+                TMDB ID (optional if searching)
+              </label>
+              <input
+                id="request-tmdb"
+                inputmode="numeric"
+                disabled={busy()}
+                value={tmdb()}
+                onInput={(event) => setTmdb(event.currentTarget.value)}
+                placeholder="e.g. 157336"
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: "var(--bg-base)",
+                  border: "1px solid var(--border)",
+                  "border-radius": "var(--radius-sm)",
+                  color: "var(--text-primary)",
+                }}
+              />
+            </div>
+          </Show>
 
           <div>
             <label
@@ -420,6 +631,10 @@ export default function Requests() {
         </div>
       </form>
 
+      <Show when={user()?.isAdmin}>
+        <ArrSettings />
+      </Show>
+
       <Show when={error()}>
         <p role="alert" style={{ color: "var(--danger)", "margin-bottom": "14px" }}>
           {error()}
@@ -474,8 +689,13 @@ export default function Requests() {
                         "margin-top": "2px",
                       }}
                     >
-                      {request.kind === "show" ? "TV Show" : "Movie"} · TMDB ID: {request.tmdbId} ·
-                      Status:{" "}
+                      {KIND_LABEL[request.kind] ?? request.kind}
+                      {isMusicKind(request.kind)
+                        ? request.artist
+                          ? ` · ${request.artist}`
+                          : ""
+                        : ` · TMDB ID: ${request.tmdbId}`}{" "}
+                      · Status:{" "}
                       <span
                         style={{
                           "font-weight": "600",
@@ -487,12 +707,30 @@ export default function Requests() {
                                 : "var(--text-secondary)",
                         }}
                       >
-                        {request.status}
+                        {STATUS_LABEL[request.status] ?? request.status}
                       </span>
+                      <Show when={request.arrId}>
+                        {" · "}
+                        {`Sent to ${SERVICE[request.kind] ?? "Radarr"}`}
+                      </Show>
+                      <Show when={request.status === "approved" && !request.arrId}>
+                        {" · "}
+                        {`Not sent to ${SERVICE[request.kind] ?? "Radarr"}`}
+                      </Show>
                     </div>
                   </div>
                   <Show when={user()?.isAdmin}>
-                    <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap" }}>
+                      <Show when={request.status === "approved" && !request.arrId}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busy()}
+                          onClick={() => update(request, "approved")}
+                        >
+                          {`Send to ${SERVICE[request.kind] ?? "Radarr"}`}
+                        </Button>
+                      </Show>
                       <Button
                         size="sm"
                         variant="secondary"
@@ -500,6 +738,14 @@ export default function Requests() {
                         onClick={() => update(request, "approved")}
                       >
                         Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy() || request.status !== "pending"}
+                        onClick={() => update(request, "declined")}
+                      >
+                        Decline
                       </Button>
                       <Button
                         size="sm"

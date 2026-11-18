@@ -262,6 +262,45 @@ impl AuthService {
         Ok(LoginResult { token: token.value, session_id, user })
     }
 
+    /// Switch this device from the current session to a managed profile (Netflix-style).
+    ///
+    /// Only managed profiles can be entered this way, with their PIN when one is set; full
+    /// accounts sign in with their password. The current session ends, so switching back to a
+    /// parent account always needs that account's password.
+    pub async fn switch_profile(
+        &self,
+        current: &Authenticated,
+        target: UserId,
+        pin: Option<&str>,
+        device: &DeviceInfo,
+    ) -> Result<LoginResult> {
+        if target == current.actor.user_id {
+            return Err(Error::Validation("This profile is already active".into()));
+        }
+        let security =
+            m6::get_user_security_info(&self.db, target).await?.ok_or(Error::NotFound)?;
+        let user = self.users.get(target).await?.ok_or(Error::NotFound)?;
+        // Managed profiles switch freely or with their PIN. Other non-admin accounts can be
+        // reached with a PIN the administrator has set; administrators always use the password.
+        let pin_account = security.has_pin && !user.is_admin;
+        if !security.is_managed && !pin_account {
+            return Err(Error::Validation(
+                "This account signs in with its password, not a profile PIN".into(),
+            ));
+        }
+        if let Some(hash) = m6::get_user_pin_hash(&self.db, target).await? {
+            let candidate = pin.unwrap_or_default().to_owned();
+            let ok = blocking(move || Ok(mbl_auth::verify_pin(&candidate, &hash))).await?;
+            if !ok {
+                return Err(Error::Validation("Incorrect PIN".into()));
+            }
+        }
+        let result = self.start_session(user, device).await?;
+        self.sessions.delete(current.session_id).await?;
+        tracing::info!(from = %current.actor.user_id, to = %target, "profile switched");
+        Ok(result)
+    }
+
     /// Resolve a bearer/cookie session token to an actor. Expired or unknown tokens are `Unauthorized`.
     pub async fn authenticate(&self, token: &str) -> Result<Authenticated> {
         let hash = mbl_auth::hash_token(token);

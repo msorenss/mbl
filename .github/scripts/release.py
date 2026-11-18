@@ -113,7 +113,7 @@ def publish_tag():
 
 
 def verify_linux():
-    for name in ("mbl-server", "mbl-worker", "mbl-node"):
+    for name in ("mbl-server", "mbl-cli", "mbl-worker", "mbl-node"):
         binary = Path("target/release") / name
         output = subprocess.check_output(["readelf", "--version-info", str(binary)], text=True)
         versions = [tuple(map(int, v.split("."))) for v in re.findall(r"Name: GLIBC_(\d+(?:\.\d+)+)", output)]

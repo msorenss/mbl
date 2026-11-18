@@ -32,8 +32,11 @@ pub async fn execute(
             .online_history(&caller.actor)
             .await
             .map(|rows| CallToolResult::structured(&rows, "Personal online viewing history"))
-            .map_err(|_| {
-                JsonRpcError::forbidden("Online history is unavailable for this profile")
+            .map_err(|error| match error {
+                mbl_core::Error::Forbidden | mbl_core::Error::Unauthorized => {
+                    JsonRpcError::forbidden("Online history is unavailable for this profile")
+                }
+                other => JsonRpcError::forbidden(format!("Online history is unavailable: {other}")),
             });
     }
     let field = if name == "search_online_sources" { "query" } else { "url" };

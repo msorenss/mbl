@@ -530,7 +530,7 @@ impl PlaybackService {
             req.wait_for_ready && profile.is_cast() && matches!(decision.video, StreamAction::Copy);
         let (session_id, url, is_hls) = match decision.method {
             PlayMethod::DirectPlay => {
-                if req.wait_for_ready {
+                if req.wait_for_ready && !crate::stream::is_node_path(&part.path) {
                     let mut file = tokio::fs::File::open(&verified_path).await.map_err(|_| {
                         Error::Unavailable("media source could not be opened".into())
                     })?;
@@ -734,10 +734,18 @@ impl PlaybackService {
             if session.user_id != actor.user_id {
                 return Err(Error::NotFound);
             }
-            session.record_history |= req.state != PlaybackState::Buffering;
+            let confirmed_now = !session.record_history && req.state != PlaybackState::Buffering;
+            session.record_history |= confirmed_now;
             session.position_ms = req.position_ms;
             session.state = req.state;
             session.last_updated_at = now_ms();
+            if confirmed_now {
+                self.watch.events().publish(mbl_core::events::Event::PlaybackStarted {
+                    user_id: session.user_id,
+                    item_id: session.item_id,
+                    session_id: session_id.to_owned(),
+                });
+            }
             (session.item_id, session.duration_ms, session.marked_watched, session.record_history)
         };
 
@@ -841,6 +849,18 @@ impl PlaybackService {
             },
         )
         .await?;
+
+        let completed = session.marked_watched
+            || (session.duration_ms > 0
+                && final_pos.saturating_mul(10) >= session.duration_ms.saturating_mul(9));
+        self.watch.events().publish(mbl_core::events::Event::PlaybackStopped {
+            user_id: session.user_id,
+            item_id: session.item_id,
+            session_id: session.session_id.clone(),
+            position_ms: final_pos,
+            duration_ms: session.duration_ms,
+            completed,
+        });
 
         Ok(())
     }
@@ -1368,7 +1388,7 @@ impl PlaybackService {
             DEFAULT_SEGMENT_SECS,
             fast_start_segments,
         );
-        let input_utf8 = Utf8PathBuf::from_path_buf(verified_path.to_path_buf())
+        let input_utf8 = Utf8PathBuf::from_path_buf(self.stream.media_input(verified_path).await?)
             .map_err(|_| Error::Validation("media path is not valid UTF-8".into()))?;
 
         let pipeline = Pipeline {

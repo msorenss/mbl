@@ -92,13 +92,13 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb
-      - run: cargo build --release -p mbl-server -p mbl-worker -p mbl-node
+      - run: cargo build --release -p mbl-server -p mbl-cli -p mbl-worker -p mbl-node
       - run: cargo deb --no-build -p mbl-server
       - run: cargo deb --no-build -p mbl-worker
       - run: cargo deb --no-build -p mbl-node
       - name: Package standalone Linux x86_64 tarballs
         run: |
-          tar -czvf target/debian/mbl-linux-x86_64.tar.gz -C target/release mbl-server mbl-worker mbl-node -C "$GITHUB_WORKSPACE/packaging/linux" README.txt -C "$GITHUB_WORKSPACE" LICENSE
+          tar -czvf target/debian/mbl-linux-x86_64.tar.gz -C target/release mbl-server mbl-cli mbl-worker mbl-node -C "$GITHUB_WORKSPACE/packaging/linux" README.txt -C "$GITHUB_WORKSPACE" LICENSE
           tar -czvf target/debian/mbl-worker-linux-x86_64.tar.gz -C target/release mbl-worker
           tar -czvf target/debian/mbl-node-linux-x86_64.tar.gz -C target/release mbl-node
       - name: Verify Debian binaries
@@ -108,7 +108,7 @@ jobs:
             test "$(dpkg-deb --field "$package" Architecture)" = "$(dpkg --print-architecture)"
           done
           python3 .github/scripts/release.py verify-linux
-          dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server
+          dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server ./usr/bin/mbl-cli
           dpkg-deb --fsys-tarfile target/debian/mbl-worker_*.deb | tar -tf - ./usr/bin/mbl-worker
           dpkg-deb --fsys-tarfile target/debian/mbl-node_*.deb | tar -tf - ./usr/bin/mbl-node
       - uses: actions/upload-artifact@v4
@@ -156,13 +156,13 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-deb
-      - run: cargo build --release -p mbl-server -p mbl-worker -p mbl-node
+      - run: cargo build --release -p mbl-server -p mbl-cli -p mbl-worker -p mbl-node
       - run: cargo deb --no-build -p mbl-server
       - run: cargo deb --no-build -p mbl-worker
       - run: cargo deb --no-build -p mbl-node
       - name: Package standalone Linux arm64 tarballs
         run: |
-          tar -czvf target/debian/mbl-linux-arm64.tar.gz -C target/release mbl-server mbl-worker mbl-node -C "$GITHUB_WORKSPACE/packaging/linux" README.txt -C "$GITHUB_WORKSPACE" LICENSE
+          tar -czvf target/debian/mbl-linux-arm64.tar.gz -C target/release mbl-server mbl-cli mbl-worker mbl-node -C "$GITHUB_WORKSPACE/packaging/linux" README.txt -C "$GITHUB_WORKSPACE" LICENSE
           tar -czvf target/debian/mbl-worker-linux-arm64.tar.gz -C target/release mbl-worker
           tar -czvf target/debian/mbl-node-linux-arm64.tar.gz -C target/release mbl-node
       - name: Verify Debian binaries
@@ -172,7 +172,7 @@ jobs:
             test "$(dpkg-deb --field "$package" Architecture)" = "$(dpkg --print-architecture)"
           done
           python3 .github/scripts/release.py verify-linux
-          dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server
+          dpkg-deb --fsys-tarfile target/debian/mbl_*.deb | tar -tf - ./usr/bin/mbl-server ./usr/bin/mbl-cli
           dpkg-deb --fsys-tarfile target/debian/mbl-worker_*.deb | tar -tf - ./usr/bin/mbl-worker
           dpkg-deb --fsys-tarfile target/debian/mbl-node_*.deb | tar -tf - ./usr/bin/mbl-node
       - uses: actions/upload-artifact@v4
@@ -205,7 +205,7 @@ jobs:
         with:
           toolchain: "1.99.1"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p mbl-server -p mbl-tv -p mbl-worker -p mbl-node
+      - run: cargo build --release -p mbl-server -p mbl-cli -p mbl-tv -p mbl-worker -p mbl-node
       - name: Build MSI Installer and Package Windows Zips
         shell: pwsh
         run: |
@@ -225,6 +225,7 @@ jobs:
           $zipName = "mbl-$rawTag-windows-x86_64.zip"
           $zipFiles = @(
             "staging\mbl-server.exe",
+            "staging\mbl-cli.exe",
             "staging\mbl-tv.exe",
             "staging\mbl-worker.exe",
             "staging\mbl-node.exe",
@@ -249,6 +250,8 @@ jobs:
           # Package Standalone Node ZIP
           $nodeFiles = @(
             "staging\mbl-node.exe",
+            "staging\ffmpeg.exe",
+            "staging\ffprobe.exe",
             "packaging\windows\README-node.txt",
             "staging\LICENSE.txt"
           )

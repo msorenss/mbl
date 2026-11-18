@@ -1,19 +1,23 @@
 [Unit]
-Description=MBL Federated Storage Node
-After=network.target
+Description=MBL Storage Node
+Documentation=https://github.com/msorenss/mbl/blob/main/docs/book/src/distributed-workers.md
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
+# Pair once:  sudo -u mbl mbl-node --config /var/lib/mbl-node/node.json pair --server ... --code ... --base-url ...
+# Share:      sudo -u mbl mbl-node --config /var/lib/mbl-node/node.json library add --name Movies --kind movie --path /srv/movies
 User=mbl
 Group=mbl
-ExecStart=/usr/bin/mbl-node run
+StateDirectory=mbl-node
+ExecStart=/usr/bin/mbl-node --config /var/lib/mbl-node/node.json run
 Restart=on-failure
-RestartSec=5s
+RestartSec=10s
 
-# Security hardening
+# The node only reads media; it writes nothing but its own state.
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/mbl-node
 NoNewPrivileges=true
 PrivateTmp=true
 

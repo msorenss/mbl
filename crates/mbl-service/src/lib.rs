@@ -3,6 +3,7 @@
 //! Every method takes the acting [`Actor`](mbl_core::Actor) (or is explicitly pre-auth) and
 //! performs its own permission checks; adapters never authorize on their own.
 
+pub mod arr;
 pub mod auth;
 pub mod certificates;
 pub mod collections;
@@ -10,6 +11,7 @@ pub mod companion;
 pub mod downloads;
 mod dvr;
 pub mod events;
+pub mod http_base;
 pub mod hw;
 pub mod images;
 pub mod import;
@@ -27,6 +29,7 @@ pub mod playback;
 pub mod players;
 pub mod plugins;
 pub mod remote;
+pub mod remote_probe;
 pub mod requests;
 pub mod server_id;
 pub mod stream;
@@ -61,10 +64,11 @@ pub use import::{
     PlexImportRequest,
 };
 pub use intelligence::{
-    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, MediaIntelligenceService,
-    OptimizeJobHandler, QuickConnectAuthorizeRequest, QuickConnectInitRequest,
-    QuickConnectInitResponse, QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput,
-    SceneSearchHit, SystemHealthReport, TrickplayJobHandler,
+    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, MarkerAnalysisJobHandler,
+    MediaIntelligenceService, OptimizeJobHandler, QuickConnectAuthorizeRequest,
+    QuickConnectInitRequest, QuickConnectInitResponse, QuickConnectPending,
+    QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput, SceneSearchHit,
+    SystemHealthReport, TrickplayJobHandler,
 };
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
@@ -88,6 +92,10 @@ pub use playback::{
 pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
 pub use plugins::PluginService;
 pub mod online;
+pub use arr::{
+    ArrConnectionReport, ArrKind, ArrOption, ArrService, ArrSettings, MusicSearchHit,
+    TestArrConnection, UpdateArrSettings,
+};
 pub use lyrics::{LyricLine, LyricsResponse, LyricsSource};
 pub use online::OnlineService;
 pub use remote::{
@@ -106,7 +114,7 @@ pub use watch::{
     ProgressSyncEntry, ProgressSyncOutcome, ProgressSyncRequest, ProgressSyncResponse,
     ProgressSyncResult, WatchService, is_resume_threshold, is_watched_threshold,
 };
-pub use webhooks::{CreateWebhookRequest, WebhookRow, WebhookService};
+pub use webhooks::{CreateWebhookRequest, WebhookRow, WebhookService, WebhookTestResult};
 pub use workers::{WorkerBatchEstimate, WorkerService};
 
 /// All application services, cheap to clone.
@@ -226,8 +234,7 @@ impl Services {
     }
 
     pub fn with_tailscale_client(mut self, client: Arc<mbl_remote::TailscaleClient>) -> Self {
-        self.remote =
-            RemoteService::new(self.remote.db().clone(), client, self.remote.bandwidth().clone());
+        self.remote = self.remote.with_tailscale(client);
         self
     }
 }

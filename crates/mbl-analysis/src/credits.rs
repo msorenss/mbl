@@ -185,6 +185,7 @@ pub async fn run_credits_detection(
             std::ffi::OsString::from("null"),
             std::ffi::OsString::from("-"),
         ])
+        .kill_on_drop(true)
         .output()
         .await
         .map_err(Error::internal)?;

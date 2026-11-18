@@ -613,8 +613,14 @@ async fn m6_17_oauth21_code_flow_with_pkce() {
     // 1. Metadata endpoints
     let meta = app.call(Method::GET, "/.well-known/oauth-authorization-server", None, None).await;
     assert_eq!(meta.status, StatusCode::OK);
-    assert_eq!(meta.body["authorization_endpoint"], "/oauth/authorize");
-    assert_eq!(meta.body["token_endpoint"], "/oauth/token");
+    // Endpoints are absolute URLs (RFC 8414), derived from the request.
+    let issuer = meta.body["issuer"].as_str().unwrap();
+    assert!(issuer.starts_with("http://"), "issuer must be absolute: {issuer}");
+    assert_eq!(meta.body["authorization_endpoint"], format!("{issuer}/oauth/authorize"));
+    assert_eq!(meta.body["token_endpoint"], format!("{issuer}/oauth/token"));
+    let resource = app.call(Method::GET, "/.well-known/oauth-protected-resource", None, None).await;
+    assert_eq!(resource.status, StatusCode::OK);
+    assert_eq!(resource.body["resource"], format!("{issuer}/mcp"));
 
     // 2. Dynamic client registration
     let res = app
@@ -770,8 +776,16 @@ async fn m6_15_and_16_mcp_mutations_and_tools() {
     let res = client.call_tool("get_remote_access_status", json!({})).await.unwrap();
     assert!(!res.is_error);
 
-    let res = client.call_tool("run_reachability_test", json!({})).await.unwrap();
+    let res = client
+        .call_tool("run_reachability_test", json!({ "publicIpOverride": "203.0.113.7" }))
+        .await
+        .unwrap();
     assert!(!res.is_error);
+    let report = res.structured_content.unwrap();
+    assert_eq!(report["detectedPublicIp"], "203.0.113.7");
+    assert!(
+        report["checks"].as_array().is_some_and(|c| c.iter().any(|c| c["id"] == "certificate"))
+    );
 
     let res = client.call_tool("get_bandwidth_usage", json!({})).await.unwrap();
     assert!(!res.is_error);
@@ -818,4 +832,161 @@ async fn m6_15_and_16_mcp_mutations_and_tools() {
         .unwrap()
         .unwrap();
     assert!(!rpc_res.result.unwrap()["messages"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn profile_switch_uses_pin_and_ends_previous_session() {
+    let app = TestApp::new().await;
+    let admin = app.setup_admin().await;
+    let admin_id = app.call(Method::GET, "/api/v1/auth/me", Some(&admin), None).await.body["id"]
+        .as_i64()
+        .unwrap();
+    let mut ids = Vec::new();
+    for name in ["kid_one", "kid_two"] {
+        let res = app
+            .call(
+                Method::POST,
+                "/api/v1/users",
+                Some(&admin),
+                Some(json!({ "username": name, "password": "Password123!", "isManaged": true })),
+            )
+            .await;
+        assert_eq!(res.status, StatusCode::CREATED);
+        ids.push(res.body["id"].as_i64().unwrap());
+    }
+    let res = app
+        .call(
+            Method::POST,
+            &format!("/api/v1/users/{}/pin", ids[0]),
+            Some(&admin),
+            Some(json!({ "pin": "4321" })),
+        )
+        .await;
+    assert!(res.status.is_success(), "{}", res.body);
+
+    // Wrong or missing PIN is rejected without ending the admin session.
+    for pin in [json!("1111"), serde_json::Value::Null] {
+        let res = app
+            .call(
+                Method::POST,
+                "/api/v1/auth/switch-profile",
+                Some(&admin),
+                Some(json!({ "userId": ids[0], "pin": pin })),
+            )
+            .await;
+        assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    assert_eq!(
+        app.call(Method::GET, "/api/v1/auth/me", Some(&admin), None).await.status,
+        StatusCode::OK
+    );
+
+    // Correct PIN: new session for the profile, the admin session ends.
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/switch-profile",
+            Some(&admin),
+            Some(json!({ "userId": ids[0], "pin": "4321" })),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK);
+    let kid = res.body["token"].as_str().unwrap().to_owned();
+    let me = app.call(Method::GET, "/api/v1/auth/me", Some(&kid), None).await;
+    assert_eq!(me.body["username"], "kid_one");
+    assert_eq!(
+        app.call(Method::GET, "/api/v1/auth/me", Some(&admin), None).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // A profile without PIN can be entered; a full account cannot.
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/switch-profile",
+            Some(&kid),
+            Some(json!({ "userId": admin_id })),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/switch-profile",
+            Some(&kid),
+            Some(json!({ "userId": ids[1] })),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK);
+    let kid_two = res.body["token"].as_str().unwrap().to_owned();
+
+    // PIN guessing is throttled per profile.
+    let mut limited = false;
+    for _ in 0..8 {
+        let res = app
+            .call(
+                Method::POST,
+                "/api/v1/auth/switch-profile",
+                Some(&kid_two),
+                Some(json!({ "userId": ids[0], "pin": "0000" })),
+            )
+            .await;
+        if res.status == StatusCode::TOO_MANY_REQUESTS {
+            limited = true;
+            break;
+        }
+    }
+    assert!(limited, "PIN attempts must be rate limited");
+
+    // A full (non-managed) account with a PIN is reached with that PIN; an admin with a PIN is not.
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/users",
+            Some(&kid_two),
+            Some(json!({ "username": "x", "password": "Password123!" })),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::FORBIDDEN);
+    let admin =
+        app.login("admin", "admin-password").await.body["token"].as_str().unwrap().to_owned();
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/users",
+            Some(&admin),
+            Some(json!({ "username": "partner", "password": "Password123!" })),
+        )
+        .await;
+    let partner = res.body["id"].as_i64().unwrap();
+    for id in [partner, admin_id] {
+        let res = app
+            .call(
+                Method::POST,
+                &format!("/api/v1/users/{id}/pin"),
+                Some(&admin),
+                Some(json!({ "pin": "2468" })),
+            )
+            .await;
+        assert!(res.status.is_success(), "{}", res.body);
+    }
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/switch-profile",
+            Some(&admin),
+            Some(json!({ "userId": partner, "pin": "2468" })),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let partner_token = res.body["token"].as_str().unwrap().to_owned();
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/auth/switch-profile",
+            Some(&partner_token),
+            Some(json!({ "userId": admin_id, "pin": "2468" })),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
 }

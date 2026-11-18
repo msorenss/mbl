@@ -48,8 +48,52 @@ impl LoginLimiter {
     }
 }
 
+/// Profile PIN attempts, keyed by the profile: 5 at once, then 10 per hour. A four-digit PIN
+/// would otherwise fall to guessing within a day at the login rate.
+pub struct PinLimiter {
+    by_profile: DefaultKeyedRateLimiter<i64>,
+}
+
+impl std::fmt::Debug for PinLimiter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PinLimiter").finish_non_exhaustive()
+    }
+}
+
+impl Default for PinLimiter {
+    fn default() -> Self {
+        let quota = Quota::per_hour(NonZeroU32::MIN.saturating_add(9))
+            .allow_burst(NonZeroU32::MIN.saturating_add(4));
+        Self { by_profile: RateLimiter::keyed(quota) }
+    }
+}
+
+impl PinLimiter {
+    pub fn check(&self, profile: i64) -> mbl_core::Result<()> {
+        if self.by_profile.len() > MAX_TRACKED_KEYS {
+            self.by_profile.retain_recent();
+        }
+        self.by_profile.check_key(&profile).map_err(|not_until| Error::RateLimited {
+            retry_after_secs: not_until
+                .wait_time_from(DefaultClock::default().now())
+                .as_secs()
+                .max(1),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn pin_attempts_are_limited_per_profile() {
+        let limiter = PinLimiter::default();
+        for _ in 0..5 {
+            limiter.check(7).unwrap();
+        }
+        assert!(matches!(limiter.check(7), Err(Error::RateLimited { .. })));
+        assert!(limiter.check(8).is_ok());
+    }
+
     use super::*;
 
     #[test]

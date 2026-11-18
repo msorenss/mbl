@@ -35,6 +35,36 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/auth/totp/disable", post(totp_disable))
         .route("/api/v1/auth/register-invite", post(register_invite))
         .route("/api/v1/auth/tailscale", post(login_tailscale))
+        .route("/api/v1/auth/switch-profile", post(switch_profile))
+}
+
+/// Switch to a managed profile.
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SwitchProfileRequest {
+    pub user_id: mbl_core::UserId,
+    /// Required when the profile has a PIN.
+    #[serde(default)]
+    pub pin: Option<String>,
+}
+
+/// Switch this device to a managed profile, using its PIN when one is set. Ends the current
+/// session; full accounts sign in with their password instead (422).
+#[utoipa::path(post, path = "/api/v1/auth/switch-profile", tag = "auth",
+    request_body = SwitchProfileRequest,
+    responses((status = 200, body = LoginResponse), (status = 422), (status = 429)))]
+async fn switch_profile(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    SecureCookies(secure): SecureCookies,
+    headers: HeaderMap,
+    Json(req): Json<SwitchProfileRequest>,
+) -> Result<Response, ApiError> {
+    state.pin_limiter.check(req.user_id.0)?;
+    let device = device_info(&headers, None, None);
+    let result =
+        state.services.auth.switch_profile(&auth, req.user_id, req.pin.as_deref(), &device).await?;
+    Ok(login_response(StatusCode::OK, result, secure))
 }
 
 /// Log in; returns a bearer token and sets the session cookie.

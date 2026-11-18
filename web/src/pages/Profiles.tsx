@@ -1,8 +1,8 @@
 import { useNavigate } from "@solidjs/router";
-import { createResource, For, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
-import { Button } from "../components/ui";
+import { Button, Dialog } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../i18n";
 
@@ -10,7 +10,11 @@ type UserProfileDto = components["schemas"]["UserProfileDto"];
 
 export function Profiles() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, switchProfile } = useAuth();
+  const [pinFor, setPinFor] = createSignal<UserProfileDto | null>(null);
+  const [pin, setPin] = createSignal("");
+  const [error, setError] = createSignal("");
+  const [busy, setBusy] = createSignal(false);
   const { t } = useI18n();
 
   const [profiles] = createResource(async () => {
@@ -28,18 +32,44 @@ export function Profiles() {
           displayName: cur.displayName,
           isAdmin: cur.isAdmin,
           hasPin: false,
+          isManaged: false,
         },
       ];
     }
     return [];
   });
 
+  const enter = async (p: UserProfileDto, code?: string) => {
+    setBusy(true);
+    setError("");
+    const failure = await switchProfile(p.id, code);
+    setBusy(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    setPinFor(null);
+    setPin("");
+    navigate("/", { replace: true });
+  };
+
   const handleSelectProfile = async (p: UserProfileDto) => {
     if (p.id === user()?.id) {
       navigate("/");
       return;
     }
-    // A PIN verification alone does not establish a session for another user.
+    // Managed profiles and non-admin accounts with a PIN switch without the password.
+    if (p.isManaged || (p.hasPin && !p.isAdmin)) {
+      setError("");
+      if (p.hasPin) {
+        setPin("");
+        setPinFor(p);
+      } else {
+        await enter(p);
+      }
+      return;
+    }
+    // Full accounts sign in with their own password.
     await logout();
     navigate(`/login?username=${encodeURIComponent(p.username)}`, { replace: true });
   };
@@ -156,6 +186,53 @@ export function Profiles() {
           }}
         </For>
       </div>
+
+      <Show when={error() && !pinFor()}>
+        <p role="alert" style={{ color: "var(--danger, #c0392b)" }}>
+          {error()}
+        </p>
+      </Show>
+      <Dialog
+        open={pinFor() !== null}
+        onOpenChange={(open) => {
+          if (!open) setPinFor(null);
+        }}
+        title={`Enter PIN for ${pinFor()?.displayName ?? ""}`}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const target = pinFor();
+            if (target) void enter(target, pin());
+          }}
+          style={{ display: "grid", gap: "12px" }}
+        >
+          <input
+            type="password"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-label="PIN"
+            maxLength={8}
+            required
+            value={pin()}
+            onInput={(e) => setPin(e.currentTarget.value.replace(/\D/g, ""))}
+            style={{ "font-size": "24px", "letter-spacing": "0.3em" }}
+          />
+          <Show when={error()}>
+            <p role="alert" style={{ margin: 0, color: "var(--danger, #c0392b)" }}>
+              {error()}
+            </p>
+          </Show>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Button type="submit" disabled={busy() || pin().length < 4}>
+              {busy() ? "Checking…" : "Switch profile"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setPinFor(null)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <Show when={user()?.isAdmin}>
         <Button variant="outline" size="md" onClick={() => navigate("/admin/users")}>

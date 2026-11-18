@@ -108,10 +108,7 @@ pub fn client_ip(parts_or_extensions: &axum::http::Extensions) -> String {
         .map_or_else(|| "unknown".to_owned(), |ci| ci.0.ip().to_string())
 }
 
-/// Marks a request that arrived on the server's own HTTPS listener. The listener adds it as a
-/// request extension; the plain HTTP listener never does.
-#[derive(Debug, Clone, Copy)]
-pub struct SecureTransport;
+pub use mbl_service::http_base::SecureTransport;
 
 /// Whether a session cookie set by this response must carry `Secure`.
 ///

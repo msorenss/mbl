@@ -6,7 +6,6 @@
 
 mod hash;
 pub mod subtitles;
-mod walk;
 pub mod watch;
 mod write;
 
@@ -26,7 +25,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-pub use walk::{AUDIO_EXTS, FoundFile, VIDEO_EXTS};
+pub use mbl_parser::walk::{self, AUDIO_EXTS, FoundFile, VIDEO_EXTS};
 pub use watch::{LibraryWatcher, WatchConfig};
 pub use write::sort_title;
 
@@ -48,6 +47,25 @@ pub struct ScanStats {
     pub new_items: usize,
     pub unavailable_roots: Vec<String>,
     pub available_roots: usize,
+}
+
+/// A file reported by a storage node, relative to its library root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteFile {
+    pub rel: String,
+    pub size: i64,
+    pub mtime: i64,
+}
+
+/// Outcome of comparing a node listing with the catalog.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct RemoteReconcile {
+    /// New or changed files to probe now.
+    pub need: Vec<String>,
+    /// Further new or changed files left for the next sync.
+    pub deferred: usize,
+    pub unchanged: usize,
+    pub missing: usize,
 }
 
 #[derive(Clone)]
@@ -102,6 +120,11 @@ impl Scanner {
         // DVR publishes only finalized, probed files atomically. A filesystem scan could
         // otherwise import an active/failed recording and bypass that publication gate.
         if mbl_db::repo::dvr::is_library(&self.db, library_id).await? {
+            on_progress(1.0);
+            return Ok(ScanStats::default());
+        }
+        // Storage-node libraries are kept in sync by their node, not by walking a filesystem.
+        if library.paths.iter().any(|p| p.starts_with(mbl_core::NODE_URI_SCHEME)) {
             on_progress(1.0);
             return Ok(ScanStats::default());
         }
@@ -320,6 +343,15 @@ impl Scanner {
                 Priority::Idle,
             )
             .await?;
+            // Intro and credits markers for "Skip intro" / "Skip credits".
+            if !matches!(library.kind, mbl_core::LibraryKind::HomeVideo) {
+                jobs.enqueue(
+                    mbl_jobs::kinds::MEDIA_INTRO_DETECT,
+                    &json!({"libraryId": library_id}),
+                    Priority::Idle,
+                )
+                .await?;
+            }
         }
         media::touch_library_paths(&self.db, library_id, now).await?;
         self.events.publish(Event::ScanProgress {
@@ -329,7 +361,116 @@ impl Scanner {
             done: true,
         });
         self.events.publish(Event::LibraryUpdated { library_id });
+        self.events.publish(Event::ScanCompleted {
+            library_id,
+            added: stats.new_items as u64,
+            missing: stats.missing as u64,
+        });
         tracing::info!(library_id = library_id.0, elapsed = ?started.elapsed(), ?stats, "scan finished");
+        Ok(stats)
+    }
+
+    /// Compare a storage node's listing for `root` with the known parts: unchanged files are kept,
+    /// vanished ones marked missing, and up to `limit` new or changed relative paths returned for
+    /// probing on the node.
+    pub async fn reconcile_remote(
+        &self,
+        library_id: LibraryId,
+        root: &str,
+        files: &[RemoteFile],
+        limit: usize,
+    ) -> Result<RemoteReconcile> {
+        let prefix = format!("{root}/");
+        let known: HashMap<String, PartFile> = media::parts_for_library(&self.db, library_id)
+            .await?
+            .into_iter()
+            .filter(|p| p.path.starts_with(&prefix))
+            .map(|p| (p.path.clone(), p))
+            .collect();
+        let mut out = RemoteReconcile::default();
+        let mut seen = HashSet::new();
+        let mut reappeared = Vec::new();
+        for file in files {
+            let path = format!("{prefix}{}", file.rel);
+            match known.get(&path) {
+                Some(part) if part.size == file.size && part.mtime == file.mtime => {
+                    out.unchanged += 1;
+                    if part.missing_since.is_some() {
+                        reappeared.push(part.id);
+                    }
+                }
+                _ if out.need.len() < limit => out.need.push(file.rel.clone()),
+                _ => out.deferred += 1,
+            }
+            seen.insert(path);
+        }
+        let now = now_ms();
+        let mut tx = self.db.write.begin().await?;
+        for id in reappeared {
+            media::clear_missing(&mut tx, id).await?;
+        }
+        for part in known.values() {
+            if !seen.contains(&part.path) && part.missing_since.is_none() {
+                media::set_missing(&mut tx, part.id, now).await?;
+                out.missing += 1;
+            }
+        }
+        tx.commit().await?;
+        if out.missing > 0 {
+            self.events.publish(Event::LibraryUpdated { library_id });
+        }
+        Ok(out)
+    }
+
+    /// Import node files probed on the node (`root` is the library's node root).
+    pub async fn import_remote(
+        &self,
+        library_id: LibraryId,
+        root: &str,
+        files: Vec<(RemoteFile, MediaInfo)>,
+    ) -> Result<ScanStats> {
+        let library =
+            LibrariesRepo::new(self.db.clone()).get(library_id).await?.ok_or(Error::NotFound)?;
+        let prefix = format!("{root}/");
+        let known: HashMap<String, PartId> = media::parts_for_library(&self.db, library_id)
+            .await?
+            .into_iter()
+            .filter(|p| p.path.starts_with(&prefix))
+            .map(|p| (p.path, p.id))
+            .collect();
+        let now = now_ms();
+        let mut stats = ScanStats::default();
+        let mut new_top_items = Vec::new();
+        let mut tx = self.db.write.begin().await?;
+        for (file, info) in files {
+            let path = format!("{prefix}{}", file.rel);
+            let probed = Probed {
+                existing: known.get(&path).copied(),
+                file: FoundFile { path, root: root.to_owned(), size: file.size, mtime: file.mtime },
+                hash: None,
+                info: Ok(info),
+            };
+            match self.write_one(&mut tx, library_id, library.kind, &probed, now).await {
+                Ok(Some(items)) => {
+                    stats.added += 1;
+                    new_top_items.extend(items);
+                }
+                Ok(None) => stats.changed += 1,
+                Err(e) => {
+                    stats.failed += 1;
+                    tracing::warn!(path = %probed.file.path, error = %e, "could not import node file");
+                }
+            }
+        }
+        tx.commit().await?;
+        stats.new_items = new_top_items.len();
+        if let Some(jobs) = &self.jobs {
+            for id in new_top_items.iter().collect::<HashSet<_>>() {
+                jobs.enqueue(MATCH_JOB, &json!({ "itemId": id }), Priority::Normal).await?;
+            }
+        }
+        media::touch_library_paths(&self.db, library_id, now).await?;
+        self.events.publish(Event::LibraryUpdated { library_id });
         Ok(stats)
     }
 

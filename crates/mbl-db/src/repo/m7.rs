@@ -636,28 +636,42 @@ pub struct MediaRequestRow {
     pub year: Option<i32>,
     pub status: String,
     pub arr_id: Option<i64>,
+    /// MusicBrainz ID of the artist or release group (music requests).
+    pub musicbrainz_id: Option<String>,
+    /// Artist name for album requests.
+    pub artist: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// A new request. Movies and shows use `tmdb_id`; artists and albums use `musicbrainz_id`.
+pub struct NewMediaRequest<'a> {
+    pub kind: &'a str,
+    pub tmdb_id: i64,
+    pub title: &'a str,
+    pub year: Option<i32>,
+    pub musicbrainz_id: Option<&'a str>,
+    pub artist: Option<&'a str>,
 }
 
 pub async fn create_media_request(
     db: &Db,
     user_id: UserId,
-    kind: &str,
-    tmdb_id: i64,
-    title: &str,
-    year: Option<i32>,
+    req: &NewMediaRequest<'_>,
 ) -> Result<RequestId> {
     let now = now_ms();
     let res = sqlx::query(
-        r#"INSERT INTO media_requests (user_id, kind, tmdb_id, title, year, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)"#,
+        r#"INSERT INTO media_requests
+             (user_id, kind, tmdb_id, title, year, musicbrainz_id, artist, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)"#,
     )
     .bind(user_id.0)
-    .bind(kind)
-    .bind(tmdb_id)
-    .bind(title)
-    .bind(year)
+    .bind(req.kind)
+    .bind(req.tmdb_id)
+    .bind(req.title)
+    .bind(req.year)
+    .bind(req.musicbrainz_id)
+    .bind(req.artist)
     .bind(now)
     .bind(now)
     .execute(&db.write)
@@ -672,7 +686,7 @@ pub async fn list_media_requests(
     status: Option<&str>,
 ) -> Result<Vec<MediaRequestRow>> {
     let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new(
-        "SELECT id, user_id, kind, tmdb_id, title, year, status, arr_id, created_at, updated_at FROM media_requests WHERE 1=1",
+        "SELECT id, user_id, kind, tmdb_id, title, year, status, arr_id, musicbrainz_id, artist, created_at, updated_at FROM media_requests WHERE 1=1",
     );
     if let Some(uid) = user_id {
         qb.push(" AND user_id = ");
@@ -696,6 +710,8 @@ pub async fn list_media_requests(
             year: r.get("year"),
             status: r.get("status"),
             arr_id: r.get("arr_id"),
+            musicbrainz_id: r.get("musicbrainz_id"),
+            artist: r.get("artist"),
             created_at: r.get("created_at"),
             updated_at: r.get("updated_at"),
         })
@@ -720,6 +736,31 @@ pub async fn update_media_request_status(
     .await?;
 
     Ok(res.rows_affected() > 0)
+}
+
+/// Mark open requests as available when the title is in a library: movies and shows by TMDB ID,
+/// artists by name, albums by title and artist name (music items carry no artist/album MBID).
+pub async fn mark_requests_available_from_library(db: &Db) -> Result<u64> {
+    let res = sqlx::query(
+        "UPDATE media_requests SET status = 'available', updated_at = ?
+         WHERE status IN ('pending', 'approved')
+           AND (
+             (kind IN ('movie', 'show') AND EXISTS (
+                SELECT 1 FROM media_items i
+                WHERE i.tmdb_id = media_requests.tmdb_id AND i.kind = media_requests.kind))
+             OR (kind = 'artist' AND EXISTS (
+                SELECT 1 FROM media_items i
+                WHERE i.kind = 'artist' AND i.title = media_requests.title COLLATE NOCASE))
+             OR (kind = 'album' AND EXISTS (
+                SELECT 1 FROM media_items i JOIN media_items a ON a.id = i.parent_id
+                WHERE i.kind = 'album' AND i.title = media_requests.title COLLATE NOCASE
+                  AND a.title = media_requests.artist COLLATE NOCASE))
+           )",
+    )
+    .bind(now_ms())
+    .execute(&db.write)
+    .await?;
+    Ok(res.rows_affected())
 }
 
 // -----------------------------------------------------------------------------

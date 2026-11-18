@@ -104,9 +104,20 @@ impl Visit for WebLogFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         if field.name() == "message" {
             self.message = Some(value.chars().filter(|c| !c.is_control()).take(512).collect());
-        } else if field.name() == "stream_asset" && matches!(value, "playlist" | "init" | "segment")
+        } else if (field.name() == "stream_asset"
+            && matches!(value, "playlist" | "init" | "segment"))
+            || (field.name() == "service" && matches!(value, "Radarr" | "Sonarr" | "Lidarr"))
+            || (field.name() == "failure"
+                && value.len() <= 32
+                && value.bytes().all(|b| b.is_ascii_lowercase() || b == b'_'))
         {
             self.details.insert(field.name().to_owned(), value.to_owned());
+        }
+    }
+
+    fn record_bool(&mut self, field: &Field, value: bool) {
+        if field.name() == "enabled" {
+            self.details.insert(field.name().to_owned(), value.to_string());
         }
     }
 

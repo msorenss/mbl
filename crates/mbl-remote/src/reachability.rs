@@ -21,6 +21,40 @@ pub struct ReachabilityReport {
     pub detected_public_ip: Option<String>,
     pub recommendation: RemoteRecommendation,
     pub details: String,
+    /// Individual checks run by the server (public address, router, DNS, port, certificate).
+    #[serde(default)]
+    pub checks: Vec<ReachabilityCheck>,
+    /// Public host names configured for the server (certificate names and `public_url`).
+    #[serde(default)]
+    pub public_hostnames: Vec<String>,
+    /// HTTPS port the server listens on, when HTTPS is enabled.
+    #[serde(default)]
+    pub https_port: Option<u16>,
+}
+
+/// Result of one diagnostic step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum CheckStatus {
+    Ok,
+    Warn,
+    Fail,
+    Skipped,
+}
+
+/// One diagnostic step: `publicIp`, `routerWan`, `dns`, `port`, `certificate`, `tailscale`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReachabilityCheck {
+    pub id: String,
+    pub status: CheckStatus,
+    pub detail: String,
+}
+
+impl ReachabilityCheck {
+    pub fn new(id: &str, status: CheckStatus, detail: impl Into<String>) -> Self {
+        Self { id: id.into(), status, detail: detail.into() }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -54,6 +88,9 @@ pub fn analyze_reachability(
             recommendation: RemoteRecommendation::Tailscale,
             details: "Carrier-Grade NAT detected: router WAN IP is in the 100.64.0.0/10 ISP shared range. Port forwarding is not possible. Tailscale is recommended."
                 .into(),
+            checks: Vec::new(),
+            public_hostnames: Vec::new(),
+            https_port: None,
         };
     }
 
@@ -68,6 +105,9 @@ pub fn analyze_reachability(
                 recommendation: RemoteRecommendation::Tailscale,
                 details: "Double-NAT or CGNAT detected: router has private IP while internet echo sees a different public address. Tailscale is recommended."
                     .into(),
+                checks: Vec::new(),
+                public_hostnames: Vec::new(),
+                https_port: None,
             };
         }
 
@@ -81,6 +121,9 @@ pub fn analyze_reachability(
                 recommendation: RemoteRecommendation::PortForwardWithTls,
                 details: "Direct public IP confirmed: router WAN matches public IP. Port forwarding or UPnP with ACME TLS is supported."
                     .into(),
+                checks: Vec::new(),
+                public_hostnames: Vec::new(),
+                https_port: None,
             };
         }
     }
@@ -97,6 +140,9 @@ pub fn analyze_reachability(
             recommendation: RemoteRecommendation::Tailscale,
             details: "Public IPv4/IPv6 echo reachable. Tailscale recommended for household; port forward available for external friends."
                 .into(),
+            checks: Vec::new(),
+            public_hostnames: Vec::new(),
+            https_port: None,
         };
     }
 
@@ -107,6 +153,9 @@ pub fn analyze_reachability(
         detected_public_ip: pub_str,
         recommendation: RemoteRecommendation::Tailscale,
         details: "Reachability check inconclusive. Tailscale is the safest recommendation.".into(),
+        checks: Vec::new(),
+        public_hostnames: Vec::new(),
+        https_port: None,
     }
 }
 

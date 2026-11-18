@@ -15,6 +15,7 @@ pub struct AppState {
     pub services: Services,
     pub info: Arc<ServerInfo>,
     pub login_limiter: Arc<LoginLimiter>,
+    pub pin_limiter: Arc<crate::rate_limit::PinLimiter>,
     pub recent_logs: RecentLogs,
     pub stop: tokio_util::sync::CancellationToken,
     /// Add `Secure` to cookies (set when the public URL is HTTPS).
@@ -35,6 +36,7 @@ impl AppState {
             db,
             info: Arc::new(info),
             login_limiter: Arc::new(LoginLimiter::default()),
+            pin_limiter: Arc::new(crate::rate_limit::PinLimiter::default()),
             recent_logs: RecentLogs::default(),
             stop: tokio_util::sync::CancellationToken::new(),
             secure_cookies,

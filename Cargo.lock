@@ -2011,6 +2011,7 @@ dependencies = [
  "mbl-jobs",
  "mbl-platform",
  "mbl-playback",
+ "mbl-remote",
  "mbl-service",
  "reqwest",
  "serde",
@@ -2056,12 +2057,20 @@ name = "mbl-node"
 version = "1.3.8"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
+ "dunce",
+ "mbl-auth",
  "mbl-core",
+ "mbl-parser",
+ "mbl-probe",
+ "mbl-stream",
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2070,12 +2079,16 @@ dependencies = [
 name = "mbl-parser"
 version = "1.3.8"
 dependencies = [
+ "ignore",
+ "mbl-core",
  "proptest",
  "regex",
  "serde",
  "serde_json",
+ "tempfile",
  "time",
  "toml 1.1.8+spec-1.1.0",
+ "tracing",
 ]
 
 [[package]]
@@ -2171,6 +2184,7 @@ dependencies = [
  "dunce",
  "figment",
  "futures-util",
+ "hmac",
  "http-body-util",
  "if-addrs",
  "image",
@@ -2183,6 +2197,7 @@ dependencies = [
  "mbl-jobs",
  "mbl-mcp",
  "mbl-metadata",
+ "mbl-node",
  "mbl-platform",
  "mbl-probe",
  "mbl-remote",
@@ -2190,6 +2205,7 @@ dependencies = [
  "mbl-service",
  "mbl-stream",
  "mbl-transcode",
+ "mbl-worker",
  "mdns-sd",
  "mime_guess",
  "reqwest",
@@ -2235,6 +2251,7 @@ dependencies = [
  "mbl-playback",
  "mbl-probe",
  "mbl-remote",
+ "mbl-scanner",
  "mbl-stream",
  "mbl-transcode",
  "proptest",
@@ -2278,6 +2295,7 @@ dependencies = [
  "mbl-probe",
  "proptest",
  "serde",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",
@@ -2313,13 +2331,17 @@ name = "mbl-worker"
 version = "1.3.8"
 dependencies = [
  "anyhow",
+ "camino",
  "clap",
  "mbl-core",
  "mbl-hwaccel",
+ "mbl-transcode",
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3009,6 +3031,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "futures-core",
+ "futures-util",
  "h2",
  "http",
  "http-body",
@@ -3030,12 +3053,14 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
+ "tokio-util",
  "tower",
  "tower-http 0.6.11",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -4494,6 +4519,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23f0c9c52aa7cd7d77769a4cfe2a9adb1b331f489a41d912ce14513d5ab995c6"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "wasm-streams"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1ec4f6517c9e11ae630e200b2b65d193279042e28edd4a2cda233e46670bbb"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

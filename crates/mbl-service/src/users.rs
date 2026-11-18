@@ -160,8 +160,15 @@ impl UserService {
     }
 
     /// List household user profiles for the profile switcher (any authenticated user).
-    pub async fn list_profiles(&self, _actor: &Actor) -> Result<Vec<User>> {
-        self.users.list().await
+    /// Returns each user with `(is_managed, has_pin)`.
+    pub async fn list_profiles(&self, _actor: &Actor) -> Result<Vec<(User, bool, bool)>> {
+        let mut out = Vec::new();
+        for user in self.users.list().await? {
+            let security = m6::get_user_security_info(&self.db, user.id).await?;
+            let (managed, pin) = security.map_or((false, false), |s| (s.is_managed, s.has_pin));
+            out.push((user, managed, pin));
+        }
+        Ok(out)
     }
 
     pub async fn get_preferences(&self, actor: &Actor) -> Result<UserPreferences> {

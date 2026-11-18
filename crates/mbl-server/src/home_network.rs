@@ -11,20 +11,6 @@ use tokio_util::sync::CancellationToken;
 const REFRESH: Duration = Duration::from_secs(300);
 const LOOKUP_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Host part of a configured public URL (`https://host:port/path` → `host`).
-fn url_host(url: &str) -> Option<String> {
-    let rest = url.trim().split_once("://").map_or(url.trim(), |(_, rest)| rest);
-    let authority = rest.split(['/', '?', '#']).next()?.rsplit('@').next()?;
-    let host = if let Some(v6) = authority.strip_prefix('[') {
-        v6.split(']').next()?
-    } else {
-        authority.rsplit_once(':').map_or(authority, |(host, port)| {
-            if port.bytes().all(|b| b.is_ascii_digit()) { host } else { authority }
-        })
-    };
-    (!host.is_empty()).then(|| host.to_ascii_lowercase())
-}
-
 async fn hostnames(repo: &SettingsRepo, public_url: &str) -> Vec<String> {
     let mut names: Vec<String> = repo
         .get("tls_hostnames")
@@ -36,7 +22,7 @@ async fn hostnames(repo: &SettingsRepo, public_url: &str) -> Vec<String> {
         .map(|name| name.trim().to_ascii_lowercase())
         .filter(|name| !name.is_empty() && !name.starts_with('*'))
         .collect();
-    names.extend(url_host(public_url));
+    names.extend(mbl_remote::url_host(public_url));
     names.sort();
     names.dedup();
     names
@@ -84,7 +70,7 @@ pub async fn run(db: Db, public_url: String, stop: CancellationToken) {
 
 #[cfg(test)]
 mod tests {
-    use super::url_host;
+    use mbl_remote::url_host;
 
     #[test]
     fn extracts_host_from_public_url() {
