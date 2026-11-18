@@ -3,7 +3,9 @@ import { createEffect, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
 import type { components } from "../api/schema";
+import MetadataEditor from "../components/MetadataEditor";
 import { Badge, Button, Chip } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
 import { usePlayer } from "../context/PlayerContext";
 import { useToast } from "../context/ToastContext";
 import { useI18n } from "../i18n";
@@ -18,6 +20,7 @@ export function ItemDetail() {
   const { playItem, playbackRevision } = usePlayer();
   const { showToast } = useToast();
   const { t } = useI18n();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [item, setItem] = createSignal<ItemDetailDto | null>(null);
@@ -394,6 +397,9 @@ export function ItemDetail() {
                 <span>{isWatched() ? "✓" : "○"}</span>
                 <span>{isWatched() ? "Watched" : "Mark as Watched"}</span>
               </Button>
+              <Show when={user()?.isAdmin}>
+                <MetadataEditor itemId={itemId()} onSaved={() => void loadData()} />
+              </Show>
             </div>
 
             {/* Playback Prediction Chip (M3.7) */}

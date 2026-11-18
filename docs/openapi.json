@@ -7,7 +7,7 @@
       "name": "AGPL-3.0-or-later",
       "identifier": "AGPL-3.0-or-later"
     },
-    "version": "1.3.8"
+    "version": "1.3.9"
   },
   "paths": {
     "/.well-known/oauth-authorization-server": {
@@ -1568,6 +1568,83 @@
         }
       }
     },
+    "/api/v1/items/{id}/artwork": {
+      "get": {
+        "tags": [
+          "metadata"
+        ],
+        "summary": "Poster or backdrop choices from TMDB.",
+        "operationId": "artwork_candidates",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`poster` (default) or `backdrop`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkCandidates"
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {},
+          "503": {}
+        }
+      },
+      "put": {
+        "tags": [
+          "metadata"
+        ],
+        "summary": "Use an image as poster or backdrop; it is downloaded in the background and locked.",
+        "operationId": "choose_artwork",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChooseArtwork"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "403": {},
+          "404": {},
+          "422": {}
+        }
+      }
+    },
     "/api/v1/items/{id}/children": {
       "get": {
         "tags": [
@@ -1762,6 +1839,119 @@
           },
           "401": {},
           "404": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/match": {
+      "post": {
+        "tags": [
+          "metadata"
+        ],
+        "summary": "Match a movie or show to another TMDB entry. Runs as a job; locked fields are kept.",
+        "operationId": "match_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Match queued"
+          },
+          "403": {},
+          "404": {},
+          "422": {}
+        }
+      }
+    },
+    "/api/v1/items/{id}/metadata": {
+      "get": {
+        "tags": [
+          "metadata"
+        ],
+        "summary": "Editable metadata fields and which of them are locked.",
+        "operationId": "get_metadata",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemMetadata"
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {}
+        }
+      },
+      "patch": {
+        "tags": [
+          "metadata"
+        ],
+        "summary": "Change fields. Every field sent is stored and locked against automatic matching.",
+        "operationId": "update_metadata",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateItemMetadata"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemMetadata"
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {},
+          "422": {}
         }
       }
     },
@@ -8744,6 +8934,68 @@
           }
         }
       },
+      "ArtworkCandidate": {
+        "type": "object",
+        "required": [
+          "url",
+          "previewUrl"
+        ],
+        "properties": {
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previewUrl": {
+            "type": "string",
+            "description": "Smaller image for the picker."
+          },
+          "url": {
+            "type": "string",
+            "description": "Full-size image stored when chosen."
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "ArtworkCandidates": {
+        "type": "object",
+        "required": [
+          "available",
+          "candidates"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "A TMDB key is configured and the item has a TMDB ID."
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtworkCandidate"
+            }
+          },
+          "current": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ArtworkId": {
         "type": "integer",
         "format": "int64"
@@ -9043,6 +9295,22 @@
           "fail",
           "skipped"
         ]
+      },
+      "ChooseArtwork": {
+        "type": "object",
+        "required": [
+          "kind",
+          "url"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`poster` or `backdrop`."
+          },
+          "url": {
+            "type": "string"
+          }
+        }
       },
       "CodecLimit": {
         "type": "object",
@@ -11150,6 +11418,93 @@
         "type": "integer",
         "format": "int64"
       },
+      "ItemMetadata": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "kind",
+          "title",
+          "sortTitle",
+          "genres",
+          "lockedFields",
+          "canMatch"
+        ],
+        "properties": {
+          "canMatch": {
+            "type": "boolean",
+            "description": "Movies and shows can be matched to another TMDB entry."
+          },
+          "contentRating": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "lockedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields kept as they are when metadata is matched again."
+          },
+          "originalTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortTitle": {
+            "type": "string"
+          },
+          "studio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tagline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "ItemSummary": {
         "type": "object",
         "description": "Compact item for grids and rows.",
@@ -11698,6 +12053,18 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "MatchItemRequest": {
+        "type": "object",
+        "required": [
+          "tmdbId"
+        ],
+        "properties": {
+          "tmdbId": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -17229,6 +17596,80 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateItemMetadata": {
+        "type": "object",
+        "description": "Fields to change. Every field sent is stored and locked; an empty string clears an\noptional field. `lockedFields`, when sent, replaces the lock list before that.",
+        "properties": {
+          "contentRating": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "genres": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "lockedFields": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "originalTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "studio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tagline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "0 clears the year."
           }
         }
       },

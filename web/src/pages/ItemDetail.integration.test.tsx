@@ -22,6 +22,9 @@ vi.mock("../context/PlayerContext", () => ({
   usePlayer: () => ({ playItem: state.play, playbackRevision: () => state.revision() }),
 }));
 vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: vi.fn() }) }));
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => ({ user: () => ({ isAdmin: false }) }),
+}));
 vi.mock("../i18n", () => ({ useI18n: () => ({ t: (s: string) => s }) }));
 vi.mock("../api/deviceProfile", () => ({
   getDeviceProfileInput: () => ({

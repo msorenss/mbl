@@ -31,6 +31,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::images::router())
         .merge(routes::events::router())
         .merge(routes::items::router())
+        .merge(routes::metadata::router())
         .merge(routes::playback::router())
         .merge(routes::stream::router())
         .merge(routes::mcp::router())

@@ -18,7 +18,8 @@ MBL is a complete personal media platform spanning video, music, and photography
 ## Collections & Playlists
 
 - **Manual & Smart Collections:** Create rule-based dynamic collections (e.g., "Horror Movies from the 80s") or curated static collections.
-- **Metadata Field Locking:** Protect manually corrected metadata fields (titles, years, studios) from being overwritten during future automated library rescans.
+- **Metadata editing and locks:** administrators open **Edit metadata** on an item page to change title, sort title, original title, year, content rating, studio, genres, tagline and summary. Changed fields are locked so metadata refreshes keep them; a lock can be cleared to let the next refresh replace the value. Movies and shows can be matched to another TMDB entry, and a poster or backdrop can be chosen from TMDB's images (needs a TMDB API key).
+- **Lyrics:** music tracks with a sidecar `.lrc` file or embedded lyrics show them in the player; synced lyrics follow playback.
 - **OpenSubtitles Integration:** Automatic subtitle searching and downloading matching file hashes and IMDb/TMDB identifiers.
 - **DLNA / UPnP Media Server:** smart TVs on the home network can browse and play chosen libraries (see below).
 

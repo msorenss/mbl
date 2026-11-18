@@ -326,3 +326,15 @@ reason = "Interactive connection test for Radarr/Sonarr credentials in the admin
 [[exclusions]]
 path = "/api/v1/requests/music/search"
 reason = "Interactive autocomplete for the request form through Lidarr; agents create music requests with a MusicBrainz ID via create_media_request."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/metadata"
+reason = "Manual curation in the admin UI (edit and lock fields); agents refresh metadata with refresh_metadata. An MCP editing tool can follow."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/match"
+reason = "Manual re-match after an administrator picked a TMDB entry in the admin UI."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/artwork"
+reason = "Interactive poster/backdrop picker in the admin UI."

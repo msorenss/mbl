@@ -24,6 +24,7 @@ pub mod livetv;
 pub mod lyrics;
 pub mod matchmaker;
 pub mod mcp;
+pub mod metadata_edit;
 pub mod nodes;
 pub mod paths;
 pub mod playback;
@@ -149,6 +150,7 @@ pub struct Services {
     pub import: ImportService,
     pub downloads: DownloadService,
     pub dlna: dlna::DlnaService,
+    pub metadata: metadata_edit::MetadataEditService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -188,6 +190,8 @@ impl Services {
         let import = ImportService::new(db_arc.clone());
         let downloads = DownloadService::new(db.clone(), jobs.clone(), stream.clone());
         let db_dlna = db.clone();
+        let metadata =
+            metadata_edit::MetadataEditService::new(db.clone(), jobs.clone(), events.clone());
 
         Self {
             auth,
@@ -218,6 +222,7 @@ impl Services {
             import,
             downloads,
             dlna: dlna::DlnaService::new(db_dlna),
+            metadata,
             restart: None,
         }
     }

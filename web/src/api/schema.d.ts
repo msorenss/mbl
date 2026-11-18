@@ -749,6 +749,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/items/{id}/artwork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Poster or backdrop choices from TMDB. */
+        get: operations["artwork_candidates"];
+        /** Use an image as poster or backdrop; it is downloaded in the background and locked. */
+        put: operations["choose_artwork"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items/{id}/children": {
         parameters: {
             query?: never;
@@ -835,6 +853,41 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Match a movie or show to another TMDB entry. Runs as a job; locked fields are kept. */
+        post: operations["match_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Editable metadata fields and which of them are locked. */
+        get: operations["get_metadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change fields. Every field sent is stored and locked against automatic matching. */
+        patch: operations["update_metadata"];
         trace?: never;
     };
     "/api/v1/items/{id}/optimize": {
@@ -3197,6 +3250,23 @@ export interface components {
             rootFolder: string;
             url: string;
         };
+        ArtworkCandidate: {
+            /** Format: int64 */
+            height?: number | null;
+            language?: string | null;
+            /** @description Smaller image for the picker. */
+            previewUrl: string;
+            /** @description Full-size image stored when chosen. */
+            url: string;
+            /** Format: int64 */
+            width?: number | null;
+        };
+        ArtworkCandidates: {
+            /** @description A TMDB key is configured and the item has a TMDB ID. */
+            available: boolean;
+            candidates: components["schemas"]["ArtworkCandidate"][];
+            current?: string | null;
+        };
         /** Format: int64 */
         ArtworkId: number;
         ArtworkInfo: {
@@ -3274,6 +3344,11 @@ export interface components {
          * @enum {string}
          */
         CheckStatus: "ok" | "warn" | "fail" | "skipped";
+        ChooseArtwork: {
+            /** @description `poster` or `backdrop`. */
+            kind: string;
+            url: string;
+        };
         /** @description Per-video-codec capability limits enforced before direct play or direct stream (remux). */
         CodecLimit: {
             codec: string;
@@ -3805,6 +3880,26 @@ export interface components {
         };
         /** Format: int64 */
         ItemId: number;
+        ItemMetadata: {
+            /** @description Movies and shows can be matched to another TMDB entry. */
+            canMatch: boolean;
+            contentRating?: string | null;
+            genres: string[];
+            itemId: components["schemas"]["ItemId"];
+            kind: components["schemas"]["MediaKind"];
+            /** @description Fields kept as they are when metadata is matched again. */
+            lockedFields: string[];
+            originalTitle?: string | null;
+            sortTitle: string;
+            studio?: string | null;
+            summary?: string | null;
+            tagline?: string | null;
+            title: string;
+            /** Format: int64 */
+            tmdbId?: number | null;
+            /** Format: int64 */
+            year?: number | null;
+        };
         /** @description Compact item for grids and rows. */
         ItemSummary: {
             /** Format: int64 */
@@ -3955,6 +4050,10 @@ export interface components {
             /** Format: int64 */
             startMs: number;
             title?: string | null;
+        };
+        MatchItemRequest: {
+            /** Format: int64 */
+            tmdbId: number;
         };
         MatchmakerMatchResult: {
             matched: boolean;
@@ -5478,6 +5577,26 @@ export interface components {
         UpdateCollectionRequest: {
             name: string;
             overview?: string | null;
+        };
+        /**
+         * @description Fields to change. Every field sent is stored and locked; an empty string clears an
+         *     optional field. `lockedFields`, when sent, replaces the lock list before that.
+         */
+        UpdateItemMetadata: {
+            contentRating?: string | null;
+            genres?: string[] | null;
+            lockedFields?: string[] | null;
+            originalTitle?: string | null;
+            sortTitle?: string | null;
+            studio?: string | null;
+            summary?: string | null;
+            tagline?: string | null;
+            title?: string | null;
+            /**
+             * Format: int64
+             * @description 0 clears the year.
+             */
+            year?: number | null;
         };
         UpdateLibraryRequest: {
             name?: string | null;
@@ -7340,6 +7459,89 @@ export interface operations {
             };
         };
     };
+    artwork_candidates: {
+        parameters: {
+            query?: {
+                /** @description `poster` (default) or `backdrop`. */
+                kind?: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkCandidates"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    choose_artwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChooseArtwork"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     children: {
         parameters: {
             query?: never;
@@ -7503,6 +7705,124 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    match_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatchItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Match queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemMetadata"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateItemMetadata"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemMetadata"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

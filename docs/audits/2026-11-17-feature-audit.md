@@ -58,6 +58,9 @@ Syfte: hitta funktioner som finns i API, inställningar eller dokumentation men 
 
 - A3 DLNA: SSDP på UDP 1900 (startar och stoppar med inställningen), enhets- och tjänstebeskrivningar, ContentDirectory Browse med sidindelning, ConnectionManager, GENA-prenumerationer som accepteras, media med Range och DLNA-huvuden. Admin väljer bibliotek och åldersgräns; av som standard; bara LAN-klienter (peer-adress). Ingen omkodning, omslagsbild eller undertext ännu. Inte provat mot fysisk TV.
 
+- B5 Metadata: redigering av fält med lås (låsen gäller även genrer och vald bild vid automatisk matchning), ommatchning mot vald TMDB-post och val av affisch/bakgrund bland TMDB:s bilder. Musikens metadata redigeras inte separat.
+- B4 delvis: sångtexter i spelaren (synkade följer uppspelningen). Kö, album-/artistuppspelning och minispelare för ljud återstår.
+
 ## Föreslagen ordning
 
 1. B1 Quick Connect och B2 profilbyte (krävs för apparna).

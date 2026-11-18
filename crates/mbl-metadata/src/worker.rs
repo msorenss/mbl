@@ -223,13 +223,15 @@ impl Matcher {
             let people: Vec<PersonCredit> = b.people.iter().map(Into::into).collect();
             metadata::replace_people(&mut tx, t.id, &people).await?;
         }
-        if !b.genres.is_empty() {
+        // Genres and artwork chosen by an administrator are locked like the text fields.
+        let locked = |field: &str| metadata::is_locked(&t.locked_fields, field);
+        if !b.genres.is_empty() && !locked("genres") {
             metadata::replace_tags(&mut tx, t.id, "genre", &b.genres).await?;
         }
-        if !b.posters.is_empty() {
+        if !b.posters.is_empty() && !locked("poster") {
             metadata::replace_artwork_urls(&mut tx, t.id, "poster", &b.posters).await?;
         }
-        if !b.backdrops.is_empty() {
+        if !b.backdrops.is_empty() && !locked("backdrop") {
             metadata::replace_artwork_urls(&mut tx, t.id, "backdrop", &b.backdrops).await?;
         }
         tx.commit().await?;

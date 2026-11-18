@@ -12,6 +12,7 @@ import { castDiagnostics } from "../utils/castDiagnostics";
 import { type CastProfileSelection, SAFE_CAST_PROFILE } from "../utils/castProfile";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
 import CastDiagnostics from "./CastDiagnostics";
+import LyricsPanel from "./LyricsPanel";
 import TrickplayPreview from "./TrickplayPreview";
 import { Button } from "./ui";
 
@@ -1838,6 +1839,7 @@ export function Player(props: PlayerProps) {
           </span>
           <strong>{mediaTitle() || "Audio playback"}</strong>
           <span>Audio only</span>
+          <LyricsPanel itemId={mediaItemId()} timeMs={currentTime() * 1000} />
         </section>
       </Show>
 

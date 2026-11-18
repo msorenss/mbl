@@ -10,8 +10,9 @@ use utoipa::{Modify, OpenApi};
 use crate::AppState;
 use crate::routes::{
     auth, collections, companion, downloads, events, hw, images, import, intelligence, invites,
-    items, libraries, livetv, matchmaker, mcp, media_audio, nodes, oauth, online, photos, playback,
-    players, playlists, plugins, remote, requests, stream, system, tls, users, webhooks, workers,
+    items, libraries, livetv, matchmaker, mcp, media_audio, metadata, nodes, oauth, online, photos,
+    playback, players, playlists, plugins, remote, requests, stream, system, tls, users, webhooks,
+    workers,
 };
 
 #[derive(OpenApi)]
@@ -35,6 +36,8 @@ use crate::routes::{
         libraries::remove, libraries::scan, libraries::scan_status, libraries::refresh, libraries::browse,
         items::list, items::detail, items::children, items::lyrics, items::search, items::home,
         items::mark_watched, items::mark_unwatched,
+        metadata::get_metadata, metadata::update_metadata, metadata::match_item,
+        metadata::artwork_candidates, metadata::choose_artwork,
         items::playback_preview_get, items::playback_preview_post,
         playback::start, playback::diagnostics, playback::progress, playback::stop,
         images::image, events::events, stream::direct, stream::hls_master,
@@ -194,6 +197,12 @@ use crate::routes::{
         mbl_service::StorageHardlinkReport,
         mbl_service::ArrKind,
         mbl_service::ArrSettings,
+        mbl_service::metadata_edit::ItemMetadata,
+        mbl_service::metadata_edit::UpdateItemMetadata,
+        mbl_service::metadata_edit::MatchItemRequest,
+        mbl_service::metadata_edit::ArtworkCandidates,
+        mbl_service::metadata_edit::ArtworkCandidate,
+        mbl_service::metadata_edit::ChooseArtwork,
         mbl_service::UpdateArrSettings,
         mbl_service::TestArrConnection,
         mbl_service::ArrOption,

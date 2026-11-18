@@ -47,6 +47,9 @@ impl MetadataUpdate {
         if is("title") {
             self.title = None;
         }
+        if is("original_title") {
+            self.original_title = None;
+        }
         if is("summary") {
             self.summary = None;
         }
@@ -76,6 +79,128 @@ pub struct PersonCredit {
     pub thumb_url: Option<String>,
     pub role: String,
     pub character: Option<String>,
+}
+
+/// Whether `field` is in a `locked_fields` JSON array.
+pub fn is_locked(locked_json: &str, field: &str) -> bool {
+    serde_json::from_str::<Vec<String>>(locked_json).unwrap_or_default().iter().any(|l| l == field)
+}
+
+/// Fields an administrator can edit, with the current lock list.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct EditableRow {
+    pub kind: MediaKind,
+    pub title: String,
+    pub sort_title: String,
+    pub original_title: Option<String>,
+    pub year: Option<i64>,
+    pub summary: Option<String>,
+    pub tagline: Option<String>,
+    pub content_rating: Option<String>,
+    pub studio: Option<String>,
+    pub tmdb_id: Option<i64>,
+    pub locked_fields: String,
+}
+
+pub async fn editable(db: &Db, id: ItemId) -> Result<Option<EditableRow>> {
+    Ok(sqlx::query_as(
+        "SELECT kind, title, sort_title, original_title, year, summary, tagline, content_rating,
+                studio, tmdb_id, locked_fields
+         FROM media_items WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_optional(&db.read)
+    .await?)
+}
+
+pub async fn genres(db: &Db, id: ItemId) -> Result<Vec<String>> {
+    Ok(sqlx::query_scalar(
+        "SELECT t.name FROM item_tags it JOIN tags t ON t.id = it.tag_id
+         WHERE it.item_id = ? AND t.kind = 'genre' ORDER BY t.name COLLATE NOCASE",
+    )
+    .bind(id)
+    .fetch_all(&db.read)
+    .await?)
+}
+
+/// Write an edited row as is (all editable columns), optionally the genres, and the locks.
+pub async fn save_edit(
+    db: &Db,
+    id: ItemId,
+    row: &EditableRow,
+    genres: Option<&[String]>,
+    now: i64,
+) -> Result<()> {
+    let mut tx = db.write.begin().await?;
+    sqlx::query(
+        "UPDATE media_items SET title = ?, sort_title = ?, original_title = ?, year = ?,
+             summary = ?, tagline = ?, content_rating = ?, studio = ?, locked_fields = ?,
+             updated_at = ?
+         WHERE id = ?",
+    )
+    .bind(&row.title)
+    .bind(&row.sort_title)
+    .bind(&row.original_title)
+    .bind(row.year)
+    .bind(&row.summary)
+    .bind(&row.tagline)
+    .bind(&row.content_rating)
+    .bind(&row.studio)
+    .bind(&row.locked_fields)
+    .bind(now)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    if let Some(genres) = genres {
+        replace_tags(&mut tx, id, "genre", genres).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Point an item at another TMDB entry before re-matching it.
+pub async fn set_tmdb_id(db: &Db, id: ItemId, tmdb_id: i64, now: i64) -> Result<()> {
+    sqlx::query(
+        "UPDATE media_items SET tmdb_id = ?, imdb_id = NULL, tvdb_id = NULL, needs_review = 0,
+             match_confidence = 1.0, updated_at = ? WHERE id = ?",
+    )
+    .bind(tmdb_id)
+    .bind(now)
+    .bind(id)
+    .execute(&db.write)
+    .await?;
+    Ok(())
+}
+
+/// Replace the remote artwork of one kind with a single chosen URL and lock that kind.
+pub async fn choose_artwork(
+    db: &Db,
+    id: ItemId,
+    kind: &str,
+    url: &str,
+    locked_json: &str,
+) -> Result<()> {
+    let mut tx = db.write.begin().await?;
+    replace_artwork_urls(&mut tx, id, kind, &[url.to_owned()]).await?;
+    sqlx::query("UPDATE media_items SET locked_fields = ? WHERE id = ?")
+        .bind(locked_json)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Remote URLs of the current artwork of one kind, selected first.
+pub async fn artwork_urls(db: &Db, id: ItemId, kind: &str) -> Result<Vec<String>> {
+    Ok(sqlx::query_scalar(
+        "SELECT source_url FROM artwork WHERE item_id = ? AND kind = ? AND source_url IS NOT NULL
+         ORDER BY selected DESC, id",
+    )
+    .bind(id)
+    .bind(kind)
+    .fetch_all(&db.read)
+    .await?)
 }
 
 pub async fn match_target(db: &Db, id: ItemId) -> Result<Option<MatchTarget>> {
@@ -194,7 +319,7 @@ pub async fn apply(
     Ok(())
 }
 
-fn sort_title(title: &str) -> String {
+pub fn sort_title(title: &str) -> String {
     let lower = title.trim().to_lowercase();
     ["the ", "a ", "an "]
         .iter()

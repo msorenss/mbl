@@ -15,6 +15,7 @@ pub mod livetv;
 pub mod matchmaker;
 pub mod mcp;
 pub mod media_audio;
+pub mod metadata;
 pub mod nodes;
 pub mod oauth;
 pub mod online;
