@@ -5185,8 +5185,13 @@ export interface components {
         SystemSettingsDto: {
             autoFetchMissingMetadata: boolean;
             autoScanOnChange: boolean;
+            /** @description Off until an admin turns it on; DLNA has no sign-in. */
             dlnaEnabled: boolean;
             dlnaFriendlyName: string;
+            /** @description Libraries shared over DLNA. Nothing is shared while this is empty. */
+            dlnaLibraryIds: number[];
+            /** @description Highest content rating shared over DLNA (for example `PG-13`); none means no limit. */
+            dlnaMaxRating?: string | null;
             hailoLlmHefPath?: string | null;
             hailoVisionHefPath?: string | null;
             hailoVlmHefPath?: string | null;
@@ -5506,6 +5511,12 @@ export interface components {
             autoScanOnChange?: boolean | null;
             dlnaEnabled?: boolean | null;
             dlnaFriendlyName?: string | null;
+            /**
+             * @description Replaces the shared libraries; `dlnaMaxRating` is stored together with it (absent or
+             *     empty clears the limit).
+             */
+            dlnaLibraryIds?: number[] | null;
+            dlnaMaxRating?: string | null;
             hailoLlmHefPath?: string | null;
             hailoVisionHefPath?: string | null;
             hailoVlmHefPath?: string | null;

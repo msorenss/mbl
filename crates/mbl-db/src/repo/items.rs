@@ -261,6 +261,17 @@ pub async fn list(
     Ok(Paginated { items, next_cursor, total: None })
 }
 
+/// Number of top-level items `list` would return for `library` without paging or filters.
+pub async fn count_top_level(db: &Db, filter: &ItemFilter, library: LibraryId) -> Result<u32> {
+    let mut qb = QueryBuilder::new("SELECT COUNT(*) FROM media_items i WHERE 1 = 1");
+    filter.push_acl(&mut qb);
+    push_available_series(&mut qb);
+    qb.push(" AND i.library_id = ").push_bind(library.0);
+    qb.push(" AND i.parent_id IS NULL AND i.kind != 'extra'");
+    let count: i64 = qb.build_query_scalar().fetch_one(&db.read).await?;
+    Ok(u32::try_from(count).unwrap_or(u32::MAX))
+}
+
 /// Seasons of a show, episodes of a season, albums of an artist, tracks of an album.
 pub async fn children(db: &Db, filter: &ItemFilter, parent: ItemId) -> Result<Vec<ItemSummary>> {
     let mut qb = summary_query(filter);

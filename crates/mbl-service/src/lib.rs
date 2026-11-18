@@ -8,6 +8,7 @@ pub mod auth;
 pub mod certificates;
 pub mod collections;
 pub mod companion;
+pub mod dlna;
 pub mod downloads;
 mod dvr;
 pub mod events;
@@ -147,6 +148,7 @@ pub struct Services {
     pub online: OnlineService,
     pub import: ImportService,
     pub downloads: DownloadService,
+    pub dlna: dlna::DlnaService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -185,6 +187,7 @@ impl Services {
         let online = OnlineService::new(db.clone());
         let import = ImportService::new(db_arc.clone());
         let downloads = DownloadService::new(db.clone(), jobs.clone(), stream.clone());
+        let db_dlna = db.clone();
 
         Self {
             auth,
@@ -214,6 +217,7 @@ impl Services {
             online,
             import,
             downloads,
+            dlna: dlna::DlnaService::new(db_dlna),
             restart: None,
         }
     }

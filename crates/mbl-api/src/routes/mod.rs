@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod collections;
 pub mod companion;
+pub mod dlna;
 pub mod downloads;
 pub mod events;
 pub mod hw;

@@ -3,7 +3,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mbl_core::Error;
+use mbl_core::{Error, LibraryId};
 use mbl_db::repo::settings::SettingsRepo;
 use serde::{Deserialize, Serialize};
 
@@ -241,8 +241,13 @@ pub struct SystemSettingsDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mqtt_username: Option<String>,
     pub mqtt_topic_prefix: String,
+    /// Off until an admin turns it on; DLNA has no sign-in.
     pub dlna_enabled: bool,
     pub dlna_friendly_name: String,
+    /// Libraries shared over DLNA. Nothing is shared while this is empty.
+    pub dlna_library_ids: Vec<i64>,
+    /// Highest content rating shared over DLNA (for example `PG-13`); none means no limit.
+    pub dlna_max_rating: Option<String>,
     pub auto_scan_on_change: bool,
     pub periodic_scan_interval_minutes: u32,
     pub auto_fetch_missing_metadata: bool,
@@ -268,6 +273,10 @@ pub struct UpdateSystemSettingsRequest {
     pub mqtt_topic_prefix: Option<String>,
     pub dlna_enabled: Option<bool>,
     pub dlna_friendly_name: Option<String>,
+    /// Replaces the shared libraries; `dlnaMaxRating` is stored together with it (absent or
+    /// empty clears the limit).
+    pub dlna_library_ids: Option<Vec<i64>>,
+    pub dlna_max_rating: Option<String>,
     pub auto_scan_on_change: Option<bool>,
     pub periodic_scan_interval_minutes: Option<u32>,
     pub auto_fetch_missing_metadata: Option<bool>,
@@ -344,9 +353,10 @@ async fn get_system_settings(
     let mqtt_topic_prefix =
         repo.get("mqtt_topic_prefix").await?.unwrap_or_else(|| "mbl/media_lounge_box".into());
 
-    let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
-    let dlna_friendly_name =
-        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Box Lounge".into());
+    let dlna = state.services.dlna.settings().await?;
+    let (dlna_enabled, dlna_friendly_name) = (dlna.enabled, dlna.friendly_name);
+    let dlna_library_ids: Vec<i64> = dlna.library_ids.iter().map(|id| id.0).collect();
+    let dlna_max_rating = dlna.max_rating;
 
     let auto_scan_on_change =
         repo.get("auto_scan_on_change").await?.map(|v| v != "false").unwrap_or(true);
@@ -379,6 +389,8 @@ async fn get_system_settings(
         mqtt_topic_prefix,
         dlna_enabled,
         dlna_friendly_name,
+        dlna_library_ids,
+        dlna_max_rating,
         auto_scan_on_change,
         periodic_scan_interval_minutes,
         auto_fetch_missing_metadata,
@@ -404,7 +416,7 @@ async fn get_system_settings(
 )]
 async fn update_system_settings(
     State(state): State<AppState>,
-    AdminUser(_admin): AdminUser,
+    AdminUser(admin): AdminUser,
     Json(req): Json<UpdateSystemSettingsRequest>,
 ) -> Result<Json<SystemSettingsDto>, ApiError> {
     let repo = SettingsRepo::new(state.db.clone());
@@ -462,6 +474,10 @@ async fn update_system_settings(
     if let Some(enabled) = req.dlna_enabled {
         repo.set("dlna_enabled", if enabled { "true" } else { "false" }).await?;
     }
+    if let Some(ids) = &req.dlna_library_ids {
+        let ids: Vec<LibraryId> = ids.iter().copied().map(LibraryId).collect();
+        state.services.dlna.set_scope(&admin.actor, &ids, req.dlna_max_rating.as_deref()).await?;
+    }
     if let Some(name) = req.dlna_friendly_name {
         let trimmed = name.trim();
         if trimmed.is_empty() {
@@ -511,9 +527,10 @@ async fn update_system_settings(
     let mqtt_username = repo.get("mqtt_username").await?;
     let mqtt_topic_prefix =
         repo.get("mqtt_topic_prefix").await?.unwrap_or_else(|| "mbl/media_lounge_box".into());
-    let dlna_enabled = repo.get("dlna_enabled").await?.map(|v| v != "false").unwrap_or(true);
-    let dlna_friendly_name =
-        repo.get("dlna_friendly_name").await?.unwrap_or_else(|| "Media Box Lounge".into());
+    let dlna = state.services.dlna.settings().await?;
+    let (dlna_enabled, dlna_friendly_name) = (dlna.enabled, dlna.friendly_name);
+    let dlna_library_ids: Vec<i64> = dlna.library_ids.iter().map(|id| id.0).collect();
+    let dlna_max_rating = dlna.max_rating;
     let auto_scan_on_change =
         repo.get("auto_scan_on_change").await?.map(|v| v != "false").unwrap_or(true);
     let periodic_scan_interval_minutes = repo
@@ -545,6 +562,8 @@ async fn update_system_settings(
         mqtt_topic_prefix,
         dlna_enabled,
         dlna_friendly_name,
+        dlna_library_ids,
+        dlna_max_rating,
         auto_scan_on_change,
         periodic_scan_interval_minutes,
         auto_fetch_missing_metadata,

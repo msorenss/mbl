@@ -28,4 +28,4 @@ MBL immediately launches background filesystem indexing, metadata matching, and 
 You can stream directly in your browser, or install:
 - **`mbl-tv`:** For Android TV, Apple TV, LG webOS, or Raspberry Pi HDMI 10-foot interfaces.
 - **OpenSubsonic Clients:** Connect Symfonium, DSub, or Feishin to `http://<server-ip>:8420/rest/` using your user credentials.
-- **DLNA / UPnP Players:** Stream directly to smart TVs and receivers via UPnP ContentDirectory.
+- **DLNA / UPnP Players:** Turn on **DLNA for TVs** in server settings and choose libraries; smart TVs on the home network can then browse and play them.

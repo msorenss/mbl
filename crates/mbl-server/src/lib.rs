@@ -8,6 +8,7 @@ pub mod mdns;
 pub mod mqtt;
 pub mod recorder;
 pub mod shutdown;
+pub mod ssdp;
 pub mod tls;
 pub mod web;
 pub mod webhooks;

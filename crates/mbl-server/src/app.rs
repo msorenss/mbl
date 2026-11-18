@@ -283,6 +283,13 @@ impl Server {
             stop.clone(),
         ));
 
+        let ssdp = tokio::spawn(crate::ssdp::run(
+            self.services.dlna.clone(),
+            self.config.server.bind.clone(),
+            self.config.server.port,
+            stop.clone(),
+        ));
+
         let mdns = if self.config.server.mdns {
             Some(tokio::spawn(crate::mdns::run(
                 self.db.clone(),
@@ -317,6 +324,7 @@ impl Server {
         let _ = home_network.await;
         let _ = mqtt.await;
         let _ = webhooks.await;
+        let _ = ssdp.await;
         if let Some(mdns) = mdns {
             let _ = mdns.await;
         }

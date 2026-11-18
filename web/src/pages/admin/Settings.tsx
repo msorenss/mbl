@@ -3,6 +3,7 @@ import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
 import CastDiagnostics from "../../components/CastDiagnostics";
 import CastReceiverSettings from "../../components/CastReceiverSettings";
+import DlnaSettings from "../../components/DlnaSettings";
 import { RestartServerControl } from "../../components/RestartServerControl";
 import TlsSettings from "../../components/TlsSettings";
 import { Button } from "../../components/ui";
@@ -36,10 +37,6 @@ export default function Settings() {
   const [mqttPassword, setMqttPassword] = createSignal("");
   const [showMqttPassword, setShowMqttPassword] = createSignal(false);
   const [mqttTopicPrefix, setMqttTopicPrefix] = createSignal("mbl/media_lounge_box");
-
-  // DLNA state
-  const [dlnaEnabled, setDlnaEnabled] = createSignal(true);
-  const [dlnaFriendlyName, setDlnaFriendlyName] = createSignal("Media Box Lounge");
 
   const [serverInfo, { refetch: refetchServerInfo }] = createResource(async () => {
     try {
@@ -105,8 +102,6 @@ export default function Settings() {
       setMqttBrokerUrl(res.data.mqttBrokerUrl || "mqtt://localhost:1883");
       setMqttUsername(res.data.mqttUsername || "");
       setMqttTopicPrefix(res.data.mqttTopicPrefix || "mbl/media_lounge_box");
-      setDlnaEnabled(res.data.dlnaEnabled ?? true);
-      setDlnaFriendlyName(res.data.dlnaFriendlyName || "Media Box Lounge");
       return res.data;
     }
     throw new Error("Could not load system settings.");
@@ -129,8 +124,6 @@ export default function Settings() {
           mqttUsername: mqttUsername().trim() || undefined,
           mqttPassword: mqttPassword().trim() || undefined,
           mqttTopicPrefix: mqttTopicPrefix().trim() || undefined,
-          dlnaEnabled: dlnaEnabled(),
-          dlnaFriendlyName: dlnaFriendlyName().trim() || undefined,
         },
       });
       if (res.data) {
@@ -1059,102 +1052,8 @@ export default function Settings() {
         </form>
       </div>
 
-      {/* 3. DLNA & UPnP Media Server Section */}
-      <div
-        style={{
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border)",
-          "border-radius": "var(--radius-lg)",
-          padding: "24px",
-          "margin-bottom": "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            "align-items": "center",
-            "justify-content": "space-between",
-            "margin-bottom": "14px",
-          }}
-        >
-          <div style={{ display: "flex", "align-items": "center", gap: "10px" }}>
-            <span style={{ "font-size": "24px" }}>📺</span>
-            <div>
-              <h2 style={{ margin: 0, "font-size": "18px", "font-weight": "700" }}>
-                DLNA & UPnP Media Server
-              </h2>
-              <span style={{ "font-size": "12px", color: "var(--text-secondary)" }}>
-                SSDP local network broadcasting and Smart TV ContentDirectory
-              </span>
-            </div>
-          </div>
-
-          <label
-            style={{ display: "flex", "align-items": "center", gap: "8px", cursor: "pointer" }}
-          >
-            <input
-              type="checkbox"
-              checked={dlnaEnabled()}
-              onChange={(e) => setDlnaEnabled(e.currentTarget.checked)}
-              style={{ width: "18px", height: "18px" }}
-            />
-            <span style={{ "font-size": "13px", "font-weight": "600" }}>
-              {dlnaEnabled() ? "Enabled" : "Disabled"}
-            </span>
-          </label>
-        </div>
-
-        <p
-          style={{
-            "font-size": "13px",
-            color: "var(--text-secondary)",
-            "line-height": "1.6",
-            "margin-bottom": "16px",
-          }}
-        >
-          When enabled, MBL announces itself via UPnP SSDP on port 1900 and serves XML
-          ContentDirectory endpoints. Supported smart TVs (Samsung Tizen, LG webOS, Sony Bravia) and
-          DLNA media renderers can browse movies, TV shows, and music natively without installing
-          client applications.
-        </p>
-
-        <form onSubmit={handleSave}>
-          <div style={{ "margin-bottom": "16px" }}>
-            <label
-              for="dlna-name"
-              style={{
-                display: "block",
-                "font-size": "13px",
-                "font-weight": "600",
-                "margin-bottom": "6px",
-              }}
-            >
-              DLNA Friendly Name
-            </label>
-            <input
-              id="dlna-name"
-              type="text"
-              value={dlnaFriendlyName()}
-              onInput={(e) => setDlnaFriendlyName(e.currentTarget.value)}
-              placeholder="Media Box Lounge"
-              disabled={!dlnaEnabled()}
-              style={{
-                width: "100%",
-                padding: "9px 12px",
-                background: "var(--bg-base)",
-                border: "1px solid var(--border)",
-                "border-radius": "var(--radius-sm)",
-                color: "var(--text-primary)",
-                "font-size": "14px",
-              }}
-            />
-          </div>
-
-          <Button type="submit" variant="primary" size="md" disabled={saving()}>
-            {saving() ? "Saving…" : "Save DLNA Settings"}
-          </Button>
-        </form>
-      </div>
+      {/* 3. DLNA media server */}
+      <DlnaSettings />
 
       {/* 4. AI & MCP Integrations Card */}
       <div

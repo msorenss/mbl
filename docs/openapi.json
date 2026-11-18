@@ -16189,6 +16189,7 @@
           "mqttTopicPrefix",
           "dlnaEnabled",
           "dlnaFriendlyName",
+          "dlnaLibraryIds",
           "autoScanOnChange",
           "periodicScanIntervalMinutes",
           "autoFetchMissingMetadata"
@@ -16201,10 +16202,26 @@
             "type": "boolean"
           },
           "dlnaEnabled": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Off until an admin turns it on; DLNA has no sign-in."
           },
           "dlnaFriendlyName": {
             "type": "string"
+          },
+          "dlnaLibraryIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Libraries shared over DLNA. Nothing is shared while this is empty."
+          },
+          "dlnaMaxRating": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Highest content rating shared over DLNA (for example `PG-13`); none means no limit."
           },
           "hailoLlmHefPath": {
             "type": [
@@ -17339,6 +17356,23 @@
             ]
           },
           "dlnaFriendlyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dlnaLibraryIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Replaces the shared libraries; `dlnaMaxRating` is stored together with it (absent or\nempty clears the limit)."
+          },
+          "dlnaMaxRating": {
             "type": [
               "string",
               "null"

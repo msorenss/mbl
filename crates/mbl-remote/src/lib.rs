@@ -11,10 +11,7 @@ pub mod tailscale;
 pub mod tls;
 
 pub use bandwidth::{BandwidthManager, NetworkQualityPreset};
-pub use dlna::{
-    BrowseFlag, DidlItem, DlnaRendererProfile, generate_content_directory_scpd,
-    generate_device_description, generate_didl_lite,
-};
+pub use dlna::{BrowseFlag, DidlItem, DidlRes, DlnaRendererProfile};
 pub use identity::{
     TailscaleAuthIdentity, evaluate_tailscale_serve_headers, resolve_tailnet_peer_identity,
 };

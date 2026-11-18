@@ -86,6 +86,14 @@ When a milestone is complete and the relevant checks are green:
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
 
+### 2026-11-18 — DLNA-server för TV-apparater
+- `mbl-remote::dlna` omskriven: beskrivningar, SCPD, DIDL-Lite, SOAP-svar/fel, `soap_arg`, SSDP (`parse_msearch`, `matching_targets`, `search_response`, `notify`) och renderarprofil (Samsung får `video/x-mkv`). Rena funktioner med enhetstester.
+- `mbl-service::dlna::DlnaService` (i `Services.dlna`): inställningar `dlna_enabled` (nu av som standard), `dlna_friendly_name`, `dlna_library_ids`, `dlna_max_rating`. All åtkomst går via en syntetisk `Actor` (UserId 0, `LibraryAccess::Only`, åldersgräns), så ACL och åldersgräns är samma kod som för inloggade. Objekt-ID: `0`, `L<id>`, `I<id>`. Ny `items::count_top_level`.
+- `mbl-api::routes::dlna` (`/dlna/*`, utanför OpenAPI): description, SCPD, `control` (Browse, GetSearch/SortCapabilities, GetSystemUpdateID), `connection_control`, `events` (SUBSCRIBE/UNSUBSCRIBE), `media/{part}.{ext}` via `StreamService::serve_part` med `contentFeatures.dlna.org`/`transferMode.dlna.org`. Grind: peer-adress (ConnectInfo, inte X-Forwarded-For) måste vara LAN och DLNA aktivt med minst ett bibliotek.
+- `mbl-server::ssdp`: UDP 1900 med SO_REUSEADDR/REUSEPORT (socket2, ny workspace-dep), multicast per LAN-gränssnitt (docker/veth/tailscale m.fl. hoppas över), NOTIFY alive var 15:e min, byebye vid avstängning. Kontrollerar inställningarna var 5:e sekund.
+- Webb: `web/src/components/DlnaSettings.tsx` ersätter den gamla DLNA-sektionen i serverinställningarna; allmänna sparknappen skickar inte längre DLNA-fält.
+- Test: `crates/mbl-server/tests/dlna.rs` (av/på, bibliotek, åldersgräns, Browse-trädet, Range-media, WAN nekas, SUBSCRIBE, okänd åtgärd). Inte provat mot fysisk Samsung/LG; ingen omkodning, omslag eller undertext.
+
 ### 2026-11-18 — PIN-byte för vanliga konton, fullständiga översättningar, Radarr/Sonarr
 - Profilbyte: `AuthService::switch_profile` godtar även icke-admin-konton med PIN (inte bara hanterade profiler). Webben (`Profiles.tsx`) frågar efter PIN för dem. Användarens profil hade PIN men var inte hanterad och skickades därför till inloggning.
 - Översättningar: ny `web/src/i18n/uiPhrases.ts` (cirka 625 fraser och 89 mallar med `{0}`) laddas latent med `phraseEngine.ts`. Steg 7 (ord för ord) och steg 5 (delning på skiljetecken) accepterar bara resultat utan kvarvarande engelska ord (`onlyNamesLeft`); mönster med `{n}` matchas efter exakt uppslag. `web/scripts/i18n-extract.mjs` hittar synliga texter med TypeScript-parsern; `coverage.test.ts` kräver översättning på alla 22 språk. Ny text i webben kräver alltså en rad i `uiPhrases.ts` (namn och kod i `KEEP_ENGLISH`). Serverns förklaringar i fjärrdiagnostiken översätts via mönster.

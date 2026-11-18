@@ -20,7 +20,18 @@ MBL is a complete personal media platform spanning video, music, and photography
 - **Manual & Smart Collections:** Create rule-based dynamic collections (e.g., "Horror Movies from the 80s") or curated static collections.
 - **Metadata Field Locking:** Protect manually corrected metadata fields (titles, years, studios) from being overwritten during future automated library rescans.
 - **OpenSubtitles Integration:** Automatic subtitle searching and downloading matching file hashes and IMDb/TMDB identifiers.
-- **DLNA / UPnP Media Server:** Native UPnP SSDP announcement and ContentDirectory browse tree with customized TV device profiles (LG webOS, Samsung, Sony Bravia).
+- **DLNA / UPnP Media Server:** smart TVs on the home network can browse and play chosen libraries (see below).
+
+## DLNA for TVs
+
+**Administration → Server settings → DLNA for TVs** lets smart TVs (Samsung, LG and other DLNA players) on the home network find the server and play from it without an app.
+
+- DLNA has no sign-in, so everyone on the network sees the same content. Choose which libraries are shared and, if needed, a maximum content rating. Nothing is shared until at least one library is chosen. DLNA is off by default.
+- Only devices on the local network are answered (by their real address; forwarding headers are ignored). Tailscale and internet clients are refused.
+- TVs find the server through SSDP on UDP port 1900 and fetch descriptions and media over the server's HTTP port (8420 by default). Turning DLNA on or off takes effect within a few seconds, without a restart.
+- Folders follow the library: movies directly, TV shows as show → season → episode, music as artist → album → track.
+- Files are sent as they are, with seeking. There is no transcoding for DLNA yet: if a TV cannot play a format (for example some MKV files or audio codecs), play it with Cast or an MBL app instead.
+- Not yet: cover art, subtitles in the TV's own player, search, and change notifications (the TV sees new titles when it browses again).
 
 ## Webhooks
 

@@ -54,6 +54,10 @@ Syfte: hitta funktioner som finns i API, inställningar eller dokumentation men 
 - Profilbyte: PIN fungerar även för vanliga konton (inte administratörer) som fått en PIN. Tidigare gick sådana profiler till inloggningssidan.
 - Översättningar: alla synliga texter (cirka 1 220 plus mallar med värden) är översatta till 22 språk; ord-för-ord-översättning ger inte längre halvöversatta meningar. `web/src/i18n/coverage.test.ts` extraherar texterna ur källkoden (`web/scripts/i18n-extract.mjs`) och fallerar vid saknad översättning.
 
+## Åtgärdat 2026-11-18 (kväll)
+
+- A3 DLNA: SSDP på UDP 1900 (startar och stoppar med inställningen), enhets- och tjänstebeskrivningar, ContentDirectory Browse med sidindelning, ConnectionManager, GENA-prenumerationer som accepteras, media med Range och DLNA-huvuden. Admin väljer bibliotek och åldersgräns; av som standard; bara LAN-klienter (peer-adress). Ingen omkodning, omslagsbild eller undertext ännu. Inte provat mot fysisk TV.
+
 ## Föreslagen ordning
 
 1. B1 Quick Connect och B2 profilbyte (krävs för apparna).

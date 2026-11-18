@@ -46,6 +46,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::media_audio::router())
         .merge(routes::photos::router())
         .merge(routes::subsonic::router())
+        .merge(routes::dlna::router())
         .merge(routes::workers::router())
         .merge(routes::nodes::router())
         .merge(routes::livetv::router())

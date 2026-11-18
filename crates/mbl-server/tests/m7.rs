@@ -23,7 +23,7 @@ use common::TestApp;
 use mbl_analysis::features::build_spoiler_free_recap;
 use mbl_analysis::loudness::parse_ebur128_output;
 use mbl_analysis::subsync::align_srt_content;
-use mbl_remote::dlna::generate_device_description;
+use mbl_remote::dlna::device_description;
 use mbl_remote::mqtt::{IncomingPlayerCommand, build_player_discovery, parse_incoming_command};
 use mbl_service::players::PlayerInfo;
 use serde_json::json;
@@ -552,7 +552,7 @@ fn m7_spoiler_free_recap_strict_boundary() {
 #[test]
 fn m7_remote_mqtt_and_dlna_discovery() {
     // 1. DLNA UPnP root device description XML generator
-    let xml = generate_device_description("http://192.168.1.50:8420", "MBL Server", "12345678");
+    let xml = device_description("MBL Server", "12345678", "1.0");
     assert!(xml.contains("urn:schemas-upnp-org:device:MediaServer:1"));
     assert!(xml.contains("MBL Server"));
     assert!(xml.contains("urn:schemas-upnp-org:service:ContentDirectory:1"));
