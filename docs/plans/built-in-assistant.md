@@ -1,6 +1,6 @@
 # Inbyggd AI-assistent och medtittare
 
-Status: plan (2026-11-19). Beslut från användaren: alternativ 1, MBL driver själv agenten. Den ska fungera med en API-nyckel hos de flesta leverantörer, och även kunna använda ett agentramverk (Hermes, Claude Code). Externa MCP-agenter förblir ett tillval.
+Status: A0 implementerad 2026-11-19 (leverantörslager, inställningar, adminvy); A1–A5 återstår. Beslut från användaren: alternativ 1, MBL driver själv agenten. Den ska fungera med en API-nyckel hos de flesta leverantörer, och även kunna använda ett agentramverk (Hermes, Claude Code). Externa MCP-agenter förblir ett tillval.
 
 ## Mål
 

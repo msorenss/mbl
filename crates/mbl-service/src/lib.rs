@@ -4,6 +4,7 @@
 //! performs its own permission checks; adapters never authorize on their own.
 
 pub mod arr;
+pub mod assistant;
 pub mod auth;
 pub mod certificates;
 pub mod collections;
@@ -155,6 +156,7 @@ pub struct Services {
     pub downloads: DownloadService,
     pub dlna: dlna::DlnaService,
     pub metadata: metadata_edit::MetadataEditService,
+    pub assistant: assistant::AssistantService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -194,6 +196,7 @@ impl Services {
         let import = ImportService::new(db_arc.clone());
         let downloads = DownloadService::new(db.clone(), jobs.clone(), stream.clone());
         let db_dlna = db.clone();
+        let db_assistant = db.clone();
         let metadata =
             metadata_edit::MetadataEditService::new(db.clone(), jobs.clone(), events.clone());
 
@@ -226,6 +229,7 @@ impl Services {
             import,
             downloads,
             dlna: dlna::DlnaService::new(db_dlna),
+            assistant: assistant::AssistantService::new(db_assistant),
             metadata,
             restart: None,
         }

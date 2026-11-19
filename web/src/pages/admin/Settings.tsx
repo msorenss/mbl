@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import client from "../../api/client";
+import AssistantSettings from "../../components/AssistantSettings";
 import CastDiagnostics from "../../components/CastDiagnostics";
 import CastReceiverSettings from "../../components/CastReceiverSettings";
 import DlnaSettings from "../../components/DlnaSettings";
@@ -702,6 +703,7 @@ export default function Settings() {
       {/* 1.5. HTTPS & TLS Certificates Section */}
       <TlsSettings />
       <WebhookSettings />
+      <AssistantSettings />
 
       {/* 2. Library Scanning & Automation Section */}
       <div

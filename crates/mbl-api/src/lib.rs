@@ -44,6 +44,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::matchmaker::router())
         .merge(routes::players::router())
         .merge(routes::companion::router())
+        .merge(routes::assistant::router())
         .merge(routes::media_audio::router())
         .merge(routes::photos::router())
         .merge(routes::subsonic::router())

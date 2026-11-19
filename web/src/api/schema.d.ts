@@ -2464,6 +2464,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which language model the built-in assistant uses. The API key is never returned. */
+        get: operations["get_assistant_settings"];
+        /** Save the provider, address, key and model. Turning it on needs an address and a model. */
+        put: operations["update_assistant_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/assistant/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Models the provider offers, for choosing one. */
+        post: operations["list_assistant_models"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/assistant/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the model a short question and check that it can call tools. Problems are reported in
+         *     the body (`ok: false`), not as an error status.
+         */
+        post: operations["test_assistant_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/bandwidth": {
         parameters: {
             query?: never;
@@ -3392,6 +3447,25 @@ export interface components {
             /** Format: int64 */
             width?: number | null;
         };
+        /** @description Connection details to try before saving. Without `apiKey` the stored key is used. */
+        AssistantConnection: {
+            apiKey?: string | null;
+            baseUrl: string;
+            effort?: string | null;
+            /** @description Needed for the connection test; ignored when listing models. */
+            model?: string;
+            provider: components["schemas"]["ProviderKind"];
+        };
+        /** @description Stored assistant settings. The API key is never returned. */
+        AssistantSettings: {
+            baseUrl: string;
+            /** @description `low`, `medium` or `high`; empty means the provider's default. */
+            effort?: string | null;
+            enabled: boolean;
+            hasApiKey: boolean;
+            model: string;
+            provider: components["schemas"]["ProviderKind"];
+        };
         AuthorizeParams: {
             client_id: string;
             code_challenge: string;
@@ -3557,6 +3631,21 @@ export interface components {
             timedOut: boolean;
             /** @description Viewer messages newer than `afterId`, oldest first. Untrusted user text. */
             viewerMessages: components["schemas"]["CompanionReaction"][];
+        };
+        /** @description Outcome of [`Provider::test`]. */
+        ConnectionReport: {
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description Time for the first answer.
+             */
+            latencyMs: number;
+            model: string;
+            ok: boolean;
+            /** @description What the model answered to the test question. */
+            reply?: string | null;
+            /** @description Whether the model called a tool when asked to; `None` when the first request failed. */
+            toolsSupported?: boolean | null;
         };
         CreateApiTokenRequest: {
             allowedNetworks?: string[] | null;
@@ -5043,6 +5132,11 @@ export interface components {
             itemId: components["schemas"]["ItemId"];
             outcome: components["schemas"]["ProgressSyncOutcome"];
         };
+        /**
+         * @description Wire protocol of a provider.
+         * @enum {string}
+         */
+        ProviderKind: "openai_compatible" | "anthropic";
         /** @description Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8). */
         QuickConnectAuthorizeRequest: {
             code: string;
@@ -5757,6 +5851,17 @@ export interface components {
             qualityProfileId?: number | null;
             rootFolder: string;
             url: string;
+        };
+        UpdateAssistantSettings: {
+            /** @description New key; omit or leave empty to keep the stored one. */
+            apiKey?: string | null;
+            baseUrl: string;
+            /** @description Remove the stored key (for local servers that need none). */
+            clearApiKey?: boolean;
+            effort?: string | null;
+            enabled: boolean;
+            model: string;
+            provider: components["schemas"]["ProviderKind"];
         };
         UpdateChannelRequest: {
             channelNumber?: string | null;
@@ -12247,6 +12352,119 @@ export interface operations {
             };
             /** @description Media part not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_assistant_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Assistant settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSettings"];
+                };
+            };
+        };
+    };
+    update_assistant_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAssistantSettings"];
+            };
+        };
+        responses: {
+            /** @description Saved settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantSettings"];
+                };
+            };
+            /** @description Invalid address, effort or missing model */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_assistant_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantConnection"];
+            };
+        };
+        responses: {
+            /** @description Model names */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description The provider could not be reached or rejected the key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    test_assistant_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantConnection"];
+            };
+        };
+        responses: {
+            /** @description Test result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionReport"];
+                };
+            };
+            /** @description Invalid address or no model */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

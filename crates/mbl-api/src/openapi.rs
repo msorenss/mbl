@@ -9,10 +9,10 @@ use utoipa::{Modify, OpenApi};
 
 use crate::AppState;
 use crate::routes::{
-    auth, collections, companion, downloads, events, hw, images, import, intelligence, invites,
-    items, libraries, livetv, matchmaker, mcp, media_audio, metadata, nodes, oauth, online, photos,
-    playback, players, playlists, plugins, remote, requests, stream, system, tls, users, webhooks,
-    workers,
+    assistant, auth, collections, companion, downloads, events, hw, images, import, intelligence,
+    invites, items, libraries, livetv, matchmaker, mcp, media_audio, metadata, nodes, oauth,
+    online, photos, playback, players, playlists, plugins, remote, requests, stream, system, tls,
+    users, webhooks, workers,
 };
 
 #[derive(OpenApi)]
@@ -62,7 +62,7 @@ use crate::routes::{
         matchmaker::create_matchmaker_session,
         matchmaker::join_session, matchmaker::get_matchmaker_session, matchmaker::record_vote,
         players::list_players, players::register_player, players::unregister_player, players::connect_player, players::send_player_command,
-        companion::join_companion_session, companion::send_companion_reaction, companion::get_companion_context, companion::get_companion_reactions, companion::set_companion_mode, companion::post_viewer_message, companion::request_companion_comment, companion::wait_for_companion_events,
+        companion::join_companion_session, companion::send_companion_reaction, companion::get_companion_context, companion::get_companion_reactions, companion::set_companion_mode, companion::post_viewer_message, companion::request_companion_comment, companion::wait_for_companion_events, assistant::get_assistant_settings, assistant::update_assistant_settings, assistant::test_assistant_connection, assistant::list_assistant_models,
         media_audio::stream_audio, photos::get_photo_timeline, photos::list_photos,
         workers::generate_worker_pairing_code, workers::pair_worker, workers::list_workers,
         workers::get_worker, workers::delete_worker, workers::wake_worker,
@@ -221,6 +221,11 @@ use crate::routes::{
         mbl_service::CompanionFrequency,
         mbl_service::CommentReason,
         mbl_service::CompanionWake,
+        mbl_service::assistant::AssistantSettings,
+        mbl_service::assistant::UpdateAssistantSettings,
+        mbl_service::assistant::AssistantConnection,
+        mbl_agent::ConnectionReport,
+        mbl_agent::ProviderKind,
         mbl_service::DialogueLine,
         mbl_service::DialogueStatus,
         companion::JoinSessionRequest,

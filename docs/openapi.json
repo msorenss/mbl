@@ -7015,6 +7015,150 @@
         }
       }
     },
+    "/api/v1/system/assistant": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Which language model the built-in assistant uses. The API key is never returned.",
+        "operationId": "get_assistant_settings",
+        "responses": {
+          "200": {
+            "description": "Assistant settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantSettings"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Save the provider, address, key and model. Turning it on needs an address and a model.",
+        "operationId": "update_assistant_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAssistantSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Saved settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid address, effort or missing model"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/assistant/models": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Models the provider offers, for choosing one.",
+        "operationId": "list_assistant_models",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The provider could not be reached or rejected the key"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/assistant/test": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Ask the model a short question and check that it can call tools. Problems are reported in\nthe body (`ok: false`), not as an error status.",
+        "operationId": "test_assistant_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Test result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid address or no model"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/system/bandwidth": {
       "get": {
         "tags": [
@@ -9376,6 +9520,73 @@
           }
         }
       },
+      "AssistantConnection": {
+        "type": "object",
+        "description": "Connection details to try before saving. Without `apiKey` the stored key is used.",
+        "required": [
+          "provider",
+          "baseUrl"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "Needed for the connection test; ignored when listing models."
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderKind"
+          }
+        }
+      },
+      "AssistantSettings": {
+        "type": "object",
+        "description": "Stored assistant settings. The API key is never returned.",
+        "required": [
+          "enabled",
+          "provider",
+          "baseUrl",
+          "hasApiKey",
+          "model"
+        ],
+        "properties": {
+          "baseUrl": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`low`, `medium` or `high`; empty means the provider's default."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "hasApiKey": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderKind"
+          }
+        }
+      },
       "AuthorizeParams": {
         "type": "object",
         "required": [
@@ -9944,6 +10155,49 @@
               "$ref": "#/components/schemas/CompanionReaction"
             },
             "description": "Viewer messages newer than `afterId`, oldest first. Untrusted user text."
+          }
+        }
+      },
+      "ConnectionReport": {
+        "type": "object",
+        "description": "Outcome of [`Provider::test`].",
+        "required": [
+          "ok",
+          "model",
+          "latencyMs"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latencyMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time for the first answer.",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "reply": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the model answered to the test question."
+          },
+          "toolsSupported": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the model called a tool when asked to; `None` when the first request failed."
           }
         }
       },
@@ -15406,6 +15660,14 @@
           }
         }
       },
+      "ProviderKind": {
+        "type": "string",
+        "description": "Wire protocol of a provider.",
+        "enum": [
+          "openai_compatible",
+          "anthropic"
+        ]
+      },
       "QuickConnectAuthorizeRequest": {
         "type": "object",
         "description": "Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8).",
@@ -18042,6 +18304,46 @@
           },
           "url": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateAssistantSettings": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "provider",
+          "baseUrl",
+          "model"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New key; omit or leave empty to keep the stored one."
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "clearApiKey": {
+            "type": "boolean",
+            "description": "Remove the stored key (for local servers that need none)."
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderKind"
           }
         }
       },

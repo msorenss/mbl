@@ -41,6 +41,7 @@ mbl-analysis = { path = "crates/mbl-analysis" }
 mbl-hailo = { path = "crates/mbl-hailo" }
 mbl-tv = { path = "crates/mbl-tv" }
 mbl-remote = { path = "crates/mbl-remote" }
+mbl-agent = { path = "crates/mbl-agent" }
 
 # External crates (approved list: IMPLEMENTATION.md §1.4)
 anyhow = "1.0.104"

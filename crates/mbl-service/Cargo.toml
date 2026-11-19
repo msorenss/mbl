@@ -17,6 +17,7 @@ camino.workspace = true
 dunce.workspace = true
 getrandom.workspace = true
 image.workspace = true
+mbl-agent.workspace = true
 mbl-analysis.workspace = true
 mbl-auth.workspace = true
 mbl-core.workspace = true
