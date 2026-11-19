@@ -359,6 +359,15 @@ async fn check(response: reqwest::Response) -> Result<Value> {
     Err(status_error(status, &body, retry_after))
 }
 
+/// True when a response is plain JSON rather than an event stream.
+fn is_json(response: &reqwest::Response) -> bool {
+    response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("application/json"))
+}
+
 /// The error for an unsuccessful response.
 async fn failed(response: reqwest::Response) -> Error {
     match check(response).await {

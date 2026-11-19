@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+mbl-agent.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 camino.workspace = true

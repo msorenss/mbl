@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::{
     ChatRequest, ChatResponse, Message, ProviderConfig, Role, StopReason, TextSink, ToolCall,
-    Usage, check, failed, parse_arguments, send_error, sse,
+    Usage, check, failed, is_json, parse_arguments, send_error, sse,
 };
 
 pub fn headers(config: &ProviderConfig) -> HeaderMap {
@@ -167,6 +167,14 @@ pub async fn chat(
     };
     if !response.status().is_success() {
         return Err(failed(response).await);
+    }
+    // Some servers ignore `stream` and answer with one JSON body.
+    if is_json(&response) {
+        let parsed = parse_response(&check(response).await?)?;
+        if !parsed.text.is_empty() {
+            on_text(&parsed.text);
+        }
+        return Ok(parsed);
     }
 
     let mut text = String::new();

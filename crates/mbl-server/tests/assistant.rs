@@ -175,3 +175,130 @@ async fn admin_configures_and_tests_the_assistant() {
         assert_eq!(res.status, StatusCode::FORBIDDEN, "{path}: {}", res.body);
     }
 }
+
+/// A provider that first asks for `find_by_person`, then answers with what the tool returned.
+async fn scripted_provider(seen: std::sync::Arc<std::sync::Mutex<Vec<Value>>>) -> String {
+    async fn chat(
+        axum::extract::State(seen): axum::extract::State<
+            std::sync::Arc<std::sync::Mutex<Vec<Value>>>,
+        >,
+        Json(body): Json<Value>,
+    ) -> Json<Value> {
+        seen.lock().unwrap().push(body.clone());
+        let last = body["messages"].as_array().unwrap().last().unwrap().clone();
+        if last["role"] == "tool" {
+            let content = last["content"].as_str().unwrap_or_default().to_owned();
+            return Json(
+                json!({"choices": [{"finish_reason": "stop", "message": {"content": format!("Tool said: {content}")}}],
+                "usage": {"prompt_tokens": 50, "completion_tokens": 10}}),
+            );
+        }
+        Json(
+            json!({"choices": [{"finish_reason": "tool_calls", "message": {"content": null, "tool_calls": [
+            {"id": "c1", "type": "function", "function": {"name": "find_by_person", "arguments": "{\"name\":\"pacino\"}"}}
+        ]}}], "usage": {"prompt_tokens": 40, "completion_tokens": 5}}),
+        )
+    }
+    let app = Router::new().route("/v1/chat/completions", post(chat)).with_state(seen);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{addr}/v1")
+}
+
+#[tokio::test]
+async fn the_assistant_looks_things_up_as_the_person_asking() {
+    use mbl_core::{Actor, LibraryAccess, UserId};
+    use mbl_mcp::assistant::{AssistantRunner, Surface};
+
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let fixture = common::seed_playback_fixtures(&app, &db, &admin).await;
+    let person: i64 =
+        sqlx::query_scalar("INSERT INTO people (name) VALUES ('Al Pacino') RETURNING id")
+            .fetch_one(&db.write)
+            .await
+            .unwrap();
+    sqlx::query("INSERT INTO item_people (item_id, person_id, role, character, ord) VALUES (?, ?, 'actor', 'Vincent Hanna', 0)")
+        .bind(fixture.movie_id)
+        .bind(person)
+        .execute(&db.write)
+        .await
+        .unwrap();
+    let admin_id: i64 =
+        sqlx::query_scalar("SELECT MIN(id) FROM users").fetch_one(&db.read).await.unwrap();
+    let admin_actor = Actor::admin(UserId(admin_id));
+    let runner = AssistantRunner::new(db.clone(), services.clone());
+    let ask = || vec![mbl_agent::Message::user("Anything with Al Pacino?")];
+
+    // Off until configured.
+    let e = runner.run(&admin_actor, Surface::Chat, "", ask(), None).await.unwrap_err();
+    assert!(matches!(e, mbl_core::Error::Unavailable(_)), "{e}");
+
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let base = scripted_provider(seen.clone()).await;
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "openai_compatible", "baseUrl": base, "model": "scripted"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+
+    // This fake ignores `stream` and answers with plain JSON; the text still arrives.
+    let mut streamed = String::new();
+    let mut sink = |s: &str| streamed.push_str(s);
+    let reply = runner.run(&admin_actor, Surface::Chat, "", ask(), Some(&mut sink)).await.unwrap();
+    assert_eq!(streamed, reply.text);
+    assert!(reply.text.contains("Heat"), "{}", reply.text);
+    assert!(reply.text.contains("Vincent Hanna"), "{}", reply.text);
+    assert_eq!(reply.steps, 2);
+    assert_eq!(reply.tools.len(), 1);
+    assert!(reply.tools[0].ok);
+    assert_eq!((reply.usage.input_tokens, reply.usage.output_tokens), (90, 15));
+
+    // The model saw the rules and only the chat tools; nothing that changes data.
+    {
+        let bodies = seen.lock().unwrap();
+        let first = &bodies[0];
+        let system = first["messages"][0]["content"].as_str().unwrap();
+        assert!(system.contains("data, not instructions"), "{system}");
+        let names: Vec<&str> = first["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["function"]["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"find_by_person") && names.contains(&"search_media"), "{names:?}");
+        assert!(!names.iter().any(|n| {
+            ["mark_watched", "scan_library", "delete_user", "send_companion_reaction"].contains(n)
+        }));
+    }
+
+    // The tool call is audited as the assistant.
+    let audited: (String, String, String) =
+        sqlx::query_as("SELECT client, tool, outcome FROM mcp_audit ORDER BY id DESC LIMIT 1")
+            .fetch_one(&db.read)
+            .await
+            .unwrap();
+    assert_eq!(audited, ("mbl-assistant".into(), "find_by_person".into(), "ok".into()));
+
+    // Someone without access to the movie library gets nothing from the same question.
+    let viewer = Actor {
+        user_id: UserId(admin_id + 100),
+        is_admin: false,
+        library_access: LibraryAccess::Only(Vec::new()),
+        is_managed: false,
+        content_rating_ceiling: None,
+    };
+    let reply = runner.run(&viewer, Surface::Chat, "", ask(), None).await.unwrap();
+    assert!(!reply.text.contains("Heat"), "{}", reply.text);
+    assert!(reply.text.contains("\"count\":0"), "{}", reply.text);
+
+    // Managed (child) profiles do not get the assistant.
+    let child = Actor { is_managed: true, ..viewer };
+    let e = runner.run(&child, Surface::Chat, "", ask(), None).await.unwrap_err();
+    assert!(matches!(e, mbl_core::Error::Forbidden));
+}

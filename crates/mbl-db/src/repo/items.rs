@@ -319,6 +319,61 @@ pub async fn search(
         .collect())
 }
 
+/// A title a person appears in or worked on.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonCredit {
+    pub person: String,
+    /// "actor", "director", "writer"…
+    pub role: String,
+    pub character: Option<String>,
+    pub item: ItemSummary,
+}
+
+/// Titles credited to people whose name contains `name` (case-insensitive), exact name
+/// matches first, at most `limit`. Only items the filter allows.
+pub async fn by_person(
+    db: &Db,
+    filter: &ItemFilter,
+    name: &str,
+    limit: usize,
+) -> Result<Vec<PersonCredit>> {
+    let escaped = name.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let credits: Vec<(i64, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT ip.item_id, p.name, ip.role, ip.character FROM item_people ip
+         JOIN people p ON p.id = ip.person_id
+         WHERE p.name LIKE ? ESCAPE '\\'
+         ORDER BY lower(p.name) = lower(?) DESC, p.name, ip.ord IS NULL, ip.ord
+         LIMIT 500",
+    )
+    .bind(format!("%{escaped}%"))
+    .bind(name.trim())
+    .fetch_all(&db.read)
+    .await?;
+    if credits.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut qb = summary_query(filter);
+    qb.push(" AND i.kind != 'extra' AND i.id IN (");
+    let mut sep = qb.separated(", ");
+    for (id, ..) in &credits {
+        sep.push_bind(*id);
+    }
+    qb.push(")");
+    let found: Vec<ItemSummary> = qb.build_query_as().fetch_all(&db.read).await?;
+    let by_id: std::collections::HashMap<i64, ItemSummary> =
+        found.into_iter().map(|i| (i.id.0, i)).collect();
+    let mut seen = std::collections::HashSet::new();
+    Ok(credits
+        .into_iter()
+        .filter_map(|(id, person, role, character)| {
+            let item = by_id.get(&id)?.clone();
+            seen.insert(id).then_some(PersonCredit { person, role, character, item })
+        })
+        .take(limit)
+        .collect())
+}
+
 /// Each whitespace-separated word becomes a quoted prefix term, so user input can't inject
 /// FTS5 syntax.
 fn fts_query(input: &str) -> Option<String> {

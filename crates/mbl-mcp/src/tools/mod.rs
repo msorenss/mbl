@@ -68,9 +68,8 @@ pub async fn execute_tool(
         "list_libraries" | "get_scan_status" | "scan_library" | "refresh_metadata" => {
             libraries::execute(tool_name, args, caller, db, services, jobs).await
         }
-        "search_media" | "browse_items" | "get_item" | "get_children" | "get_hubs" => {
-            media::execute(tool_name, args, caller, services).await
-        }
+        "search_media" | "browse_items" | "get_item" | "get_children" | "get_hubs"
+        | "find_by_person" => media::execute(tool_name, args, caller, services).await,
         "get_continue_watching" | "get_watch_history" | "mark_watched" | "mark_unwatched" => {
             watch::execute(tool_name, args, caller, db, services).await
         }

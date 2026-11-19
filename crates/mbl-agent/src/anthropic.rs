@@ -8,7 +8,7 @@ use serde_json::{Map, Value, json};
 
 use crate::{
     ChatRequest, ChatResponse, Message, ProviderConfig, Role, StopReason, TextSink, ToolCall,
-    Usage, check, failed, parse_arguments, send_error, sse,
+    Usage, check, failed, is_json, parse_arguments, send_error, sse,
 };
 
 const API_VERSION: &str = "2026-10-21";
@@ -204,6 +204,14 @@ pub async fn chat(
     };
     if !response.status().is_success() {
         return Err(failed(response).await);
+    }
+    // Some servers ignore `stream` and answer with one JSON body.
+    if is_json(&response) {
+        let parsed = parse_response(&check(response).await?)?;
+        if !parsed.text.is_empty() {
+            on_text(&parsed.text);
+        }
+        return Ok(parsed);
     }
 
     // Blocks are rebuilt from their start event plus deltas, so that thinking blocks (with

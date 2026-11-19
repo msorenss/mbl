@@ -90,6 +90,20 @@ impl ItemService {
         Ok(groups)
     }
 
+    /// Titles in the accessible libraries credited to a person (actor, director…).
+    pub async fn by_person(
+        &self,
+        actor: &Actor,
+        name: &str,
+        limit: usize,
+    ) -> Result<Vec<items::PersonCredit>> {
+        let name = name.trim();
+        if name.chars().count() < 2 || name.chars().count() > 100 {
+            return Err(Error::Validation("name must contain 2–100 characters".into()));
+        }
+        items::by_person(&self.db, &ItemFilter::for_user(actor), name, limit.clamp(1, 50)).await
+    }
+
     /// Continue Watching, Up Next and Recently Added per accessible library; empty hubs are
     /// left out.
     pub async fn home(&self, actor: &Actor) -> Result<Vec<Hub>> {
