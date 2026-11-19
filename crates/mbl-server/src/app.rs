@@ -233,6 +233,7 @@ impl Server {
         let server = axum_server::from_tcp(listener)?;
         let stop = self.stop.clone();
         self.start_watcher(&stop);
+        let job_queue = self.runner.queue();
         let jobs = match self.runner.start(stop.clone()).await {
             Ok(jobs) => jobs,
             Err(error) => {
@@ -293,6 +294,14 @@ impl Server {
             stop.clone(),
         ));
 
+        let companion = tokio::spawn(mbl_mcp::companion_bot::run(
+            mbl_mcp::assistant::AssistantRunner::new(self.db.clone(), self.services.clone())
+                .with_jobs(job_queue),
+            self.services.clone(),
+            self.db.clone(),
+            stop.clone(),
+        ));
+
         let ssdp = tokio::spawn(crate::ssdp::run(
             self.services.dlna.clone(),
             self.config.server.bind.clone(),
@@ -335,6 +344,7 @@ impl Server {
         let _ = mqtt.await;
         let _ = webhooks.await;
         let _ = ssdp.await;
+        let _ = companion.await;
         if let Some(mdns) = mdns {
             let _ = mdns.await;
         }

@@ -9991,6 +9991,10 @@
           "reactions"
         ],
         "properties": {
+          "assistantAvailable": {
+            "type": "boolean",
+            "description": "The built-in assistant is turned on: writing or pressing \"Comment now\" brings it in."
+          },
           "companions": {
             "type": "array",
             "items": {

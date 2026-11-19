@@ -75,6 +75,14 @@ pub struct CompanionWake {
     pub context: LiveSessionContext,
 }
 
+/// The viewer did something a companion may want to react to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompanionActivity {
+    pub session_id: String,
+    /// The viewer's message, or `None` when they pressed "Comment now".
+    pub message_id: Option<u64>,
+}
+
 /// One entry in a session's co-watching feed: a companion comment or a viewer message.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -204,18 +212,21 @@ pub struct CompanionService {
     stream: Option<crate::StreamService>,
     db: Option<mbl_db::Db>,
     reactions_tx: broadcast::Sender<CompanionReaction>,
+    activity_tx: broadcast::Sender<CompanionActivity>,
     wake: Arc<tokio::sync::Notify>,
 }
 
 impl CompanionService {
     pub fn new() -> Self {
         let (reactions_tx, _) = broadcast::channel(128);
+        let (activity_tx, _) = broadcast::channel(64);
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             recent: Arc::new(RwLock::new(HashMap::new())),
             cues: Arc::new(Mutex::new(HashMap::new())),
             next_id: Arc::new(AtomicU64::new(1)),
             reactions_tx,
+            activity_tx,
             wake: Arc::new(tokio::sync::Notify::new()),
             playback: None,
             stream: None,
@@ -404,6 +415,7 @@ impl CompanionService {
             mode: context.mode,
             frequency: context.frequency,
             listening,
+            assistant_available: false,
             reactions,
         })
     }
@@ -467,6 +479,9 @@ impl CompanionService {
             Ok(())
         })?;
         self.wake.notify_waiters();
+        let _ = self
+            .activity_tx
+            .send(CompanionActivity { session_id: session_id.to_owned(), message_id: None });
         Ok(())
     }
 
@@ -571,7 +586,7 @@ impl CompanionService {
                 "message must contain 1–{VIEWER_MESSAGE_LIMIT} characters"
             )));
         }
-        Ok(self.publish(CompanionReaction {
+        let message = self.publish(CompanionReaction {
             id: 0,
             session_id: session_id.to_owned(),
             bot_name: VIEWER_NAME.to_owned(),
@@ -581,7 +596,12 @@ impl CompanionService {
             created_at: now_ms(),
             from_viewer: true,
             reply_to: None,
-        }))
+        });
+        let _ = self.activity_tx.send(CompanionActivity {
+            session_id: session_id.to_owned(),
+            message_id: Some(message.id),
+        });
+        Ok(message)
     }
 
     pub fn get_live_context(&self, actor: &Actor, session_id: &str) -> Result<LiveSessionContext> {
@@ -684,6 +704,11 @@ impl CompanionService {
         self.reactions_tx.subscribe()
     }
 
+    /// Viewer messages and "Comment now" presses, for the built-in companion.
+    pub fn subscribe_activity(&self) -> broadcast::Receiver<CompanionActivity> {
+        self.activity_tx.subscribe()
+    }
+
     fn require_viewer(
         &self,
         actor: &Actor,
@@ -770,6 +795,9 @@ pub struct CompanionFeed {
     /// Companions waiting for events right now; they answer within seconds.
     #[serde(default)]
     pub listening: Vec<String>,
+    /// The built-in assistant is turned on: writing or pressing "Comment now" brings it in.
+    #[serde(default)]
+    pub assistant_available: bool,
     pub reactions: Vec<CompanionReaction>,
 }
 

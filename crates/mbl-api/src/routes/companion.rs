@@ -163,12 +163,10 @@ async fn get_companion_reactions(
     Path(id): Path<String>,
     Query(query): Query<ReactionsQuery>,
 ) -> Result<Json<CompanionFeed>, ApiError> {
-    Ok(Json(state.services.companion.reactions_since(
-        &auth.actor,
-        &id,
-        query.after,
-        query.after_id,
-    )?))
+    let mut feed =
+        state.services.companion.reactions_since(&auth.actor, &id, query.after, query.after_id)?;
+    feed.assistant_available = state.services.assistant.is_enabled().await;
+    Ok(Json(feed))
 }
 
 /// Choose what companions may post in this session: everything, only answers, or nothing.

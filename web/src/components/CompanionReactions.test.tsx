@@ -181,10 +181,18 @@ it("opens the chat without companions, sets how often and asks for a comment", a
   localStorage.removeItem("mbl.companion.mode");
   localStorage.removeItem("mbl.companion.frequency");
   let companions: string[] = [];
+  let assistantAvailable = false;
   vi.spyOn(client, "GET").mockImplementation(
     async () =>
       ({
-        data: { companions, mode: "on", frequency: "medium", listening: companions, reactions: [] },
+        data: {
+          companions,
+          mode: "on",
+          frequency: "medium",
+          listening: companions,
+          assistantAvailable,
+          reactions: [],
+        },
         response: new Response(),
       }) as never,
   );
@@ -204,6 +212,12 @@ it("opens the chat without companions, sets how often and asks for a comment", a
   expect(document.body.textContent).toContain("No companion has joined yet.");
   expect(button("Comment now")?.hasAttribute("disabled")).toBe(true);
 
+  // The built-in assistant counts as someone who will answer.
+  assistantAvailable = true;
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(document.body.textContent).not.toContain("No companion has joined yet.");
+  expect(button("Comment now")?.hasAttribute("disabled")).toBe(false);
+  assistantAvailable = false;
   companions = ["Claude"];
   await vi.advanceTimersByTimeAsync(2000);
   expect(document.body.textContent).not.toContain("No companion has joined yet.");

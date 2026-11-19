@@ -302,3 +302,131 @@ async fn the_assistant_looks_things_up_as_the_person_asking() {
     let e = runner.run(&child, Surface::Chat, "", ask(), None).await.unwrap_err();
     assert!(matches!(e, mbl_core::Error::Forbidden));
 }
+
+/// Answers with the last thing the viewer (or the prompt) said, so the test can see which.
+async fn echo_provider() -> String {
+    async fn chat(Json(body): Json<Value>) -> Json<Value> {
+        let messages = body["messages"].as_array().unwrap();
+        let system = messages[0]["content"].as_str().unwrap_or_default();
+        let last = messages.last().unwrap()["content"].as_str().unwrap_or_default();
+        let scene = if system.contains("Position") { "scene known" } else { "no scene" };
+        Json(
+            json!({"choices": [{"finish_reason": "stop", "message": {"content": format!("Echo ({scene}): {last}")}}]}),
+        )
+    }
+    let app = Router::new().route("/v1/chat/completions", post(chat));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{addr}/v1")
+}
+
+/// Polls the feed until an entry from the built-in companion matches.
+async fn bot_post(
+    app: &TestApp,
+    token: &str,
+    base: &str,
+    matches: impl Fn(&Value) -> bool,
+) -> Value {
+    for _ in 0..100 {
+        let res = app.call(Method::GET, &format!("{base}/reactions"), Some(token), None).await;
+        if let Some(found) = res.body["reactions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["botName"] == "MBL" && matches(r))
+        {
+            return found.clone();
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!("the built-in companion did not post");
+}
+
+#[tokio::test]
+async fn the_built_in_companion_answers_in_the_player_chat() {
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let fixture = common::seed_playback_fixtures(&app, &db, &admin).await;
+    let base_url = echo_provider().await;
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "openai_compatible", "baseUrl": base_url, "model": "echo"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let stop = tokio_util::sync::CancellationToken::new();
+    tokio::spawn(mbl_mcp::companion_bot::run(
+        mbl_mcp::assistant::AssistantRunner::new(db.clone(), services.clone()),
+        services.clone(),
+        db.clone(),
+        stop.clone(),
+    ));
+
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin),
+            Some(json!({"itemId": fixture.movie_id, "profile": "chrome", "startMs": 0})),
+        )
+        .await;
+    assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+    let session = start.body["sessionId"].as_str().unwrap().to_owned();
+    let base = format!("/api/v1/companion/sessions/{session}");
+
+    // Writing in the chat brings the companion in; it answers that message.
+    let sent = app
+        .call(
+            Method::POST,
+            &format!("{base}/messages"),
+            Some(&admin),
+            Some(json!({"text": "Who is the detective?"})),
+        )
+        .await;
+    assert_eq!(sent.status, StatusCode::OK, "{}", sent.body);
+    let question = sent.body["id"].as_u64().unwrap();
+    let answer = bot_post(&app, &admin, &base, |r| r["replyTo"] == question).await;
+    assert_eq!(answer["commentary"], "Echo (scene known): Who is the detective?");
+    let feed = app.call(Method::GET, &format!("{base}/reactions"), Some(&admin), None).await;
+    assert!(feed.body["companions"].as_array().unwrap().contains(&json!("MBL")));
+
+    // "Comment now" works even when the viewer only wants answers.
+    let res = app
+        .call(Method::PUT, &format!("{base}/mode"), Some(&admin), Some(json!({"mode": "replies"})))
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let res = app.call(Method::POST, &format!("{base}/nudge"), Some(&admin), None).await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let comment = bot_post(&app, &admin, &base, |r| {
+        r["replyTo"].is_null() && r["commentary"].as_str().unwrap().contains("Comment now")
+    })
+    .await;
+    assert!(comment["commentary"].as_str().unwrap().starts_with("Echo (scene known)"));
+
+    // With comments off it stays quiet, even when written to.
+    let res = app
+        .call(Method::PUT, &format!("{base}/mode"), Some(&admin), Some(json!({"mode": "off"})))
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let sent = app
+        .call(
+            Method::POST,
+            &format!("{base}/messages"),
+            Some(&admin),
+            Some(json!({"text": "Hello?"})),
+        )
+        .await;
+    let quiet = sent.body["id"].as_u64().unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    let feed = app.call(Method::GET, &format!("{base}/reactions"), Some(&admin), None).await;
+    assert!(
+        !feed.body["reactions"].as_array().unwrap().iter().any(|r| r["replyTo"] == quiet),
+        "{}",
+        feed.body
+    );
+    stop.cancel();
+}

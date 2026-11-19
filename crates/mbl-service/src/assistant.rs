@@ -180,6 +180,11 @@ impl AssistantService {
         self.provider_for(input).await?.list_models().await
     }
 
+    /// Whether the assistant is turned on; cheap enough for frequent polling.
+    pub async fn is_enabled(&self) -> bool {
+        matches!(self.stored(ENABLED).await, Ok(Some(v)) if v == "true")
+    }
+
     /// The configured provider when the assistant is turned on.
     pub async fn provider(&self) -> Result<Option<Provider>> {
         let settings = self.read().await?;

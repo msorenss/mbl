@@ -18784,6 +18784,30 @@ export const UI_PHRASES_22: Record<string, Row22> = {
 
 /** Strings with values: {0}, {1}… are copied from the English text into the translation. */
 export const UI_PATTERNS_22: Record<string, Row22> = {
+  "Recently Added in {0}": [
+    "Nyligen tillagt i {0}",
+    "Kürzlich hinzugefügt in {0}",
+    "Récemment ajoutés dans {0}",
+    "Añadidos recientemente en {0}",
+    "Adicionados recentemente em {0}",
+    "Aggiunti di recente in {0}",
+    "Onlangs toegevoegd in {0}",
+    "Ostatnio dodane w {0}",
+    "{0} içinde son eklenenler",
+    "Недавно добавлено в {0}",
+    "Нещодавно додано в {0}",
+    "أضيف مؤخرًا في {0}",
+    "{0} में हाल ही में जोड़ा गया",
+    "{0} 中最近添加",
+    "{0} に最近追加",
+    "{0}에 최근 추가됨",
+    "Baru ditambahkan di {0}",
+    "Mới thêm trong {0}",
+    "Nylig lagt til i {0}",
+    "Bagong dagdag sa {0}",
+    "Bag-ong gidugang sa {0}",
+    "Bag-o nga gindugang ha {0}",
+  ],
   "Connected to {0} in {1} ms. Reply: {2}": [
     "Ansluten till {0} på {1} ms. Svar: {2}",
     "Mit {0} in {1} ms verbunden. Antwort: {2}",

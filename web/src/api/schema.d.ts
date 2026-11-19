@@ -3572,6 +3572,8 @@ export interface components {
         CommentReason: "requested" | "scheduled";
         /** @description Connected companions, the viewer's chosen mode and the latest feed entries for one session. */
         CompanionFeed: {
+            /** @description The built-in assistant is turned on: writing or pressing "Comment now" brings it in. */
+            assistantAvailable?: boolean;
             companions: string[];
             frequency?: components["schemas"]["CompanionFrequency"];
             /** @description Companions waiting for events right now; they answer within seconds. */

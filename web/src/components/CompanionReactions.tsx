@@ -80,6 +80,9 @@ export default function CompanionReactions(props: {
   const [mode, setMode] = createSignal<Mode>(storedMode());
   const [frequency, setFrequency] = createSignal<Frequency>(storedFrequency());
   const [listening, setListening] = createSignal<string[]>([]);
+  const [assistant, setAssistant] = createSignal(false);
+  // Someone will hear the viewer: a connected companion or the built-in assistant.
+  const heard = () => companions().length > 0 || assistant();
   let log: HTMLDivElement | undefined;
   const [draft, setDraft] = createSignal("");
   const [sending, setSending] = createSignal(false);
@@ -103,6 +106,7 @@ export default function CompanionReactions(props: {
         setHistory([]);
         setCompanions([]);
         setListening([]);
+        setAssistant(false);
         setError("");
         if (!sessionId) return;
         // The viewer's last choice follows them to the next session.
@@ -130,6 +134,7 @@ export default function CompanionReactions(props: {
             if (!feed || disposed) return;
             setCompanions(feed.companions);
             setListening(feed.listening ?? []);
+            setAssistant(feed.assistantAvailable === true);
             if (feed.reactions.length > 0) {
               afterId = Math.max(afterId ?? 0, ...feed.reactions.map((r) => r.id ?? 0));
               addEntries(feed.reactions);
@@ -331,7 +336,7 @@ export default function CompanionReactions(props: {
                 </Show>
                 <button
                   type="button"
-                  disabled={companions().length === 0}
+                  disabled={!heard()}
                   onClick={() => void nudge()}
                   style={choice(false)}
                 >
@@ -339,7 +344,7 @@ export default function CompanionReactions(props: {
                 </button>
               </div>
             </Show>
-            <Show when={companions().length === 0}>
+            <Show when={!heard()}>
               <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
                 No companion has joined yet. Your messages will wait for one.
               </p>
