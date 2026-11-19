@@ -87,6 +87,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the assistant. The answer streams as server-sent events: `conversation` (the
+         *     conversation, first), `delta` (`{"text"}` pieces as they are written), then `done`
+         *     (`{"message", "tools"}`, the stored answer) or `error` (`{"message"}`).
+         */
+        post: operations["assistant_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The person's conversations with the assistant, most recent first. */
+        get: operations["list_conversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of the person's conversations with its messages. */
+        get: operations["get_conversation"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_conversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the assistant chat can be used by the person asking. */
+        get: operations["assistant_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -3447,6 +3519,15 @@ export interface components {
             /** Format: int64 */
             width?: number | null;
         };
+        AssistantChatRequest: {
+            /**
+             * Format: int64
+             * @description Continue this conversation; leave out to start a new one.
+             */
+            conversationId?: number | null;
+            /** @description 1–2000 characters. */
+            text: string;
+        };
         /** @description Connection details to try before saving. Without `apiKey` the stored key is used. */
         AssistantConnection: {
             apiKey?: string | null;
@@ -3465,6 +3546,10 @@ export interface components {
             hasApiKey: boolean;
             model: string;
             provider: components["schemas"]["ProviderKind"];
+        };
+        /** @description Whether the assistant chat can be used by the person asking. */
+        AssistantStatus: {
+            available: boolean;
         };
         AuthorizeParams: {
             client_id: string;
@@ -3648,6 +3733,29 @@ export interface components {
             reply?: string | null;
             /** @description Whether the model called a tool when asked to; `None` when the first request failed. */
             toolsSupported?: boolean | null;
+        };
+        Conversation: {
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            id: number;
+            title: string;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        /** @description A conversation with its messages, oldest first. */
+        ConversationDetail: {
+            conversation: components["schemas"]["Conversation"];
+            messages: components["schemas"]["ConversationMessage"][];
+        };
+        ConversationMessage: {
+            content: string;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            id: number;
+            /** @description "user" or "assistant". */
+            role: string;
         };
         CreateApiTokenRequest: {
             allowedNetworks?: string[] | null;
@@ -6447,6 +6555,156 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    assistant_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Event stream with the answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Managed profiles cannot use the assistant */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conversation not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Empty or too long message */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The assistant is turned off */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_conversations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Conversation"][];
+                };
+            };
+        };
+    };
+    get_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assistant_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Availability */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
+                };
             };
         };
     };

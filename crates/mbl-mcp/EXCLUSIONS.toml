@@ -370,3 +370,19 @@ reason = "Admin connection test against a paid or local language model provider;
 [[exclusions]]
 path = "/api/v1/system/assistant/models"
 reason = "Lists the provider's models for the settings screen; uses the stored API key."
+
+[[exclusions]]
+path = "/api/v1/assistant/status"
+reason = "Whether the built-in assistant chat is on, for the web UI; agents talk to MBL directly over MCP."
+
+[[exclusions]]
+path = "/api/v1/assistant/conversations"
+reason = "The person's private conversations with the built-in assistant; not for external agents."
+
+[[exclusions]]
+path = "/api/v1/assistant/conversations/{id}"
+reason = "The person's private conversations with the built-in assistant; not for external agents."
+
+[[exclusions]]
+path = "/api/v1/assistant/chat"
+reason = "The built-in assistant itself (which uses the MCP tools); an external agent has no reason to ask it."

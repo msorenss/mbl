@@ -316,6 +316,23 @@ fn truncate(mut text: String) -> String {
     text
 }
 
+#[async_trait::async_trait]
+impl mbl_service::assistant::AssistantBackend for AssistantRunner {
+    async fn answer(
+        &self,
+        actor: &Actor,
+        conversation: Vec<Message>,
+        on_text: Option<TextSink<'_>>,
+    ) -> Result<mbl_service::assistant::AssistantAnswer> {
+        let reply = self.run(actor, Surface::Chat, "", conversation, on_text).await?;
+        Ok(mbl_service::assistant::AssistantAnswer {
+            text: reply.text,
+            refused: reply.refused,
+            tools: reply.tools.into_iter().map(|t| t.name).collect(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

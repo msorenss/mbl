@@ -195,6 +195,10 @@ pub(crate) async fn build_runtime(
     state.services.remote.restore_policy().await?;
     runner.set_activity_probe(Arc::new(state.services.playback.clone()));
     let services = state.services.clone();
+    services.assistant.set_backend(Arc::new(
+        mbl_mcp::assistant::AssistantRunner::new(db.clone(), services.clone())
+            .with_jobs(runner.queue()),
+    ));
     let mcp_state = mbl_mcp::McpState::new(
         db.clone(),
         services.clone(),

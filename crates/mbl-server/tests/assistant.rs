@@ -430,3 +430,153 @@ async fn the_built_in_companion_answers_in_the_player_chat() {
     );
     stop.cancel();
 }
+
+/// `(event, data)` pairs from a server-sent event body.
+fn events(body: &Value) -> Vec<(String, Value)> {
+    body.as_str()
+        .unwrap_or_default()
+        .split("\n\n")
+        .filter_map(|block| {
+            let mut name = String::new();
+            let mut data = String::new();
+            for line in block.lines() {
+                if let Some(v) = line.strip_prefix("event:") {
+                    name = v.trim().to_owned();
+                } else if let Some(v) = line.strip_prefix("data:") {
+                    data.push_str(v.trim_start());
+                }
+            }
+            (!name.is_empty()).then(|| (name, serde_json::from_str(&data).unwrap_or(Value::Null)))
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn the_assistant_chat_keeps_private_conversations() {
+    let (app, _db, _services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let viewer = app.create_user(&admin, "viewer").await;
+
+    let res = app.call(Method::GET, "/api/v1/assistant/status", Some(&viewer), None).await;
+    assert_eq!(res.body, json!({"available": false}));
+    let res = app
+        .call(Method::POST, "/api/v1/assistant/chat", Some(&viewer), Some(json!({"text": "Hi"})))
+        .await;
+    assert_eq!(res.status, StatusCode::SERVICE_UNAVAILABLE, "{}", res.body);
+
+    let base_url = echo_provider().await;
+    app.call(
+        Method::PUT,
+        "/api/v1/system/assistant",
+        Some(&admin),
+        Some(json!({"enabled": true, "provider": "openai_compatible", "baseUrl": base_url, "model": "echo"})),
+    )
+    .await;
+    let res = app.call(Method::GET, "/api/v1/assistant/status", Some(&viewer), None).await;
+    assert_eq!(res.body, json!({"available": true}));
+
+    // A new conversation: its id first, then the answer.
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/assistant/chat",
+            Some(&viewer),
+            Some(json!({"text": "Something to watch tonight?"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert!(res.headers["content-type"].to_str().unwrap().starts_with("text/event-stream"));
+    let stream = events(&res.body);
+    assert_eq!(stream.first().unwrap().0, "conversation", "{stream:?}");
+    let conversation = stream[0].1["id"].as_i64().unwrap();
+    assert_eq!(stream[0].1["title"], "Something to watch tonight?");
+    let streamed: String = stream
+        .iter()
+        .filter(|(name, _)| name == "delta")
+        .map(|(_, d)| d["text"].as_str().unwrap().to_owned())
+        .collect();
+    let (name, done) = stream.last().unwrap();
+    assert_eq!(name, "done", "{stream:?}");
+    assert_eq!(done["message"]["content"], "Echo (no scene): Something to watch tonight?");
+    assert_eq!(streamed, done["message"]["content"].as_str().unwrap());
+
+    // Continuing it sends the earlier turns along.
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/assistant/chat",
+            Some(&viewer),
+            Some(json!({"conversationId": conversation, "text": "Something shorter"})),
+        )
+        .await;
+    let stream = events(&res.body);
+    assert_eq!(stream[0].1["id"], conversation);
+    assert_eq!(
+        stream.last().unwrap().1["message"]["content"],
+        "Echo (no scene): Something shorter"
+    );
+    let res = app
+        .call(
+            Method::GET,
+            &format!("/api/v1/assistant/conversations/{conversation}"),
+            Some(&viewer),
+            None,
+        )
+        .await;
+    let roles: Vec<&str> = res.body["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["role"].as_str().unwrap())
+        .collect();
+    assert_eq!(roles, ["user", "assistant", "user", "assistant"]);
+    let res = app.call(Method::GET, "/api/v1/assistant/conversations", Some(&viewer), None).await;
+    assert_eq!(res.body.as_array().unwrap().len(), 1);
+
+    // Conversations are private.
+    let res = app
+        .call(
+            Method::GET,
+            &format!("/api/v1/assistant/conversations/{conversation}"),
+            Some(&admin),
+            None,
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/assistant/chat",
+            Some(&admin),
+            Some(json!({"conversationId": conversation, "text": "Hijack"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let res = app.call(Method::GET, "/api/v1/assistant/conversations", Some(&admin), None).await;
+    assert_eq!(res.body, json!([]));
+
+    // Empty and too long messages are refused.
+    for text in ["  ", &"x".repeat(2001)] {
+        let res = app
+            .call(
+                Method::POST,
+                "/api/v1/assistant/chat",
+                Some(&viewer),
+                Some(json!({"text": text})),
+            )
+            .await;
+        assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    let res = app
+        .call(
+            Method::DELETE,
+            &format!("/api/v1/assistant/conversations/{conversation}"),
+            Some(&viewer),
+            None,
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let res = app.call(Method::GET, "/api/v1/assistant/conversations", Some(&viewer), None).await;
+    assert_eq!(res.body, json!([]));
+}

@@ -1,5 +1,15 @@
 import { A, useBeforeLeave, useLocation, useNavigate } from "@solidjs/router";
-import { createEffect, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For,
+  type JSX,
+  lazy,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+} from "solid-js";
 import { useAuth } from "../context/AuthContext";
 import {
   type AccentColor,
@@ -36,6 +46,9 @@ interface NavItemDef {
   icon: AppIconName;
   label: () => string;
 }
+
+// Loaded after the page so the assistant adds nothing to the first download.
+const AssistantChat = lazy(() => import("./AssistantChat"));
 
 export function Layout(props: { children?: JSX.Element }) {
   const { user, logout } = useAuth();
@@ -779,6 +792,10 @@ export function Layout(props: { children?: JSX.Element }) {
                 <AppIcon name="install" size={16} /> {t("installApp")}
               </Button>
             </Show>
+
+            <Suspense>
+              <AssistantChat />
+            </Suspense>
 
             <button
               type="button"

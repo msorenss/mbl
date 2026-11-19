@@ -4,9 +4,13 @@
 //! `mbl-agent`). Only admins can read or change the settings; the API key is stored like the
 //! other service keys and never returned.
 
-use mbl_agent::{ConnectionReport, Provider, ProviderConfig, ProviderKind};
+use std::sync::{Arc, RwLock};
+
+use mbl_agent::{ConnectionReport, Message, Provider, ProviderConfig, ProviderKind, TextSink};
+use mbl_core::time::now_ms;
 use mbl_core::{Actor, Error, Result};
 use mbl_db::Db;
+use mbl_db::repo::assistant::{AssistantRepo, Conversation, ConversationMessage};
 use mbl_db::repo::settings::SettingsRepo;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -64,14 +68,156 @@ pub struct AssistantConnection {
     pub effort: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+/// Messages of a conversation given to the model.
+const CHAT_HISTORY: i64 = 20;
+const CHAT_MESSAGE_LIMIT: usize = 2000;
+
+/// What answers chat messages: the agent loop with MBL's tools. It lives in `mbl-mcp`, which
+/// depends on this crate, so the server plugs it in at start.
+#[async_trait::async_trait]
+pub trait AssistantBackend: Send + Sync {
+    /// Answers the conversation (ending with the person's message) as `actor`.
+    async fn answer(
+        &self,
+        actor: &Actor,
+        conversation: Vec<Message>,
+        on_text: Option<TextSink<'_>>,
+    ) -> Result<AssistantAnswer>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AssistantAnswer {
+    pub text: String,
+    pub refused: bool,
+    /// Tools used, in order.
+    pub tools: Vec<String>,
+}
+
+/// Whether the assistant chat can be used by the person asking.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistantStatus {
+    pub available: bool,
+}
+
+/// A conversation with its messages, oldest first.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationDetail {
+    pub conversation: Conversation,
+    pub messages: Vec<ConversationMessage>,
+}
+
+#[derive(Clone)]
 pub struct AssistantService {
     db: Db,
+    backend: Arc<RwLock<Option<Arc<dyn AssistantBackend>>>>,
+}
+
+impl std::fmt::Debug for AssistantService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssistantService").finish_non_exhaustive()
+    }
 }
 
 impl AssistantService {
     pub fn new(db: Db) -> Self {
-        Self { db }
+        Self { db, backend: Arc::new(RwLock::new(None)) }
+    }
+
+    /// Plugs in the agent loop; shared by every clone of the service.
+    pub fn set_backend(&self, backend: Arc<dyn AssistantBackend>) {
+        if let Ok(mut slot) = self.backend.write() {
+            *slot = Some(backend);
+        }
+    }
+
+    pub fn backend(&self) -> Option<Arc<dyn AssistantBackend>> {
+        self.backend.read().ok().and_then(|slot| slot.clone())
+    }
+
+    fn repo(&self) -> AssistantRepo {
+        AssistantRepo::new(self.db.clone())
+    }
+
+    pub async fn status(&self, actor: &Actor) -> AssistantStatus {
+        AssistantStatus {
+            available: !actor.is_managed && self.backend().is_some() && self.is_enabled().await,
+        }
+    }
+
+    pub async fn conversations(&self, actor: &Actor) -> Result<Vec<Conversation>> {
+        self.repo().list(actor.user_id).await
+    }
+
+    pub async fn conversation(&self, actor: &Actor, id: i64) -> Result<ConversationDetail> {
+        let repo = self.repo();
+        let conversation = repo.get(actor.user_id, id).await?.ok_or(Error::NotFound)?;
+        let messages = repo.messages(actor.user_id, id, 500).await?;
+        Ok(ConversationDetail { conversation, messages })
+    }
+
+    pub async fn delete_conversation(&self, actor: &Actor, id: i64) -> Result<()> {
+        if self.repo().delete(actor.user_id, id).await? { Ok(()) } else { Err(Error::NotFound) }
+    }
+
+    /// Stores the person's message (starting a conversation when `conversation` is `None`) and
+    /// returns the conversation with the turns to send to the model.
+    pub async fn begin_chat(
+        &self,
+        actor: &Actor,
+        conversation: Option<i64>,
+        text: &str,
+    ) -> Result<(Conversation, Vec<Message>)> {
+        if !self.status(actor).await.available {
+            return Err(if actor.is_managed {
+                Error::Forbidden
+            } else {
+                Error::Unavailable("the assistant is turned off".into())
+            });
+        }
+        let text = text.trim();
+        if text.is_empty() || text.chars().count() > CHAT_MESSAGE_LIMIT {
+            return Err(Error::Validation(format!(
+                "message must contain 1–{CHAT_MESSAGE_LIMIT} characters"
+            )));
+        }
+        let repo = self.repo();
+        let now = now_ms();
+        let conversation = match conversation {
+            Some(id) => repo.get(actor.user_id, id).await?.ok_or(Error::NotFound)?,
+            None => repo.create(actor.user_id, &title_from(text), now).await?,
+        };
+        repo.add_message(actor.user_id, conversation.id, "user", text, now)
+            .await?
+            .ok_or(Error::NotFound)?;
+        let turns = repo
+            .messages(actor.user_id, conversation.id, CHAT_HISTORY)
+            .await?
+            .into_iter()
+            .map(|m| {
+                if m.role == "assistant" {
+                    Message::assistant(m.content)
+                } else {
+                    Message::user(m.content)
+                }
+            })
+            .skip_while(|m| m.role == mbl_agent::Role::Assistant)
+            .collect();
+        Ok((conversation, turns))
+    }
+
+    /// Stores the assistant's answer.
+    pub async fn finish_chat(
+        &self,
+        actor: &Actor,
+        conversation: i64,
+        text: &str,
+    ) -> Result<ConversationMessage> {
+        self.repo()
+            .add_message(actor.user_id, conversation, "assistant", text, now_ms())
+            .await?
+            .ok_or(Error::NotFound)
     }
 
     fn settings(&self) -> SettingsRepo {
@@ -201,6 +347,17 @@ impl AssistantService {
     }
 }
 
+/// The first words of the opening message, as the conversation's name.
+fn title_from(text: &str) -> String {
+    let line = text.lines().next().unwrap_or(text).trim();
+    if line.chars().count() <= 60 {
+        return line.to_owned();
+    }
+    let cut: String = line.chars().take(60).collect();
+    let cut = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head).to_owned();
+    format!("{cut}…")
+}
+
 fn provider_name(kind: ProviderKind) -> &'static str {
     match kind {
         ProviderKind::OpenaiCompatible => "openai_compatible",
@@ -213,5 +370,19 @@ fn clean_effort(effort: Option<String>) -> Result<Option<String>> {
         None => Ok(None),
         Some(e) if EFFORTS.contains(&e.as_str()) => Ok(Some(e)),
         Some(e) => Err(Error::Validation(format!("Unknown effort '{e}'; use low, medium or high"))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn titles_are_the_start_of_the_first_line() {
+        assert_eq!(title_from("Anything with Al Pacino?"), "Anything with Al Pacino?");
+        let long = "Is there a series I should watch based on what I have seen lately, maybe something Korean";
+        let title = title_from(long);
+        assert!(title.ends_with('…') && title.chars().count() <= 61, "{title}");
+        assert_eq!(title_from("First line\nsecond"), "First line");
     }
 }
