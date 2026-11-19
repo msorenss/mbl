@@ -16,11 +16,11 @@ use windows_sys::Win32::System::Threading::{
 };
 
 #[derive(Default)]
-pub(crate) struct SuspendedThreads(HashMap<u32, OwnedHandle>);
+pub struct SuspendedThreads(HashMap<u32, OwnedHandle>);
 
 impl SuspendedThreads {
     #[allow(unsafe_code)]
-    pub(crate) fn suspend(pid: u32) -> io::Result<Self> {
+    pub fn suspend(pid: u32) -> io::Result<Self> {
         let mut suspended = Self::default();
         // Check again for threads the child started while the first snapshot was
         // being processed. Dropping the guard rolls back a partial suspension.

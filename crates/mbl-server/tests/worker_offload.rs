@@ -110,28 +110,16 @@ async fn worker_encodes_session_and_server_takes_over_when_it_leaves() {
     let init = std::fs::read(session.dir.join("0/init.mp4")).unwrap();
     let mut joined = init.clone();
     joined.extend(std::fs::read(&first).unwrap());
+    // Probe a file: ffprobe may stop reading stdin early, which breaks a pipe write.
+    let sample = session.dir.join("probe-sample.mp4");
+    std::fs::write(&sample, &joined).unwrap();
     let probe = tokio::process::Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=codec_name",
-            "-of",
-            "csv=p=0",
-            "-",
-        ])
-        .stdin(std::process::Stdio::piped())
+        .args(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name"])
+        .args(["-of", "csv=p=0"])
+        .arg(&sample)
         .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap();
-    let mut probe = probe;
-    {
-        use tokio::io::AsyncWriteExt;
-        let mut stdin = probe.stdin.take().unwrap();
-        stdin.write_all(&joined).await.unwrap();
-    }
     let out = probe.wait_with_output().await.unwrap();
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "h264");
 
