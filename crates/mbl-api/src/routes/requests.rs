@@ -269,7 +269,13 @@ async fn analyze_hardlinks(
         }
     }
 
-    let path_refs: Vec<&Path> = file_paths.iter().map(Path::new).collect();
-    let report = mbl_service::MediaRequestService::analyze_hardlinks(&path_refs);
+    // Node media is not on this disk; reading metadata of many files blocks, so do it off the runtime.
+    file_paths.retain(|p| !p.starts_with("mblnode://"));
+    let report = tokio::task::spawn_blocking(move || {
+        let path_refs: Vec<&Path> = file_paths.iter().map(Path::new).collect();
+        mbl_service::MediaRequestService::analyze_hardlinks(&path_refs)
+    })
+    .await
+    .map_err(|_| ApiError::from(mbl_core::Error::Unavailable("storage analysis failed".into())))?;
     Ok(Json(report))
 }

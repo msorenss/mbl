@@ -11,7 +11,9 @@ import { castManager } from "../utils/cast";
 import { castDiagnostics } from "../utils/castDiagnostics";
 import { type CastProfileSelection, SAFE_CAST_PROFILE } from "../utils/castProfile";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
+import { startLocalRemote } from "../utils/localRemote";
 import CastDiagnostics from "./CastDiagnostics";
+import CompanionReactions from "./CompanionReactions";
 import LyricsPanel from "./LyricsPanel";
 import TrickplayPreview from "./TrickplayPreview";
 import { Button } from "./ui";
@@ -41,6 +43,12 @@ export interface PlayerProps {
   onStopped?: () => void;
   autoplayNext?: boolean;
   onPlayNext?: (request: PlayRequest) => void;
+  /** Next and previous titles in the play queue, if any. */
+  queueNext?: () => PlayRequest | null;
+  queuePrevious?: () => PlayRequest | null;
+  queuePosition?: () => string | null;
+  /** Moves the queue by `delta`; the player is replaced by the new title. */
+  onQueueStep?: (delta: number) => boolean;
   /** Quality limit in bit/s chosen before playback; 0 or undefined is automatic. */
   maxBitrate?: number;
   /** Go straight to the Cast chooser instead of starting a local stream first. */
@@ -955,6 +963,54 @@ export function Player(props: PlayerProps) {
         setError(command.params?.message || "Playback stopped remotely");
       }
     });
+    // Other devices of the same user can control this browser while it plays locally.
+    const stopLocalRemote = startLocalRemote(
+      () =>
+        isCasting() || castConnecting()
+          ? null
+          : {
+              state: isPlaying() ? "playing" : "paused",
+              itemId: mediaItemId(),
+              positionMs: currentTime() * 1000,
+              durationMs: duration() * 1000,
+              volume: (isMuted() ? 0 : volume()) * 100,
+            },
+      async (command) => {
+        if (isCasting()) return;
+        switch (command.action) {
+          case "pause":
+            if (isPlaying()) togglePlay();
+            break;
+          case "resume":
+            if (!isPlaying()) togglePlay();
+            break;
+          case "seek":
+            if (typeof command.params?.positionMs === "number")
+              seekTo(command.params.positionMs / 1000);
+            break;
+          case "setVolume":
+            if (typeof command.params?.volume === "number")
+              setPlaybackVolume(Math.max(0, Math.min(100, command.params.volume)) / 100);
+            break;
+          case "stop":
+            handleClose();
+            break;
+          case "play":
+            if (command.params?.itemId && props.onPlayNext)
+              props.onPlayNext({
+                itemId: command.params.itemId,
+                initialStartMs: command.params.startMs ?? undefined,
+              });
+            break;
+          case "setTracks":
+            if (typeof command.params?.audioStreamIndex === "number")
+              await changeAudioTrack(command.params.audioStreamIndex);
+            if (typeof command.params?.subtitleStreamIndex === "number")
+              await selectSubtitle(command.params.subtitleStreamIndex);
+            break;
+        }
+      },
+    );
     const unsubCast = castManager.subscribe((cState) => {
       const wasCasting = isCasting();
       const lastPosition = currentTime();
@@ -1012,6 +1068,7 @@ export function Player(props: PlayerProps) {
       pendingStarts.clear();
       nextAbort?.abort();
       unsubscribeCommands();
+      stopLocalRemote();
       unsubCast();
       window.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("visibilitychange", onVisible);
@@ -1234,6 +1291,17 @@ export function Player(props: PlayerProps) {
       audioSyncMs(),
       !replay,
     );
+  };
+
+  const stepQueue = async (delta: number) => {
+    if (startingNext() || castConnecting()) return;
+    setStartingNext(true);
+    try {
+      await stopPlayback();
+      if (!disposed) props.onQueueStep?.(delta);
+    } finally {
+      if (!disposed) setStartingNext(false);
+    }
   };
 
   const playNextEpisode = async () => {
@@ -1705,6 +1773,7 @@ export function Player(props: PlayerProps) {
           {recoveryNotice()}
         </p>
       </Show>
+      <CompanionReactions sessionId={playbackData()?.sessionId} />
       <Show when={controlNotice()}>
         <p
           role="alert"
@@ -1786,7 +1855,8 @@ export function Player(props: PlayerProps) {
           setIsPlaying(false);
           setEnded(true);
           setShowControls(true);
-          if (autoplayNext() && nextEpisode()) void playNextEpisode();
+          if (props.queueNext?.()) void stepQueue(1);
+          else if (autoplayNext() && nextEpisode()) void playNextEpisode();
           else void stopPlayback();
         }}
         onError={() => {
@@ -1839,6 +1909,39 @@ export function Player(props: PlayerProps) {
           </span>
           <strong>{mediaTitle() || "Audio playback"}</strong>
           <span>Audio only</span>
+          <Show when={props.queuePosition?.()}>
+            {(position) => (
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  "align-items": "center",
+                  "pointer-events": "auto",
+                }}
+              >
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!props.queuePrevious?.() || startingNext()}
+                  onClick={() => void stepQueue(-1)}
+                >
+                  Previous
+                </Button>
+                <span>{`Track ${position()}`}</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!props.queueNext?.() || startingNext()}
+                  onClick={() => void stepQueue(1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </Show>
+          <Show when={props.queueNext?.()}>
+            {(next) => <small>{`Up next: ${next().title ?? "Next track"}`}</small>}
+          </Show>
           <LyricsPanel itemId={mediaItemId()} timeMs={currentTime() * 1000} />
         </section>
       </Show>

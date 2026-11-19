@@ -659,6 +659,30 @@ impl SceneEmbeddingsRepo {
         Self { db }
     }
 
+    /// Movies and episodes in `library_id` with a local file and no indexed scenes yet.
+    pub async fn items_without_scenes(
+        &self,
+        library_id: mbl_core::LibraryId,
+        limit: i64,
+    ) -> Result<Vec<ItemId>> {
+        let ids: Vec<i64> = sqlx::query_scalar(
+            "SELECT DISTINCT i.id FROM media_items i
+             JOIN media_versions v ON v.item_id = i.id
+             JOIN media_parts p ON p.version_id = v.id
+             WHERE i.library_id = ? AND i.kind IN ('episode', 'movie')
+               AND p.missing_since IS NULL AND p.path NOT LIKE 'mblnode://%'
+               AND NOT EXISTS (SELECT 1 FROM scene_embeddings s WHERE s.item_id = i.id)
+             ORDER BY i.id
+             LIMIT ?",
+        )
+        .bind(library_id.0)
+        .bind(limit)
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_err)?;
+        Ok(ids.into_iter().map(ItemId).collect())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn upsert(
         &self,

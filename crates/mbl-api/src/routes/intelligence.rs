@@ -15,7 +15,7 @@ use mbl_core::{ItemId, PartId};
 use mbl_db::repo::m5::{MarkerRow, SceneEmbeddingRow};
 use mbl_hailo::{HailoEmbeddingBenchmark, SpoilerFreeRecap};
 use mbl_service::{
-    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest,
+    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, LibrarySceneIndexStatus,
     QuickConnectAuthorizeRequest, QuickConnectInitRequest, QuickConnectInitResponse,
     QuickConnectPollRequest, QuickConnectPollResponse, SceneSearchHit,
 };
@@ -36,6 +36,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/auth/quick-connect/authorize", post(quick_connect_authorize))
         .route("/api/v1/auth/quick-connect/poll", post(quick_connect_poll))
         .route("/api/v1/items/{id}/index-scenes", post(index_item_scenes))
+        .route("/api/v1/libraries/{id}/index-scenes", post(index_library_scenes))
         .route("/api/v1/ai/search-scenes", get(search_scenes))
         .route("/api/v1/ai/recap/{id}", get(spoiler_free_recap))
         .route("/api/v1/ai/benchmark", get(hailo_benchmark))
@@ -295,7 +296,34 @@ pub(crate) async fn index_item_scenes(
     Ok(Json(rows))
 }
 
+/// Queue scene indexing for all movies and episodes in a library that have none yet.
+#[utoipa::path(
+    post,
+    path = "/api/v1/libraries/{id}/index-scenes",
+    tag = "ai",
+    params(("id" = i64, Path, description = "Library ID")),
+    responses(
+        (status = 202, body = LibrarySceneIndexStatus),
+        (status = 401),
+        (status = 403),
+        (status = 404)
+    )
+)]
+pub(crate) async fn index_library_scenes(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<i64>,
+) -> Result<(StatusCode, Json<LibrarySceneIndexStatus>), ApiError> {
+    let status = state
+        .services
+        .intelligence
+        .queue_library_scene_index(&auth.actor, mbl_core::LibraryId(id))
+        .await?;
+    Ok((StatusCode::ACCEPTED, Json(status)))
+}
+
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct SearchScenesQuery {
     pub q: String,
     #[serde(default = "default_scene_limit")]

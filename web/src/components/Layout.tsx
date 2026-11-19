@@ -242,6 +242,9 @@ export function Layout(props: { children?: JSX.Element }) {
   const personalLinks: NavItemDef[] = [
     { href: "/collections", icon: "collections", label: () => t("collections") },
     { href: "/requests", icon: "requests", label: () => t("mediaRequests") },
+    { href: "/remote", icon: "remote", label: () => t("Remote control") },
+    { href: "/matchmaker", icon: "profiles", label: () => t("Movie night") },
+    { href: "/discover", icon: "ai-agents", label: () => t("Scene search") },
     { href: "/account", icon: "account", label: () => t("accountSecurity") },
   ];
 
@@ -1013,6 +1016,9 @@ export function Layout(props: { children?: JSX.Element }) {
                   { href: "/webtv", icon: "webtv", label: () => t("webtv") },
                   { href: "/collections", icon: "collections", label: () => t("collections") },
                   { href: "/requests", icon: "requests", label: () => t("mediaRequests") },
+                  { href: "/remote", icon: "remote", label: () => t("Remote control") },
+                  { href: "/matchmaker", icon: "profiles", label: () => t("Movie night") },
+                  { href: "/discover", icon: "ai-agents", label: () => t("Scene search") },
                   { href: "/profiles", icon: "profiles", label: () => t("switchProfile") },
                   { href: "/account", icon: "account", label: () => t("accountSecurity") },
                   { href: "/connect", icon: "remote", label: () => t("Sign in a device") },

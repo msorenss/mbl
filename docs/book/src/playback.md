@@ -106,3 +106,12 @@ Nästa avsnitt är därför spärrat medan sådan mottagare används.
 Videor utan ljud kan också omkodas till HLS. Korta klipps verkliga längd bevaras;
 servern annonserar inte ett extra sexsekundersintervall för dem. Sökning,
 nedladdning, autosynk och generering av nya undertexter återstår i restlistan.
+
+## Fjärrkontroll
+
+En webbläsare som spelar upp registrerar sig som spelare för kontot. **Fjärrkontroll**
+(`/remote`) på en annan enhet med samma konto visar den, liksom Chromecast-sessioner,
+med spela/pausa, 10 s bakåt, 30 s framåt, stopp och volym. **Spela på enhet** på en
+titelsida startar titeln på en sådan enhet. Bara enheter som spelar syns; en flik
+som inte spelar kan inte startas på distans. Andra användare ser inte dina enheter.
+Webbläsaren kan kräva ett klick innan ljud spelas om uppspelningen startas på distans.

@@ -116,6 +116,27 @@ export function CommandPalette(props: CommandPaletteProps) {
         run: () => navigate("/collections"),
       },
       {
+        id: "nav-remote",
+        category: t("personal"),
+        label: t("Remote control"),
+        icon: <AppIcon name="remote" size={16} />,
+        run: () => navigate("/remote"),
+      },
+      {
+        id: "nav-matchmaker",
+        category: t("personal"),
+        label: t("Movie night"),
+        icon: <AppIcon name="profiles" size={16} />,
+        run: () => navigate("/matchmaker"),
+      },
+      {
+        id: "nav-discover",
+        category: t("personal"),
+        label: t("Scene search"),
+        icon: <AppIcon name="ai-agents" size={16} />,
+        run: () => navigate("/discover"),
+      },
+      {
         id: "nav-account",
         category: t("personal"),
         label: t("accountSecurity"),

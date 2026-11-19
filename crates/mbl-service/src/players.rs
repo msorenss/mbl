@@ -24,20 +24,31 @@ pub struct PlayerInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[serde(
-    tag = "action",
-    content = "params",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
+// Field renames are per variant: OpenAPI generation ignores `rename_all_fields`.
+#[serde(tag = "action", content = "params", rename_all = "camelCase")]
 pub enum PlayerCommand {
-    Play { item_id: ItemId, start_ms: Option<i64> },
+    #[serde(rename_all = "camelCase")]
+    Play {
+        item_id: ItemId,
+        start_ms: Option<i64>,
+    },
     Pause,
     Resume,
-    Stop { message: Option<String> },
-    Seek { position_ms: i64 },
-    SetVolume { volume: u32 },
-    SetTracks { audio_stream_index: Option<i64>, subtitle_stream_index: Option<i64> },
+    Stop {
+        message: Option<String>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Seek {
+        position_ms: i64,
+    },
+    SetVolume {
+        volume: u32,
+    },
+    #[serde(rename_all = "camelCase")]
+    SetTracks {
+        audio_stream_index: Option<i64>,
+        subtitle_stream_index: Option<i64>,
+    },
 }
 
 #[derive(Debug)]

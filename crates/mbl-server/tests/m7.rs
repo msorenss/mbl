@@ -375,6 +375,23 @@ async fn m7_players_and_companion_interaction() {
         .await;
     assert_eq!(res.status, StatusCode::OK);
     assert_eq!(res.body["commentary"], "Watch out for the door!");
+
+    // The player of the session reads the feed; earlier reactions are filtered by time.
+    let created = res.body["createdAt"].as_i64().unwrap();
+    let feed_path = format!("/api/v1/companion/sessions/{session_id}/reactions");
+    let res = app.call(Method::GET, &feed_path, Some(&admin_token), None).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["companions"], json!(["Hermes"]));
+    assert_eq!(res.body["reactions"][0]["commentary"], "Watch out for the door!");
+    let res = app
+        .call(Method::GET, &format!("{feed_path}?after={created}"), Some(&admin_token), None)
+        .await;
+    assert_eq!(res.body["reactions"], json!([]));
+
+    // Another user cannot read someone else's session.
+    let viewer = app.create_user(&admin_token, "viewer").await;
+    let res = app.call(Method::GET, &feed_path, Some(&viewer), None).await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

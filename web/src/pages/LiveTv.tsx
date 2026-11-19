@@ -2,6 +2,7 @@ import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid
 import client, { getStoredToken } from "../api/client";
 import { guideWindow } from "../api/liveTvTime";
 import type { components } from "../api/schema";
+import ChannelEditor from "../components/ChannelEditor";
 import LiveStreamPlayer from "../components/LiveStreamPlayer";
 import { OnlineSearch } from "../components/OnlineSearch";
 import { PluginFeedBrowser } from "../components/PluginFeedBrowser";
@@ -1494,6 +1495,9 @@ export function LiveTv() {
                           >
                             Stream
                           </Button>
+                          <Show when={user()?.isAdmin && !ch.isVirtual}>
+                            <ChannelEditor channel={ch} onChanged={() => void loadTuners()} />
+                          </Show>
                         </td>
                       </tr>
                     )}

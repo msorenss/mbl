@@ -140,6 +140,14 @@ pub struct SceneHintInput {
     pub description: String,
 }
 
+/// Result of queueing scene indexing for a library.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LibrarySceneIndexStatus {
+    /// Movies and episodes that have no indexed scenes yet.
+    pub pending_items: u64,
+}
+
 /// Request body for `POST /api/v1/items/{id}/index-scenes` (M5.13).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -881,6 +889,36 @@ impl MediaIntelligenceService {
 
     // --- M5.13 Hailo NPU Media Intelligence ---
 
+    /// Queue scene indexing for every movie and episode in a library that has none yet.
+    /// Returns how many items are waiting. Administrators only.
+    pub async fn queue_library_scene_index(
+        &self,
+        actor: &Actor,
+        library: LibraryId,
+    ) -> Result<LibrarySceneIndexStatus> {
+        if !actor.is_admin {
+            return Err(Error::Forbidden);
+        }
+        mbl_db::repo::libraries::LibrariesRepo::new(self.db.clone())
+            .get(library)
+            .await?
+            .ok_or(Error::NotFound)?;
+        let pending = SceneEmbeddingsRepo::new(self.db.clone())
+            .items_without_scenes(library, 100_000)
+            .await?
+            .len() as u64;
+        if pending > 0 {
+            self.jobs
+                .enqueue(
+                    kinds::MEDIA_SCENE_INDEX,
+                    &serde_json::json!({"libraryId": library.0}),
+                    Priority::Idle,
+                )
+                .await?;
+        }
+        Ok(LibrarySceneIndexStatus { pending_items: pending })
+    }
+
     /// Index scenes/keyframes for an item using the Hailo NPU multimodal engine (M5.13).
     pub async fn index_item_scenes(
         &self,
@@ -1197,6 +1235,60 @@ impl JobHandler for MarkerAnalysisJobHandler {
                     result = work => {
                         if let Err(error) = result {
                             tracing::warn!(item_id = %id, error = %error, "marker analysis failed");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Background scene indexing for a library (`{"libraryId": n}`), started by an administrator.
+/// Yields to playback and thermal throttling; indexed items are skipped on the next run.
+pub struct SceneIndexJobHandler {
+    pub intelligence: MediaIntelligenceService,
+    pub playback: crate::PlaybackService,
+}
+#[async_trait]
+impl JobHandler for SceneIndexJobHandler {
+    fn kind(&self) -> &'static str {
+        kinds::MEDIA_SCENE_INDEX
+    }
+    async fn run(&self, ctx: JobCtx, payload: serde_json::Value) -> Result<()> {
+        let library = LibraryId(
+            payload["libraryId"]
+                .as_i64()
+                .ok_or_else(|| Error::Validation("scene indexing without libraryId".into()))?,
+        );
+        let repo = SceneEmbeddingsRepo::new(ctx.db.clone());
+        let system = Actor::admin(mbl_core::UserId(0));
+        let mut seen = std::collections::HashSet::new();
+        loop {
+            let batch: Vec<_> = repo
+                .items_without_scenes(library, 25)
+                .await?
+                .into_iter()
+                .filter(|id| !seen.contains(id))
+                .collect();
+            if batch.is_empty() {
+                return Ok(());
+            }
+            for id in batch {
+                seen.insert(id);
+                let work =
+                    self.intelligence.index_item_scenes(&system, id, IndexScenesRequest::default());
+                tokio::select! {
+                    () = ctx.cancel.cancelled() => return Ok(()),
+                    () = async {
+                        loop {
+                            if mbl_jobs::ActivityProbe::playback_active(&self.playback)
+                                || mbl_jobs::ActivityProbe::thermal_throttled(&self.playback) { break; }
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        }
+                    } => return Err(mbl_jobs::yield_to_idle()),
+                    result = work => {
+                        if let Err(error) = result {
+                            tracing::warn!(item_id = %id, error = %error, "scene indexing failed");
                         }
                     }
                 }

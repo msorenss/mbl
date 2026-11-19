@@ -5,6 +5,10 @@ import client from "../api/client";
 import { castManager } from "../utils/cast";
 import { Player } from "./Player";
 
+// Remote-control registration and companion polling have their own tests.
+vi.mock("../utils/localRemote", () => ({ startLocalRemote: () => () => {} }));
+vi.mock("./CompanionReactions", () => ({ default: () => null }));
+
 const cast = vi.hoisted(() => ({
   subscribe: vi.fn(),
   setCommandHandler: vi.fn(() => vi.fn()),

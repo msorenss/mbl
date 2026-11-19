@@ -53,7 +53,7 @@ pub use collections::{
     CollectionRow, CollectionService, CreateCollectionRequest, CreatePlaylistRequest, PlaylistRow,
     PlaylistService, UpdateCollectionRequest, UpdatePlaylistRequest,
 };
-pub use companion::{CompanionReaction, CompanionService, LiveSessionContext};
+pub use companion::{CompanionFeed, CompanionReaction, CompanionService, LiveSessionContext};
 pub use downloads::{
     CreateDownloadRequest, DownloadDto, DownloadFile, DownloadJobHandler, DownloadQuality,
     DownloadService, DownloadStatus,
@@ -66,11 +66,11 @@ pub use import::{
     PlexImportRequest,
 };
 pub use intelligence::{
-    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, MarkerAnalysisJobHandler,
-    MediaIntelligenceService, OptimizeJobHandler, QuickConnectAuthorizeRequest,
-    QuickConnectInitRequest, QuickConnectInitResponse, QuickConnectPending,
-    QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput, SceneSearchHit,
-    SystemHealthReport, TrickplayJobHandler,
+    CreateOptimizedRequest, CreateOptimizedResponse, IndexScenesRequest, LibrarySceneIndexStatus,
+    MarkerAnalysisJobHandler, MediaIntelligenceService, OptimizeJobHandler,
+    QuickConnectAuthorizeRequest, QuickConnectInitRequest, QuickConnectInitResponse,
+    QuickConnectPending, QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput,
+    SceneIndexJobHandler, SceneSearchHit, SystemHealthReport, TrickplayJobHandler,
 };
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
@@ -178,7 +178,7 @@ impl Services {
         let collections = CollectionService::new(db_arc.clone());
         let playlists = PlaylistService::new(db_arc.clone());
         let players = PlayerRegistry::new();
-        let companion = CompanionService::new().with_playback(playback.clone());
+        let companion = CompanionService::new().with_playback(playback.clone()).with_db(db.clone());
         let webhooks = WebhookService::new(db_arc.clone());
         let requests = MediaRequestService::new(db_arc.clone());
         let matchmaker = MatchmakerService::new(db_arc.clone());

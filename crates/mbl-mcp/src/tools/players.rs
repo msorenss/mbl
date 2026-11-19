@@ -468,7 +468,8 @@ pub async fn execute(
 
             let ctx = services
                 .companion
-                .get_live_context(&caller.actor, session_id)
+                .live_context(&caller.actor, session_id)
+                .await
                 .map_err(map_service_error)?;
 
             Ok(CallToolResult::structured(

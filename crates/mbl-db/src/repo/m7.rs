@@ -776,6 +776,9 @@ pub struct MatchmakerSessionRow {
     pub status: String,
     pub matched_item_id: Option<ItemId>,
     pub created_at: i64,
+    /// People who have joined, including the creator.
+    #[serde(default)]
+    pub member_count: i64,
 }
 
 pub async fn create_matchmaker_session(
@@ -808,7 +811,9 @@ pub async fn create_matchmaker_session(
 
 pub async fn get_matchmaker_session(db: &Db, id: &str) -> Result<Option<MatchmakerSessionRow>> {
     let row = sqlx::query(
-        "SELECT id, created_by, filter_config, status, matched_item_id, created_at FROM matchmaker_sessions WHERE id = ?",
+        "SELECT id, created_by, filter_config, status, matched_item_id, created_at, \
+         (SELECT COUNT(*) FROM matchmaker_members m WHERE m.session_id = s.id) AS member_count \
+         FROM matchmaker_sessions s WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(&db.read)
@@ -821,6 +826,7 @@ pub async fn get_matchmaker_session(db: &Db, id: &str) -> Result<Option<Matchmak
         status: r.get("status"),
         matched_item_id: r.get::<Option<i64>, _>("matched_item_id").map(ItemId),
         created_at: r.get("created_at"),
+        member_count: r.get("member_count"),
     }))
 }
 

@@ -190,58 +190,44 @@ impl MediaRequestService {
         MissingEpisodeInfo { season_number, missing_episode_numbers: missing }
     }
 
-    /// Linux/Unix hardlink-aware storage analysis using inode and `st_nlink`.
+    /// Hardlink-aware storage analysis. A file whose data also lives under another name
+    /// (for example in a download folder) frees no space when only the library copy is deleted.
     pub fn analyze_hardlinks(paths: &[&Path]) -> StorageHardlinkReport {
-        let mut total_scanned_files = 0;
-        let mut total_file_size_bytes = 0u64;
-        #[cfg(unix)]
-        let mut hardlink_shared_files_count = 0;
-        #[cfg(not(unix))]
-        let hardlink_shared_files_count = 0;
-        let mut unique_inodes = HashSet::new();
-
         #[cfg(unix)]
         use std::os::unix::fs::MetadataExt;
 
-        for path in paths {
-            if let Ok(meta) = fs::metadata(path)
-                && meta.is_file()
-            {
-                total_scanned_files += 1;
-                let size = meta.len();
-                total_file_size_bytes += size;
+        let mut total_scanned_files = 0;
+        let mut total_file_size_bytes = 0u64;
+        let mut hardlink_shared_files_count = 0;
+        let mut freed = 0u64;
+        let mut unique_inodes = HashSet::new();
 
-                #[cfg(unix)]
-                {
-                    let ino = meta.ino();
-                    let nlink = meta.nlink();
-                    unique_inodes.insert(ino);
-                    if nlink > 1 {
-                        hardlink_shared_files_count += 1;
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    unique_inodes.insert(total_scanned_files);
-                }
+        for path in paths {
+            let Ok(meta) = fs::metadata(path) else { continue };
+            if !meta.is_file() {
+                continue;
+            }
+            total_scanned_files += 1;
+            let size = meta.len();
+            total_file_size_bytes += size;
+            #[cfg(unix)]
+            let (identity, shared) = ((meta.dev(), meta.ino()), meta.nlink() > 1);
+            #[cfg(not(unix))]
+            let (identity, shared) = ((0u64, total_scanned_files as u64), false);
+            unique_inodes.insert(identity);
+            if shared {
+                hardlink_shared_files_count += 1;
+            } else {
+                freed += size;
             }
         }
-
-        // If files are hardlinked to external torrent dirs (nlink > 1), deleting them in MBL
-        // frees 0 bytes until the other hardlink is also removed.
-        let estimated_net_freed =
-            if hardlink_shared_files_count == total_scanned_files && total_scanned_files > 0 {
-                0
-            } else {
-                total_file_size_bytes
-            };
 
         StorageHardlinkReport {
             total_scanned_files,
             total_file_size_bytes,
             unique_inode_count: unique_inodes.len(),
             hardlink_shared_files_count,
-            estimated_net_freed_bytes_if_deleted: estimated_net_freed,
+            estimated_net_freed_bytes_if_deleted: freed,
         }
     }
 }
@@ -255,5 +241,21 @@ mod tests {
         let existing = vec![1, 2, 4, 5, 7];
         let missing = MediaRequestService::find_missing_episodes(1, &existing);
         assert_eq!(missing.missing_episode_numbers, vec![3, 6]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hardlinked_files_free_no_space() {
+        let dir = tempfile::tempdir().unwrap();
+        let single = dir.path().join("single.mkv");
+        let linked = dir.path().join("linked.mkv");
+        fs::write(&single, vec![0u8; 100]).unwrap();
+        fs::write(&linked, vec![0u8; 40]).unwrap();
+        fs::hard_link(&linked, dir.path().join("download.mkv")).unwrap();
+        let report = MediaRequestService::analyze_hardlinks(&[&single, &linked]);
+        assert_eq!(report.total_scanned_files, 2);
+        assert_eq!(report.total_file_size_bytes, 140);
+        assert_eq!(report.hardlink_shared_files_count, 1);
+        assert_eq!(report.estimated_net_freed_bytes_if_deleted, 100);
     }
 }

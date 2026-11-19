@@ -1,10 +1,10 @@
 //! AI Watch Companion endpoints (M7.16).
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mbl_service::{CompanionReaction, LiveSessionContext};
+use mbl_service::{CompanionFeed, CompanionReaction, LiveSessionContext};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/companion/sessions/{id}/join", post(join_companion_session))
         .route("/api/v1/companion/sessions/{id}/reaction", post(send_companion_reaction))
         .route("/api/v1/companion/sessions/{id}/context", get(get_companion_context))
+        .route("/api/v1/companion/sessions/{id}/reactions", get(get_companion_reactions))
 }
 
 #[utoipa::path(
@@ -102,6 +103,34 @@ async fn get_companion_context(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<LiveSessionContext>, ApiError> {
-    let ctx = state.services.companion.get_live_context(&auth.actor, &id)?;
+    let ctx = state.services.companion.live_context(&auth.actor, &id).await?;
     Ok(Json(ctx))
+}
+
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ReactionsQuery {
+    /// Only reactions created after this time (ms since epoch).
+    #[serde(default)]
+    pub after: i64,
+}
+
+/// Connected companions and their latest reactions, for the player of this session.
+#[utoipa::path(
+    get,
+    path = "/api/v1/companion/sessions/{id}/reactions",
+    params(("id" = String, Path, description = "Live playback session ID"), ReactionsQuery),
+    responses(
+        (status = 200, description = "Companions and reactions", body = CompanionFeed),
+        (status = 404, description = "Session not found")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn get_companion_reactions(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<ReactionsQuery>,
+) -> Result<Json<CompanionFeed>, ApiError> {
+    Ok(Json(state.services.companion.reactions_since(&auth.actor, &id, query.after)?))
 }

@@ -176,6 +176,10 @@ pub(crate) async fn build_runtime(
         intelligence: state.services.intelligence.clone(),
         playback: state.services.playback.clone(),
     }));
+    runner.register(Arc::new(mbl_service::SceneIndexJobHandler {
+        intelligence: state.services.intelligence.clone(),
+        playback: state.services.playback.clone(),
+    }));
     runner.register(Arc::new(mbl_service::TrickplayJobHandler {
         intelligence: state.services.intelligence.clone(),
         playback: state.services.playback.clone(),

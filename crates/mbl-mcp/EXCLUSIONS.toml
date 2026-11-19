@@ -338,3 +338,11 @@ reason = "Manual re-match after an administrator picked a TMDB entry in the admi
 [[exclusions]]
 path = "/api/v1/items/{id}/artwork"
 reason = "Interactive poster/backdrop picker in the admin UI."
+
+[[exclusions]]
+path = "/api/v1/libraries/{id}/index-scenes"
+reason = "Admin UI button that queues a background indexing job on the NPU."
+
+[[exclusions]]
+path = "/api/v1/companion/sessions/{id}/reactions"
+reason = "Feed polled by the web player to show companion reactions; agents post reactions with the companion tools and read context with explain_scene."

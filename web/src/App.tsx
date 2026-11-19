@@ -10,6 +10,9 @@ import { ToastProvider } from "./context/ToastContext";
 // Code-split pages for performance budget (M3.11)
 const Home = lazy(() => import("./pages/Home"));
 const Connect = lazy(() => import("./pages/Connect"));
+const Remote = lazy(() => import("./pages/Remote"));
+const Matchmaker = lazy(() => import("./pages/Matchmaker"));
+const Discover = lazy(() => import("./pages/Discover"));
 const ItemDetail = lazy(() => import("./pages/ItemDetail"));
 const Libraries = lazy(() => import("./pages/Libraries"));
 const LibraryDetail = lazy(() => import("./pages/LibraryDetail"));
@@ -61,6 +64,10 @@ export function App() {
                 <Route path="/collections" component={Collections} />
                 <Route path="/account" component={Account} />
                 <Route path="/connect" component={Connect} />
+                <Route path="/remote" component={Remote} />
+                <Route path="/matchmaker" component={Matchmaker} />
+                <Route path="/matchmaker/:id" component={Matchmaker} />
+                <Route path="/discover" component={Discover} />
                 <Route path="/requests" component={Requests} />
                 <Route path="/profiles" component={Profiles} />
                 <Route

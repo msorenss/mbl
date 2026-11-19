@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import client from "../api/client";
 import { Player } from "./Player";
 
+// Remote-control registration and companion polling have their own tests.
+vi.mock("../utils/localRemote", () => ({ startLocalRemote: () => () => {} }));
+vi.mock("./CompanionReactions", () => ({ default: () => null }));
+
 const preferences = vi.hoisted(() => ({ offset: 0, saveOffset: vi.fn() }));
 vi.mock("../context/ThemeContext", () => ({
   useTheme: () => ({

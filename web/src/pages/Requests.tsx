@@ -2,6 +2,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import ArrSettings from "../components/ArrSettings";
+import StorageCheck from "../components/StorageCheck";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
@@ -633,6 +634,7 @@ export default function Requests() {
 
       <Show when={user()?.isAdmin}>
         <ArrSettings />
+        <StorageCheck />
       </Show>
 
       <Show when={error()}>

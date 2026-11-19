@@ -173,7 +173,8 @@ pub async fn read_resource(
                 uri.trim_start_matches("mbl://sessions/").trim_end_matches("/live-context");
             let ctx = services
                 .companion
-                .get_live_context(&caller.actor, session_id)
+                .live_context(&caller.actor, session_id)
+                .await
                 .map_err(crate::server::map_service_error)?;
             Ok(ResourceContents {
                 uri: uri.into(),

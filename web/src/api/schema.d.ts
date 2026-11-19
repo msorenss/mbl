@@ -492,6 +492,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion/sessions/{id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connected companions and their latest reactions, for the player of this session. */
+        get: operations["get_companion_reactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/downloads": {
         parameters: {
             query?: never;
@@ -978,6 +995,23 @@ export interface paths {
         head?: never;
         /** Update a library (admin). */
         patch: operations["update_library"];
+        trace?: never;
+    };
+    "/api/v1/libraries/{id}/index-scenes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue scene indexing for all movies and episodes in a library that have none yet. */
+        post: operations["index_library_scenes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/libraries/{id}/items": {
@@ -3381,6 +3415,11 @@ export interface components {
             /** Format: int64 */
             updatedAt: number;
         };
+        /** @description Connected companions and their latest reactions for one playback session. */
+        CompanionFeed: {
+            companions: string[];
+            reactions: components["schemas"]["CompanionReaction"][];
+        };
         CompanionReaction: {
             botName: string;
             commentary: string;
@@ -3975,6 +4014,14 @@ export interface components {
             progress: number;
             status: string;
         };
+        /** @description Result of queueing scene indexing for a library. */
+        LibrarySceneIndexStatus: {
+            /**
+             * Format: int64
+             * @description Movies and episodes that have no indexed scenes yet.
+             */
+            pendingItems: number;
+        };
         LiveSessionContext: {
             connectedCompanions: string[];
             currentChapter?: string | null;
@@ -4066,6 +4113,11 @@ export interface components {
             filterConfig: string;
             id: string;
             matchedItemId?: components["schemas"]["ItemId"] | null;
+            /**
+             * Format: int64
+             * @description People who have joined, including the creator.
+             */
+            memberCount?: number;
             status: string;
         };
         MatchmakerVoteRequest: {
@@ -4659,9 +4711,9 @@ export interface components {
             /** @enum {string} */
             action: "play";
             params: {
-                item_id: components["schemas"]["ItemId"];
+                itemId: components["schemas"]["ItemId"];
                 /** Format: int64 */
-                start_ms?: number | null;
+                startMs?: number | null;
             };
         } | {
             /** @enum {string} */
@@ -4680,7 +4732,7 @@ export interface components {
             action: "seek";
             params: {
                 /** Format: int64 */
-                position_ms: number;
+                positionMs: number;
             };
         } | {
             /** @enum {string} */
@@ -4694,9 +4746,9 @@ export interface components {
             action: "setTracks";
             params: {
                 /** Format: int64 */
-                audio_stream_index?: number | null;
+                audioStreamIndex?: number | null;
                 /** Format: int64 */
-                subtitle_stream_index?: number | null;
+                subtitleStreamIndex?: number | null;
             };
         };
         PlayerInfo: {
@@ -6097,12 +6149,12 @@ export interface operations {
     };
     search_scenes: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
+            query: {
                 q: string;
-                limit: number;
+                limit?: number;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -6955,6 +7007,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CompanionReaction"];
                 };
+            };
+        };
+    };
+    get_companion_reactions: {
+        parameters: {
+            query?: {
+                /** @description Only reactions created after this time (ms since epoch). */
+                after?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Companions and reactions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionFeed"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -8136,6 +8221,46 @@ export interface operations {
             };
             /** @description DVR library paths are managed automatically */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    index_library_scenes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibrarySceneIndexStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

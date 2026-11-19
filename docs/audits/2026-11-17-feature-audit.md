@@ -61,6 +61,17 @@ Syfte: hitta funktioner som finns i API, inställningar eller dokumentation men 
 - B5 Metadata: redigering av fält med lås (låsen gäller även genrer och vald bild vid automatisk matchning), ommatchning mot vald TMDB-post och val av affisch/bakgrund bland TMDB:s bilder. Musikens metadata redigeras inte separat.
 - B4 delvis: sångtexter i spelaren (synkade följer uppspelningen). Kö, album-/artistuppspelning och minispelare för ljud återstår.
 
+## Åtgärdat 2026-11-19
+
+- A4 Companion: reaktioner sparas per session (senaste 50, i minnet) och visas i spelaren via `GET /companion/sessions/{id}/reactions`; aktuellt kapitel fylls i. Aktuell undertextrad fylls fortfarande inte i.
+- B3 Fjärrkontroll: webbspelaren registrerar sig och tar emot kommandon; vyn `/remote` och **Spela på enhet**.
+- B4 Musik: kö (spela alla, blanda, lägg i kö, fortsätt genom albumet, föregående/nästa). Minispelaren fanns redan.
+- B6 Matchmaker: vyn `/matchmaker` med delad länk, samma ordning för alla och antal deltagare.
+- B7 AI: scensökning `/discover`, indexering av helt bibliotek som bakgrundsjobb, hastighetstest och "Previously on…" på serie-/säsongssidor.
+- B9 Requests: saknade avsnitt på seriesidan och lagringskontroll; frigjort utrymme räknar nu bara filer utan annan hårdlänk.
+- B10 Live TV: kanalredigering och radering för admin.
+- Kvar: B8 nedladdningar (väntar på Android-klienten). Inget av ovanstående är provat på fysiska enheter.
+
 ## Föreslagen ordning
 
 1. B1 Quick Connect och B2 profilbyte (krävs för apparna).

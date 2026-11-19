@@ -3,7 +3,11 @@ import { createEffect, createSignal, For, Show } from "solid-js";
 import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
 import type { components } from "../api/schema";
+import { collectTracks, shuffled } from "../api/tracks";
 import MetadataEditor from "../components/MetadataEditor";
+import MissingEpisodes from "../components/MissingEpisodes";
+import PlayOnDevice from "../components/PlayOnDevice";
+import RecapPanel from "../components/RecapPanel";
 import { Badge, Button, Chip } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { usePlayer } from "../context/PlayerContext";
@@ -17,7 +21,25 @@ type PlaybackPreview = components["schemas"]["PlaybackPreview"];
 export function ItemDetail() {
   const params = useParams();
   const itemId = () => Number(params.id);
-  const { playItem, playbackRevision } = usePlayer();
+  const { playItem, playQueue, addToQueue, playbackRevision } = usePlayer();
+  const [queueBusy, setQueueBusy] = createSignal(false);
+  const playAll = async (shuffle: boolean) => {
+    const current = item();
+    if (!current) return;
+    setQueueBusy(true);
+    try {
+      const tracks = await collectTracks(current.id, current.kind);
+      if (tracks.length === 0) {
+        showToast({ title: "Nothing to play", message: "No tracks were found.", type: "info" });
+        return;
+      }
+      playQueue(shuffle ? shuffled(tracks) : tracks);
+    } catch {
+      showToast({ title: "Error", message: "Could not load the tracks.", type: "error" });
+    } finally {
+      setQueueBusy(false);
+    }
+  };
   const { showToast } = useToast();
   const { t } = useI18n();
   const { user } = useAuth();
@@ -387,6 +409,9 @@ export function ItemDetail() {
                 <span>⎚</span>
                 <span>Cast to TV</span>
               </Button>
+              <Show when={primaryPart()}>
+                <PlayOnDevice itemId={itemId()} startMs={Math.max(0, viewOffsetMs())} />
+              </Show>
 
               <Button
                 size="md"
@@ -764,6 +789,34 @@ export function ItemDetail() {
               </div>
             </Show>
 
+            <Show when={item()?.kind === "show" || item()?.kind === "season"}>
+              <div style={{ "margin-top": "var(--space-6)" }}>
+                <RecapPanel itemId={itemId()} />
+              </div>
+            </Show>
+            <Show when={item()?.kind === "show"}>
+              <div style={{ "margin-top": "var(--space-4)" }}>
+                <MissingEpisodes showId={itemId()} />
+              </div>
+            </Show>
+
+            <Show when={item()?.kind === "album" || item()?.kind === "artist"}>
+              <div
+                style={{ display: "flex", gap: "var(--space-3)", "margin-top": "var(--space-6)" }}
+              >
+                <Button onClick={() => void playAll(false)} disabled={queueBusy()}>
+                  ▶ Play all
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void playAll(true)}
+                  disabled={queueBusy()}
+                >
+                  Shuffle
+                </Button>
+              </div>
+            </Show>
+
             {/* Children: Seasons / Episodes */}
             <Show when={children().length > 0}>
               <div style={{ "margin-top": "var(--space-8)" }}>
@@ -832,6 +885,20 @@ export function ItemDetail() {
                               navigate(`/item/${child.id}`);
                               return;
                             }
+                            if (child.kind === "track") {
+                              // Play the album from this track onwards.
+                              const tracks = children().filter((c) => c.kind === "track");
+                              playQueue(
+                                tracks.map((t) => ({
+                                  itemId: t.id,
+                                  initialStartMs: 0,
+                                  title: t.title,
+                                  subtitle: item()?.title,
+                                })),
+                                tracks.findIndex((t) => t.id === child.id),
+                              );
+                              return;
+                            }
                             playItem({
                               itemId: child.id,
                               initialStartMs: Math.max(0, child.viewOffsetMs),
@@ -844,6 +911,22 @@ export function ItemDetail() {
                             ? child.title
                             : "▶ Play"}
                         </Button>
+                        <Show when={child.kind === "track"}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              addToQueue({
+                                itemId: child.id,
+                                initialStartMs: 0,
+                                title: child.title,
+                                subtitle: item()?.title,
+                              })
+                            }
+                          >
+                            Add to queue
+                          </Button>
+                        </Show>
                       </div>
                     )}
                   </For>

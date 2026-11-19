@@ -497,12 +497,18 @@ impl LiveTvService {
         id: ChannelId,
         req: UpdateChannelRequest,
     ) -> Result<Channel> {
+        if req.name.as_deref().is_some_and(|n| n.trim().is_empty() || n.len() > 200)
+            || req.channel_number.as_deref().is_some_and(|n| n.trim().is_empty() || n.len() > 32)
+        {
+            return Err(Error::Validation("channel name and number must not be empty".into()));
+        }
         m9::update_channel(
             &self.db,
             id,
             req.name.as_deref(),
             req.channel_number.as_deref(),
-            req.epg_channel_id.as_ref().map(|s| Some(s.as_str())),
+            // An empty guide ID unlinks the channel from the guide.
+            req.epg_channel_id.as_ref().map(|s| Some(s.trim()).filter(|s| !s.is_empty())),
             req.is_favorite,
             req.is_hidden,
         )

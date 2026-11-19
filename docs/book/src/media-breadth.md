@@ -8,6 +8,7 @@ MBL is a complete personal media platform spanning video, music, and photography
 - **MusicBrainz Integration:** Rate-limited Cover Art Archive integration fetches verified album art, release groups, and artist bios.
 - **EBU R128 Loudness Normalization:** Analyzes integrated LUFS, loudness range (LRA), and True Peak values to provide gapless, uniform-volume playback without clipping.
 - **Progressive Audio Transcode:** Streams on-the-fly transcoded audio to Opus, AAC, or MP3 with direct HTTP stdout streaming.
+- **Play queue:** **Play all** and **Shuffle** on album and artist pages queue every track; **Add to queue** on a track appends it. Playing a track from an album continues through the album. The audio view shows the position in the queue with Previous and Next. The queue belongs to the browser tab and is cleared when the player is closed.
 - **OpenSubsonic API (`/rest/*`):** Full compatibility with third-party audio apps like Symfonium, DSub, and Feishin.
 
 ## Photos & Timeline
@@ -22,6 +23,15 @@ MBL is a complete personal media platform spanning video, music, and photography
 - **Lyrics:** music tracks with a sidecar `.lrc` file or embedded lyrics show them in the player; synced lyrics follow playback.
 - **OpenSubtitles Integration:** Automatic subtitle searching and downloading matching file hashes and IMDb/TMDB identifiers.
 - **DLNA / UPnP Media Server:** smart TVs on the home network can browse and play chosen libraries (see below).
+
+## Movie night
+
+**Movie night** (`/matchmaker`) helps a group pick something to watch. One person chooses a movie or TV library and sends the link. Everyone opens it signed in with their own account and swipes **Like** or **Pass** through the same titles in the same order. When every member has liked the same title, everyone sees the match. A session holds up to 16 people and can be joined for 24 hours.
+
+## Missing episodes and storage
+
+- **Check for missing episodes** on a show page lists gaps in each season's episode numbers. Episodes after the last one in the library are not known and are not listed.
+- **Storage check** (administrators, Requests page) counts the library files and how many are hardlinked elsewhere, for example from a Radarr or Sonarr download folder. Deleting a hardlinked file from the library frees no space until the other link is also removed, so the estimate counts only files without another link.
 
 ## DLNA for TVs
 
