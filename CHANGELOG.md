@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.3.9] - 2026-11-19
+
 ### Added
 - Transcode workers now take real work: `mbl-worker run` proves its encoders with an FFmpeg self-test, long-polls the server and encodes HLS sessions with its own FFmpeg, uploading output as it is produced. Sessions on a worker do not use a local encoder slot. If the worker fails, is revoked or stops responding for 15 seconds, the server continues locally from the next segment.
 
@@ -20,7 +22,17 @@ All notable changes to this project are documented here. The format is based on 
 - Requests approved while their download service was off can be sent later with *Send to Radarr/Sonarr/Lidarr*; the page says when nothing was sent. Diagnostic logs name the service and the error code when a connection test, save or add fails.
 - DLNA media server: smart TVs on the home network find MBL over SSDP and browse the libraries an admin chooses (movies, show → season → episode, artist → album → track) with an optional maximum content rating. Files are sent as they are with byte-range seeking; Samsung gets its Matroska MIME type. Only local-network peers are answered, and DLNA is now off by default. Settings: *DLNA for TVs* in server settings (`dlnaLibraryIds`, `dlnaMaxRating`). No transcoding, cover art or subtitles for DLNA yet.
 - Lidarr and music requests: requests can be for an artist or an album. The request form searches music through Lidarr (which looks up MusicBrainz), and approving adds the artist with all its albums, or only the chosen album, to Lidarr and starts a search. Lidarr uses API v1 and also needs a metadata profile, chosen after Test connection. Music requests become available when the artist (or the album under that artist) appears in a music library. New route `GET /api/v1/requests/music/search`; requests carry `musicbrainzId` and `artist`; the MCP tool `create_media_request` accepts artists and albums.
+- Metadata editing for administrators: **Edit metadata** on an item page changes title, sort title, original title, year, content rating, studio, genres, tagline and summary. Changed fields are locked, so refreshing metadata keeps them; locks can be cleared one by one. Movies and shows can be matched to another TMDB entry (search, then *Use this*), and a poster or backdrop can be chosen from TMDB's images. New routes `GET/PATCH /api/v1/items/{id}/metadata`, `POST /api/v1/items/{id}/match` and `GET/PUT /api/v1/items/{id}/artwork`. Locks also cover genres and chosen artwork during automatic matching.
+- Lyrics in the player: music tracks with a `.lrc` file or embedded lyrics show them under the title; synced lyrics follow playback and keep the current line in view.
 - Translations cover every visible text in all 22 languages, including messages with names or numbers and the server's remote-access explanations. A test fails when a new English text has no translation.
+- Remote control (**Remote control**, `/remote`): lists the devices playing for your account (browsers, Chromecast and TV apps) and controls them with play, pause, skip back and forward, stop and volume. A browser playing MBL now registers itself, so a phone can control the computer. **Play on device** on an item page starts the title on one of those devices.
+- Watch companions in the player: reactions that an AI companion posts during playback appear on screen for a few seconds. The live context for companions now includes the current chapter. New `GET /api/v1/companion/sessions/{id}/reactions`.
+- Music queue: **Play all** and **Shuffle** on album and artist pages, **Add to queue** on tracks, and playing a track continues through the album. The audio view shows the track position, Previous and Next, and what comes next.
+- Movie night (`/matchmaker`): choose a movie or TV library, send the link, and everyone swipes Like or Pass on their own account. When everyone likes the same title, it is shown as the match. The session shows how many have joined (`memberCount`).
+- Scene search (`/discover`): describe a scene and start playback right there. Administrators can index a whole library in the background (`POST /api/v1/libraries/{id}/index-scenes`, pauses during playback) and test the AI speed.
+- **Previously on…** on show and season pages: a recap built only from episodes you have watched.
+- **Check for missing episodes** on show pages, and a storage check for administrators on the Requests page that shows how much space deleting library files would really free when Radarr or Sonarr hardlinked them.
+- Live TV channels can be edited by administrators: name, number, guide channel ID, favourite, hidden, or deleted.
 
 ### Changed
 - Worker pairing reports the encoders that passed the self-test instead of a fixed NVENC list. The worker configuration defaults to `%ProgramData%\MBL\worker.json` on Windows.
@@ -37,6 +49,10 @@ All notable changes to this project are documented here. The format is based on 
 - The earlier reachability test treated the server's Tailscale address as the router's WAN address and always reported CGNAT when Tailscale was running.
 - MCP connections use the same network classification as the web API, including the home network reached through the public host name.
 - The MCP tool `get_online_history` reports why it failed (for example that WebTV is turned off) instead of a generic error.
+- The OpenAPI schema described player command fields in snake_case (`position_ms`) although the server expects camelCase (`positionMs`).
+- `GET /api/v1/ai/search-scenes` was documented with its `q` and `limit` parameters in the path instead of the query.
+- The storage analysis reported either 0 bytes or everything as freed. It now counts only files that have no other hardlink.
+- An empty guide channel ID saved an empty string instead of unlinking the channel from the guide; empty channel names and numbers are refused.
 
 ### Security
 - Quick Connect hands out the session token once and only after the code is claimed, so a used code never creates a second session. Device labels from the unauthenticated request are shortened and cleaned, and at most 50 codes can wait at once.
@@ -45,6 +61,14 @@ All notable changes to this project are documented here. The format is based on 
 - The node handover endpoint now requires sign-in, checks library access and uses the server's network classification instead of a client-supplied `X-Forwarded-For` header.
 - Signed worker source URLs use a random key per server start instead of a fixed built-in key, which let anyone forge a token and read media files without signing in.
 - The session-wide `PUT /api/v1/stream/hls/{sessionId}/segments/{filename}` upload is removed. Workers can only upload `init.mp4`, fragments and the playlist of a job assigned to them.
+
+### Validation and limitations
+- Checked on a Raspberry Pi 5: workspace tests, Clippy, web tests, OpenAPI and MCP parity. Radarr and Sonarr were tried against real services; profile switching, translations and remote diagnostics in the browser.
+- Not yet tried on real hardware: the DLNA server on Samsung and LG TVs, Lidarr, worker offload on a Windows NVIDIA machine, and storage nodes on Windows.
+- DLNA sends files as they are (no transcoding, cover art or subtitles). Metadata editing covers movies, shows and their fields; music metadata comes from tags.
+- Workers and storage nodes paired with an earlier version must be paired again.
+- Verified with the full Rust and web test suites on the Raspberry Pi 5. Remote control, movie night, scene search and the music queue are tested against the API, not on physical TVs, phones or Chromecasts.
+- A browser tab that is not playing cannot be started remotely, and a browser may block sound until someone clicks in it. Companion reactions are kept in memory only. Scene search without a Hailo NPU uses the slower CPU fallback.
 
 ## [1.3.8] - 2026-11-17
 

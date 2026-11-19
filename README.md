@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.3.8
+Current release: v1.3.9
 
-This release bundles FFmpeg essentials directly in the Windows installer, adds an in-app GitHub release update checker with platform-specific download links, and enhances hardware and memory reporting on Windows. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release adds remote control of your other devices, a music play queue, movie night, scene search and recaps in the web app, watch-companion reactions in the player, channel editing for Live TV, a storage check for hardlinked downloads, a DLNA server for smart TVs, metadata editing with field locks, lyrics in the player, Radarr/Sonarr/Lidarr integration, Quick Connect sign-in for devices, PIN profile switching, automatic intro/credits detection, webhooks, real offload to transcode workers and storage nodes, and full translations in 22 languages. It also fixes a security issue in worker source URLs. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 

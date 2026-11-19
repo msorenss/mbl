@@ -9,7 +9,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.8` (2026-11-17; built-in Let's Encrypt, shared Cast receiver, player additions). Not tagged or pushed.
+- Release prepared: `v1.3.9` (2026-11-19; DLNA, metadata, lyrics, Arr, Quick Connect, webhooks, worker/node offload, remote control, music queue, movie night, scene search/recap UI, companion reactions, channel editing, storage check). Not tagged or pushed. `v1.3.10` is reserved for bug fixes; after the 1.3 series the Android client is next.
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -85,6 +85,25 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+
+### 2026-11-19 — Återstående punkter i funktionsgranskningen, ingår i release 1.3.9
+- B3 fjärrkontroll: `web/src/utils/localRemote.ts` registrerar webbspelaren (`deviceType: "web"`, ett id per flik i sessionStorage) och tar emot kommandon över `/players/{id}/connect`; `Player.tsx` utför pause/resume/seek/volym/stopp/play/spårbyte när den inte castar. Vyn `/remote` (`pages/Remote.tsx`) och `PlayOnDevice.tsx` på titelsidan. `PlayerCommand` har nu `rename_all` per variant, eftersom utoipa ignorerar `rename_all_fields` (schemat sa `position_ms`).
+- A4 Companion: `CompanionService` sparar senaste 50 reaktioner per session (max 256 sessioner, i minnet), ny `GET /companion/sessions/{id}/reactions?after=`, `live_context` (async) fyller i kapitel från `media_parts.chapters`. `CompanionReactions.tsx` i spelaren pollar var 4:e s.
+- B4 musik: kö i `PlayerContext` (`playQueue`, `addToQueue`, `queue`, `queueIndex`); `playItem` nollställer kön. `api/tracks.ts` samlar album-/artistspår. Spelaren går vidare i kön vid slut, före nästa avsnitt.
+- B6 Matchmaker: `pages/Matchmaker.tsx` (`/matchmaker`, `/matchmaker/:id`), bibliotek i `filterConfig`, samma ordning via `seededShuffle(sessionId)`. `MatchmakerSessionRow.memberCount`.
+- B7 AI: `pages/Discover.tsx` (scensökning, admin: indexera bibliotek, hastighetstest), `SceneIndexJobHandler` (`media.scene_index`, `{libraryId}`, ger vika för uppspelning), `POST /libraries/{id}/index-scenes`. `RecapPanel.tsx` på serie/säsong. `SearchScenesQuery` dokumenterades som path-parametrar; nu query.
+- B9/B10: `MissingEpisodes.tsx`, `StorageCheck.tsx` (frigjort räknar bara filer utan annan hårdlänk; körs i spawn_blocking), `ChannelEditor.tsx`; tom guide-ID blir NULL, tomt namn/nummer nekas.
+- Biome: `files.maxSize` höjd till 2 MiB eftersom `uiPhrases.ts` passerade 1 MiB.
+- Tester: `crates/mbl-server/tests/remote_and_discovery.rs`, reaktionsflöde i `m7.rs`, enhetstester för kapitel och hårdlänkar, webbtester för Remote, kö, Matchmaker, ChannelEditor och CompanionReactions. Inget provat på fysiska enheter.
+- Kvar: B8 nedladdningsvy (väntar på Android), aktuell undertextrad i Companion-kontexten, fysiska prov (DLNA på Samsung/LG, Lidarr, fjärrkontroll mot Chromecast/telefon).
+
+### 2026-11-18 — Metadataredigering, sångtexter och release 1.3.9
+- `mbl-service::metadata_edit::MetadataEditService` (`Services.metadata`): `GET/PATCH /api/v1/items/{id}/metadata` (ändrade fält låses i `media_items.locked_fields`; `lockedFields` ersätter listan), `POST /api/v1/items/{id}/match` (sätter `tmdb_id`, köar `metadata.match` med hög prioritet), `GET/PUT /api/v1/items/{id}/artwork` (kandidater från TMDB `/images`; bara `https://image.tmdb.org/t/p/`-adresser eller nuvarande bild får väljas, eftersom servern laddar ned den; låser `poster`/`backdrop` och köar `artwork.fetch`). Matcher respekterar nu även lås för `genres`, `poster`, `backdrop`, `original_title`. Den gamla tabellen `item_metadata_locks` (m7) används inte.
+- Webb: `MetadataEditor.tsx` (knapp för admin på detaljsidan: Detaljer, Matchning, Bilder) och `LyricsPanel.tsx` i spelarens ljudvy (synkad rad markeras och scrollas fram).
+- Test: `crates/mbl-server/tests/metadata_edit.rs`, webbtester för båda komponenterna. MCP-undantag för de tre rutterna.
+- Översättningar: hjälpskriptet för `uiPhrases.ts` försvann vid omstart (låg i `/tmp`). Nya rader läggs nu in direkt i filen (exakta fraser efter `UI_PHRASES_22 = {`, mallar med `{0}` efter `UI_PATTERNS_22 = {`), därefter `biome format`.
+- Pi:n kraschade under ett bygge med byggkatalogen i `/tmp` (tmpfs, RAM). Roots papperskorg (124 GB Frigate-inspelningar) tömdes av användaren; bygg nu i `target/` på disken med `-j 2`.
+- Release 1.3.9: version i Cargo, README, Windows-filer (även `build-msi.ps1`), OpenAPI och changelog.
 
 ### 2026-11-18 — DLNA-server för TV-apparater
 - `mbl-remote::dlna` omskriven: beskrivningar, SCPD, DIDL-Lite, SOAP-svar/fel, `soap_arg`, SSDP (`parse_msearch`, `matching_targets`, `search_response`, `notify`) och renderarprofil (Samsung får `video/x-mkv`). Rena funktioner med enhetstester.

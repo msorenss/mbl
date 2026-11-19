@@ -115,7 +115,7 @@
         "parameters": [
           {
             "name": "q",
-            "in": "path",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string"
@@ -123,8 +123,8 @@
           },
           {
             "name": "limit",
-            "in": "path",
-            "required": true,
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "integer",
               "minimum": 0
@@ -1049,6 +1049,56 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/reactions": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "Connected companions and their latest reactions, for the player of this session.",
+        "operationId": "get_companion_reactions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Only reactions created after this time (ms since epoch).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Companions and reactions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionFeed"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
           }
         },
         "security": [
@@ -2328,6 +2378,41 @@
           "409": {
             "description": "DVR library paths are managed automatically"
           }
+        }
+      }
+    },
+    "/api/v1/libraries/{id}/index-scenes": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Queue scene indexing for all movies and episodes in a library that have none yet.",
+        "operationId": "index_library_scenes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Library ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibrarySceneIndexStatus"
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {},
+          "404": {}
         }
       }
     },
@@ -9441,6 +9526,28 @@
           }
         }
       },
+      "CompanionFeed": {
+        "type": "object",
+        "description": "Connected companions and their latest reactions for one playback session.",
+        "required": [
+          "companions",
+          "reactions"
+        ],
+        "properties": {
+          "companions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanionReaction"
+            }
+          }
+        }
+      },
       "CompanionReaction": {
         "type": "object",
         "required": [
@@ -11787,6 +11894,21 @@
           }
         }
       },
+      "LibrarySceneIndexStatus": {
+        "type": "object",
+        "description": "Result of queueing scene indexing for a library.",
+        "required": [
+          "pendingItems"
+        ],
+        "properties": {
+          "pendingItems": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Movies and episodes that have no indexed scenes yet.",
+            "minimum": 0
+          }
+        }
+      },
       "LiveSessionContext": {
         "type": "object",
         "required": [
@@ -12121,6 +12243,11 @@
                 "type": "null"
               }
             ]
+          },
+          "memberCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "People who have joined, including the creator."
           },
           "status": {
             "type": "string"
@@ -14211,13 +14338,13 @@
               "params": {
                 "type": "object",
                 "required": [
-                  "item_id"
+                  "itemId"
                 ],
                 "properties": {
-                  "item_id": {
+                  "itemId": {
                     "$ref": "#/components/schemas/ItemId"
                   },
-                  "start_ms": {
+                  "startMs": {
                     "type": [
                       "integer",
                       "null"
@@ -14298,10 +14425,10 @@
               "params": {
                 "type": "object",
                 "required": [
-                  "position_ms"
+                  "positionMs"
                 ],
                 "properties": {
-                  "position_ms": {
+                  "positionMs": {
                     "type": "integer",
                     "format": "int64"
                   }
@@ -14353,14 +14480,14 @@
               "params": {
                 "type": "object",
                 "properties": {
-                  "audio_stream_index": {
+                  "audioStreamIndex": {
                     "type": [
                       "integer",
                       "null"
                     ],
                     "format": "int64"
                   },
-                  "subtitle_stream_index": {
+                  "subtitleStreamIndex": {
                     "type": [
                       "integer",
                       "null"

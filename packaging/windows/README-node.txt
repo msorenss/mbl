@@ -1,4 +1,4 @@
-MBL Storage Node for Windows (v1.3.8)
+MBL Storage Node for Windows (v1.3.9)
 ======================================
 
 mbl-node shares media folders on this PC with your MBL server. The server lists them as
