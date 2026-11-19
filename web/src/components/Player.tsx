@@ -151,6 +151,7 @@ export function Player(props: PlayerProps) {
   const [volume, setVolume] = createSignal(1);
   const [isMuted, setIsMuted] = createSignal(false);
   const [showControls, setShowControls] = createSignal(true);
+  const [chatOpen, setChatOpen] = createSignal(false);
   const [showResumePrompt, setShowResumePrompt] = createSignal(false);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = createSignal<number>(
     props.subtitleStreamIndex ?? -1,
@@ -567,7 +568,11 @@ export function Player(props: PlayerProps) {
       const result = await client.POST("/api/v1/playback/{session}/progress", {
         signal: abort.signal,
         params: { path: { session: data.sessionId } },
-        body: { positionMs, state },
+        body: {
+          positionMs,
+          state,
+          subtitleStreamIndex: selectedSubtitleIndex() >= 0 ? selectedSubtitleIndex() : null,
+        },
       });
       if (casting && (state === "paused" || !result.response.ok))
         castDiagnostics.record("server.progress", {
@@ -1773,7 +1778,11 @@ export function Player(props: PlayerProps) {
           {recoveryNotice()}
         </p>
       </Show>
-      <CompanionReactions sessionId={playbackData()?.sessionId} />
+      <CompanionReactions
+        sessionId={playbackData()?.sessionId}
+        open={chatOpen()}
+        onClose={() => setChatOpen(false)}
+      />
       <Show when={controlNotice()}>
         <p
           role="alert"
@@ -2866,6 +2875,25 @@ export function Player(props: PlayerProps) {
                 </Show>
               </div>
             </Show>
+
+            <button
+              type="button"
+              onClick={() => setChatOpen((open) => !open)}
+              aria-pressed={chatOpen()}
+              aria-label="Chat"
+              title="Chat"
+              style={{
+                background: chatOpen() ? "var(--accent)" : "transparent",
+                border: "none",
+                color: "#fff",
+                "font-size": "18px",
+                cursor: "pointer",
+                padding: "4px 8px",
+                "border-radius": "var(--radius-sm)",
+              }}
+            >
+              💬
+            </button>
 
             {/* Chromecast / Remote Playback Button (M12) */}
             <Show when={isCastAvailable()}>

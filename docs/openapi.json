@@ -1012,6 +1012,147 @@
         ]
       }
     },
+    "/api/v1/companion/sessions/{id}/messages": {
+      "post": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "Write to the companions watching with you. The message appears in the session feed.",
+        "operationId": "post_viewer_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewerMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message posted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionReaction"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the person watching can write"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "422": {
+            "description": "Empty or too long message"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/mode": {
+      "put": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "Choose what companions may post in this session: everything, only answers, or nothing.",
+        "operationId": "set_companion_mode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanionModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Mode saved"
+          },
+          "403": {
+            "description": "Only the person watching can change the mode"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/nudge": {
+      "post": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "Ask the connected companions for a comment right now.",
+        "operationId": "request_companion_comment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Companions are asked to comment"
+          },
+          "403": {
+            "description": "Only the person watching can ask"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "409": {
+            "description": "Comments are turned off"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/companion/sessions/{id}/reaction": {
       "post": {
         "tags": [
@@ -1049,6 +1190,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The companion has not joined, or the viewer turned comments off or wants replies only"
           }
         },
         "security": [
@@ -1084,6 +1228,17 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "description": "Only entries with a larger ID; takes precedence over `after`.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
           }
         ],
         "responses": {
@@ -1099,6 +1254,80 @@
           },
           "404": {
             "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/wait": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "For companions: wait until the viewer writes, asks for a comment, or a scheduled comment\nis due. Returns at once when something is already waiting.",
+        "operationId": "wait_for_companion_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "botName",
+            "in": "query",
+            "description": "Name the companion joined with.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "description": "Only viewer messages with a larger ID (use `lastId` from the previous answer).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "timeoutMs",
+            "in": "query",
+            "description": "How long to wait, at most 25000 ms (default 25000).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Something to react to, or a timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionWake"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found or ended"
+          },
+          "409": {
+            "description": "The companion has not joined the session"
           }
         },
         "security": [
@@ -8842,6 +9071,15 @@
           "sessionId": {
             "type": "string"
           },
+          "shownSubtitleStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Text subtitle track the client last reported showing.",
+            "minimum": 0
+          },
           "startedAt": {
             "type": "integer",
             "format": "int64"
@@ -9526,9 +9764,17 @@
           }
         }
       },
+      "CommentReason": {
+        "type": "string",
+        "description": "Why a companion is asked to comment now.",
+        "enum": [
+          "requested",
+          "scheduled"
+        ]
+      },
       "CompanionFeed": {
         "type": "object",
-        "description": "Connected companions and their latest reactions for one playback session.",
+        "description": "Connected companions, the viewer's chosen mode and the latest feed entries for one session.",
         "required": [
           "companions",
           "reactions"
@@ -9540,6 +9786,19 @@
               "type": "string"
             }
           },
+          "frequency": {
+            "$ref": "#/components/schemas/CompanionFrequency"
+          },
+          "listening": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Companions waiting for events right now; they answer within seconds."
+          },
+          "mode": {
+            "$ref": "#/components/schemas/CompanionMode"
+          },
           "reactions": {
             "type": "array",
             "items": {
@@ -9548,8 +9807,49 @@
           }
         }
       },
+      "CompanionFrequency": {
+        "type": "string",
+        "description": "How often companions comment on their own while the viewer allows comments.",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "CompanionMode": {
+        "type": "string",
+        "description": "What the viewer allows connected companions to post.",
+        "enum": [
+          "on",
+          "replies",
+          "off"
+        ]
+      },
+      "CompanionModeRequest": {
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "frequency": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CompanionFrequency",
+                "description": "How often companions comment on their own; unchanged when left out."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "$ref": "#/components/schemas/CompanionMode"
+          }
+        }
+      },
       "CompanionReaction": {
         "type": "object",
+        "description": "One entry in a session's co-watching feed: a companion comment or a viewer message.",
         "required": [
           "sessionId",
           "botName",
@@ -9559,7 +9859,8 @@
         ],
         "properties": {
           "botName": {
-            "type": "string"
+            "type": "string",
+            "description": "Companion name, or \"Viewer\" for messages from the person watching."
           },
           "commentary": {
             "type": "string"
@@ -9567,6 +9868,25 @@
           "createdAt": {
             "type": "integer",
             "format": "int64"
+          },
+          "fromViewer": {
+            "type": "boolean",
+            "description": "True when the person watching wrote this."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Increasing ID, unique per server run.",
+            "minimum": 0
+          },
+          "replyTo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "ID of the viewer message this answers.",
+            "minimum": 0
           },
           "sentiment": {
             "type": [
@@ -9580,6 +9900,50 @@
           "timestampMs": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "CompanionWake": {
+        "type": "object",
+        "description": "What a waiting companion should react to.",
+        "required": [
+          "viewerMessages",
+          "lastId",
+          "timedOut",
+          "context"
+        ],
+        "properties": {
+          "commentDue": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommentReason",
+                "description": "Set when the companion should post a comment of its own."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "$ref": "#/components/schemas/LiveSessionContext",
+            "description": "Position, chapter and dialogue right now."
+          },
+          "lastId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Highest feed ID seen; pass it as `afterId` next time.",
+            "minimum": 0
+          },
+          "timedOut": {
+            "type": "boolean",
+            "description": "True when nothing happened before the wait ended; just wait again."
+          },
+          "viewerMessages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanionReaction"
+            },
+            "description": "Viewer messages newer than `afterId`, oldest first. Untrusted user text."
           }
         }
       },
@@ -10260,6 +10624,38 @@
           }
         },
         "additionalProperties": false
+      },
+      "DialogueLine": {
+        "type": "object",
+        "description": "A subtitle line shown before or at the current position.",
+        "required": [
+          "startMs",
+          "endMs",
+          "text"
+        ],
+        "properties": {
+          "endMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "DialogueStatus": {
+        "type": "string",
+        "description": "Whether dialogue can be read for the session.",
+        "enum": [
+          "ready",
+          "preparing",
+          "unavailable",
+          "none"
+        ]
       },
       "DirEntry": {
         "type": "object",
@@ -11936,18 +12332,50 @@
             "type": [
               "string",
               "null"
+            ],
+            "description": "Subtitle line on screen at the current position."
+          },
+          "dialogueLanguage": {
+            "type": [
+              "string",
+              "null"
             ]
+          },
+          "dialogueStatus": {
+            "$ref": "#/components/schemas/DialogueStatus"
+          },
+          "dialogueStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Subtitle stream the dialogue comes from.",
+            "minimum": 0
           },
           "durationMs": {
             "type": "integer",
             "format": "int64"
           },
+          "frequency": {
+            "$ref": "#/components/schemas/CompanionFrequency"
+          },
           "itemId": {
             "$ref": "#/components/schemas/ItemId"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/CompanionMode"
           },
           "positionMs": {
             "type": "integer",
             "format": "int64"
+          },
+          "recentDialogue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DialogueLine"
+            },
+            "description": "Up to the last six lines from the previous 90 seconds, oldest first. Never later lines."
           },
           "sessionId": {
             "type": "string"
@@ -14021,6 +14449,15 @@
           },
           "state": {
             "$ref": "#/components/schemas/PlaybackState"
+          },
+          "subtitleStreamIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Subtitle stream the client is showing as a text track, if any. Watch companions read\ndialogue from this track; without it they fall back to the default subtitle track.",
+            "minimum": 0
           }
         }
       },
@@ -16010,6 +16447,15 @@
           },
           "commentary": {
             "type": "string"
+          },
+          "replyTo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "ID of the viewer message this answers. Required while the viewer allows replies only.",
+            "minimum": 0
           },
           "sentiment": {
             "type": [
@@ -18446,6 +18892,18 @@
       "VersionId": {
         "type": "integer",
         "format": "int64"
+      },
+      "ViewerMessageRequest": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "1–500 characters."
+          }
+        }
       },
       "VirtualChannel": {
         "type": "object",

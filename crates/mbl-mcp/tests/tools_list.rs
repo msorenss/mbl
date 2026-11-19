@@ -30,7 +30,7 @@ async fn snapshot_tools_list_read_scope() {
         .collect();
 
     // 30 baseline read tools plus online discovery, inspection and history.
-    assert_eq!(tools.len(), 33);
+    assert_eq!(tools.len(), 34);
     insta::assert_json_snapshot!("tools_list_read", tools);
 }
 
@@ -44,7 +44,7 @@ async fn snapshot_tools_list_read_library_scope() {
         .collect();
 
     // Read (33) plus five library-management tools.
-    assert_eq!(tools.len(), 38);
+    assert_eq!(tools.len(), 39);
     insta::assert_json_snapshot!("tools_list_read_library", tools);
 }
 
@@ -58,6 +58,6 @@ async fn snapshot_tools_list_admin_scope() {
         .collect();
 
     // 75 baseline tools plus online discovery, inspection and history.
-    assert_eq!(tools.len(), 78);
+    assert_eq!(tools.len(), 80);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

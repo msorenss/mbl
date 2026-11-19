@@ -115,7 +115,9 @@ pub async fn execute_tool(
         | "join_watch_session"
         | "send_companion_reaction"
         | "sync_playback"
-        | "explain_scene" => players::execute(tool_name, args, caller, services).await,
+        | "explain_scene"
+        | "read_companion_chat"
+        | "wait_for_companion_events" => players::execute(tool_name, args, caller, services).await,
         "list_workers" | "wake_worker" | "pair_worker" | "revoke_worker" | "list_remote_nodes" => {
             workers::execute(tool_name, args, caller, services).await
         }

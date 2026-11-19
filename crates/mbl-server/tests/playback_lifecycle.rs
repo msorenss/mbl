@@ -82,7 +82,7 @@ fn request(item: i64, hls: bool) -> PlaybackRequest {
 }
 
 fn progress(position_ms: u64, state: PlaybackState) -> PlaybackProgressRequest {
-    PlaybackProgressRequest { position_ms, state }
+    PlaybackProgressRequest { position_ms, state, subtitle_stream_index: None }
 }
 async fn history(db: &mbl_db::Db) -> i64 {
     sqlx::query_scalar("SELECT COUNT(*) FROM watch_history").fetch_one(&db.read).await.unwrap()

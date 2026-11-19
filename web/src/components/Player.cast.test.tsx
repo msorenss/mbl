@@ -139,7 +139,9 @@ it("uses receiver position for progress/stop and routes keyboard controls remote
   await tick();
   expect(client.POST).toHaveBeenCalledWith(
     "/api/v1/playback/{session}/progress",
-    expect.objectContaining({ body: { positionMs: 140000, state: "playing" } }),
+    expect.objectContaining({
+      body: { positionMs: 140000, state: "playing", subtitleStreamIndex: null },
+    }),
   );
   dispose();
   dispose = undefined;
@@ -783,7 +785,9 @@ it("renews a paused receiver session without using the hidden local video's time
   await vi.advanceTimersByTimeAsync(0);
   expect(client.POST).toHaveBeenCalledWith(
     "/api/v1/playback/{session}/progress",
-    expect.objectContaining({ body: { positionMs: 91000, state: "paused" } }),
+    expect.objectContaining({
+      body: { positionMs: 91000, state: "paused", subtitleStreamIndex: null },
+    }),
   );
 });
 
@@ -1038,7 +1042,7 @@ it("replays a locally finished clip from zero when casting and reports new progr
     "/api/v1/playback/{session}/progress",
     expect.objectContaining({
       params: { path: { session: "replay" } },
-      body: { positionMs: 0, state: "playing" },
+      body: { positionMs: 0, state: "playing", subtitleStreamIndex: null },
     }),
   );
 });

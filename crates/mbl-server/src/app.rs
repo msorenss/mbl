@@ -172,6 +172,12 @@ pub(crate) async fn build_runtime(
         .with_stream(state.services.stream.clone())
         .with_hw(state.services.hw.clone())
         .with_remote_policy(state.services.remote.bandwidth().clone(), &config.server.public_url);
+    state.services.companion = state
+        .services
+        .companion
+        .clone()
+        .with_playback(state.services.playback.clone())
+        .with_stream(state.services.stream.clone());
     runner.register(Arc::new(mbl_service::MarkerAnalysisJobHandler {
         intelligence: state.services.intelligence.clone(),
         playback: state.services.playback.clone(),

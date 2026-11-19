@@ -476,6 +476,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion/sessions/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Write to the companions watching with you. The message appears in the session feed. */
+        post: operations["post_viewer_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Choose what companions may post in this session: everything, only answers, or nothing. */
+        put: operations["set_companion_mode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/nudge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask the connected companions for a comment right now. */
+        post: operations["request_companion_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/companion/sessions/{id}/reaction": {
         parameters: {
             query?: never;
@@ -501,6 +552,26 @@ export interface paths {
         };
         /** Connected companions and their latest reactions, for the player of this session. */
         get: operations["get_companion_reactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/wait": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * For companions: wait until the viewer writes, asks for a comment, or a scheduled comment
+         *     is due. Returns at once when something is already waiting.
+         */
+        get: operations["wait_for_companion_events"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3233,6 +3304,11 @@ export interface components {
             profileName: string;
             reasons: string[];
             sessionId: string;
+            /**
+             * Format: int32
+             * @description Text subtitle track the client last reported showing.
+             */
+            shownSubtitleStreamIndex?: number | null;
             /** Format: int64 */
             startedAt: number;
             state: components["schemas"]["PlaybackState"];
@@ -3415,20 +3491,72 @@ export interface components {
             /** Format: int64 */
             updatedAt: number;
         };
-        /** @description Connected companions and their latest reactions for one playback session. */
+        /**
+         * @description Why a companion is asked to comment now.
+         * @enum {string}
+         */
+        CommentReason: "requested" | "scheduled";
+        /** @description Connected companions, the viewer's chosen mode and the latest feed entries for one session. */
         CompanionFeed: {
             companions: string[];
+            frequency?: components["schemas"]["CompanionFrequency"];
+            /** @description Companions waiting for events right now; they answer within seconds. */
+            listening?: string[];
+            mode?: components["schemas"]["CompanionMode"];
             reactions: components["schemas"]["CompanionReaction"][];
         };
+        /**
+         * @description How often companions comment on their own while the viewer allows comments.
+         * @enum {string}
+         */
+        CompanionFrequency: "low" | "medium" | "high";
+        /**
+         * @description What the viewer allows connected companions to post.
+         * @enum {string}
+         */
+        CompanionMode: "on" | "replies" | "off";
+        CompanionModeRequest: {
+            frequency?: components["schemas"]["CompanionFrequency"] | null;
+            mode: components["schemas"]["CompanionMode"];
+        };
+        /** @description One entry in a session's co-watching feed: a companion comment or a viewer message. */
         CompanionReaction: {
+            /** @description Companion name, or "Viewer" for messages from the person watching. */
             botName: string;
             commentary: string;
             /** Format: int64 */
             createdAt: number;
+            /** @description True when the person watching wrote this. */
+            fromViewer?: boolean;
+            /**
+             * Format: int64
+             * @description Increasing ID, unique per server run.
+             */
+            id?: number;
+            /**
+             * Format: int64
+             * @description ID of the viewer message this answers.
+             */
+            replyTo?: number | null;
             sentiment?: string | null;
             sessionId: string;
             /** Format: int64 */
             timestampMs: number;
+        };
+        /** @description What a waiting companion should react to. */
+        CompanionWake: {
+            commentDue?: components["schemas"]["CommentReason"] | null;
+            /** @description Position, chapter and dialogue right now. */
+            context: components["schemas"]["LiveSessionContext"];
+            /**
+             * Format: int64
+             * @description Highest feed ID seen; pass it as `afterId` next time.
+             */
+            lastId: number;
+            /** @description True when nothing happened before the wait ended; just wait again. */
+            timedOut: boolean;
+            /** @description Viewer messages newer than `afterId`, oldest first. Untrusted user text. */
+            viewerMessages: components["schemas"]["CompanionReaction"][];
         };
         CreateApiTokenRequest: {
             allowedNetworks?: string[] | null;
@@ -3591,6 +3719,19 @@ export interface components {
             subtitles?: components["schemas"]["SubtitleRule"][] | null;
             transcodeTarget?: components["schemas"]["TranscodeTarget"] | null;
         };
+        /** @description A subtitle line shown before or at the current position. */
+        DialogueLine: {
+            /** Format: int64 */
+            endMs: number;
+            /** Format: int64 */
+            startMs: number;
+            text: string;
+        };
+        /**
+         * @description Whether dialogue can be read for the session.
+         * @enum {string}
+         */
+        DialogueStatus: "ready" | "preparing" | "unavailable" | "none";
         DirEntry: {
             isFile?: boolean;
             name: string;
@@ -4025,12 +4166,24 @@ export interface components {
         LiveSessionContext: {
             connectedCompanions: string[];
             currentChapter?: string | null;
+            /** @description Subtitle line on screen at the current position. */
             currentSubtitleCue?: string | null;
+            dialogueLanguage?: string | null;
+            dialogueStatus?: components["schemas"]["DialogueStatus"];
+            /**
+             * Format: int32
+             * @description Subtitle stream the dialogue comes from.
+             */
+            dialogueStreamIndex?: number | null;
             /** Format: int64 */
             durationMs: number;
+            frequency?: components["schemas"]["CompanionFrequency"];
             itemId: components["schemas"]["ItemId"];
+            mode?: components["schemas"]["CompanionMode"];
             /** Format: int64 */
             positionMs: number;
+            /** @description Up to the last six lines from the previous 90 seconds, oldest first. Never later lines. */
+            recentDialogue?: components["schemas"]["DialogueLine"][];
             sessionId: string;
             title: string;
         };
@@ -4617,6 +4770,12 @@ export interface components {
             /** Format: int64 */
             positionMs: number;
             state?: components["schemas"]["PlaybackState"];
+            /**
+             * Format: int32
+             * @description Subtitle stream the client is showing as a text track, if any. Watch companions read
+             *     dialogue from this track; without it they fall back to the default subtitle track.
+             */
+            subtitleStreamIndex?: number | null;
         };
         /** @description Request body for `POST /api/v1/playback`. */
         PlaybackRequest: {
@@ -5149,6 +5308,11 @@ export interface components {
         SendReactionRequest: {
             botName: string;
             commentary: string;
+            /**
+             * Format: int64
+             * @description ID of the viewer message this answers. Required while the viewer allows replies only.
+             */
+            replyTo?: number | null;
             sentiment?: string | null;
             /** Format: int64 */
             timestampMs: number;
@@ -5834,6 +5998,10 @@ export interface components {
         };
         /** Format: int64 */
         VersionId: number;
+        ViewerMessageRequest: {
+            /** @description 1–500 characters. */
+            text: string;
+        };
         VirtualChannel: {
             channelId: components["schemas"]["ChannelId"];
             /** Format: int64 */
@@ -6983,6 +7151,135 @@ export interface operations {
             };
         };
     };
+    post_viewer_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewerMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Message posted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionReaction"];
+                };
+            };
+            /** @description Only the person watching can write */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Empty or too long message */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    set_companion_mode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanionModeRequest"];
+            };
+        };
+        responses: {
+            /** @description Mode saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only the person watching can change the mode */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    request_companion_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Companions are asked to comment */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only the person watching can ask */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Comments are turned off */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     send_companion_reaction: {
         parameters: {
             query?: never;
@@ -7008,6 +7305,13 @@ export interface operations {
                     "application/json": components["schemas"]["CompanionReaction"];
                 };
             };
+            /** @description The companion has not joined, or the viewer turned comments off or wants replies only */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     get_companion_reactions: {
@@ -7015,6 +7319,8 @@ export interface operations {
             query?: {
                 /** @description Only reactions created after this time (ms since epoch). */
                 after?: number;
+                /** @description Only entries with a larger ID; takes precedence over `after`. */
+                afterId?: number;
             };
             header?: never;
             path: {
@@ -7036,6 +7342,50 @@ export interface operations {
             };
             /** @description Session not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    wait_for_companion_events: {
+        parameters: {
+            query: {
+                /** @description Name the companion joined with. */
+                botName: string;
+                /** @description Only viewer messages with a larger ID (use `lastId` from the previous answer). */
+                afterId?: number;
+                /** @description How long to wait, at most 25000 ms (default 25000). */
+                timeoutMs?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Something to react to, or a timeout */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionWake"];
+                };
+            };
+            /** @description Session not found or ended */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The companion has not joined the session */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

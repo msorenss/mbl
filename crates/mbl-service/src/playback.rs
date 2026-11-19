@@ -200,6 +200,10 @@ pub struct PlaybackProgressRequest {
     pub position_ms: u64,
     #[serde(default)]
     pub state: PlaybackState,
+    /// Subtitle stream the client is showing as a text track, if any. Watch companions read
+    /// dialogue from this track; without it they fall back to the default subtitle track.
+    #[serde(default)]
+    pub subtitle_stream_index: Option<u32>,
 }
 
 /// Optional request body for `POST /api/v1/playback/{session}/stop`.
@@ -217,6 +221,8 @@ pub struct ActivePlaybackSession {
     record_history: bool,
     pub audio_stream_index: Option<u32>,
     pub burned_subtitle_stream_index: Option<u32>,
+    /// Text subtitle track the client last reported showing.
+    pub shown_subtitle_stream_index: Option<u32>,
     pub audio_offset_ms: i64,
     pub title: String,
     pub session_id: String,
@@ -617,6 +623,7 @@ impl PlaybackService {
             record_history: !req.wait_for_ready,
             audio_stream_index,
             burned_subtitle_stream_index,
+            shown_subtitle_stream_index: None,
             audio_offset_ms,
             title: item.title.clone(),
             session_id: session_id.clone(),
@@ -738,6 +745,7 @@ impl PlaybackService {
             session.record_history |= confirmed_now;
             session.position_ms = req.position_ms;
             session.state = req.state;
+            session.shown_subtitle_stream_index = req.subtitle_stream_index;
             session.last_updated_at = now_ms();
             if confirmed_now {
                 self.watch.events().publish(mbl_core::events::Event::PlaybackStarted {

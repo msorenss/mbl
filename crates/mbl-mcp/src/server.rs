@@ -680,6 +680,8 @@ pub fn map_service_error(err: Error) -> JsonRpcError {
             JsonRpcError::internal(format!("service unavailable (retry later): {msg}"))
         }
         Error::RateLimited { retry_after_secs } => JsonRpcError::rate_limited(retry_after_secs),
+        // Conflicts explain what the caller must do differently; REST shows them as 409.
+        Error::Conflict(msg) => JsonRpcError::invalid_params(format!("conflict: {msg}")),
         _ => JsonRpcError::internal("internal server error"),
     }
 }

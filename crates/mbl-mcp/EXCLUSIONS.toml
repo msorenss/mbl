@@ -345,4 +345,16 @@ reason = "Admin UI button that queues a background indexing job on the NPU."
 
 [[exclusions]]
 path = "/api/v1/companion/sessions/{id}/reactions"
-reason = "Feed polled by the web player to show companion reactions; agents post reactions with the companion tools and read context with explain_scene."
+reason = "Feed polled by the web player; agents read the same feed with read_companion_chat."
+
+[[exclusions]]
+path = "/api/v1/companion/sessions/{id}/mode"
+reason = "The viewer's own choice of how much companions may say; agents read it with read_companion_chat but must not change it."
+
+[[exclusions]]
+path = "/api/v1/companion/sessions/{id}/messages"
+reason = "Messages written by the person watching; an agent must not speak for the viewer."
+
+[[exclusions]]
+path = "/api/v1/companion/sessions/{id}/nudge"
+reason = "The viewer asks for a comment; an agent must not speak for the viewer. Agents receive the request through wait_for_companion_events."

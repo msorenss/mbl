@@ -822,7 +822,9 @@ it("keeps paused and buffering sessions alive without confirming an unplayed sou
     await vi.advanceTimersByTimeAsync(5000);
     expect(client.POST).toHaveBeenLastCalledWith(
       "/api/v1/playback/{session}/progress",
-      expect.objectContaining({ body: { positionMs: 0, state: "buffering" } }),
+      expect.objectContaining({
+        body: { positionMs: 0, state: "buffering", subtitleStreamIndex: null },
+      }),
     );
     video.currentTime = 82;
     video.dispatchEvent(new Event("play"));
@@ -847,7 +849,9 @@ it("keeps paused and buffering sessions alive without confirming an unplayed sou
     await vi.advanceTimersByTimeAsync(0);
     expect(client.POST).toHaveBeenCalledWith(
       "/api/v1/playback/{session}/progress",
-      expect.objectContaining({ body: { positionMs: 82000, state: "paused" } }),
+      expect.objectContaining({
+        body: { positionMs: 82000, state: "paused", subtitleStreamIndex: null },
+      }),
     );
     dispose?.();
     dispose = undefined;

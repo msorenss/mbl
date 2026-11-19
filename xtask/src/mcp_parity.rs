@@ -144,11 +144,16 @@ pub fn run(root: &Utf8Path) -> anyhow::Result<()> {
                 mcp_tool_names.contains("list_players") && mcp_tool_names.contains("control_player")
             }
             "/api/v1/companion/sessions/{id}/context"
-            | "/api/v1/companion/sessions/{id}/reactions"
             | "/api/v1/companion/sessions/{id}/join"
             | "/api/v1/companion/sessions/{id}/reaction" => {
                 mcp_tool_names.contains("explain_scene")
                     && mcp_tool_names.contains("send_companion_reaction")
+            }
+            "/api/v1/companion/sessions/{id}/reactions" => {
+                mcp_tool_names.contains("read_companion_chat")
+            }
+            "/api/v1/companion/sessions/{id}/wait" => {
+                mcp_tool_names.contains("wait_for_companion_events")
             }
             "/api/v1/workers"
             | "/api/v1/workers/{id}"

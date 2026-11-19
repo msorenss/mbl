@@ -53,7 +53,11 @@ pub use collections::{
     CollectionRow, CollectionService, CreateCollectionRequest, CreatePlaylistRequest, PlaylistRow,
     PlaylistService, UpdateCollectionRequest, UpdatePlaylistRequest,
 };
-pub use companion::{CompanionFeed, CompanionReaction, CompanionService, LiveSessionContext};
+pub use companion::{
+    COMPANION_WAIT_MAX_MS, CommentReason, CompanionFeed, CompanionFrequency, CompanionMode,
+    CompanionReaction, CompanionService, CompanionWake, DialogueLine, DialogueStatus,
+    LiveSessionContext,
+};
 pub use downloads::{
     CreateDownloadRequest, DownloadDto, DownloadFile, DownloadJobHandler, DownloadQuality,
     DownloadService, DownloadStatus,
