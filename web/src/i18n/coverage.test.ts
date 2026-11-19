@@ -1,7 +1,9 @@
-import { expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 // @ts-expect-error -- plain ESM script without type declarations
 import { extractUiStrings } from "../../scripts/i18n-extract.mjs";
-import { translations } from "./index";
+import { loadLocaleTables, translations } from "./index";
+
+beforeAll(() => loadLocaleTables());
 import { lookupExtendedPhrase, NON_EN_LOCALES } from "./phraseEngine";
 
 /** Names, code and developer messages that stay as they are in every language. */

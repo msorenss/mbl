@@ -1,8 +1,6 @@
 import { createMemo, createSignal } from "solid-js";
 import { type AppLocale, useTheme } from "../context/ThemeContext";
-import { CORE_EXTRA_LOCALES } from "./coreLocales";
 import { EXTRA_TRANSLATIONS } from "./extraPhrases";
-import { PHILIPPINE_LOCALES } from "./philippineLocales";
 
 type LookupExtendedFn = typeof import("./phraseEngine").lookupExtendedPhrase;
 let cachedLookupExtended: LookupExtendedFn | undefined;
@@ -1098,13 +1096,7 @@ function buildAllTranslations(): Record<AppLocale, Record<TranslationKey, string
     Object.assign(result[loc], baseTranslations[loc]);
   }
 
-  // 2. Unpack 15 extra locales for core keys
-  for (const [key, tuple15] of Object.entries(CORE_EXTRA_LOCALES)) {
-    for (let i = 0; i < EXTRA_LOCALE_CODES.length; i++) {
-      const loc = EXTRA_LOCALE_CODES[i];
-      result[loc][key] = tuple15[i];
-    }
-  }
+  // 2. Core keys for the other 18 locales arrive with `loadLocaleTables`.
 
   // 3. Unpack first 20 locales for extra page/UI keys
   for (const [key, tuple20] of Object.entries(EXTRA_TRANSLATIONS)) {
@@ -1114,18 +1106,46 @@ function buildAllTranslations(): Record<AppLocale, Record<TranslationKey, string
     }
   }
 
-  // 4. Unpack Tagalog (tl), Bisaya (ceb), and Waray-Waray (war) for all keys
-  for (const [key, tuple3] of Object.entries(PHILIPPINE_LOCALES)) {
-    for (let i = 0; i < PH_LOCALE_CODES.length; i++) {
-      const loc = PH_LOCALE_CODES[i];
-      result[loc][key] = tuple3[i];
-    }
-  }
-
   return result as Record<AppLocale, Record<TranslationKey, string>>;
 }
 
 export const translations = buildAllTranslations();
+
+// Core keys for the 15 extra locales and the three Philippine languages are a large share of
+// the first download, so they load only when one of those languages is chosen.
+const LAZY_LOCALES = new Set<AppLocale>([...EXTRA_LOCALE_CODES, ...PH_LOCALE_CODES]);
+const [localeTablesReady, setLocaleTablesReady] = createSignal(false);
+let loadingLocaleTables: Promise<void> | undefined;
+
+/** Fills in the tables for the less common locales; resolves at once when loaded. */
+export function loadLocaleTables(): Promise<void> {
+  loadingLocaleTables ??= Promise.all([
+    import("./coreLocales"),
+    import("./philippineLocales"),
+  ]).then(([core, philippine]) => {
+    const dicts = translations as unknown as Record<AppLocale, Record<string, string>>;
+    for (const [key, tuple15] of Object.entries(core.CORE_EXTRA_LOCALES)) {
+      for (let i = 0; i < EXTRA_LOCALE_CODES.length; i++) {
+        dicts[EXTRA_LOCALE_CODES[i]][key] = tuple15[i];
+      }
+    }
+    for (const [key, tuple3] of Object.entries(philippine.PHILIPPINE_LOCALES)) {
+      for (let i = 0; i < PH_LOCALE_CODES.length; i++) {
+        dicts[PH_LOCALE_CODES[i]][key] = tuple3[i];
+      }
+    }
+    setLocaleTablesReady(true);
+  });
+  return loadingLocaleTables;
+}
+
+/** Starts loading the tables a locale needs; true when they are already there. */
+function tablesFor(loc: AppLocale, onReady?: () => void): boolean {
+  if (!LAZY_LOCALES.has(loc) || localeTablesReady()) return true;
+  const loading = loadLocaleTables();
+  if (onReady) void loading.then(onReady);
+  return false;
+}
 
 const EN_PHRASE_TO_KEY = new Map<string, TranslationKey>();
 for (const [k, v] of Object.entries(translations.en)) {
@@ -1171,7 +1191,12 @@ export function useI18n() {
     themeLocale = () => "en" as AppLocale;
   }
   const locale = () => (themeLocale ? themeLocale() : ("en" as AppLocale));
-  const dict = createMemo(() => translations[locale()] || translations.en);
+  const dict = createMemo(() => {
+    // Re-read once the locale's tables have loaded.
+    tablesFor(locale());
+    localeTablesReady();
+    return { ...(translations[locale()] || translations.en) };
+  });
 
   const t = (key: TranslationKey | (string & {})): string => {
     const curLoc = locale();
@@ -1208,6 +1233,7 @@ export function localizeDomSubtree(root: ParentNode, loc: AppLocale): void {
   if (loc !== "en" && !cachedLookupExtended) {
     ensurePhraseEngine(() => localizeDomSubtree(root, loc));
   }
+  if (!tablesFor(loc, () => localizeDomSubtree(root, loc))) return;
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
   let current: Node | null = walker.currentNode;

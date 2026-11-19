@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { localizeDomSubtree, SUPPORTED_LOCALES, translations } from "./index";
+import { beforeAll, describe, expect, it } from "vitest";
+import { loadLocaleTables, localizeDomSubtree, SUPPORTED_LOCALES, translations } from "./index";
+
+beforeAll(() => loadLocaleTables());
 
 describe("i18n Translations", () => {
   it("supports all 23 languages (including Tagalog, Bisaya, and Waray-Waray) with identical key sets", () => {
