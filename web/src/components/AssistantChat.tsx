@@ -1,15 +1,22 @@
+import { A } from "@solidjs/router";
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import { usePlayer } from "../context/PlayerContext";
 
 type Conversation = components["schemas"]["Conversation"];
+type Mention = components["schemas"]["ItemMention"];
 
 interface Line {
   role: "user" | "assistant";
   content: string;
   failed?: boolean;
+  items?: Mention[];
 }
+
+/** Kinds that start playback directly; others open their page. */
+const PLAYABLE = new Set(["movie", "episode", "track", "video"]);
 
 /** `(event, data)` pairs from server-sent events, fed with text as it arrives. */
 export function sseParser(onEvent: (name: string, data: unknown) => void) {
@@ -43,6 +50,7 @@ export function sseParser(onEvent: (name: string, data: unknown) => void) {
  * Renders a button for the top bar; the panel opens beside the page.
  */
 export default function AssistantChat() {
+  const { playItem } = usePlayer();
   const [available, setAvailable] = createSignal(false);
   const [open, setOpen] = createSignal(false);
   const [conversations, setConversations] = createSignal<Conversation[]>([]);
@@ -104,6 +112,7 @@ export default function AssistantChat() {
       result.data.messages.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content,
+        items: m.items,
       })),
     );
   };
@@ -161,8 +170,12 @@ export default function AssistantChat() {
         else if (name === "delta")
           updateLast((l) => ({ ...l, content: l.content + String(d.text ?? "") }));
         else if (name === "done") {
-          const message = d.message as { content?: string } | undefined;
-          updateLast((l) => ({ ...l, content: message?.content ?? l.content }));
+          const message = d.message as { content?: string; items?: Mention[] } | undefined;
+          updateLast((l) => ({
+            ...l,
+            content: message?.content ?? l.content,
+            items: message?.items ?? [],
+          }));
         } else if (name === "error") failure = String(d.message ?? "");
       });
       const reader = (result.data as ReadableStream<Uint8Array>).getReader();
@@ -296,26 +309,78 @@ export default function AssistantChat() {
               </Show>
               <For each={lines()}>
                 {(line) => (
-                  <p
-                    style={{
-                      margin: 0,
-                      "align-self": line.role === "user" ? "flex-end" : "flex-start",
-                      "max-width": "88%",
-                      padding: "8px 12px",
-                      "border-radius": "12px",
-                      "white-space": "pre-wrap",
-                      "overflow-wrap": "anywhere",
-                      background:
-                        line.role === "user" ? "var(--accent)" : "var(--bg-card, rgba(0,0,0,0.05))",
-                      color: line.failed
-                        ? "var(--danger)"
-                        : line.role === "user"
-                          ? "#fff"
-                          : "var(--text-primary)",
-                    }}
-                  >
-                    {line.content || "Thinking…"}
-                  </p>
+                  <>
+                    <p
+                      style={{
+                        margin: 0,
+                        "align-self": line.role === "user" ? "flex-end" : "flex-start",
+                        "max-width": "88%",
+                        padding: "8px 12px",
+                        "border-radius": "12px",
+                        "white-space": "pre-wrap",
+                        "overflow-wrap": "anywhere",
+                        background:
+                          line.role === "user"
+                            ? "var(--accent)"
+                            : "var(--bg-card, rgba(0,0,0,0.05))",
+                        color: line.failed
+                          ? "var(--danger)"
+                          : line.role === "user"
+                            ? "#fff"
+                            : "var(--text-primary)",
+                      }}
+                    >
+                      {line.content || "Thinking…"}
+                    </p>
+                    <Show when={line.items?.length}>
+                      <ul
+                        aria-label="Titles in your library"
+                        style={{
+                          margin: 0,
+                          padding: 0,
+                          "list-style": "none",
+                          display: "flex",
+                          "flex-direction": "column",
+                          gap: "4px",
+                          "max-width": "88%",
+                        }}
+                      >
+                        <For each={line.items}>
+                          {(item) => (
+                            <li
+                              style={{
+                                display: "flex",
+                                "align-items": "center",
+                                gap: "8px",
+                                padding: "6px 10px",
+                                "border-radius": "10px",
+                                border: "1px solid var(--border)",
+                                "font-size": "13px",
+                              }}
+                            >
+                              <span style={{ flex: 1, "min-width": 0 }}>
+                                {item.year ? `${item.title} (${item.year})` : item.title}
+                              </span>
+                              <A href={`/item/${item.id}`} onClick={() => setOpen(false)}>
+                                View
+                              </A>
+                              <Show when={PLAYABLE.has(item.kind)}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playItem({ itemId: item.id, title: item.title });
+                                    setOpen(false);
+                                  }}
+                                >
+                                  Play
+                                </button>
+                              </Show>
+                            </li>
+                          )}
+                        </For>
+                      </ul>
+                    </Show>
+                  </>
                 )}
               </For>
             </div>

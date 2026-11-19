@@ -10463,7 +10463,8 @@
           "id",
           "role",
           "content",
-          "createdAt"
+          "createdAt",
+          "items"
         ],
         "properties": {
           "content": {
@@ -10476,6 +10477,13 @@
           "id": {
             "type": "integer",
             "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemMention"
+            },
+            "description": "Titles the answer mentions, for links."
           },
           "role": {
             "type": "string",
@@ -12456,6 +12464,35 @@
       "ItemId": {
         "type": "integer",
         "format": "int64"
+      },
+      "ItemMention": {
+        "type": "object",
+        "description": "A library title an answer mentions.",
+        "required": [
+          "id",
+          "title",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "\"movie\", \"show\", \"season\", \"episode\"…"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
       },
       "ItemMetadata": {
         "type": "object",

@@ -229,6 +229,7 @@ use crate::routes::{
         mbl_service::assistant::ConversationDetail,
         mbl_db::repo::assistant::Conversation,
         mbl_db::repo::assistant::ConversationMessage,
+        mbl_db::repo::assistant::ItemMention,
         assistant::AssistantChatRequest,
         mbl_agent::ProviderKind,
         mbl_service::DialogueLine,

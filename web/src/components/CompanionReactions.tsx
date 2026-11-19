@@ -1,6 +1,7 @@
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import { useI18n } from "../i18n";
 
 type Reaction = components["schemas"]["CompanionReaction"];
 type Mode = components["schemas"]["CompanionMode"];
@@ -9,6 +10,12 @@ type Frequency = components["schemas"]["CompanionFrequency"];
 const VISIBLE_MS = 12_000;
 const HISTORY = 30;
 const MODE_KEY = "mbl.companion.mode";
+/** Ready-made questions about the scene; `text` is what the companion receives. */
+const QUICK_QUESTIONS = [
+  { label: "Who is on screen?", text: "Who is on screen right now?" },
+  { label: "What just happened?", text: "What just happened?" },
+  { label: "The story so far", text: "Remind me of the story so far, without spoilers." },
+];
 const FREQUENCY_KEY = "mbl.companion.frequency";
 const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: "low", label: "Low" },
@@ -74,6 +81,7 @@ export default function CompanionReactions(props: {
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [shown, setShown] = createSignal<Reaction[]>([]);
   const [history, setHistory] = createSignal<Reaction[]>([]);
   const [companions, setCompanions] = createSignal<string[]>([]);
@@ -201,8 +209,12 @@ export default function CompanionReactions(props: {
 
   const send = async (event: Event) => {
     event.preventDefault();
+    await say(draft().trim(), true);
+  };
+
+  /** Posts a viewer message; `fromDraft` clears the input once sent. */
+  const say = async (text: string, fromDraft: boolean) => {
     const sessionId = props.sessionId;
-    const text = draft().trim();
     if (!sessionId || !text || sending()) return;
     setSending(true);
     setError("");
@@ -212,7 +224,7 @@ export default function CompanionReactions(props: {
         body: { text },
       });
       if (!result.data) throw new Error();
-      setDraft("");
+      if (fromDraft) setDraft("");
       addEntries([result.data]);
     } catch {
       setError("Could not send the message.");
@@ -381,6 +393,33 @@ export default function CompanionReactions(props: {
                 )}
               </For>
             </div>
+            <Show when={heard() && mode() !== "off"}>
+              <fieldset
+                aria-label="Quick questions"
+                style={{
+                  display: "flex",
+                  gap: "6px",
+                  "flex-wrap": "wrap",
+                  margin: 0,
+                  padding: 0,
+                  border: "none",
+                }}
+              >
+                <For each={QUICK_QUESTIONS}>
+                  {(question) => (
+                    <button
+                      type="button"
+                      disabled={sending()}
+                      // Sent in the viewer's language, so the answer comes back in it.
+                      onClick={() => void say(t(question.text), false)}
+                      style={{ ...choice(false), flex: "none" }}
+                    >
+                      {question.label}
+                    </button>
+                  )}
+                </For>
+              </fieldset>
+            </Show>
             <form onSubmit={send} style={{ display: "flex", gap: "6px" }}>
               <input
                 type="text"

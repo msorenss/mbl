@@ -3754,6 +3754,8 @@ export interface components {
             createdAt: number;
             /** Format: int64 */
             id: number;
+            /** @description Titles the answer mentions, for links. */
+            items: components["schemas"]["ItemMention"][];
             /** @description "user" or "assistant". */
             role: string;
         };
@@ -4259,6 +4261,16 @@ export interface components {
         };
         /** Format: int64 */
         ItemId: number;
+        /** @description A library title an answer mentions. */
+        ItemMention: {
+            /** Format: int64 */
+            id: number;
+            /** @description "movie", "show", "season", "episode"… */
+            kind: string;
+            title: string;
+            /** Format: int64 */
+            year?: number | null;
+        };
         ItemMetadata: {
             /** @description Movies and shows can be matched to another TMDB entry. */
             canMatch: boolean;

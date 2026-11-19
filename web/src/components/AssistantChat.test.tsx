@@ -4,6 +4,17 @@ import { afterEach, expect, it, vi } from "vitest";
 import client from "../api/client";
 import AssistantChat, { sseParser } from "./AssistantChat";
 
+const playItem = vi.fn();
+vi.mock("../context/PlayerContext", () => ({ usePlayer: () => ({ playItem }) }));
+vi.mock("@solidjs/router", () => ({
+  A: (props: { href: string; children: unknown; onClick?: () => void }) => {
+    const a = document.createElement("a");
+    a.href = props.href;
+    a.textContent = String(props.children);
+    return a;
+  },
+}));
+
 let dispose: (() => void) | undefined;
 afterEach(() => {
   dispose?.();
@@ -58,7 +69,7 @@ it("streams the answer and keeps the conversation", async () => {
       'event: conversation\ndata: {"id":7,"title":"Anything with Al Pacino?"}\n\n',
       'event: delta\ndata: {"text":"Heat (1995) "}\n\n',
       'event: delta\ndata: {"text":"is in your library."}\n\n',
-      'event: done\ndata: {"message":{"id":2,"role":"assistant","content":"Heat (1995) is in your library."},"tools":["find_by_person"]}\n\n',
+      'event: done\ndata: {"message":{"id":2,"role":"assistant","content":"Heat (1995) is in your library.","items":[{"id":3,"title":"Heat","kind":"movie","year":1995},{"id":8,"title":"Dark Matter","kind":"show"}]},"tools":["find_by_person"]}\n\n',
     ),
     response: new Response(null, { status: 200 }),
   })) as never);
@@ -88,6 +99,19 @@ it("streams the answer and keeps the conversation", async () => {
   expect(box.value).toBe("");
   // The conversation continues with the id the server gave.
   expect((document.querySelector("select") as HTMLSelectElement).value).toBe("7");
+  // Titles the answer names link to their page; playable ones can start at once.
+  const titles = document.querySelector("ul[aria-label='Titles in your library']");
+  expect(titles?.textContent).toContain("Heat (1995)");
+  expect([...(titles?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual([
+    "/item/3",
+    "/item/8",
+  ]);
+  const play = [...(titles?.querySelectorAll("button") ?? [])];
+  expect(play).toHaveLength(1);
+  play[0].click();
+  expect(playItem).toHaveBeenCalledWith({ itemId: 3, title: "Heat" });
+  // Playing closes the panel.
+  expect(document.querySelector("section[aria-label='Assistant']")).toBeNull();
 });
 
 it("shows why the assistant could not answer", async () => {

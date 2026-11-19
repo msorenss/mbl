@@ -1,7 +1,7 @@
 //! Conversations with the built-in assistant. Every query is scoped to the owner.
 
 use mbl_core::{Result, UserId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::Db;
@@ -18,7 +18,19 @@ pub struct Conversation {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, sqlx::FromRow, ToSchema)]
+/// A library title an answer mentions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemMention {
+    pub id: i64,
+    pub title: String,
+    /// "movie", "show", "season", "episode"…
+    pub kind: String,
+    #[serde(default)]
+    pub year: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationMessage {
     pub id: i64,
@@ -26,6 +38,29 @@ pub struct ConversationMessage {
     pub role: String,
     pub content: String,
     pub created_at: i64,
+    /// Titles the answer mentions, for links.
+    pub items: Vec<ItemMention>,
+}
+
+#[derive(sqlx::FromRow)]
+struct MessageRow {
+    id: i64,
+    role: String,
+    content: String,
+    created_at: i64,
+    items: Option<String>,
+}
+
+impl From<MessageRow> for ConversationMessage {
+    fn from(row: MessageRow) -> Self {
+        Self {
+            id: row.id,
+            role: row.role,
+            content: row.content,
+            created_at: row.created_at,
+            items: row.items.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -93,8 +128,8 @@ impl AssistantRepo {
         conversation: i64,
         limit: i64,
     ) -> Result<Vec<ConversationMessage>> {
-        let mut rows: Vec<ConversationMessage> = sqlx::query_as(
-            "SELECT m.id, m.role, m.content, m.created_at FROM assistant_messages m
+        let mut rows: Vec<MessageRow> = sqlx::query_as(
+            "SELECT m.id, m.role, m.content, m.created_at, m.items FROM assistant_messages m
              JOIN assistant_conversations c ON c.id = m.conversation_id
              WHERE c.user_id = ? AND c.id = ? ORDER BY m.id DESC LIMIT ?",
         )
@@ -104,7 +139,7 @@ impl AssistantRepo {
         .fetch_all(&self.db.read)
         .await?;
         rows.reverse();
-        Ok(rows)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Adds a message; `None` when the conversation is not the owner's.
@@ -114,8 +149,14 @@ impl AssistantRepo {
         conversation: i64,
         role: &str,
         content: &str,
+        items: &[ItemMention],
         now: i64,
     ) -> Result<Option<ConversationMessage>> {
+        let items_json = if items.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(items).map_err(mbl_core::Error::internal)?)
+        };
         let mut tx = self.db.write.begin().await?;
         let touched = sqlx::query(
             "UPDATE assistant_conversations SET updated_at = ? WHERE user_id = ? AND id = ?",
@@ -130,13 +171,14 @@ impl AssistantRepo {
             return Ok(None);
         }
         let id: i64 = sqlx::query_scalar(
-            "INSERT INTO assistant_messages (conversation_id, role, content, created_at)
-             VALUES (?, ?, ?, ?) RETURNING id",
+            "INSERT INTO assistant_messages (conversation_id, role, content, created_at, items)
+             VALUES (?, ?, ?, ?, ?) RETURNING id",
         )
         .bind(conversation)
         .bind(role)
         .bind(content)
         .bind(now)
+        .bind(items_json)
         .fetch_one(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -145,6 +187,7 @@ impl AssistantRepo {
             role: role.to_owned(),
             content: content.to_owned(),
             created_at: now,
+            items: items.to_vec(),
         }))
     }
 

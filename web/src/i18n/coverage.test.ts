@@ -4,6 +4,7 @@ import { extractUiStrings } from "../../scripts/i18n-extract.mjs";
 import { loadLocaleTables, translations } from "./index";
 
 beforeAll(() => loadLocaleTables());
+
 import { lookupExtendedPhrase, NON_EN_LOCALES } from "./phraseEngine";
 
 /** Names, code and developer messages that stay as they are in every language. */

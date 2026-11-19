@@ -254,6 +254,9 @@ async fn the_assistant_looks_things_up_as_the_person_asking() {
     assert_eq!(streamed, reply.text);
     assert!(reply.text.contains("Heat"), "{}", reply.text);
     assert!(reply.text.contains("Vincent Hanna"), "{}", reply.text);
+    // The movie the tool found and the answer names becomes a link.
+    assert_eq!(reply.items.len(), 1, "{:?}", reply.items);
+    assert_eq!((reply.items[0].id, reply.items[0].title.as_str()), (fixture.movie_id, "Heat"));
     assert_eq!(reply.steps, 2);
     assert_eq!(reply.tools.len(), 1);
     assert!(reply.tools[0].ok);

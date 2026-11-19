@@ -14,6 +14,7 @@ use mbl_agent::{ChatRequest, Message, StopReason, TextSink, ToolSpec, Usage};
 use mbl_auth::tokens::{Scope, ScopeSet};
 use mbl_core::{Actor, Error, Result};
 use mbl_db::Db;
+use mbl_db::repo::assistant::ItemMention;
 use mbl_jobs::JobQueue;
 use mbl_service::Services;
 use serde::Serialize;
@@ -108,6 +109,74 @@ pub struct AssistantReply {
     pub usage: Usage,
     /// The provider declined to answer.
     pub refused: bool,
+    /// Library titles from tool results that the answer mentions, in order of mention.
+    pub items: Vec<ItemMention>,
+}
+
+/// Most titles collected from tool results in one answer.
+const MAX_SEEN_ITEMS: usize = 200;
+/// Most titles linked under one answer.
+const MAX_LINKED_ITEMS: usize = 8;
+const MEDIA_KINDS: &[&str] =
+    &["movie", "show", "season", "episode", "artist", "album", "track", "photo", "video"];
+
+/// Collects titles (objects with a numeric `id`, a `title` and a media `kind`) from a tool
+/// result.
+fn collect_items(value: &Value, out: &mut Vec<ItemMention>) {
+    match value {
+        Value::Object(map) => {
+            if let (Some(id), Some(title), Some(kind)) = (
+                map.get("id").and_then(Value::as_i64),
+                map.get("title").and_then(Value::as_str),
+                map.get("kind").and_then(Value::as_str),
+            ) && MEDIA_KINDS.contains(&kind)
+            {
+                let year = map.get("year").and_then(Value::as_i64);
+                match out.iter().position(|i| i.id == id) {
+                    // The same title may appear several times, not always with its year.
+                    Some(at) => out[at].year = out[at].year.or(year),
+                    None if out.len() < MAX_SEEN_ITEMS => out.push(ItemMention {
+                        id,
+                        title: title.to_owned(),
+                        kind: kind.to_owned(),
+                        year,
+                    }),
+                    None => {}
+                }
+            }
+            for child in map.values() {
+                collect_items(child, out);
+            }
+        }
+        Value::Array(list) => {
+            for child in list {
+                collect_items(child, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The collected titles that the answer names, in the order it names them.
+fn mentioned(text: &str, seen: &[ItemMention]) -> Vec<ItemMention> {
+    let haystack = text.to_lowercase();
+    let mut found: Vec<(usize, &ItemMention)> = seen
+        .iter()
+        .filter(|i| i.title.chars().count() >= 2)
+        .filter_map(|i| haystack.find(&i.title.to_lowercase()).map(|at| (at, i)))
+        .collect();
+    found.sort_by_key(|(at, _)| *at);
+    let mut out: Vec<ItemMention> = Vec::new();
+    for (_, item) in found {
+        // A season or episode titled like its show would repeat the show.
+        if !out.iter().any(|o| o.title.eq_ignore_ascii_case(&item.title)) {
+            out.push(item.clone());
+        }
+        if out.len() == MAX_LINKED_ITEMS {
+            break;
+        }
+    }
+    out
 }
 
 #[derive(Clone)]
@@ -207,7 +276,9 @@ impl AssistantRunner {
             steps: 0,
             usage: Usage::default(),
             refused: false,
+            items: Vec::new(),
         };
+        let mut seen: Vec<ItemMention> = Vec::new();
         while reply.steps < MAX_STEPS {
             reply.steps += 1;
             // The last step must answer, so it gets no tools.
@@ -235,12 +306,16 @@ impl AssistantRunner {
             }
             messages.push(response.to_message());
             for call in &response.tool_calls {
-                let (text, ok) =
+                let (text, ok, data) =
                     self.call_tool(&caller, allowed, &call.name, &call.arguments).await;
+                if let Some(data) = &data {
+                    collect_items(data, &mut seen);
+                }
                 reply.tools.push(ToolUse { name: call.name.clone(), ok });
                 messages.push(Message::tool_result(call.id.clone(), text));
             }
         }
+        reply.items = mentioned(&reply.text, &seen);
         tracing::info!(
             user = actor.user_id.0,
             steps = reply.steps,
@@ -260,7 +335,7 @@ impl AssistantRunner {
         allowed: &[&str],
         name: &str,
         arguments: &Value,
-    ) -> (String, bool) {
+    ) -> (String, bool, Option<Value>) {
         let started = Instant::now();
         let outcome = if !allowed.contains(&name) {
             Err(format!("The tool '{name}' is not available here."))
@@ -288,7 +363,7 @@ impl AssistantRunner {
                             .collect::<Vec<_>>()
                             .join("\n"),
                     };
-                    if result.is_error { Err(text) } else { Ok(text) }
+                    if result.is_error { Err(text) } else { Ok((text, result.structured_content)) }
                 }
                 Err(e) => Err(e.message),
             }
@@ -301,8 +376,8 @@ impl AssistantRunner {
         let _ =
             record_tool_call(&self.db, caller, name, arguments, status, error, duration_ms).await;
         match outcome {
-            Ok(text) => (truncate(text), true),
-            Err(e) => (format!("Error: {e}"), false),
+            Ok((text, data)) => (truncate(text), true, data),
+            Err(e) => (format!("Error: {e}"), false, None),
         }
     }
 }
@@ -329,6 +404,7 @@ impl mbl_service::assistant::AssistantBackend for AssistantRunner {
             text: reply.text,
             refused: reply.refused,
             tools: reply.tools.into_iter().map(|t| t.name).collect(),
+            items: reply.items,
         })
     }
 }
@@ -336,6 +412,23 @@ impl mbl_service::assistant::AssistantBackend for AssistantRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn titles_named_in_the_answer_become_links() {
+        let data = serde_json::json!({"titles": [
+            {"id": 3, "title": "Heat", "kind": "movie", "year": 1995, "person": "Al Pacino"},
+            {"id": 4, "title": "The Irishman", "kind": "movie"},
+            {"id": 5, "title": "Serpico", "kind": "movie"},
+            {"id": 9, "title": "Not media", "kind": "user"}
+        ], "nested": {"item": {"id": 3, "title": "Heat", "kind": "movie"}}});
+        let mut seen = Vec::new();
+        collect_items(&data, &mut seen);
+        assert_eq!(seen.len(), 3, "{seen:?}");
+        let linked = mentioned("Try Serpico first, then HEAT (1995).", &seen);
+        let titles: Vec<&str> = linked.iter().map(|i| i.title.as_str()).collect();
+        assert_eq!(titles, ["Serpico", "Heat"]);
+        assert_eq!(linked[1].year, Some(1995));
+    }
 
     #[test]
     fn long_tool_results_are_cut_on_a_character_boundary() {

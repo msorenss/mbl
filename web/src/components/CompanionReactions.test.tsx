@@ -233,5 +233,11 @@ it("opens the chat without companions, sets how often and asks for a comment", a
   expect(post).toHaveBeenCalledWith("/api/v1/companion/sessions/{id}/nudge", {
     params: { path: { id: "s3" } },
   });
+  button("What just happened?")?.click();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(post).toHaveBeenCalledWith("/api/v1/companion/sessions/{id}/messages", {
+    params: { path: { id: "s3" } },
+    body: { text: "What just happened?" },
+  });
   localStorage.removeItem("mbl.companion.frequency");
 });

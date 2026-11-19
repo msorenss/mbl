@@ -252,7 +252,7 @@ pub(crate) async fn assistant_chat(
                     answer.text
                 };
                 assistant
-                    .finish_chat(&actor, conversation.id, &text)
+                    .finish_chat(&actor, conversation.id, &text, &answer.items)
                     .await
                     .map(|message| json!({ "message": message, "tools": answer.tools }))
             }

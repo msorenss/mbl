@@ -85,6 +85,13 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-19 — Inbyggd assistent A4 och mindre startpaket
+- Startbudget: `coreLocales` och `philippineLocales` (kärnnycklar för 18 av 23 språk) laddas nu med `loadLocaleTables()` först när ett sådant språk är valt; `useI18n` och `localizeDomSubtree` ritar om när de kommit. Initial JS 149,43 → 106,95 KB gzip. Tester som läser `translations` för alla språk kör `loadLocaleTables()` i `beforeAll`; `lazyLocales.test.ts` visar laddningen.
+- A4: agentloopen samlar titlar (`id`, `title`, mediatyp `kind`) ur verktygssvaren och länkar de som nämns i svaret (`AssistantReply.items`, högst 8, i den ordning de nämns). Sparas i `assistant_messages.items` (migration 0021) och följer med i `done` och konversationen. Chattpanelen visar dem under svaret med "View" (`/item/{id}`) och "Play" för film/avsnitt/spår.
+- Spelarchatten har snabbfrågor ("Who is on screen?", "What just happened?", "The story so far"), som skickas som tittarmeddelanden på tittarens språk.
+- Verifierat: 36 servertester, 96 + 18 crate-tester, `just web-check` 322 tester (initial JS 106,69 KB), clippy, OpenAPI, MCP-paritet. `companion_chat` föll en gång på 10 s-gränsen för undertextutdragning under full parallell last och passerade vid omkörning (befintligt test, tidskänsligt).
+- Kvar: A5 (CLI-ramverk som Claude Code/Hermes) och fysisk test mot riktig leverantör.
+
 ### 2026-11-19 — Inbyggd assistent A3: global chatt
 - Migration 0020 (`assistant_conversations`, `assistant_messages`, högst 50 samtal per användare), `mbl_db::repo::assistant::AssistantRepo`. `AssistantBackend`-trait i `mbl-service::assistant` (implementeras av `AssistantRunner`, kopplas i `mbl-server/src/app.rs` med `set_backend`). Rutter: `GET /api/v1/assistant/status`, `GET /api/v1/assistant/conversations`, `GET/DELETE …/conversations/{id}`, `POST /api/v1/assistant/chat` (SSE: `conversation`, `delta`, `done`/`error`; svaret sparas även om sidan stängs). MCP-undantag.
 - Webb: `AssistantChat.tsx` (knapp i toppfältet, panel till höger, senaste chattar, strömning), laddas latent från `Layout.tsx`. 12 fraser på 22 språk.

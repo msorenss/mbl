@@ -10,7 +10,7 @@ use mbl_agent::{ConnectionReport, Message, Provider, ProviderConfig, ProviderKin
 use mbl_core::time::now_ms;
 use mbl_core::{Actor, Error, Result};
 use mbl_db::Db;
-use mbl_db::repo::assistant::{AssistantRepo, Conversation, ConversationMessage};
+use mbl_db::repo::assistant::{AssistantRepo, Conversation, ConversationMessage, ItemMention};
 use mbl_db::repo::settings::SettingsRepo;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -91,6 +91,8 @@ pub struct AssistantAnswer {
     pub refused: bool,
     /// Tools used, in order.
     pub tools: Vec<String>,
+    /// Library titles the answer mentions.
+    pub items: Vec<ItemMention>,
 }
 
 /// Whether the assistant chat can be used by the person asking.
@@ -188,7 +190,7 @@ impl AssistantService {
             Some(id) => repo.get(actor.user_id, id).await?.ok_or(Error::NotFound)?,
             None => repo.create(actor.user_id, &title_from(text), now).await?,
         };
-        repo.add_message(actor.user_id, conversation.id, "user", text, now)
+        repo.add_message(actor.user_id, conversation.id, "user", text, &[], now)
             .await?
             .ok_or(Error::NotFound)?;
         let turns = repo
@@ -213,9 +215,10 @@ impl AssistantService {
         actor: &Actor,
         conversation: i64,
         text: &str,
+        items: &[ItemMention],
     ) -> Result<ConversationMessage> {
         self.repo()
-            .add_message(actor.user_id, conversation, "assistant", text, now_ms())
+            .add_message(actor.user_id, conversation, "assistant", text, items, now_ms())
             .await?
             .ok_or(Error::NotFound)
     }
