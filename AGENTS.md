@@ -85,6 +85,11 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-20 — Spelarens kommandokanal: 404 vid fel cookie (ingår i 1.3.10)
+- Användarens logg: `GET /api/v1/players/{id}/connect → 404` efter varje registrering. WebSocket kan inte skicka `Authorization`, så kanalen autentiserades med sessionscookien, medan spelaren registrerats med token ur `localStorage`. Olika sessioner (cookies delas mellan portar 8420/8443, `localStorage` gör inte det) gav ägarfel → 404.
+- Rättat: `AuthUser` läser `bearer.<token>` ur `Sec-WebSocket-Protocol` vid uppgradering (före cookien; skickas inte cross-site). `connect_player` svarar med underprotokollet `mbl.v1` (`extract::WEBSOCKET_PROTOCOL`). Webben: `websocketProtocols()` i `api/client.ts`, används av `localRemote.ts` och Cast-kommandokanalen i `cast.ts`.
+- Tester: `audit_sessions.rs::a_browser_player_connects_its_commands_with_the_session_cookie` (cookie från samma inloggning fungerar; annan sessions cookie nekas; underprotokoll med token vinner; felaktig token nekas), `localRemote.test.ts`, kontroll i `cast.test.ts`.
+
 ### 2026-11-20 — Assistentroller, spela här och modellistan (ingår i 1.3.10)
 - Efter användarens test: assistenten kunde inte starta uppspelning eller köra hårdvarutest, och OpenRouters modellista visade bara en modell (`<datalist>` filtrerar på fältets värde).
 - Roller: inställningarna `assistant_scopes_admin` och `assistant_scopes_user` (standard `read,playback`; `read` ingår alltid; användare kan inte få admin/users/remote, 422). `AssistantService::scopes_for(actor)` ger rollens scopes, kapade till personens egna (`capped_for_user`). Chatten får alla MCP-verktyg som scopes tillåter (Admin ger allt); medtittaren behåller sin fasta läslista. Agentprogram får token med samma scopes. Chattreglerna: beskriv och vänta på ja före ändringar, `dry_run` där det finns, `confirm` först efter ja.

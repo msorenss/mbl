@@ -8,7 +8,7 @@ import { receiverConfiguration } from "./castReceiverConfig";
  * Also synchronizes cast sessions with the MBL server PlayerRegistry.
  */
 
-import client from "../api/client";
+import client, { websocketProtocols } from "../api/client";
 import { castDiagnostics } from "./castDiagnostics";
 import { type CapabilitySession, type CastProfileSelection, queryCastProfile } from "./castProfile";
 
@@ -283,7 +283,7 @@ class CastManager {
       window.location.origin,
     );
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(url);
+    const socket = new WebSocket(url, websocketProtocols());
     this.socket = socket;
     socket.onopen = () => castDiagnostics.record("commands.connected");
     socket.onerror = () => castDiagnostics.record("commands.error");

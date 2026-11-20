@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import client from "../api/client";
 
 const api = vi.hoisted(() => ({ POST: vi.fn(), DELETE: vi.fn() }));
-vi.mock("../api/client", () => ({ default: api }));
+vi.mock("../api/client", () => ({
+  default: api,
+  websocketProtocols: () => ["mbl.v1", "bearer.test-token"],
+}));
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 let manager: typeof import("./cast")["castManager"] | undefined;
@@ -415,8 +418,10 @@ describe("Google Cast lifecycle", () => {
       class {
         onmessage?: (event: { data: string }) => void;
         onclose = null;
-        constructor() {
+        protocols?: string[];
+        constructor(_url: URL, protocols?: string[]) {
           socket = this;
+          this.protocols = protocols;
         }
         close() {}
       },
@@ -424,6 +429,11 @@ describe("Google Cast lifecycle", () => {
     const sdk = await google();
     await manager?.requestCastSession(media);
     await tick();
+    // The page's token rides along as a subprotocol; WebSockets cannot send headers.
+    expect((socket as { protocols?: string[] } | undefined)?.protocols).toEqual([
+      "mbl.v1",
+      "bearer.test-token",
+    ]);
     socket?.onmessage?.({
       data: JSON.stringify({ action: "seek", params: { positionMs: 88000 } }),
     });

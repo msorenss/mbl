@@ -1,4 +1,4 @@
-import { client } from "../api/client";
+import { client, websocketProtocols } from "../api/client";
 import type { RemoteCommand } from "./cast";
 
 /** What the local player currently reports to the player registry. */
@@ -75,7 +75,7 @@ export function startLocalRemote(
       window.location.origin,
     );
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, websocketProtocols());
     socket = ws;
     ws.onmessage = (event) => {
       if (typeof event.data !== "string") return;

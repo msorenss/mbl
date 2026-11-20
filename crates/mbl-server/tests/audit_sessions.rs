@@ -216,3 +216,62 @@ async fn registered_player_receives_commands_over_its_websocket() {
     .unwrap();
     server.abort();
 }
+
+/// A browser registers its player with the bearer token from login, but a WebSocket cannot
+/// send that header: it connects with the session cookie and its origin.
+#[tokio::test]
+async fn a_browser_player_connects_its_commands_with_the_session_cookie() {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let (app, _, _) = TestApp::new_with_services().await;
+    app.setup_admin().await;
+    let login = app.login("admin", "admin-password").await;
+    assert_eq!(login.status, StatusCode::OK, "{}", login.body);
+    let token = login.body["token"].as_str().unwrap().to_owned();
+    let cookie =
+        login.headers["set-cookie"].to_str().unwrap().split(';').next().unwrap().to_owned();
+    let body = json!({"id":"browser-tab", "name":"Firefox", "deviceType":"web", "state":"playing", "positionMs":0, "durationMs":1000, "volume":50});
+    assert_eq!(
+        app.call(Method::POST, "/api/v1/players", Some(&token), Some(body)).await.status,
+        StatusCode::NO_CONTENT
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let router = app.router.clone().into_make_service_with_connect_info::<std::net::SocketAddr>();
+    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let mut request =
+        format!("ws://{address}/api/v1/players/browser-tab/connect").into_client_request().unwrap();
+    request.headers_mut().insert("Cookie", cookie.parse().unwrap());
+    request.headers_mut().insert("Origin", format!("http://{address}").parse().unwrap());
+    let result = tokio_tungstenite::connect_async(request).await;
+    assert!(result.is_ok(), "{:?}", result.err());
+
+    // The cookie may belong to another session: cookies are shared between ports on the same
+    // host (8420 and 8443), stored tokens are not. The page then sends its token as a
+    // subprotocol, which wins over the cookie.
+    let other = app.login("admin", "admin-password").await;
+    let other_cookie =
+        other.headers["set-cookie"].to_str().unwrap().split(';').next().unwrap().to_owned();
+    let player = |id: &str| json!({"id": id, "name":"Chrome", "deviceType":"web", "state":"playing", "positionMs":0, "durationMs":1000, "volume":50});
+    assert_eq!(
+        app.call(Method::POST, "/api/v1/players", Some(&token), Some(player("second-tab")))
+            .await
+            .status,
+        StatusCode::NO_CONTENT
+    );
+    let connect = |protocols: Option<String>| {
+        let mut request = format!("ws://{address}/api/v1/players/second-tab/connect")
+            .into_client_request()
+            .unwrap();
+        request.headers_mut().insert("Cookie", other_cookie.parse().unwrap());
+        request.headers_mut().insert("Origin", format!("http://{address}").parse().unwrap());
+        if let Some(p) = protocols {
+            request.headers_mut().insert("Sec-WebSocket-Protocol", p.parse().unwrap());
+        }
+        tokio_tungstenite::connect_async(request)
+    };
+    assert!(connect(None).await.is_err(), "the other session's cookie does not own the player");
+    let (_socket, response) = connect(Some(format!("mbl.v1, bearer.{token}"))).await.unwrap();
+    assert_eq!(response.headers()["sec-websocket-protocol"], "mbl.v1");
+    // A bad token in the subprotocol is not accepted.
+    assert!(connect(Some("mbl.v1, bearer.nope".into())).await.is_err());
+}

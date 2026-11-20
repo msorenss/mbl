@@ -111,6 +111,7 @@ pub(crate) async fn connect_player(
     ws: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
     let mut connection = state.services.players.connect(&auth.actor, auth.session_id, &id)?;
+    let ws = ws.protocols([crate::extract::WEBSOCKET_PROTOCOL]);
     Ok(ws.max_message_size(65_536).max_frame_size(65_536).on_upgrade(move |mut socket| async move {
         let mut ping = tokio::time::interval(std::time::Duration::from_secs(20));
         loop {

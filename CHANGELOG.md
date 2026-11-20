@@ -20,6 +20,7 @@ All notable changes to this project are documented here. The format is based on 
 ### Fixed
 - MCP tools now pass on conflicts with their reason (for example that comments are turned off) instead of "internal server error", and posting a companion comment before joining the session says to join first.
 - The Windows worker build and a flaky worker test in CI.
+- Remote control of a browser tab (and the Cast command channel) failed with 404 when the browser's session cookie belonged to another sign-in than the page, for example after signing in on both the HTTP and the HTTPS port: cookies are shared between ports, stored sign-ins are not. The page now sends its own token when it opens the command channel.
 
 ## [1.3.9] - 2026-11-19
 

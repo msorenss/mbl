@@ -24,6 +24,16 @@ export function setStoredToken(token: string | null): void {
   }
 }
 
+/**
+ * Subprotocols that carry the stored token on a WebSocket, which cannot send headers. Without
+ * them the browser's session cookie is used, and that cookie can belong to another session:
+ * cookies are shared between ports on the same host, stored tokens are not.
+ */
+export function websocketProtocols(): string[] | undefined {
+  const token = getStoredToken();
+  return token ? ["mbl.v1", `bearer.${token}`] : undefined;
+}
+
 export const client = createClient<paths>({
   baseUrl: "/",
 });

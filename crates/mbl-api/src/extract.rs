@@ -40,6 +40,10 @@ impl FromRequestParts<AppState> for AuthUser {
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, ApiError> {
         let token = if let Some(token) = bearer_token(&parts.headers) {
             token
+        } else if let Some(token) = websocket_bearer(&parts.headers) {
+            // Browsers cannot set headers on a WebSocket, so the page sends its token as a
+            // subprotocol. Like the header (and unlike a cookie) it is never sent cross-site.
+            token
         } else if let Some(token) = cookie(&parts.headers, SESSION_COOKIE) {
             // Cookies are sent automatically by browsers: reject cross-site state changes.
             // WebSocket upgrades are GETs but carry the session too (cross-site hijacking).
@@ -193,6 +197,25 @@ fn is_unsafe(method: &Method) -> bool {
 
 fn is_upgrade(headers: &HeaderMap) -> bool {
     headers.contains_key(header::UPGRADE)
+}
+
+/// Subprotocol a WebSocket server echoes when the page authenticates with
+/// [`websocket_bearer`].
+pub const WEBSOCKET_PROTOCOL: &str = "mbl.v1";
+
+/// The token from a `bearer.<token>` entry in `Sec-WebSocket-Protocol` of an upgrade request.
+pub(crate) fn websocket_bearer(headers: &HeaderMap) -> Option<String> {
+    if !is_upgrade(headers) {
+        return None;
+    }
+    headers
+        .get_all(header::SEC_WEBSOCKET_PROTOCOL)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(','))
+        .find_map(|p| p.trim().strip_prefix("bearer."))
+        .filter(|t| !t.is_empty())
+        .map(str::to_owned)
 }
 
 /// True when there is no `Origin` header or its host matches the `Host`, `:authority` (HTTP/2),
