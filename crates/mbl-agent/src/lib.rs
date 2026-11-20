@@ -28,6 +28,9 @@ pub enum ProviderKind {
     OpenaiCompatible,
     /// `POST {base}/v1/messages`.
     Anthropic,
+    /// An agent program (Claude Code, Hermes…) run as a command, which uses MBL's MCP server
+    /// itself. Not a [`Provider`]; the assistant runs it directly.
+    Command,
 }
 
 /// Where and how to reach a model.
@@ -186,6 +189,9 @@ pub struct Provider {
 
 impl Provider {
     pub fn new(mut config: ProviderConfig) -> Result<Self> {
+        if config.kind == ProviderKind::Command {
+            return Err(Error::Validation("A command is run directly, not over HTTP".into()));
+        }
         config.base_url = normalize_base_url(config.kind, &config.base_url)?;
         config.model = config.model.trim().to_owned();
         if config.model.is_empty() {
@@ -219,6 +225,7 @@ impl Provider {
             ProviderKind::Anthropic => {
                 anthropic::chat(&self.http, &self.config, request, on_text).await
             }
+            ProviderKind::Command => Err(Error::Validation("not an HTTP provider".into())),
         }
     }
 
@@ -232,6 +239,7 @@ impl Provider {
                 format!("{}/v1/models?limit=100", self.config.base_url),
                 anthropic::headers(&self.config),
             ),
+            ProviderKind::Command => return Ok(Vec::new()),
         };
         let response = self.http.get(&url).headers(headers).send().await.map_err(send_error)?;
         let body = check(response).await?;

@@ -583,3 +583,100 @@ async fn the_assistant_chat_keeps_private_conversations() {
     let res = app.call(Method::GET, "/api/v1/assistant/conversations", Some(&viewer), None).await;
     assert_eq!(res.body, json!([]));
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn an_agent_program_can_be_the_assistant() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (app, db, _services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let viewer = app.create_user(&admin, "viewer").await;
+    let dir = tempfile::tempdir().unwrap();
+    let seen = dir.path().join("seen.txt");
+    let script = dir.path().join("agent.sh");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\n\
+             prompt=$(cat)\n\
+             case \"$prompt\" in *'Person: Anything with Al Pacino?'*) ;; *) echo 'no prompt' >&2; exit 3;; esac\n\
+             test -n \"$MBL_MCP_TOKEN\" || exit 4\n\
+             grep -q \"Bearer $MBL_MCP_TOKEN\" \"$1\" || exit 5\n\
+             case \"$*\" in *\"$MBL_MCP_TOKEN\"*) exit 6;; esac\n\
+             echo \"$1\" > {seen}\n\
+             echo 'Heat is in your library.'\n",
+            seen = seen.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let command = format!("{} {{mcp_config}}", script.display());
+
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "command", "baseUrl": "", "model": "", "command": ""})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY, "a command is required");
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "command", "baseUrl": "", "model": "", "command": command})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["provider"], "command");
+    assert_eq!(res.body["command"], command);
+
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/assistant/chat",
+            Some(&viewer),
+            Some(json!({"text": "Anything with Al Pacino?"})),
+        )
+        .await;
+    let stream = events(&res.body);
+    let (name, done) = stream.last().unwrap();
+    assert_eq!(name, "done", "{stream:?}");
+    assert_eq!(done["message"]["content"], "Heat is in your library.");
+
+    // The temporary token is revoked and its configuration file removed.
+    let config = std::fs::read_to_string(&seen).unwrap();
+    assert!(!std::path::Path::new(config.trim()).exists(), "{config}");
+    let open: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM api_tokens WHERE name = 'Assistant command (temporary)' AND revoked_at IS NULL",
+    )
+    .fetch_one(&db.read)
+    .await
+    .unwrap();
+    assert_eq!(open, 0);
+
+    // A failing program is reported, with its last error line.
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/system/assistant/test",
+            Some(&admin),
+            Some(json!({"provider": "command", "baseUrl": "", "command": command})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["ok"], false);
+    assert!(res.body["error"].as_str().unwrap().contains("no prompt"), "{}", res.body);
+    let res = app
+        .call(
+            Method::POST,
+            "/api/v1/system/assistant/test",
+            Some(&admin),
+            Some(json!({"provider": "command", "baseUrl": "", "command": "/no/such/agent"})),
+        )
+        .await;
+    assert!(res.body["error"].as_str().unwrap().contains("Could not start"), "{}", res.body);
+}

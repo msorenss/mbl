@@ -1,6 +1,7 @@
 //! Model Context Protocol (MCP) server, Streamable HTTP and stdio transports, and client helpers.
 
 pub mod assistant;
+pub mod assistant_command;
 pub mod audit;
 pub mod caller;
 pub mod companion_bot;

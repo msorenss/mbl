@@ -50,7 +50,7 @@ pub async fn run(runner: AssistantRunner, services: Services, db: Db, stop: Canc
         if active.lock().map(|set| set.contains(&event.session_id)).unwrap_or(true) {
             continue;
         }
-        if !matches!(services.assistant.provider().await, Ok(Some(_))) {
+        if !services.assistant.is_enabled().await {
             continue;
         }
         if let Ok(mut set) = active.lock() {
@@ -128,7 +128,7 @@ impl Worker {
             };
             after = Some(wake.last_id);
             if wake.timed_out {
-                if !matches!(self.services.assistant.provider().await, Ok(Some(_))) {
+                if !self.services.assistant.is_enabled().await {
                     break;
                 }
                 continue;

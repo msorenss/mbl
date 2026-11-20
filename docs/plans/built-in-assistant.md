@@ -1,6 +1,6 @@
 # Inbyggd AI-assistent och medtittare
 
-Status: A0–A4 implementerade 2026-11-19 (leverantörslager, inställningar, adminvy, agentloop, `find_by_person`); A5 och fysisk test återstår. REST för `find_by_person` gjordes inte; verktyget finns för MCP och assistenten. Beslut från användaren: alternativ 1, MBL driver själv agenten. Den ska fungera med en API-nyckel hos de flesta leverantörer, och även kunna använda ett agentramverk (Hermes, Claude Code). Externa MCP-agenter förblir ett tillval.
+Status: A0–A5 implementerade 2026-11-19–20 (leverantörslager, inställningar, adminvy, agentloop, `find_by_person`); fysisk test mot riktig leverantör och riktig Claude Code återstår. REST för `find_by_person` gjordes inte; verktyget finns för MCP och assistenten. Beslut från användaren: alternativ 1, MBL driver själv agenten. Den ska fungera med en API-nyckel hos de flesta leverantörer, och även kunna använda ett agentramverk (Hermes, Claude Code). Externa MCP-agenter förblir ett tillval.
 
 ## Mål
 

@@ -3532,6 +3532,8 @@ export interface components {
         AssistantConnection: {
             apiKey?: string | null;
             baseUrl: string;
+            /** @description For the `command` provider. */
+            command?: string | null;
             effort?: string | null;
             /** @description Needed for the connection test; ignored when listing models. */
             model?: string;
@@ -3540,6 +3542,8 @@ export interface components {
         /** @description Stored assistant settings. The API key is never returned. */
         AssistantSettings: {
             baseUrl: string;
+            /** @description The agent program run for the `command` provider. */
+            command?: string;
             /** @description `low`, `medium` or `high`; empty means the provider's default. */
             effort?: string | null;
             enabled: boolean;
@@ -5258,7 +5262,7 @@ export interface components {
          * @description Wire protocol of a provider.
          * @enum {string}
          */
-        ProviderKind: "openai_compatible" | "anthropic";
+        ProviderKind: "openai_compatible" | "anthropic" | "command";
         /** @description Request from an authenticated user's phone/browser to authorize a 6-digit TV code (M5.8). */
         QuickConnectAuthorizeRequest: {
             code: string;
@@ -5980,6 +5984,8 @@ export interface components {
             baseUrl: string;
             /** @description Remove the stored key (for local servers that need none). */
             clearApiKey?: boolean;
+            /** @description For the `command` provider, e.g. `claude -p --mcp-config {mcp_config}`. */
+            command?: string | null;
             effort?: string | null;
             enabled: boolean;
             model: string;

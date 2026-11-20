@@ -9732,6 +9732,13 @@
           "baseUrl": {
             "type": "string"
           },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For the `command` provider."
+          },
           "effort": {
             "type": [
               "string",
@@ -9760,6 +9767,10 @@
         "properties": {
           "baseUrl": {
             "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "description": "The agent program run for the `command` provider."
           },
           "effort": {
             "type": [
@@ -15984,7 +15995,8 @@
         "description": "Wire protocol of a provider.",
         "enum": [
           "openai_compatible",
-          "anthropic"
+          "anthropic",
+          "command"
         ]
       },
       "QuickConnectAuthorizeRequest": {
@@ -18648,6 +18660,13 @@
           "clearApiKey": {
             "type": "boolean",
             "description": "Remove the stored key (for local servers that need none)."
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For the `command` provider, e.g. `claude -p --mcp-config {mcp_config}`."
           },
           "effort": {
             "type": [

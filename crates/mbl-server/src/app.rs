@@ -197,7 +197,8 @@ pub(crate) async fn build_runtime(
     let services = state.services.clone();
     services.assistant.set_backend(Arc::new(
         mbl_mcp::assistant::AssistantRunner::new(db.clone(), services.clone())
-            .with_jobs(runner.queue()),
+            .with_jobs(runner.queue())
+            .with_mcp_url(local_mcp_url(&config.server.bind, config.server.port)),
     ));
     let mcp_state = mbl_mcp::McpState::new(
         db.clone(),
@@ -300,7 +301,8 @@ impl Server {
 
         let companion = tokio::spawn(mbl_mcp::companion_bot::run(
             mbl_mcp::assistant::AssistantRunner::new(self.db.clone(), self.services.clone())
-                .with_jobs(job_queue),
+                .with_jobs(job_queue)
+                .with_mcp_url(local_mcp_url(&self.config.server.bind, self.config.server.port)),
             self.services.clone(),
             self.db.clone(),
             stop.clone(),
@@ -408,4 +410,28 @@ fn spawn_playback_maintenance(
         livetv.shutdown().await;
         playback.shutdown().await;
     })
+}
+
+/// This server's MCP endpoint as seen from the same machine, for agent programs it runs.
+fn local_mcp_url(bind: &str, port: u16) -> String {
+    let host = match bind.trim() {
+        "" | "0.0.0.0" => "127.0.0.1".to_owned(),
+        "::" | "[::]" => "[::1]".to_owned(),
+        b if b.contains(':') && !b.starts_with('[') => format!("[{b}]"),
+        b => b.to_owned(),
+    };
+    format!("http://{host}:{port}/mcp")
+}
+
+#[cfg(test)]
+mod mcp_url_tests {
+    use super::local_mcp_url;
+
+    #[test]
+    fn the_local_mcp_address_follows_the_bind_address() {
+        assert_eq!(local_mcp_url("0.0.0.0", 8420), "http://127.0.0.1:8420/mcp");
+        assert_eq!(local_mcp_url("::", 8420), "http://[::1]:8420/mcp");
+        assert_eq!(local_mcp_url("192.168.1.5", 8420), "http://192.168.1.5:8420/mcp");
+        assert_eq!(local_mcp_url("fe80::1", 1), "http://[fe80::1]:1/mcp");
+    }
 }

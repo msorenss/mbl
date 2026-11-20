@@ -185,6 +185,8 @@ pub struct AssistantRunner {
     services: Services,
     logs_dir: Option<Utf8PathBuf>,
     jobs: Option<JobQueue>,
+    /// This server's MCP address, for agent programs run as the assistant.
+    mcp_url: Option<String>,
     recent: Arc<Mutex<HashMap<i64, VecDeque<Instant>>>>,
 }
 
@@ -195,6 +197,7 @@ impl AssistantRunner {
             services,
             logs_dir: None,
             jobs: None,
+            mcp_url: None,
             recent: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -202,6 +205,66 @@ impl AssistantRunner {
     pub fn with_jobs(mut self, jobs: JobQueue) -> Self {
         self.jobs = Some(jobs);
         self
+    }
+
+    /// Where agent programs reach this server's MCP endpoint, e.g. `http://127.0.0.1:8420/mcp`.
+    pub fn with_mcp_url(mut self, url: impl Into<String>) -> Self {
+        self.mcp_url = Some(url.into());
+        self
+    }
+
+    fn mcp_url(&self) -> Result<&str> {
+        self.mcp_url
+            .as_deref()
+            .ok_or_else(|| Error::Unavailable("the MCP address is not known".into()))
+    }
+
+    /// Runs the configured agent program for one answer.
+    async fn run_command(
+        &self,
+        actor: &Actor,
+        surface: Surface,
+        instructions: &str,
+        conversation: &[Message],
+        command: &str,
+        on_text: Option<TextSink<'_>>,
+    ) -> Result<AssistantReply> {
+        let prompt = command_prompt(surface, instructions, conversation);
+        let output = crate::assistant_command::run_command(
+            &self.services,
+            actor,
+            command,
+            self.mcp_url()?,
+            &prompt,
+        )
+        .await?;
+        let tools = self.tools_used(output.token_id).await;
+        if let Some(sink) = on_text {
+            sink(&output.text);
+        }
+        tracing::info!(user = actor.user_id.0, tools = tools.len(), "assistant command answered");
+        Ok(AssistantReply {
+            text: output.text,
+            tools,
+            steps: 1,
+            usage: Usage::default(),
+            refused: false,
+            items: Vec::new(),
+        })
+    }
+
+    /// Tools an agent program called with its temporary token, from the audit log.
+    async fn tools_used(&self, token_id: i64) -> Vec<ToolUse> {
+        sqlx::query_as::<_, (String, String)>(
+            "SELECT tool, outcome FROM mcp_audit WHERE token_id = ? ORDER BY id",
+        )
+        .bind(token_id)
+        .fetch_all(&self.db.read)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, outcome)| ToolUse { name, ok: outcome == "ok" })
+        .collect()
     }
 
     /// Counts an answer for the person; errors once they have asked too often.
@@ -237,13 +300,21 @@ impl AssistantRunner {
         if actor.is_managed {
             return Err(Error::Forbidden);
         }
-        let provider = self
+        let engine = self
             .services
             .assistant
-            .provider()
+            .engine()
             .await?
             .ok_or_else(|| Error::Unavailable("the assistant is turned off".into()))?;
         self.admit(actor)?;
+        let provider = match engine {
+            mbl_service::assistant::AssistantEngine::Model(provider) => provider,
+            mbl_service::assistant::AssistantEngine::Command(command) => {
+                return self
+                    .run_command(actor, surface, instructions, &conversation, &command, on_text)
+                    .await;
+            }
+        };
 
         let caller = Caller {
             actor: actor.clone(),
@@ -382,6 +453,31 @@ impl AssistantRunner {
     }
 }
 
+/// The whole request as one prompt for an agent program.
+fn command_prompt(surface: Surface, instructions: &str, conversation: &[Message]) -> String {
+    let mut prompt = format!("{BASE_RULES}\n\n{}", surface.rules());
+    if !instructions.trim().is_empty() {
+        prompt.push_str("\n\n");
+        prompt.push_str(instructions.trim());
+    }
+    prompt.push_str(
+        "\n\nLook things up with the tools of the MCP server \"mbl\"; they read the library of \
+         the person you are helping and nothing else.\n\nConversation so far:",
+    );
+    for message in conversation {
+        let who = match message.role {
+            mbl_agent::Role::Assistant => "You",
+            mbl_agent::Role::User => "Person",
+            _ => continue,
+        };
+        prompt.push_str(&format!("\n{who}: {}", message.content));
+    }
+    prompt.push_str(
+        "\n\nWrite your reply to the person's last message. Print only the reply, nothing else.",
+    );
+    prompt
+}
+
 fn truncate(mut text: String) -> String {
     if text.chars().count() > MAX_TOOL_RESULT_CHARS {
         let cut = text.char_indices().nth(MAX_TOOL_RESULT_CHARS).map_or(text.len(), |(i, _)| i);
@@ -406,6 +502,45 @@ impl mbl_service::assistant::AssistantBackend for AssistantRunner {
             tools: reply.tools.into_iter().map(|t| t.name).collect(),
             items: reply.items,
         })
+    }
+
+    async fn test_command(&self, actor: &Actor, command: &str) -> mbl_agent::ConnectionReport {
+        let started = Instant::now();
+        let prompt = "Use the list_libraries tool of the MCP server \"mbl\" once, then reply \
+                      with the single word OK. Print only that word.";
+        let name = crate::assistant_command::split_command(command)
+            .ok()
+            .and_then(|w| w.into_iter().next())
+            .unwrap_or_default();
+        let outcome = match self.mcp_url() {
+            Ok(url) => {
+                crate::assistant_command::run_command(&self.services, actor, command, url, prompt)
+                    .await
+            }
+            Err(e) => Err(e),
+        };
+        let latency_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        match outcome {
+            Ok(output) => mbl_agent::ConnectionReport {
+                ok: true,
+                model: name,
+                latency_ms,
+                reply: Some(output.text.chars().take(200).collect()),
+                tools_supported: Some(!self.tools_used(output.token_id).await.is_empty()),
+                error: None,
+            },
+            Err(e) => mbl_agent::ConnectionReport {
+                ok: false,
+                model: name,
+                latency_ms,
+                reply: None,
+                tools_supported: None,
+                error: Some(match e {
+                    Error::External(m) | Error::Validation(m) | Error::Unavailable(m) => m,
+                    other => other.to_string(),
+                }),
+            },
+        }
     }
 }
 

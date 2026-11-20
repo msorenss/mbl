@@ -21,6 +21,9 @@ const BASE_URL: &str = "assistant_base_url";
 const API_KEY: &str = "assistant_api_key";
 const MODEL: &str = "assistant_model";
 const EFFORT: &str = "assistant_effort";
+const COMMAND: &str = "assistant_command";
+/// Longest accepted agent command.
+const COMMAND_LIMIT: usize = 1000;
 const EFFORTS: &[&str] = &["low", "medium", "high"];
 
 /// Stored assistant settings. The API key is never returned.
@@ -34,6 +37,9 @@ pub struct AssistantSettings {
     pub model: String,
     /// `low`, `medium` or `high`; empty means the provider's default.
     pub effort: Option<String>,
+    /// The agent program run for the `command` provider.
+    #[serde(default)]
+    pub command: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -51,6 +57,9 @@ pub struct UpdateAssistantSettings {
     pub model: String,
     #[serde(default)]
     pub effort: Option<String>,
+    /// For the `command` provider, e.g. `claude -p --mcp-config {mcp_config}`.
+    #[serde(default)]
+    pub command: Option<String>,
 }
 
 /// Connection details to try before saving. Without `apiKey` the stored key is used.
@@ -66,6 +75,18 @@ pub struct AssistantConnection {
     pub model: String,
     #[serde(default)]
     pub effort: Option<String>,
+    /// For the `command` provider.
+    #[serde(default)]
+    pub command: Option<String>,
+}
+
+/// How the assistant answers.
+#[derive(Debug, Clone)]
+pub enum AssistantEngine {
+    /// A language model over HTTP; MBL runs the tool loop.
+    Model(Provider),
+    /// An agent program run as a command; it uses MBL's MCP server itself.
+    Command(String),
 }
 
 /// Messages of a conversation given to the model.
@@ -83,6 +104,9 @@ pub trait AssistantBackend: Send + Sync {
         conversation: Vec<Message>,
         on_text: Option<TextSink<'_>>,
     ) -> Result<AssistantAnswer>;
+
+    /// Runs an agent command once with a short question, as `actor`.
+    async fn test_command(&self, actor: &Actor, command: &str) -> ConnectionReport;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -241,12 +265,14 @@ impl AssistantService {
             enabled: self.stored(ENABLED).await?.as_deref() == Some("true"),
             provider: match self.stored(PROVIDER).await?.as_deref() {
                 Some("anthropic") => ProviderKind::Anthropic,
+                Some("command") => ProviderKind::Command,
                 _ => ProviderKind::OpenaiCompatible,
             },
             base_url: self.stored(BASE_URL).await?.unwrap_or_default(),
             has_api_key: self.stored(API_KEY).await?.is_some(),
             model: self.stored(MODEL).await?.unwrap_or_default(),
             effort: self.stored(EFFORT).await?,
+            command: self.stored(COMMAND).await?.unwrap_or_default(),
         })
     }
 
@@ -257,13 +283,20 @@ impl AssistantService {
     ) -> Result<AssistantSettings> {
         actor.require_admin()?;
         let effort = clean_effort(update.effort)?;
-        let base_url = if update.base_url.trim().is_empty() {
-            String::new()
+        let command = clean_command(update.command.as_deref())?;
+        let is_command = update.provider == ProviderKind::Command;
+        let base_url = if update.base_url.trim().is_empty() || is_command {
+            update.base_url.trim().to_owned()
         } else {
             mbl_agent::normalize_base_url(update.provider, &update.base_url)?
         };
         let model = update.model.trim().to_owned();
-        if update.enabled && (base_url.is_empty() || model.is_empty()) {
+        if update.enabled && is_command && command.is_empty() {
+            return Err(Error::Validation(
+                "Enter the command before turning the assistant on".into(),
+            ));
+        }
+        if update.enabled && !is_command && (base_url.is_empty() || model.is_empty()) {
             return Err(Error::Validation(
                 "The assistant needs an address and a model before it can be turned on".into(),
             ));
@@ -275,6 +308,7 @@ impl AssistantService {
             (BASE_URL, base_url),
             (MODEL, model),
             (EFFORT, effort.unwrap_or_default()),
+            (COMMAND, command),
         ];
         if let Some(key) = new_key {
             entries.push((API_KEY, key));
@@ -313,6 +347,16 @@ impl AssistantService {
         input: AssistantConnection,
     ) -> Result<ConnectionReport> {
         actor.require_admin()?;
+        if input.provider == ProviderKind::Command {
+            let command = clean_command(input.command.as_deref())?;
+            if command.is_empty() {
+                return Err(Error::Validation("Enter the command".into()));
+            }
+            let backend = self
+                .backend()
+                .ok_or_else(|| Error::Unavailable("the assistant is not ready".into()))?;
+            return Ok(backend.test_command(actor, &command).await);
+        }
         if input.model.trim().is_empty() {
             return Err(Error::Validation("Choose a model".into()));
         }
@@ -334,19 +378,30 @@ impl AssistantService {
         matches!(self.stored(ENABLED).await, Ok(Some(v)) if v == "true")
     }
 
-    /// The configured provider when the assistant is turned on.
-    pub async fn provider(&self) -> Result<Option<Provider>> {
+    /// How the assistant answers, when it is turned on.
+    pub async fn engine(&self) -> Result<Option<AssistantEngine>> {
         let settings = self.read().await?;
         if !settings.enabled {
             return Ok(None);
         }
-        Ok(Some(Provider::new(ProviderConfig {
+        if settings.provider == ProviderKind::Command {
+            return Ok(Some(AssistantEngine::Command(settings.command)));
+        }
+        Ok(Some(AssistantEngine::Model(Provider::new(ProviderConfig {
             kind: settings.provider,
             base_url: settings.base_url,
             api_key: self.stored(API_KEY).await?,
             model: settings.model,
             effort: settings.effort,
-        })?))
+        })?)))
+    }
+
+    /// The configured language model when the assistant is on and uses one.
+    pub async fn provider(&self) -> Result<Option<Provider>> {
+        Ok(match self.engine().await? {
+            Some(AssistantEngine::Model(provider)) => Some(provider),
+            _ => None,
+        })
     }
 }
 
@@ -365,7 +420,18 @@ fn provider_name(kind: ProviderKind) -> &'static str {
     match kind {
         ProviderKind::OpenaiCompatible => "openai_compatible",
         ProviderKind::Anthropic => "anthropic",
+        ProviderKind::Command => "command",
     }
+}
+
+fn clean_command(command: Option<&str>) -> Result<String> {
+    let command = command.unwrap_or_default().trim();
+    if command.chars().count() > COMMAND_LIMIT || command.contains(['\n', '\r', '\0']) {
+        return Err(Error::Validation(
+            "The command must be one line of at most 1000 characters".into(),
+        ));
+    }
+    Ok(command.to_owned())
 }
 
 fn clean_effort(effort: Option<String>) -> Result<Option<String>> {

@@ -14,7 +14,13 @@ interface Preset {
   baseUrl: string;
   model: string;
   local?: boolean;
+  /** For agent programs run as a command. */
+  command?: string;
 }
+
+/** Claude Code without a shell: reads the question on stdin, MBL's MCP tools only. */
+const CLAUDE_CODE_COMMAND =
+  "claude -p --mcp-config {mcp_config} --strict-mcp-config --allowedTools mcp__mbl --output-format text";
 
 const PRESETS: Preset[] = [
   {
@@ -90,6 +96,14 @@ const PRESETS: Preset[] = [
     model: "",
     local: true,
   },
+  {
+    id: "claude-code",
+    brand: "Claude Code",
+    provider: "command",
+    baseUrl: "",
+    model: "",
+    command: CLAUDE_CODE_COMMAND,
+  },
 ];
 
 const label = {
@@ -101,7 +115,9 @@ const label = {
 
 const field = { width: "100%", "margin-bottom": "14px" } as const;
 
-function presetFor(provider: ProviderKind, baseUrl: string): string {
+function presetFor(provider: ProviderKind, baseUrl: string, command = ""): string {
+  if (provider === "command")
+    return command.trim().startsWith("claude ") ? "claude-code" : "custom-command";
   const found = PRESETS.find((p) => p.provider === provider && p.baseUrl === baseUrl);
   return found ? found.id : provider === "anthropic" ? "custom-anthropic" : "custom";
 }
@@ -125,6 +141,8 @@ export default function AssistantSettings() {
   const [clearKey, setClearKey] = createSignal(false);
   const [model, setModel] = createSignal("");
   const [effort, setEffort] = createSignal("");
+  const [command, setCommand] = createSignal("");
+  const isCommand = () => provider() === "command";
   const [models, setModels] = createSignal<string[]>([]);
   const [report, setReport] = createSignal<Report>();
   const [loaded, setLoaded] = createSignal(false);
@@ -145,8 +163,10 @@ export default function AssistantSettings() {
     setHasKey(s.hasApiKey);
     setModel(s.model);
     setEffort(s.effort ?? "");
-    setPreset(s.baseUrl ? presetFor(s.provider, s.baseUrl) : "anthropic");
-    if (!s.baseUrl) choosePreset("anthropic");
+    setCommand(s.command ?? "");
+    const configured = s.provider === "command" || s.baseUrl;
+    setPreset(configured ? presetFor(s.provider, s.baseUrl, s.command) : "anthropic");
+    if (!configured) choosePreset("anthropic");
     setLoaded(true);
   });
 
@@ -162,8 +182,15 @@ export default function AssistantSettings() {
       setBaseUrl(p.baseUrl);
       // A model name from another provider would not work here.
       setModel(p.model);
+      if (p.command) setCommand(p.command);
     } else {
-      setProvider(id === "custom-anthropic" ? "anthropic" : "openai_compatible");
+      setProvider(
+        id === "custom-anthropic"
+          ? "anthropic"
+          : id === "custom-command"
+            ? "command"
+            : "openai_compatible",
+      );
     }
   }
 
@@ -173,6 +200,7 @@ export default function AssistantSettings() {
     apiKey: apiKey().trim() || undefined,
     model: model().trim(),
     effort: effort() || undefined,
+    command: command().trim() || undefined,
   });
 
   const fetchModels = async () => {
@@ -286,84 +314,116 @@ export default function AssistantSettings() {
             <For each={PRESETS}>{(p) => <option value={p.id}>{p.brand}</option>}</For>
             <option value="custom">Other OpenAI-compatible server</option>
             <option value="custom-anthropic">Other Anthropic-compatible server</option>
+            <option value="custom-command">Other agent program</option>
           </select>
 
-          <label style={label} for="assistant-url">
-            Address
-          </label>
-          <input
-            id="assistant-url"
-            type="url"
-            value={baseUrl()}
-            onInput={(e) => {
-              setBaseUrl(e.currentTarget.value);
-              setPreset(presetFor(provider(), e.currentTarget.value.trim()));
-            }}
-            style={field}
-          />
-
-          <label style={label} for="assistant-key">
-            API key
-          </label>
-          <input
-            id="assistant-key"
-            type="password"
-            autocomplete="off"
-            value={apiKey()}
-            onInput={(e) => setApiKey(e.currentTarget.value)}
-            placeholder={
-              hasKey()
-                ? "Saved – leave empty to keep it"
-                : local()
-                  ? "Not needed for a local server"
-                  : ""
+          <Show
+            when={!isCommand()}
+            fallback={
+              <>
+                <label style={label} for="assistant-command">
+                  Command
+                </label>
+                <input
+                  id="assistant-command"
+                  value={command()}
+                  onInput={(e) => setCommand(e.currentTarget.value)}
+                  spellcheck={false}
+                  style={{ ...field, "font-family": "var(--font-mono, monospace)" }}
+                />
+                <p
+                  style={{
+                    "font-size": "12px",
+                    color: "var(--text-secondary)",
+                    "line-height": "1.5",
+                    margin: "-6px 0 14px",
+                  }}
+                >
+                  The program gets the question on standard input and prints the answer. It runs on
+                  the server as the server's user, without a shell, with a temporary read-only token
+                  for each answer in MBL_MCP_URL and MBL_MCP_TOKEN. This placeholder becomes the
+                  path of an MCP configuration with the token: <code>{"{mcp_config}"}</code>
+                </p>
+              </>
             }
-            style={field}
-          />
-          <Show when={hasKey()}>
-            <label style={{ display: "flex", gap: "8px", "margin-bottom": "14px" }}>
-              <input
-                type="checkbox"
-                checked={clearKey()}
-                onChange={(e) => setClearKey(e.currentTarget.checked)}
-              />
-              Remove the saved key
-            </label>
-          </Show>
-
-          <label style={label} for="assistant-model">
-            Model
-          </label>
-          <div style={{ display: "flex", gap: "8px", "margin-bottom": "14px" }}>
-            <input
-              id="assistant-model"
-              list="assistant-models"
-              value={model()}
-              onInput={(e) => setModel(e.currentTarget.value)}
-              style={{ flex: 1, "min-width": 0 }}
-            />
-            <datalist id="assistant-models">
-              <For each={models()}>{(m) => <option value={m} />}</For>
-            </datalist>
-            <Button type="button" variant="secondary" disabled={busy()} onClick={fetchModels}>
-              Fetch models
-            </Button>
-          </div>
-
-          <label style={label} for="assistant-effort">
-            Effort
-          </label>
-          <select
-            id="assistant-effort"
-            value={effort()}
-            onChange={(e) => setEffort(e.currentTarget.value)}
-            style={field}
           >
-            <option value="">Provider default</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
+            <label style={label} for="assistant-url">
+              Address
+            </label>
+            <input
+              id="assistant-url"
+              type="url"
+              value={baseUrl()}
+              onInput={(e) => {
+                setBaseUrl(e.currentTarget.value);
+                setPreset(presetFor(provider(), e.currentTarget.value.trim()));
+              }}
+              style={field}
+            />
+
+            <label style={label} for="assistant-key">
+              API key
+            </label>
+            <input
+              id="assistant-key"
+              type="password"
+              autocomplete="off"
+              value={apiKey()}
+              onInput={(e) => setApiKey(e.currentTarget.value)}
+              placeholder={
+                hasKey()
+                  ? "Saved – leave empty to keep it"
+                  : local()
+                    ? "Not needed for a local server"
+                    : ""
+              }
+              style={field}
+            />
+            <Show when={hasKey()}>
+              <label style={{ display: "flex", gap: "8px", "margin-bottom": "14px" }}>
+                <input
+                  type="checkbox"
+                  checked={clearKey()}
+                  onChange={(e) => setClearKey(e.currentTarget.checked)}
+                />
+                Remove the saved key
+              </label>
+            </Show>
+
+            <label style={label} for="assistant-model">
+              Model
+            </label>
+            <div style={{ display: "flex", gap: "8px", "margin-bottom": "14px" }}>
+              <input
+                id="assistant-model"
+                list="assistant-models"
+                value={model()}
+                onInput={(e) => setModel(e.currentTarget.value)}
+                style={{ flex: 1, "min-width": 0 }}
+              />
+              <datalist id="assistant-models">
+                <For each={models()}>{(m) => <option value={m} />}</For>
+              </datalist>
+              <Button type="button" variant="secondary" disabled={busy()} onClick={fetchModels}>
+                Fetch models
+              </Button>
+            </div>
+
+            <label style={label} for="assistant-effort">
+              Effort
+            </label>
+            <select
+              id="assistant-effort"
+              value={effort()}
+              onChange={(e) => setEffort(e.currentTarget.value)}
+              style={field}
+            >
+              <option value="">Provider default</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </Show>
 
           <label style={{ display: "flex", gap: "8px", "margin-bottom": "16px" }}>
             <input

@@ -114,3 +114,45 @@ it("explains when the settings cannot be loaded", async () => {
   expect(document.body.textContent).toContain("Could not load the assistant settings.");
   expect(document.querySelector("form")).toBeNull();
 });
+
+it("runs an agent program such as Claude Code instead of a model", async () => {
+  vi.spyOn(client, "GET").mockResolvedValue({
+    data: {
+      enabled: false,
+      provider: "openai_compatible",
+      baseUrl: "",
+      hasApiKey: false,
+      model: "",
+      effort: null,
+      command: "",
+    },
+    response: new Response(),
+  } as never);
+  const post = vi.spyOn(client, "POST").mockResolvedValue({
+    data: {
+      ok: true,
+      model: "claude",
+      latencyMs: 9000,
+      reply: "OK",
+      toolsSupported: true,
+      error: null,
+    },
+    response: new Response(),
+  } as never);
+  dispose = render(() => createComponent(AssistantSettings, {}), document.body);
+  await flush();
+  select("assistant-preset", "claude-code");
+  // A command replaces address, key and model.
+  expect(document.getElementById("assistant-url")).toBeNull();
+  expect(document.getElementById("assistant-model")).toBeNull();
+  const command = document.getElementById("assistant-command") as HTMLInputElement;
+  expect(command.value).toContain("claude -p --mcp-config {mcp_config}");
+  expect(document.body.textContent).toContain("{mcp_config}");
+
+  button("Test connection")?.click();
+  await flush();
+  expect(post).toHaveBeenCalledWith("/api/v1/system/assistant/test", {
+    body: expect.objectContaining({ provider: "command", command: command.value }),
+  });
+  expect(document.body.textContent).toContain("Tools work");
+});
