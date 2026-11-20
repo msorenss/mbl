@@ -9,7 +9,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.10` (2026-11-20; built-in AI assistant A0–A5: model providers, agent loop, player companion, chat everywhere, title links, agent programs such as Claude Code; co-watching chat; 40 % smaller first download). Not tagged or pushed; v1.3.9 (2026-11-19) was never pushed either and is included. Bug fixes go into `v1.3.11`; after the 1.3 series the Android client is next.
+- Released: `v1.3.10` (2026-11-20, tag on `35928ed`; built-in AI assistant A0–A5 with roles, play here and Ctrl+K, co-watching chat, 40 % smaller first download, player command socket fix). https://github.com/msorenss/mbl/releases/tag/v1.3.10 with 16 packages and SHA256SUMS. Bug fixes go into `v1.3.11`; after the 1.3 series the Android client is next.
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -84,6 +84,10 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-20 — Release v1.3.10 publicerad
+- CI-körning 44807458026 grön för `35928ed` (sqlx-offline, web, lint, build-aarch64, test-linux, test-windows). Releaseflöde 44810100421 grönt (prepare, Windows x86_64, Linux x86_64 och arm64, create-release); taggen `v1.3.10` pekar på `35928ed`.
+- Releasen är publicerad (inte utkast/förhandsversion) med 16 paket och `SHA256SUMS`. v1.3.9 fanns redan på GitHub (tagg och release från 2026-11-19); den tidigare noteringen om att 1.3.9 aldrig pushats stämde inte.
 
 ### 2026-11-20 — Spelarens kommandokanal: 404 vid fel cookie (ingår i 1.3.10)
 - Användarens logg: `GET /api/v1/players/{id}/connect → 404` efter varje registrering. WebSocket kan inte skicka `Authorization`, så kanalen autentiserades med sessionscookien, medan spelaren registrerats med token ur `localStorage`. Olika sessioner (cookies delas mellan portar 8420/8443, `localStorage` gör inte det) gav ägarfel → 404.
