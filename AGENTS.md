@@ -85,6 +85,11 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-20 — Kö för 1.3.11 (buggfixar)
+- Klart, ej släppt: `f7583ed` chattknappen i spelaren (och assistentknappen) använder SVG-ikon och text i stället för emoji, som inte syns utan emoji-typsnitt (Raspberry Pi OS); undertextknappen utan emoji.
+- Att åtgärda: CI-releasebygget rapporterar `gitCommit: "release"` i `/api/v1/system/info` i stället för commit-hashen.
+- Användaren väntar med testpaket till 1.3.11.
+
 ### 2026-11-20 — Release v1.3.10 publicerad
 - CI-körning 44807458026 grön för `35928ed` (sqlx-offline, web, lint, build-aarch64, test-linux, test-windows). Releaseflöde 44810100421 grönt (prepare, Windows x86_64, Linux x86_64 och arm64, create-release); taggen `v1.3.10` pekar på `35928ed`.
 - Releasen är publicerad (inte utkast/förhandsversion) med 16 paket och `SHA256SUMS`. v1.3.9 fanns redan på GitHub (tagg och release från 2026-11-19); den tidigare noteringen om att 1.3.9 aldrig pushats stämde inte.
