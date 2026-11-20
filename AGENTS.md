@@ -9,7 +9,7 @@ This document lives at the repository root so every AI agent, contributor, and a
   - Native **Hailo-8 / Hailo-8L / Hailo-10H NPU** hardware inference driver (`HailoNativeRuntime` in `crates/mbl-hailo/src/runtime.rs`), direct C++ `libhailort.so` GenAI support (`hailort::genai::VLM`, `hailort::genai::LLM`, `hailort::genai::Speech2Text` + standalone `Qwen-VL` vision encoders from Hailo Model Zoo GenAI v5.5.0), real FFmpeg keyframe extraction, live telemetry (`hailortcli monitor` / `fw-control identify`), and an interactive **`.hef` File Picker (`HefModelPickerDialog`)** in `web/src/pages/admin/Hardware.tsx` with hot-reload of NPU sessions.
   - Hailo NPU + `.hef` picker and Android server prerequisites S1–S7 are committed and released in `v1.2.3`.
   - Web UI v2 polish, consistent menus/controls, View Transitions & top-layer motion, and installable PWA web app for mobile phones & tablets (`web/` + `crates/mbl-server/src/web.rs`) implemented and verified. Next: Android app phase A0 (`docs/plans/android-client.md`).
-- Release prepared: `v1.3.9` (2026-11-19; DLNA, metadata, lyrics, Arr, Quick Connect, webhooks, worker/node offload, remote control, music queue, movie night, scene search/recap UI, companion reactions, channel editing, storage check). Not tagged or pushed. `v1.3.10` is reserved for bug fixes; after the 1.3 series the Android client is next.
+- Release prepared: `v1.3.10` (2026-11-20; built-in AI assistant A0–A5: model providers, agent loop, player companion, chat everywhere, title links, agent programs such as Claude Code; co-watching chat; 40 % smaller first download). Not tagged or pushed; v1.3.9 (2026-11-19) was never pushed either and is included. Bug fixes go into `v1.3.11`; after the 1.3 series the Android client is next.
 - Completed milestones:
   - M0: Foundations (workspace, CI, configuration, SQLite, synthetic test media)
   - M1: Library Core (scanner, parser, ffprobe, TMDB/NFO metadata, images, FTS5, WebSocket events, OpenAPI)
@@ -84,6 +84,11 @@ When a milestone is complete and the relevant checks are green:
 ---
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
+
+### 2026-11-20 — Release 1.3.10 förberedd
+- Version 1.3.10 i Cargo, README, CHANGELOG, Windows-filerna (README, README-worker, build-msi.ps1, mbl.wxs) och OpenAPI. `README-node.txt` kräver fortfarande server 1.3.9, eftersom nodprotokollet inte har ändrats.
+- Innehåll sedan 1.3.9: medtittarchatt, inbyggd assistent A0–A5, `find_by_person`, mindre startpaket och CI-fixen för Windows-workern. Användaren bestämde att assistenten ingår i 1.3.10 och att buggfixar tar 1.3.11.
+- Inte taggat eller pushat. Inget av assistenten är provat mot en riktig leverantör eller riktig Claude Code.
 
 ### 2026-11-20 — Inbyggd assistent A5: agentprogram som assistent
 - `ProviderKind::Command` (`mbl-agent`; `Provider::new` nekar den) och inställningen `assistant_command`. `AssistantService::engine()` ger `AssistantEngine::Model(Provider)` eller `Command(String)`; `provider()` finns kvar för modeller. `companion_bot` kontrollerar `is_enabled()`.

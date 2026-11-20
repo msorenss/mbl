@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.3.9
+Current release: v1.3.10
 
-This release adds remote control of your other devices, a music play queue, movie night, scene search and recaps in the web app, watch-companion reactions in the player, channel editing for Live TV, a storage check for hardlinked downloads, a DLNA server for smart TVs, metadata editing with field locks, lyrics in the player, Radarr/Sonarr/Lidarr integration, Quick Connect sign-in for devices, PIN profile switching, automatic intro/credits detection, webhooks, real offload to transcode workers and storage nodes, and full translations in 22 languages. It also fixes a security issue in worker source URLs. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release adds a built-in AI assistant: a chat on every page that answers questions about your library, and a watch companion in the player that comments on the scene and answers you. It works with Claude, OpenAI, Gemini and other OpenAI-compatible providers, local models such as Ollama, or an agent program such as Claude Code. The web app's first download is also about 40 % smaller. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 
