@@ -80,6 +80,14 @@ it("picks a preset, tests the connection and saves without showing the key", asy
   await flush();
   expect((document.getElementById("assistant-model") as HTMLInputElement).value).toBe("llama3.2");
   expect(document.body.textContent).toContain("Found 2 models.");
+  // Every fetched model can be chosen, not only those matching what is typed.
+  const list = document.querySelector("select[aria-label='Fetched models']") as HTMLSelectElement;
+  expect([...list.options].map((o) => o.value)).toEqual(["", "llama3.2", "qwen3"]);
+  list.value = "qwen3";
+  list.dispatchEvent(new Event("change", { bubbles: true }));
+  expect((document.getElementById("assistant-model") as HTMLInputElement).value).toBe("qwen3");
+  list.value = "llama3.2";
+  list.dispatchEvent(new Event("change", { bubbles: true }));
 
   button("Test connection")?.click();
   await flush();
@@ -99,10 +107,26 @@ it("picks a preset, tests the connection and saves without showing the key", asy
     .find((l) => l.textContent?.includes("Turn on the assistant"))
     ?.querySelector("input") as HTMLInputElement;
   enable.click();
+  // Admins may also let the assistant do everything they can; users can never get that.
+  (
+    document.querySelector(
+      "input[aria-label='Everything an admin can do (administrators)']",
+    ) as HTMLInputElement
+  ).click();
+  const userAdmin = document.querySelector(
+    "input[aria-label='Everything an admin can do (other users)']",
+  ) as HTMLInputElement;
+  expect(userAdmin.disabled).toBe(true);
   document.querySelector("form")?.dispatchEvent(new Event("submit", { cancelable: true }));
   await flush();
   expect(put).toHaveBeenCalledWith("/api/v1/system/assistant", {
-    body: expect.objectContaining({ enabled: true, model: "llama3.2", clearApiKey: false }),
+    body: expect.objectContaining({
+      enabled: true,
+      model: "llama3.2",
+      clearApiKey: false,
+      adminScopes: ["read", "playback", "admin"],
+      userScopes: ["read", "playback"],
+    }),
   });
   expect(document.body.textContent).toContain("Saved. The assistant is on.");
 });

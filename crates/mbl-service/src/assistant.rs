@@ -7,6 +7,7 @@
 use std::sync::{Arc, RwLock};
 
 use mbl_agent::{ConnectionReport, Message, Provider, ProviderConfig, ProviderKind, TextSink};
+use mbl_auth::tokens::{Scope, ScopeSet};
 use mbl_core::time::now_ms;
 use mbl_core::{Actor, Error, Result};
 use mbl_db::Db;
@@ -22,6 +23,10 @@ const API_KEY: &str = "assistant_api_key";
 const MODEL: &str = "assistant_model";
 const EFFORT: &str = "assistant_effort";
 const COMMAND: &str = "assistant_command";
+const SCOPES_ADMIN: &str = "assistant_scopes_admin";
+const SCOPES_USER: &str = "assistant_scopes_user";
+/// What the assistant may do until an admin chooses otherwise.
+const DEFAULT_SCOPES: &str = "read,playback";
 /// Longest accepted agent command.
 const COMMAND_LIMIT: usize = 1000;
 const EFFORTS: &[&str] = &["low", "medium", "high"];
@@ -40,6 +45,12 @@ pub struct AssistantSettings {
     /// The agent program run for the `command` provider.
     #[serde(default)]
     pub command: String,
+    /// What the assistant may do for administrators (token scopes; `read` is always included).
+    #[serde(default)]
+    pub admin_scopes: Vec<String>,
+    /// What it may do for other users; never `admin`, `users` or `remote`.
+    #[serde(default)]
+    pub user_scopes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -60,6 +71,12 @@ pub struct UpdateAssistantSettings {
     /// For the `command` provider, e.g. `claude -p --mcp-config {mcp_config}`.
     #[serde(default)]
     pub command: Option<String>,
+    /// Unchanged when left out.
+    #[serde(default)]
+    pub admin_scopes: Option<Vec<String>>,
+    /// Unchanged when left out.
+    #[serde(default)]
+    pub user_scopes: Option<Vec<String>>,
 }
 
 /// Connection details to try before saving. Without `apiKey` the stored key is used.
@@ -117,6 +134,8 @@ pub struct AssistantAnswer {
     pub tools: Vec<String>,
     /// Library titles the answer mentions.
     pub items: Vec<ItemMention>,
+    /// A title to start in the person's browser.
+    pub play: Option<ItemMention>,
 }
 
 /// Whether the assistant chat can be used by the person asking.
@@ -273,7 +292,22 @@ impl AssistantService {
             model: self.stored(MODEL).await?.unwrap_or_default(),
             effort: self.stored(EFFORT).await?,
             command: self.stored(COMMAND).await?.unwrap_or_default(),
+            admin_scopes: self.stored_scopes(SCOPES_ADMIN).await?.to_strings(),
+            user_scopes: self.stored_scopes(SCOPES_USER).await?.to_strings(),
         })
+    }
+
+    async fn stored_scopes(&self, key: &str) -> Result<ScopeSet> {
+        let raw = self.stored(key).await?.unwrap_or_else(|| DEFAULT_SCOPES.to_owned());
+        let names: Vec<String> = raw.split(',').map(str::to_owned).collect();
+        Ok(with_read(ScopeSet::parse_list(&names).unwrap_or_default()))
+    }
+
+    /// What the assistant may do for `actor`: the role's scopes, never more than the person's
+    /// own rights.
+    pub async fn scopes_for(&self, actor: &Actor) -> Result<ScopeSet> {
+        let key = if actor.is_admin { SCOPES_ADMIN } else { SCOPES_USER };
+        Ok(self.stored_scopes(key).await?.capped_for_user(actor.is_admin))
     }
 
     pub async fn update_settings(
@@ -310,6 +344,12 @@ impl AssistantService {
             (EFFORT, effort.unwrap_or_default()),
             (COMMAND, command),
         ];
+        if let Some(scopes) = update.admin_scopes {
+            entries.push((SCOPES_ADMIN, clean_scopes(&scopes, true)?));
+        }
+        if let Some(scopes) = update.user_scopes {
+            entries.push((SCOPES_USER, clean_scopes(&scopes, false)?));
+        }
         if let Some(key) = new_key {
             entries.push((API_KEY, key));
         } else if update.clear_api_key {
@@ -422,6 +462,25 @@ fn provider_name(kind: ProviderKind) -> &'static str {
         ProviderKind::Anthropic => "anthropic",
         ProviderKind::Command => "command",
     }
+}
+
+/// Scopes always include `read`.
+fn with_read(mut scopes: ScopeSet) -> ScopeSet {
+    scopes.0.insert(Scope::Read);
+    scopes
+}
+
+/// Validated scope names as stored, `read` included.
+fn clean_scopes(names: &[String], for_admins: bool) -> Result<String> {
+    let mut names = names.to_vec();
+    names.push("read".into());
+    let scopes = with_read(ScopeSet::parse_list(&names)?);
+    if !for_admins && scopes.0.iter().any(|s| s.is_admin_only()) {
+        return Err(Error::Validation(
+            "Other users cannot give the assistant admin, users or remote access".into(),
+        ));
+    }
+    Ok(scopes.to_strings().join(","))
 }
 
 fn clean_command(command: Option<&str>) -> Result<String> {

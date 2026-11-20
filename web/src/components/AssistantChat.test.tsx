@@ -164,3 +164,30 @@ it("takes a question from the command palette", async () => {
   expect(document.querySelector("section[aria-label='Assistant']")).not.toBeNull();
   expect(document.body.textContent).toContain("Try a comedy.");
 });
+
+it("starts a title here when the assistant was asked to play it", async () => {
+  playItem.mockClear();
+  vi.spyOn(client, "GET").mockImplementation((async (path: string) =>
+    path === "/api/v1/assistant/status"
+      ? { data: { available: true }, response: new Response() }
+      : { data: [], response: new Response() }) as never);
+  vi.spyOn(client, "POST").mockImplementation((async () => ({
+    data: sse(
+      'event: conversation\ndata: {"id":5,"title":"Start How to Build the Box"}\n\n',
+      'event: done\ndata: {"message":{"id":2,"role":"assistant","content":"Starting it now.","items":[]},"tools":["play_here"],"play":{"id":3,"title":"How to Build the Box","kind":"episode"}}\n\n',
+    ),
+    response: new Response(null, { status: 200 }),
+  })) as never);
+  dispose = render(() => createComponent(AssistantChat, {}), document.body);
+  await flush();
+  (document.querySelector("button[aria-label='Assistant']") as HTMLButtonElement).click();
+  await flush();
+  const box = document.querySelector("textarea") as HTMLTextAreaElement;
+  box.value = "Start How to Build the Box";
+  box.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  document.querySelector("form")?.dispatchEvent(new Event("submit", { cancelable: true }));
+  await flush();
+  await flush();
+  expect(playItem).toHaveBeenCalledWith({ itemId: 3, title: "How to Build the Box" });
+  expect(document.querySelector("section[aria-label='Assistant']")).toBeNull();
+});

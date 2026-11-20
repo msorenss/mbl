@@ -195,6 +195,12 @@ export default function AssistantChat() {
             content: message?.content ?? l.content,
             items: message?.items ?? [],
           }));
+          // The person asked to watch something here.
+          const play = d.play as Mention | null | undefined;
+          if (play) {
+            playItem({ itemId: play.id, title: play.title });
+            setOpen(false);
+          }
         } else if (name === "error") failure = String(d.message ?? "");
       });
       const reader = (result.data as ReadableStream<Uint8Array>).getReader();

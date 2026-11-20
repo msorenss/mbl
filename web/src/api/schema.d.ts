@@ -99,7 +99,8 @@ export interface paths {
         /**
          * Ask the assistant. The answer streams as server-sent events: `conversation` (the
          *     conversation, first), `delta` (`{"text"}` pieces as they are written), then `done`
-         *     (`{"message", "tools"}`, the stored answer) or `error` (`{"message"}`).
+         *     (`{"message", "tools", "play"}`: the stored answer, and a title to start in this browser
+         *     when asked) or `error` (`{"message"}`).
          */
         post: operations["assistant_chat"];
         delete?: never;
@@ -3541,6 +3542,8 @@ export interface components {
         };
         /** @description Stored assistant settings. The API key is never returned. */
         AssistantSettings: {
+            /** @description What the assistant may do for administrators (token scopes; `read` is always included). */
+            adminScopes?: string[];
             baseUrl: string;
             /** @description The agent program run for the `command` provider. */
             command?: string;
@@ -3550,6 +3553,8 @@ export interface components {
             hasApiKey: boolean;
             model: string;
             provider: components["schemas"]["ProviderKind"];
+            /** @description What it may do for other users; never `admin`, `users` or `remote`. */
+            userScopes?: string[];
         };
         /** @description Whether the assistant chat can be used by the person asking. */
         AssistantStatus: {
@@ -5979,6 +5984,8 @@ export interface components {
             url: string;
         };
         UpdateAssistantSettings: {
+            /** @description Unchanged when left out. */
+            adminScopes?: string[] | null;
             /** @description New key; omit or leave empty to keep the stored one. */
             apiKey?: string | null;
             baseUrl: string;
@@ -5990,6 +5997,8 @@ export interface components {
             enabled: boolean;
             model: string;
             provider: components["schemas"]["ProviderKind"];
+            /** @description Unchanged when left out. */
+            userScopes?: string[] | null;
         };
         UpdateChannelRequest: {
             channelNumber?: string | null;

@@ -85,6 +85,13 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-20 — Assistentroller, spela här och modellistan (ingår i 1.3.10)
+- Efter användarens test: assistenten kunde inte starta uppspelning eller köra hårdvarutest, och OpenRouters modellista visade bara en modell (`<datalist>` filtrerar på fältets värde).
+- Roller: inställningarna `assistant_scopes_admin` och `assistant_scopes_user` (standard `read,playback`; `read` ingår alltid; användare kan inte få admin/users/remote, 422). `AssistantService::scopes_for(actor)` ger rollens scopes, kapade till personens egna (`capped_for_user`). Chatten får alla MCP-verktyg som scopes tillåter (Admin ger allt); medtittaren behåller sin fasta läslista. Agentprogram får token med samma scopes. Chattreglerna: beskriv och vänta på ja före ändringar, `dry_run` där det finns, `confirm` först efter ja.
+- `play_here` (bara chatten, kräver playback): kontrollerar titeln med `ItemService::get` och returnerar `play` i `done`; webben anropar `playItem` och stänger panelen.
+- Modellistan visas som `<select>` med alla hämtade modeller; textfältet finns kvar.
+- Tester: `tests/assistant.rs` (standardrollen saknar admin/biblioteksverktyg, adminrollen ger `run_hw_selftest`, användare får aldrig admin, användarrollen utan playback saknar `play_here`, medtittaren läser bara, `play_here` med okänd titel spelar inget), webbtester för roller, play och modellistan.
+
 ### 2026-11-20 — Assistenten i kommandopaletten (ingår i 1.3.10)
 - `web/src/utils/assistantBridge.ts` förbinder kommandopaletten (startpaketet) med den latent laddade `AssistantChat`: chatten sätter `assistantAvailable` och tar emot frågor via `onAssistantAsk` (en fråga som ställs innan chatten laddats levereras när den registreras i `onMount`). Paletten visar "Ask the assistant: “…”" när assistenten är på och frågan har minst två tecken; den kommer först när inget annat matchar, så Enter frågar direkt. Ny chatt startas.
 - Tester: nytt `CommandPalette.test.tsx`, fall i `AssistantChat.test.tsx`; `just web-check` 326 tester, initial JS 106,88 KB.

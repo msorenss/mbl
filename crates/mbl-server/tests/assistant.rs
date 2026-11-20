@@ -193,11 +193,16 @@ async fn scripted_provider(seen: std::sync::Arc<std::sync::Mutex<Vec<Value>>>) -
                 "usage": {"prompt_tokens": 50, "completion_tokens": 10}}),
             );
         }
-        Json(
-            json!({"choices": [{"finish_reason": "tool_calls", "message": {"content": null, "tool_calls": [
-            {"id": "c1", "type": "function", "function": {"name": "find_by_person", "arguments": "{\"name\":\"pacino\"}"}}
-        ]}}], "usage": {"prompt_tokens": 40, "completion_tokens": 5}}),
-        )
+        // "play <id>" asks to start that item here.
+        let asked = last["content"].as_str().unwrap_or_default();
+        let call = match asked.strip_prefix("play ") {
+            Some(id) => json!({"id": "c1", "type": "function", "function": {
+                "name": "play_here", "arguments": format!("{{\"item_id\":{id}}}")}}),
+            None => json!({"id": "c1", "type": "function", "function": {
+                "name": "find_by_person", "arguments": "{\"name\":\"pacino\"}"}}),
+        };
+        Json(json!({"choices": [{"finish_reason": "tool_calls", "message": {"content": null,
+            "tool_calls": [call]}}], "usage": {"prompt_tokens": 40, "completion_tokens": 5}}))
     }
     let app = Router::new().route("/v1/chat/completions", post(chat)).with_state(seen);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -275,10 +280,70 @@ async fn the_assistant_looks_things_up_as_the_person_asking() {
             .map(|t| t["function"]["name"].as_str().unwrap())
             .collect();
         assert!(names.contains(&"find_by_person") && names.contains(&"search_media"), "{names:?}");
+        // The default role reads and plays; it cannot scan, test hardware or manage users.
+        assert!(names.contains(&"play_here") && names.contains(&"play_on_player"), "{names:?}");
         assert!(!names.iter().any(|n| {
-            ["mark_watched", "scan_library", "delete_user", "send_companion_reaction"].contains(n)
+            ["scan_library", "run_hw_selftest", "delete_user", "create_user"].contains(n)
         }));
     }
+
+    // Starting a title here: the item comes back for the browser to play.
+    let reply = runner
+        .run(
+            &admin_actor,
+            Surface::Chat,
+            "",
+            vec![mbl_agent::Message::user(format!("play {}", fixture.movie_id))],
+            None,
+        )
+        .await
+        .unwrap();
+    let play = reply.play.expect("a title to play");
+    assert_eq!((play.id, play.title.as_str()), (fixture.movie_id, "Heat"));
+    let reply = runner
+        .run(&admin_actor, Surface::Chat, "", vec![mbl_agent::Message::user("play 999999")], None)
+        .await
+        .unwrap();
+    assert!(reply.play.is_none(), "an unknown item is not played");
+
+    // Roles: other users can never be given admin access.
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "openai_compatible", "baseUrl": base, "model": "scripted", "userScopes": ["read", "admin"]})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", res.body);
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "openai_compatible", "baseUrl": base, "model": "scripted", "adminScopes": ["admin"], "userScopes": ["library"]})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["adminScopes"], json!(["read", "admin"]));
+    assert_eq!(res.body["userScopes"], json!(["read", "library"]));
+    let tool_names = |body: &Value| -> Vec<String> {
+        body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["function"]["name"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    runner.run(&admin_actor, Surface::Chat, "", ask(), None).await.unwrap();
+    let names = tool_names(seen.lock().unwrap().iter().rev().nth(1).unwrap());
+    assert!(names.iter().any(|n| n == "run_hw_selftest"), "admins may now test hardware");
+    // The companion stays read-only whatever the role.
+    let companion_names = {
+        runner.run(&admin_actor, Surface::Companion, "", ask(), None).await.unwrap();
+        tool_names(seen.lock().unwrap().iter().rev().nth(1).unwrap())
+    };
+    assert!(!companion_names.iter().any(|n| n == "run_hw_selftest" || n == "play_here"));
 
     // The tool call is audited as the assistant.
     let audited: (String, String, String) =
@@ -299,6 +364,11 @@ async fn the_assistant_looks_things_up_as_the_person_asking() {
     let reply = runner.run(&viewer, Surface::Chat, "", ask(), None).await.unwrap();
     assert!(!reply.text.contains("Heat"), "{}", reply.text);
     assert!(reply.text.contains("\"count\":0"), "{}", reply.text);
+    // The user role (read and library) gives no admin tools and, without playback, no playing.
+    let names = tool_names(seen.lock().unwrap().iter().rev().nth(1).unwrap());
+    assert!(
+        !names.iter().any(|n| n == "run_hw_selftest" || n == "delete_user" || n == "play_here")
+    );
 
     // Managed (child) profiles do not get the assistant.
     let child = Actor { is_managed: true, ..viewer };

@@ -1,7 +1,8 @@
 //! Running an agent program (Claude Code, Hermes…) as the assistant.
 //!
 //! The admin configures a command line. For each answer MBL creates a short-lived API token
-//! with read scope for the person asking, writes an MCP client configuration with it, runs
+//! with the assistant's scopes for the person asking (read only unless the admin's role
+//! settings allow more), writes an MCP client configuration with it, runs
 //! the command with the prompt on stdin and takes stdout as the answer. The token is revoked
 //! and the configuration removed afterwards. The token never appears in the command line:
 //! it is in the configuration file and in `MBL_MCP_TOKEN`.
@@ -77,6 +78,7 @@ pub fn split_command(line: &str) -> Result<Vec<String>> {
 pub async fn run_command(
     services: &Services,
     actor: &Actor,
+    scopes: &mbl_auth::tokens::ScopeSet,
     command: &str,
     mcp_url: &str,
     prompt: &str,
@@ -88,7 +90,7 @@ pub async fn run_command(
             actor,
             CreateApiTokenRequest {
                 name: "Assistant command (temporary)".into(),
-                scopes: vec!["read".into()],
+                scopes: scopes.to_strings(),
                 expires_at: Some(now_ms() + TOKEN_LIFETIME_MS),
                 allowed_networks: None,
             },

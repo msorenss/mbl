@@ -153,7 +153,7 @@
         "tags": [
           "assistant"
         ],
-        "summary": "Ask the assistant. The answer streams as server-sent events: `conversation` (the\nconversation, first), `delta` (`{\"text\"}` pieces as they are written), then `done`\n(`{\"message\", \"tools\"}`, the stored answer) or `error` (`{\"message\"}`).",
+        "summary": "Ask the assistant. The answer streams as server-sent events: `conversation` (the\nconversation, first), `delta` (`{\"text\"}` pieces as they are written), then `done`\n(`{\"message\", \"tools\", \"play\"}`: the stored answer, and a title to start in this browser\nwhen asked) or `error` (`{\"message\"}`).",
         "operationId": "assistant_chat",
         "requestBody": {
           "content": {
@@ -9765,6 +9765,13 @@
           "model"
         ],
         "properties": {
+          "adminScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the assistant may do for administrators (token scopes; `read` is always included)."
+          },
           "baseUrl": {
             "type": "string"
           },
@@ -9790,6 +9797,13 @@
           },
           "provider": {
             "$ref": "#/components/schemas/ProviderKind"
+          },
+          "userScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What it may do for other users; never `admin`, `users` or `remote`."
           }
         }
       },
@@ -18647,6 +18661,16 @@
           "model"
         ],
         "properties": {
+          "adminScopes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Unchanged when left out."
+          },
           "apiKey": {
             "type": [
               "string",
@@ -18682,6 +18706,16 @@
           },
           "provider": {
             "$ref": "#/components/schemas/ProviderKind"
+          },
+          "userScopes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Unchanged when left out."
           }
         }
       },

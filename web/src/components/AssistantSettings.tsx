@@ -106,6 +106,16 @@ const PRESETS: Preset[] = [
   },
 ];
 
+/** Token scopes the assistant can be given; `read` is always on. */
+const ROLE_SCOPES: { scope: string; label: string; adminOnly?: boolean }[] = [
+  { scope: "playback", label: "Start and control playback" },
+  { scope: "library", label: "Manage libraries and collections" },
+  { scope: "livetv", label: "Live TV and recordings" },
+  { scope: "users", label: "Manage users", adminOnly: true },
+  { scope: "remote", label: "Remote access", adminOnly: true },
+  { scope: "admin", label: "Everything an admin can do", adminOnly: true },
+];
+
 const label = {
   display: "block",
   "font-size": "13px",
@@ -142,6 +152,8 @@ export default function AssistantSettings() {
   const [model, setModel] = createSignal("");
   const [effort, setEffort] = createSignal("");
   const [command, setCommand] = createSignal("");
+  const [adminScopes, setAdminScopes] = createSignal<string[]>(["read", "playback"]);
+  const [userScopes, setUserScopes] = createSignal<string[]>(["read", "playback"]);
   const isCommand = () => provider() === "command";
   const [models, setModels] = createSignal<string[]>([]);
   const [report, setReport] = createSignal<Report>();
@@ -164,6 +176,8 @@ export default function AssistantSettings() {
     setModel(s.model);
     setEffort(s.effort ?? "");
     setCommand(s.command ?? "");
+    if (s.adminScopes?.length) setAdminScopes(s.adminScopes);
+    if (s.userScopes?.length) setUserScopes(s.userScopes);
     const configured = s.provider === "command" || s.baseUrl;
     setPreset(configured ? presetFor(s.provider, s.baseUrl, s.command) : "anthropic");
     if (!configured) choosePreset("anthropic");
@@ -243,7 +257,13 @@ export default function AssistantSettings() {
     setNotice("");
     try {
       const result = await client.PUT("/api/v1/system/assistant", {
-        body: { ...connection(), enabled: enabled(), clearApiKey: clearKey() },
+        body: {
+          ...connection(),
+          enabled: enabled(),
+          clearApiKey: clearKey(),
+          adminScopes: adminScopes(),
+          userScopes: userScopes(),
+        },
       });
       if (!result.data)
         throw new Error(serverMessage(result.error, "Could not save the assistant settings."));
@@ -396,18 +416,30 @@ export default function AssistantSettings() {
             <div style={{ display: "flex", gap: "8px", "margin-bottom": "14px" }}>
               <input
                 id="assistant-model"
-                list="assistant-models"
                 value={model()}
                 onInput={(e) => setModel(e.currentTarget.value)}
                 style={{ flex: 1, "min-width": 0 }}
               />
-              <datalist id="assistant-models">
-                <For each={models()}>{(m) => <option value={m} />}</For>
-              </datalist>
               <Button type="button" variant="secondary" disabled={busy()} onClick={fetchModels}>
                 Fetch models
               </Button>
             </div>
+            {/* A plain list: a datalist only offers names that match what is already typed. */}
+            <Show when={models().length > 0}>
+              <select
+                aria-label="Fetched models"
+                value={models().includes(model()) ? model() : ""}
+                onChange={(e) => {
+                  if (e.currentTarget.value) setModel(e.currentTarget.value);
+                }}
+                style={{ ...field, "margin-top": "-6px" }}
+              >
+                <option value="" disabled>
+                  Choose one of the fetched models
+                </option>
+                <For each={models()}>{(m) => <option value={m}>{m}</option>}</For>
+              </select>
+            </Show>
 
             <label style={label} for="assistant-effort">
               Effort
@@ -424,6 +456,60 @@ export default function AssistantSettings() {
               <option value="high">High</option>
             </select>
           </Show>
+
+          <fieldset style={{ border: "none", margin: "0 0 14px", padding: 0 }}>
+            <legend style={label}>What the assistant may do</legend>
+            <p
+              style={{
+                "font-size": "12px",
+                color: "var(--text-secondary)",
+                "line-height": "1.5",
+                margin: "0 0 8px",
+              }}
+            >
+              Reading the library is always allowed. The assistant never gets more than the person's
+              own rights, and asks in the chat before it changes anything.
+            </p>
+            <div
+              style={{ display: "grid", "grid-template-columns": "1fr auto auto", gap: "6px 16px" }}
+            >
+              <span />
+              <strong style={{ "font-size": "12px" }}>For administrators</strong>
+              <strong style={{ "font-size": "12px" }}>For other users</strong>
+              <For each={ROLE_SCOPES}>
+                {(role) => (
+                  <>
+                    <span style={{ "font-size": "13px" }}>{role.label}</span>
+                    <input
+                      type="checkbox"
+                      aria-label={`${role.label} (administrators)`}
+                      checked={adminScopes().includes(role.scope)}
+                      onChange={(e) =>
+                        setAdminScopes((list) =>
+                          e.currentTarget.checked
+                            ? [...list, role.scope]
+                            : list.filter((x) => x !== role.scope),
+                        )
+                      }
+                    />
+                    <input
+                      type="checkbox"
+                      aria-label={`${role.label} (other users)`}
+                      disabled={role.adminOnly}
+                      checked={!role.adminOnly && userScopes().includes(role.scope)}
+                      onChange={(e) =>
+                        setUserScopes((list) =>
+                          e.currentTarget.checked
+                            ? [...list, role.scope]
+                            : list.filter((x) => x !== role.scope),
+                        )
+                      }
+                    />
+                  </>
+                )}
+              </For>
+            </div>
+          </fieldset>
 
           <label style={{ display: "flex", gap: "8px", "margin-bottom": "16px" }}>
             <input

@@ -206,7 +206,8 @@ fn friendly(error: &Error) -> String {
 
 /// Ask the assistant. The answer streams as server-sent events: `conversation` (the
 /// conversation, first), `delta` (`{"text"}` pieces as they are written), then `done`
-/// (`{"message", "tools"}`, the stored answer) or `error` (`{"message"}`).
+/// (`{"message", "tools", "play"}`: the stored answer, and a title to start in this browser
+/// when asked) or `error` (`{"message"}`).
 #[utoipa::path(
     post,
     path = "/api/v1/assistant/chat",
@@ -254,7 +255,9 @@ pub(crate) async fn assistant_chat(
                 assistant
                     .finish_chat(&actor, conversation.id, &text, &answer.items)
                     .await
-                    .map(|message| json!({ "message": message, "tools": answer.tools }))
+                    .map(|message| {
+                        json!({ "message": message, "tools": answer.tools, "play": answer.play })
+                    })
             }
             Err(error) => Err(error),
         };
