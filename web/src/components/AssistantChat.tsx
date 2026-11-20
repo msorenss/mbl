@@ -4,6 +4,7 @@ import { Portal } from "solid-js/web";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { usePlayer } from "../context/PlayerContext";
+import { onAssistantAsk, setAssistantAvailable } from "../utils/assistantBridge";
 
 type Conversation = components["schemas"]["Conversation"];
 type Mention = components["schemas"]["ItemMention"];
@@ -66,8 +67,12 @@ export default function AssistantChat() {
   onMount(async () => {
     const result = await client.GET("/api/v1/assistant/status").catch(() => undefined);
     setAvailable(result?.data?.available === true);
+    setAssistantAvailable(available());
   });
-  onCleanup(() => abort?.abort());
+  onCleanup(() => {
+    abort?.abort();
+    setAssistantAvailable(false);
+  });
 
   const loadList = async () => {
     const result = await client.GET("/api/v1/assistant/conversations").catch(() => undefined);
@@ -130,6 +135,20 @@ export default function AssistantChat() {
     startNew();
     void loadList();
   };
+
+  // Questions asked from the command palette start a new chat. Registered after setup, since
+  // a question asked before this chat loaded is delivered at once.
+  onMount(() =>
+    onCleanup(
+      onAssistantAsk((text) => {
+        if (!available()) return;
+        startNew();
+        setOpen(true);
+        setDraft(text);
+        void send();
+      }),
+    ),
+  );
 
   const updateLast = (change: (line: Line) => Line) =>
     setLines((list) => [...list.slice(0, -1), change(list[list.length - 1])]);

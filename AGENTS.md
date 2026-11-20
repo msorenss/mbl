@@ -85,6 +85,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-20 — Assistenten i kommandopaletten (ingår i 1.3.10)
+- `web/src/utils/assistantBridge.ts` förbinder kommandopaletten (startpaketet) med den latent laddade `AssistantChat`: chatten sätter `assistantAvailable` och tar emot frågor via `onAssistantAsk` (en fråga som ställs innan chatten laddats levereras när den registreras i `onMount`). Paletten visar "Ask the assistant: “…”" när assistenten är på och frågan har minst två tecken; den kommer först när inget annat matchar, så Enter frågar direkt. Ny chatt startas.
+- Tester: nytt `CommandPalette.test.tsx`, fall i `AssistantChat.test.tsx`; `just web-check` 326 tester, initial JS 106,88 KB.
+
 ### 2026-11-20 — Release 1.3.10 förberedd
 - Version 1.3.10 i Cargo, README, CHANGELOG, Windows-filerna (README, README-worker, build-msi.ps1, mbl.wxs) och OpenAPI. `README-node.txt` kräver fortfarande server 1.3.9, eftersom nodprotokollet inte har ändrats.
 - Innehåll sedan 1.3.9: medtittarchatt, inbyggd assistent A0–A5, `find_by_person`, mindre startpaket och CI-fixen för Windows-workern. Användaren bestämde att assistenten ingår i 1.3.10 och att buggfixar tar 1.3.11.

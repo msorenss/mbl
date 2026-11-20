@@ -138,3 +138,29 @@ it("shows why the assistant could not answer", async () => {
   await flush();
   expect(document.body.textContent).toContain("The API key was rejected");
 });
+
+it("takes a question from the command palette", async () => {
+  const { askAssistant } = await import("../utils/assistantBridge");
+  vi.spyOn(client, "GET").mockImplementation((async (path: string) =>
+    path === "/api/v1/assistant/status"
+      ? { data: { available: true }, response: new Response() }
+      : { data: [], response: new Response() }) as never);
+  const post = vi.spyOn(client, "POST").mockImplementation((async () => ({
+    data: sse(
+      'event: conversation\ndata: {"id":4,"title":"Something funny"}\n\n',
+      'event: done\ndata: {"message":{"id":2,"role":"assistant","content":"Try a comedy.","items":[]},"tools":[]}\n\n',
+    ),
+    response: new Response(null, { status: 200 }),
+  })) as never);
+  dispose = render(() => createComponent(AssistantChat, {}), document.body);
+  await flush();
+  askAssistant("Something funny");
+  await flush();
+  await flush();
+  expect(post).toHaveBeenCalledWith(
+    "/api/v1/assistant/chat",
+    expect.objectContaining({ body: { conversationId: undefined, text: "Something funny" } }),
+  );
+  expect(document.querySelector("section[aria-label='Assistant']")).not.toBeNull();
+  expect(document.body.textContent).toContain("Try a comedy.");
+});

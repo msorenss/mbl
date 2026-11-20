@@ -5,6 +5,7 @@ import type { components } from "../api/schema";
 import { useAuth } from "../context/AuthContext";
 import { type AccentColor, type ThemeMode, useTheme } from "../context/ThemeContext";
 import { SUPPORTED_LOCALES, useI18n } from "../i18n";
+import { askAssistant, assistantAvailable } from "../utils/assistantBridge";
 import { AppIcon } from "./ui";
 
 type ItemSummary = components["schemas"]["ItemSummary"];
@@ -275,7 +276,23 @@ export function CommandPalette(props: CommandPaletteProps) {
       icon: <AppIcon name={item.kind === "movie" ? "collections" : "livetv"} size={16} />,
       run: () => navigate(`/item/${item.id}`),
     }));
-    return [...results, ...staticActions()];
+    const question = query().trim();
+    const ask =
+      assistantAvailable() && question.length >= 2
+        ? [
+            {
+              id: "ask-assistant",
+              category: t("Assistant"),
+              label: t(`Ask the assistant: “${question}”`),
+              icon: <AppIcon name="ai-agents" size={16} />,
+              run: () => askAssistant(question),
+            },
+          ]
+        : [];
+    // A question rarely matches a title or a command, so asking comes first when nothing else
+    // does.
+    const actions = staticActions();
+    return results.length === 0 && actions.length === 0 ? ask : [...results, ...actions, ...ask];
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {

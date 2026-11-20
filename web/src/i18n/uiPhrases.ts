@@ -19313,6 +19313,30 @@ export const UI_PHRASES_22: Record<string, Row22> = {
 
 /** Strings with values: {0}, {1}… are copied from the English text into the translation. */
 export const UI_PATTERNS_22: Record<string, Row22> = {
+  "Ask the assistant: “{0}”": [
+    "Fråga assistenten: ”{0}”",
+    "Assistenten fragen: „{0}“",
+    "Demander à l'assistant : « {0} »",
+    "Preguntar al asistente: «{0}»",
+    "Perguntar ao assistente: “{0}”",
+    "Chiedi all'assistente: «{0}»",
+    "Vraag de assistent: ‘{0}’",
+    "Zapytaj asystenta: „{0}”",
+    "Asistana sor: “{0}”",
+    "Спросить ассистента: «{0}»",
+    "Запитати асистента: «{0}»",
+    "اسأل المساعد: «{0}»",
+    "सहायक से पूछें: “{0}”",
+    "询问助手：“{0}”",
+    "アシスタントに質問：「{0}」",
+    "도우미에게 묻기: “{0}”",
+    "Tanya asisten: “{0}”",
+    "Hỏi trợ lý: “{0}”",
+    "Spør assistenten: «{0}»",
+    "Tanungin ang assistant: “{0}”",
+    "Pangutan-a ang katabang: “{0}”",
+    "Pakianhi an bulig: “{0}”",
+  ],
   "Recently Added in {0}": [
     "Nyligen tillagt i {0}",
     "Kürzlich hinzugefügt in {0}",
