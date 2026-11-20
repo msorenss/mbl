@@ -498,6 +498,12 @@ it("loads seek previews only on timeline focus and cancels them on blur", async 
   dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), container);
   await tick();
   expect(get).not.toHaveBeenCalled();
+  // The chat button draws its own icon and names itself; an emoji is invisible without an
+  // emoji font, which many Linux desktops lack.
+  const chat = container.querySelector<HTMLButtonElement>('button[aria-label="Chat"]');
+  expect(chat?.querySelector("svg")).not.toBeNull();
+  expect(chat?.textContent?.trim()).toBe("Chat");
+  expect(container.textContent).not.toContain("💬");
   const timeline = container.querySelector('input[aria-label="Seek video"]') as HTMLInputElement;
   timeline.focus();
   await tick();

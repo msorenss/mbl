@@ -24,7 +24,8 @@ export type AppIconName =
   | "menu"
   | "theme"
   | "accent"
-  | "language";
+  | "language"
+  | "chat";
 
 export interface AppIconProps {
   name: AppIconName;
@@ -198,6 +199,13 @@ export function AppIcon(props: AppIconProps) {
             <path d="M12 7.5v7" />
             <path d="M9.2 11.8L12 14.6l2.8-2.8" />
             <path d="M10 18.5h4" />
+          </>
+        );
+      case "chat":
+        return (
+          <>
+            <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A2.5 2.5 0 0 1 3 13.5" />
+            <path d="M8 8.5h8M8 12h5" />
           </>
         );
       case "language":

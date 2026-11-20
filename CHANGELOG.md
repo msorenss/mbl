@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Fixed
+- The chat button in the player was invisible on computers without an emoji font (common on Linux, including Raspberry Pi OS): it was a 💬 emoji. It now has its own icon and the label **Chat**, and so does the assistant button in the top bar. The subtitle button no longer shows an emoji either.
+
 ## [1.3.10] - 2026-11-20
 
 ### Added

@@ -16,7 +16,7 @@ import CastDiagnostics from "./CastDiagnostics";
 import CompanionReactions from "./CompanionReactions";
 import LyricsPanel from "./LyricsPanel";
 import TrickplayPreview from "./TrickplayPreview";
-import { Button } from "./ui";
+import { AppIcon, Button } from "./ui";
 
 type PlaybackResponse = components["schemas"]["PlaybackResponse"];
 type PlaybackSubtitleTrack = components["schemas"]["PlaybackSubtitleTrack"];
@@ -2755,7 +2755,7 @@ export function Player(props: PlayerProps) {
                     "font-weight": "600",
                   }}
                 >
-                  💬 CC
+                  CC
                 </button>
                 <Show when={showSubtitlesMenu()}>
                   <div
@@ -2886,13 +2886,19 @@ export function Player(props: PlayerProps) {
                 background: chatOpen() ? "var(--accent)" : "transparent",
                 border: "none",
                 color: "#fff",
-                "font-size": "18px",
                 cursor: "pointer",
                 padding: "4px 8px",
                 "border-radius": "var(--radius-sm)",
+                display: "inline-flex",
+                "align-items": "center",
+                gap: "6px",
               }}
             >
-              💬
+              {/* An SVG, not an emoji: many Linux browsers have no emoji font. */}
+              <AppIcon name="chat" size={18} />
+              <span class="mbl-desktop-only" style={{ "font-size": "13px" }}>
+                Chat
+              </span>
             </button>
 
             {/* Chromecast / Remote Playback Button (M12) */}

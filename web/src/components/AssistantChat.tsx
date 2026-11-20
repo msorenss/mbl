@@ -5,6 +5,7 @@ import client from "../api/client";
 import type { components } from "../api/schema";
 import { usePlayer } from "../context/PlayerContext";
 import { onAssistantAsk, setAssistantAvailable } from "../utils/assistantBridge";
+import { AppIcon } from "./ui";
 
 type Conversation = components["schemas"]["Conversation"];
 type Mention = components["schemas"]["ItemMention"];
@@ -244,7 +245,7 @@ export default function AssistantChat() {
           "font-size": "var(--font-size-xs)",
         }}
       >
-        <span aria-hidden="true">💬</span>
+        <AppIcon name="chat" size={16} />
         <span class="mbl-desktop-only">Assistant</span>
       </button>
       <Show when={open()}>
