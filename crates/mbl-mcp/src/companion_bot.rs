@@ -13,7 +13,9 @@ use std::time::Duration;
 use mbl_agent::{Message, Role};
 use mbl_core::{Actor, Error, UserId};
 use mbl_db::Db;
-use mbl_service::{CommentReason, CompanionActivity, CompanionWake, LiveSessionContext, Services};
+use mbl_service::{
+    CommentReason, CompanionActivity, CompanionFrames, CompanionWake, LiveSessionContext, Services,
+};
 use tokio::sync::broadcast::error::RecvError;
 use tokio_util::sync::CancellationToken;
 
@@ -159,11 +161,7 @@ impl Worker {
         // Several messages at once: answer the newest; the others are in the history.
         if let Some(question) = wake.viewer_messages.last() {
             let conversation = self.history(actor, session_id, Some(question.id));
-            let text = match self
-                .runner
-                .run(actor, Surface::Companion, &instructions, conversation, None)
-                .await
-            {
+            let text = match self.ask(actor, session_id, wake, &instructions, conversation).await {
                 Ok(reply) if reply.refused => "I'd rather not answer that one.".to_owned(),
                 Ok(reply) if reply.text.trim().is_empty() => return,
                 Ok(reply) => reply.text,
@@ -178,7 +176,7 @@ impl Worker {
             CommentReason::Requested => REQUESTED_PROMPT,
             CommentReason::Scheduled => COMMENT_PROMPT,
         }));
-        match self.runner.run(actor, Surface::Companion, &instructions, conversation, None).await {
+        match self.ask(actor, session_id, wake, &instructions, conversation).await {
             Ok(reply) if !reply.refused && !reply.text.trim().is_empty() => {
                 self.post(actor, session_id, wake, &reply.text, None);
             }
@@ -189,6 +187,41 @@ impl Worker {
             }
             Err(error) => tracing::debug!(%error, "built-in companion skipped a comment"),
         }
+    }
+
+    /// Ask the model. With screenshots on, the picture of the scene goes with the person's last
+    /// turn; a model that cannot take pictures is asked again without it.
+    async fn ask(
+        &self,
+        actor: &Actor,
+        session_id: &str,
+        wake: &CompanionWake,
+        instructions: &str,
+        conversation: Vec<Message>,
+    ) -> mbl_core::Result<crate::assistant::AssistantReply> {
+        let frame = if wake.context.frames == CompanionFrames::Off {
+            None
+        } else {
+            self.services.companion.frame(actor, session_id).await.ok()
+        };
+        let mut with_picture = conversation.clone();
+        if let (Some(frame), Some(last)) = (frame, with_picture.last_mut())
+            && last.role == Role::User
+        {
+            use base64::Engine as _;
+            last.images = vec![mbl_agent::Image {
+                media_type: "image/jpeg".into(),
+                data: base64::engine::general_purpose::STANDARD.encode(frame.jpeg.as_slice()),
+            }];
+            match self.runner.run(actor, Surface::Companion, instructions, with_picture, None).await
+            {
+                Err(Error::External(reason)) => {
+                    tracing::debug!(%reason, "model refused the screenshot; asking without it");
+                }
+                other => return other,
+            }
+        }
+        self.runner.run(actor, Surface::Companion, instructions, conversation, None).await
     }
 
     /// The chat so far as conversation turns, up to and including `until` when given.
@@ -317,6 +350,7 @@ mod tests {
             dialogue_language: None,
             mode: CompanionMode::On,
             frequency: CompanionFrequency::Medium,
+            frames: CompanionFrames::Off,
             connected_companions: vec![],
         };
         let text = describe(&context);

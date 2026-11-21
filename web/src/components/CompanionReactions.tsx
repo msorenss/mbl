@@ -6,6 +6,7 @@ import { useI18n } from "../i18n";
 type Reaction = components["schemas"]["CompanionReaction"];
 type Mode = components["schemas"]["CompanionMode"];
 type Frequency = components["schemas"]["CompanionFrequency"];
+type Frames = components["schemas"]["CompanionFrames"];
 
 const VISIBLE_MS = 12_000;
 const HISTORY = 30;
@@ -22,6 +23,22 @@ const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
+const FRAMES_KEY = "mbl.companion.frames";
+const FRAMES: { value: Frames; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "30s", label: "Every 30 seconds" },
+  { value: "1m", label: "Every minute" },
+  { value: "5m", label: "Every 5 minutes" },
+];
+
+function storedFrames(): Frames {
+  try {
+    const value = localStorage.getItem(FRAMES_KEY);
+    if (FRAMES.some((f) => f.value === value)) return value as Frames;
+  } catch {}
+  return "off";
+}
+
 const MODES: { value: Mode; label: string }[] = [
   { value: "on", label: "Comments on" },
   { value: "replies", label: "Replies only" },
@@ -87,6 +104,7 @@ export default function CompanionReactions(props: {
   const [companions, setCompanions] = createSignal<string[]>([]);
   const [mode, setMode] = createSignal<Mode>(storedMode());
   const [frequency, setFrequency] = createSignal<Frequency>(storedFrequency());
+  const [frames, setFrames] = createSignal<Frames>(storedFrames());
   const [listening, setListening] = createSignal<string[]>([]);
   const [assistant, setAssistant] = createSignal(false);
   // Someone will hear the viewer: a connected companion or the built-in assistant.
@@ -118,11 +136,11 @@ export default function CompanionReactions(props: {
         setError("");
         if (!sessionId) return;
         // The viewer's last choice follows them to the next session.
-        if (mode() !== "on" || frequency() !== "medium")
+        if (mode() !== "on" || frequency() !== "medium" || frames() !== "off")
           void client
             .PUT("/api/v1/companion/sessions/{id}/mode", {
               params: { path: { id: sessionId } },
-              body: { mode: mode(), frequency: frequency() },
+              body: { mode: mode(), frequency: frequency(), frames: frames() },
             })
             .catch(() => undefined);
         // Only entries sent after the player opened; older ones are not news.
@@ -189,6 +207,25 @@ export default function CompanionReactions(props: {
     } catch {
       setMode(previous[0]);
       setFrequency(previous[1]);
+      setError("Could not change the setting.");
+    }
+  };
+
+  const chooseFrames = async (next: Frames) => {
+    const sessionId = props.sessionId;
+    if (!sessionId || next === frames()) return;
+    const previous = frames();
+    setFrames(next);
+    setError("");
+    try {
+      const result = await client.PUT("/api/v1/companion/sessions/{id}/mode", {
+        params: { path: { id: sessionId } },
+        body: { mode: mode(), frequency: frequency(), frames: next },
+      });
+      if (!result.response.ok) throw new Error();
+      store(FRAMES_KEY, next);
+    } catch {
+      setFrames(previous);
       setError("Could not change the setting.");
     }
   };
@@ -355,6 +392,27 @@ export default function CompanionReactions(props: {
                   Comment now
                 </button>
               </div>
+            </Show>
+            <label style={{ display: "flex", gap: "6px", "align-items": "center" }}>
+              <span style={{ flex: 1 }}>Screenshots to the AI</span>
+              <select
+                value={frames()}
+                onChange={(e) => void chooseFrames(e.currentTarget.value as Frames)}
+              >
+                <For each={FRAMES}>
+                  {(option) => (
+                    <option value={option.value} selected={frames() === option.value}>
+                      {option.label}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </label>
+            <Show when={frames() !== "off"}>
+              <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
+                A picture of the scene goes to the AI provider, never one from later than where you
+                are.
+              </p>
             </Show>
             <Show when={!heard()}>
               <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>

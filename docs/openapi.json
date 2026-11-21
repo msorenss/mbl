@@ -1148,6 +1148,48 @@
         ]
       }
     },
+    "/api/v1/companion/sessions/{id}/frame": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "A screenshot of the scene at the viewer's position (JPEG, at most 768 px wide), for an AI.\nOnly when the viewer has turned screenshots on; never from later than the position.",
+        "operationId": "companion_frame",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Screenshot; X-Mbl-Frame-Position gives its position in ms",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "409": {
+            "description": "Screenshots are off for this session"
+          },
+          "503": {
+            "description": "Another screenshot is being taken, or the video cannot be read"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/companion/sessions/{id}/join": {
       "post": {
         "tags": [
@@ -10686,6 +10728,16 @@
           }
         }
       },
+      "CompanionFrames": {
+        "type": "string",
+        "description": "How often a screenshot of the scene may be taken for the AI. Off by default, because the\npicture leaves the server for an outside model.",
+        "enum": [
+          "off",
+          "30s",
+          "1m",
+          "5m"
+        ]
+      },
       "CompanionFrequency": {
         "type": "string",
         "description": "How often companions comment on their own while the viewer allows comments.",
@@ -10710,6 +10762,17 @@
           "mode"
         ],
         "properties": {
+          "frames": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CompanionFrames",
+                "description": "Whether and how often a screenshot may go to the AI; unchanged when left out."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "frequency": {
             "oneOf": [
               {
@@ -13413,6 +13476,10 @@
           "durationMs": {
             "type": "integer",
             "format": "int64"
+          },
+          "frames": {
+            "$ref": "#/components/schemas/CompanionFrames",
+            "description": "Whether (and how often) a screenshot of the scene may be fetched."
           },
           "frequency": {
             "$ref": "#/components/schemas/CompanionFrequency"

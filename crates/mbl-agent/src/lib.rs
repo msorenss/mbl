@@ -58,10 +58,27 @@ pub enum Role {
     Tool,
 }
 
+/// A picture sent to the model: base64 data and its media type (e.g. `image/jpeg`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Image {
+    pub media_type: String,
+    pub data: String,
+}
+
+impl Image {
+    /// The image as a `data:` URL (OpenAI-compatible servers take images this way).
+    pub fn data_url(&self) -> String {
+        format!("data:{};base64,{}", self.media_type, self.data)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub role: Role,
     pub content: String,
+    /// Pictures with a user turn or a tool result (for models that can see).
+    #[serde(default)]
+    pub images: Vec<Image>,
     /// Tool calls made in an assistant turn.
     #[serde(default)]
     pub tool_calls: Vec<ToolCall>,
@@ -86,13 +103,26 @@ impl Message {
         Self::plain(Role::Assistant, text)
     }
 
+    /// The same message with pictures attached.
+    pub fn with_images(mut self, images: Vec<Image>) -> Self {
+        self.images = images;
+        self
+    }
+
     /// The result of the tool call `call_id`.
     pub fn tool_result(call_id: impl Into<String>, text: impl Into<String>) -> Self {
         Self { tool_call_id: Some(call_id.into()), ..Self::plain(Role::Tool, text) }
     }
 
     fn plain(role: Role, text: impl Into<String>) -> Self {
-        Self { role, content: text.into(), tool_calls: Vec::new(), tool_call_id: None, raw: None }
+        Self {
+            role,
+            content: text.into(),
+            images: Vec::new(),
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            raw: None,
+        }
     }
 }
 
@@ -153,6 +183,7 @@ impl ChatResponse {
         Message {
             role: Role::Assistant,
             content: self.text.clone(),
+            images: Vec::new(),
             tool_calls: self.tool_calls.clone(),
             tool_call_id: None,
             raw: self.raw.clone(),

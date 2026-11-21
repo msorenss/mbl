@@ -976,6 +976,15 @@ impl PlaybackService {
         Ok(PlaybackDiagnostics { session, transcode })
     }
 
+    /// The person's most recently active playback session, if any.
+    pub fn latest_session_for(&self, user: UserId) -> Option<String> {
+        let map = self.sessions.read().ok()?;
+        map.values()
+            .filter(|s| s.user_id == user)
+            .max_by_key(|s| s.last_updated_at)
+            .map(|s| s.session_id.clone())
+    }
+
     pub fn get_session(&self, actor: &Actor, session_id: &str) -> Option<ActivePlaybackSession> {
         let Ok(map) = self.sessions.read() else {
             return None;

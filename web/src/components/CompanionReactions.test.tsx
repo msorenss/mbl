@@ -169,7 +169,7 @@ it("sends a stored mode to a new session and hides companion comments when off",
   );
   expect(put).toHaveBeenCalledWith("/api/v1/companion/sessions/{id}/mode", {
     params: { path: { id: "s2" } },
-    body: { mode: "off", frequency: "medium" },
+    body: { mode: "off", frequency: "medium", frames: "off" },
   });
   await vi.advanceTimersByTimeAsync(4000);
   expect(document.body.textContent).not.toContain("Fun fact");

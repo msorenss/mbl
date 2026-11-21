@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 mbl-agent.workspace = true
+base64.workspace = true
 tokio-util.workspace = true
 async-trait.workspace = true
 axum.workspace = true

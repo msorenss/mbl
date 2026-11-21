@@ -157,12 +157,30 @@ pub struct ListToolsResult {
 pub struct ContentBlock {
     #[serde(rename = "type")]
     pub kind: String,
+    /// Text of a `text` block.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub text: String,
+    /// Base64 data of an `image` block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
 }
 
 impl ContentBlock {
     pub fn text(text: impl Into<String>) -> Self {
-        Self { kind: "text".into(), text: text.into() }
+        Self { kind: "text".into(), text: text.into(), data: None, mime_type: None }
+    }
+
+    /// An image block from raw bytes.
+    pub fn image(bytes: &[u8], mime_type: &str) -> Self {
+        use base64::Engine as _;
+        Self {
+            kind: "image".into(),
+            text: String::new(),
+            data: Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
+            mime_type: Some(mime_type.to_owned()),
+        }
     }
 }
 

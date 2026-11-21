@@ -128,6 +128,41 @@ pub enum DialogueStatus {
     None,
 }
 
+/// How often a screenshot of the scene may be taken for the AI. Off by default, because the
+/// picture leaves the server for an outside model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub enum CompanionFrames {
+    #[default]
+    #[serde(rename = "off")]
+    Off,
+    #[serde(rename = "30s")]
+    Every30s,
+    #[serde(rename = "1m")]
+    Every1m,
+    #[serde(rename = "5m")]
+    Every5m,
+}
+
+impl CompanionFrames {
+    /// How long one screenshot is reused; `None` when screenshots are off.
+    pub fn interval_ms(self) -> Option<i64> {
+        match self {
+            Self::Off => None,
+            Self::Every30s => Some(30_000),
+            Self::Every1m => Some(60_000),
+            Self::Every5m => Some(300_000),
+        }
+    }
+}
+
+/// A screenshot of a playback session at a position, as JPEG.
+#[derive(Debug, Clone)]
+pub struct CompanionFrame {
+    pub jpeg: Arc<Vec<u8>>,
+    pub position_ms: i64,
+    pub taken_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveSessionContext {
@@ -153,11 +188,44 @@ pub struct LiveSessionContext {
     pub mode: CompanionMode,
     #[serde(default)]
     pub frequency: CompanionFrequency,
+    /// Whether (and how often) a screenshot of the scene may be fetched.
+    #[serde(default)]
+    pub frames: CompanionFrames,
     pub connected_companions: Vec<String>,
 }
 
 fn no_dialogue() -> DialogueStatus {
     DialogueStatus::None
+}
+
+/// One JPEG frame at `position_ms`, scaled to at most [`FRAME_WIDTH`] pixels wide.
+async fn grab_frame(
+    ffmpeg: &std::path::Path,
+    input: &std::path::Path,
+    position_ms: i64,
+) -> Result<Vec<u8>> {
+    let seconds = format!("{:.3}", position_ms.max(0) as f64 / 1000.0);
+    let scale = format!("scale='min({FRAME_WIDTH},iw)':-2");
+    let mut command = tokio::process::Command::new(ffmpeg);
+    command
+        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-ss", &seconds, "-i"])
+        .arg(input)
+        .args(["-map", "0:v:0", "-frames:v", "1", "-vf", &scale, "-q:v", "5"])
+        .args(["-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    let output = tokio::time::timeout(FRAME_TIMEOUT, command.output())
+        .await
+        .map_err(|_| Error::Unavailable("taking the screenshot took too long".into()))?
+        .map_err(Error::internal)?;
+    if !output.status.success()
+        || output.stdout.len() < 100
+        || output.stdout.len() > FRAME_MAX_BYTES
+    {
+        return Err(Error::Unavailable("could not take a screenshot of this video".into()));
+    }
+    Ok(output.stdout)
 }
 
 /// Feed entries kept per playback session so the player can show them.
@@ -184,6 +252,7 @@ struct SessionState {
     companions: Vec<String>,
     mode: CompanionMode,
     frequency: CompanionFrequency,
+    frames: CompanionFrames,
     /// The viewer asked for a comment that no waiting companion has been told about yet.
     comment_requested: bool,
     /// A requested comment was handed out and may be posted even in replies-only mode.
@@ -214,7 +283,18 @@ pub struct CompanionService {
     reactions_tx: broadcast::Sender<CompanionReaction>,
     activity_tx: broadcast::Sender<CompanionActivity>,
     wake: Arc<tokio::sync::Notify>,
+    /// Latest screenshot per session.
+    frames: Arc<Mutex<HashMap<String, CompanionFrame>>>,
+    /// One screenshot is taken at a time, to spare the CPU (a Pi also encodes video).
+    grabbing: Arc<tokio::sync::Semaphore>,
 }
+
+/// Sessions whose latest screenshot is kept.
+const FRAME_SESSIONS: usize = 32;
+/// Width of a screenshot sent to the AI.
+const FRAME_WIDTH: u32 = 768;
+const FRAME_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const FRAME_MAX_BYTES: usize = 2 * 1024 * 1024;
 
 impl CompanionService {
     pub fn new() -> Self {
@@ -228,6 +308,8 @@ impl CompanionService {
             reactions_tx,
             activity_tx,
             wake: Arc::new(tokio::sync::Notify::new()),
+            frames: Arc::new(Mutex::new(HashMap::new())),
+            grabbing: Arc::new(tokio::sync::Semaphore::new(1)),
             playback: None,
             stream: None,
             db: None,
@@ -451,12 +533,16 @@ impl CompanionService {
         session_id: &str,
         mode: CompanionMode,
         frequency: Option<CompanionFrequency>,
+        frames: Option<CompanionFrames>,
     ) -> Result<()> {
         self.require_viewer(actor, session_id)?;
         self.update_state(session_id, |state| {
             state.mode = mode;
             if let Some(frequency) = frequency {
                 state.frequency = frequency;
+            }
+            if let Some(frames) = frames {
+                state.frames = frames;
             }
             if mode == CompanionMode::Off {
                 state.comment_requested = false;
@@ -629,8 +715,63 @@ impl CompanionService {
             dialogue_language: None,
             mode: state.mode,
             frequency: state.frequency,
+            frames: state.frames,
             connected_companions: state.companions,
         })
+    }
+
+    /// A screenshot of the scene at the viewer's position, for an AI. Only when the viewer has
+    /// turned screenshots on; one picture is reused for the chosen interval, never one from
+    /// later than the position. Fails with `Conflict` when screenshots are off and
+    /// `Unavailable` when another screenshot is being taken and there is none to reuse.
+    pub async fn frame(&self, actor: &Actor, session_id: &str) -> Result<CompanionFrame> {
+        let context = self.get_live_context(actor, session_id)?;
+        let Some(interval) = context.frames.interval_ms() else {
+            return Err(Error::Conflict(
+                "screenshots are off for this session; the viewer can turn them on in the \
+                 player chat"
+                    .into(),
+            ));
+        };
+        let position = context.position_ms;
+        let reusable = |f: &CompanionFrame| {
+            f.position_ms <= position
+                && position - f.position_ms < interval
+                && now_ms() - f.taken_at < interval
+        };
+        let cached = self.frames.lock().ok().and_then(|f| f.get(session_id).cloned());
+        if let Some(frame) = cached.as_ref().filter(|f| reusable(f)) {
+            return Ok(frame.clone());
+        }
+        let Ok(_permit) = self.grabbing.clone().try_acquire_owned() else {
+            return cached.filter(|f| f.position_ms <= position).ok_or_else(|| {
+                Error::Unavailable("a screenshot is being taken; ask again shortly".into())
+            });
+        };
+        let session = self
+            .playback
+            .as_ref()
+            .and_then(|p| p.get_session(actor, session_id))
+            .ok_or(Error::NotFound)?;
+        let stream = self.stream.as_ref().ok_or_else(|| {
+            Error::Unavailable("screenshots are not available on this server".into())
+        })?;
+        let part = stream.resolve_part(actor, session.part_id).await?;
+        let input = stream.media_input(&part.path).await?;
+        let jpeg = grab_frame(stream.ffmpeg_bin(), &input, position).await?;
+        let frame =
+            CompanionFrame { jpeg: Arc::new(jpeg), position_ms: position, taken_at: now_ms() };
+        if let Ok(mut frames) = self.frames.lock() {
+            if frames.len() >= FRAME_SESSIONS && !frames.contains_key(session_id) {
+                let oldest =
+                    frames.iter().min_by_key(|(_, f)| f.taken_at).map(|(id, _)| id.clone());
+                if let Some(id) = oldest {
+                    frames.remove(&id);
+                }
+            }
+            frames.insert(session_id.to_owned(), frame.clone());
+        }
+        Ok(frame)
     }
 
     #[allow(clippy::too_many_arguments)]

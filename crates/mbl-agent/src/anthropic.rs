@@ -50,6 +50,11 @@ pub fn headers(config: &ProviderConfig) -> HeaderMap {
 /// Content blocks for one message.
 fn blocks(m: &Message) -> Vec<Value> {
     match m.role {
+        Role::Tool if !m.images.is_empty() => vec![json!({
+            "type": "tool_result",
+            "tool_use_id": m.tool_call_id.clone().unwrap_or_default(),
+            "content": with_images(&m.content, &m.images),
+        })],
         Role::Tool => vec![json!({
             "type": "tool_result",
             "tool_use_id": m.tool_call_id.clone().unwrap_or_default(),
@@ -73,8 +78,24 @@ fn blocks(m: &Message) -> Vec<Value> {
             }
             out
         }
-        Role::User | Role::System => vec![json!({ "type": "text", "text": m.content })],
+        Role::User => with_images(&m.content, &m.images),
+        Role::System => vec![json!({ "type": "text", "text": m.content })],
     }
+}
+
+/// Image blocks followed by the text (the order Anthropic recommends).
+fn with_images(text: &str, images: &[crate::Image]) -> Vec<Value> {
+    let mut out: Vec<Value> = images
+        .iter()
+        .map(|i| {
+            json!({
+                "type": "image",
+                "source": { "type": "base64", "media_type": i.media_type, "data": i.data },
+            })
+        })
+        .collect();
+    out.push(json!({ "type": "text", "text": text }));
+    out
 }
 
 pub fn body(config: &ProviderConfig, request: &ChatRequest, stream: bool) -> Value {
@@ -324,6 +345,30 @@ mod tests {
             model: model.into(),
             effort: Some("low".into()),
         }
+    }
+
+    #[test]
+    fn images_go_into_user_turns_and_tool_results() {
+        let image = crate::Image { media_type: "image/jpeg".into(), data: "QUJD".into() };
+        let call = crate::ToolCall { id: "t1".into(), name: "frame".into(), arguments: json!({}) };
+        let request = ChatRequest {
+            messages: vec![
+                Message::user("look").with_images(vec![image.clone()]),
+                Message { tool_calls: vec![call], ..Message::assistant("") },
+                Message::tool_result("t1", "frame").with_images(vec![image]),
+            ],
+            max_tokens: 100,
+            ..Default::default()
+        };
+        let b = body(&config("claude-opus-5-5"), &request, false);
+        let m = &b["messages"];
+        assert_eq!(m[0]["content"][0]["type"], "image");
+        assert_eq!(m[0]["content"][0]["source"]["data"], "QUJD");
+        assert_eq!(m[0]["content"][1], json!({"type": "text", "text": "look"}));
+        let result = &m[2]["content"][0];
+        assert_eq!(result["type"], "tool_result");
+        assert_eq!(result["content"][0]["type"], "image");
+        assert_eq!(result["content"][1]["text"], "frame");
     }
 
     #[test]

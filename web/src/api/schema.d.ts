@@ -533,6 +533,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion/sessions/{id}/frame": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A screenshot of the scene at the viewer's position (JPEG, at most 768 px wide), for an AI.
+         *     Only when the viewer has turned screenshots on; never from later than the position.
+         */
+        get: operations["companion_frame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/companion/sessions/{id}/join": {
         parameters: {
             query?: never;
@@ -3840,6 +3860,12 @@ export interface components {
             reactions: components["schemas"]["CompanionReaction"][];
         };
         /**
+         * @description How often a screenshot of the scene may be taken for the AI. Off by default, because the
+         *     picture leaves the server for an outside model.
+         * @enum {string}
+         */
+        CompanionFrames: "off" | "30s" | "1m" | "5m";
+        /**
          * @description How often companions comment on their own while the viewer allows comments.
          * @enum {string}
          */
@@ -3850,6 +3876,7 @@ export interface components {
          */
         CompanionMode: "on" | "replies" | "off";
         CompanionModeRequest: {
+            frames?: components["schemas"]["CompanionFrames"] | null;
             frequency?: components["schemas"]["CompanionFrequency"] | null;
             mode: components["schemas"]["CompanionMode"];
         };
@@ -4573,6 +4600,8 @@ export interface components {
             dialogueStreamIndex?: number | null;
             /** Format: int64 */
             durationMs: number;
+            /** @description Whether (and how often) a screenshot of the scene may be fetched. */
+            frames?: components["schemas"]["CompanionFrames"];
             frequency?: components["schemas"]["CompanionFrequency"];
             itemId: components["schemas"]["ItemId"];
             mode?: components["schemas"]["CompanionMode"];
@@ -7756,6 +7785,50 @@ export interface operations {
             };
             /** @description Session not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    companion_frame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Screenshot; X-Mbl-Frame-Position gives its position in ms */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Screenshots are off for this session */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Another screenshot is being taken, or the video cannot be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

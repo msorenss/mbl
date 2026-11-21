@@ -5,8 +5,8 @@ use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use mbl_service::{
-    CompanionFeed, CompanionFrequency, CompanionMode, CompanionReaction, CompanionWake,
-    LiveSessionContext,
+    CompanionFeed, CompanionFrames, CompanionFrequency, CompanionMode, CompanionReaction,
+    CompanionWake, LiveSessionContext,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -40,6 +40,9 @@ pub struct CompanionModeRequest {
     /// How often companions comment on their own; unchanged when left out.
     #[serde(default)]
     pub frequency: Option<CompanionFrequency>,
+    /// Whether and how often a screenshot may go to the AI; unchanged when left out.
+    #[serde(default)]
+    pub frames: Option<CompanionFrames>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -59,6 +62,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/companion/sessions/{id}/messages", post(post_viewer_message))
         .route("/api/v1/companion/sessions/{id}/nudge", post(request_companion_comment))
         .route("/api/v1/companion/sessions/{id}/wait", get(wait_for_companion_events))
+        .route("/api/v1/companion/sessions/{id}/frame", get(companion_frame))
 }
 
 #[utoipa::path(
@@ -188,7 +192,7 @@ async fn set_companion_mode(
     Path(id): Path<String>,
     Json(body): Json<CompanionModeRequest>,
 ) -> Result<StatusCode, ApiError> {
-    state.services.companion.set_mode(&auth.actor, &id, body.mode, body.frequency)?;
+    state.services.companion.set_mode(&auth.actor, &id, body.mode, body.frequency, body.frames)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -283,4 +287,40 @@ async fn wait_for_companion_events(
             )
             .await?,
     ))
+}
+
+/// A screenshot of the scene at the viewer's position (JPEG, at most 768 px wide), for an AI.
+/// Only when the viewer has turned screenshots on; never from later than the position.
+#[utoipa::path(
+    get,
+    path = "/api/v1/companion/sessions/{id}/frame",
+    params(("id" = String, Path, description = "Live playback session ID")),
+    responses(
+        (status = 200, description = "Screenshot; X-Mbl-Frame-Position gives its position in ms", content_type = "image/jpeg"),
+        (status = 404, description = "Session not found"),
+        (status = 409, description = "Screenshots are off for this session"),
+        (status = 503, description = "Another screenshot is being taken, or the video cannot be read")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn companion_frame(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+    let frame = state.services.companion.frame(&auth.actor, &id).await?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "image/jpeg".to_owned()),
+            (header::CACHE_CONTROL, "private, no-store".to_owned()),
+            (
+                header::HeaderName::from_static("x-mbl-frame-position"),
+                frame.position_ms.to_string(),
+            ),
+        ],
+        frame.jpeg.as_ref().clone(),
+    )
+        .into_response())
 }

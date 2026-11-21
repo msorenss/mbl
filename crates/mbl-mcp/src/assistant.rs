@@ -38,6 +38,7 @@ impl Surface {
         match self {
             Self::Companion => Some(&[
                 "explain_scene",
+                "get_companion_frame",
                 "get_item",
                 "get_children",
                 "search_media",
@@ -68,10 +69,13 @@ const COMPANION_RULES: &str = "You are watching together with the person. Keep e
 short: one to three sentences, like a friend on the sofa. Never reveal anything that happens \
 after their current position in this title or in later episodes, even if a tool or the \
 person asks; say that you will not spoil it. Base comments on the dialogue and context so far. \
+When the person asks what is on screen and screenshots are on, look with get_companion_frame. \
 You can only read.";
 
 const CHAT_RULES: &str = "Help the person find something to watch, answer questions about \
-their library and server, and do what they ask with your tools. When you recommend titles, \
+their library and server, and do what they ask with your tools. To see what is on their screen \
+while they watch, use get_companion_frame (it works only when they turned screenshots on in the \
+player chat). When you recommend titles, \
 prefer ones in the library and say when something is not there. Keep answers brief and use \
 short lists. Your tools are exactly what you may do for this person; if something needs a tool \
 you do not have, say that you are not allowed to do it. Reading is always fine. Before \
@@ -413,13 +417,13 @@ impl AssistantRunner {
                     messages.push(Message::tool_result(call.id.clone(), text));
                     continue;
                 }
-                let (text, ok, data) =
+                let (text, ok, data, images) =
                     self.call_tool(&caller, &allowed, &call.name, &call.arguments).await;
                 if let Some(data) = &data {
                     collect_items(data, &mut seen);
                 }
                 reply.tools.push(ToolUse { name: call.name.clone(), ok });
-                messages.push(Message::tool_result(call.id.clone(), text));
+                messages.push(Message::tool_result(call.id.clone(), text).with_images(images));
             }
         }
         reply.items = mentioned(&reply.text, &seen);
@@ -473,7 +477,7 @@ impl AssistantRunner {
         allowed: &[String],
         name: &str,
         arguments: &Value,
-    ) -> (String, bool, Option<Value>) {
+    ) -> (String, bool, Option<Value>, Vec<mbl_agent::Image>) {
         let started = Instant::now();
         let outcome = if !allowed.iter().any(|a| a == name) {
             Err(format!("The tool '{name}' is not available here."))
@@ -497,11 +501,28 @@ impl AssistantRunner {
                         None => result
                             .content
                             .iter()
+                            .filter(|c| c.kind == "text")
                             .map(|c| c.text.as_str())
                             .collect::<Vec<_>>()
                             .join("\n"),
                     };
-                    if result.is_error { Err(text) } else { Ok((text, result.structured_content)) }
+                    // Pictures (a screenshot of the scene) go to the model as images.
+                    let images = result
+                        .content
+                        .iter()
+                        .filter(|c| c.kind == "image")
+                        .filter_map(|c| {
+                            Some(mbl_agent::Image {
+                                media_type: c.mime_type.clone()?,
+                                data: c.data.clone()?,
+                            })
+                        })
+                        .collect();
+                    if result.is_error {
+                        Err(text)
+                    } else {
+                        Ok((text, result.structured_content, images))
+                    }
                 }
                 Err(e) => Err(e.message),
             }
@@ -514,8 +535,8 @@ impl AssistantRunner {
         let _ =
             record_tool_call(&self.db, caller, name, arguments, status, error, duration_ms).await;
         match outcome {
-            Ok((text, data)) => (truncate(text), true, data),
-            Err(e) => (format!("Error: {e}"), false, None),
+            Ok((text, data, images)) => (truncate(text), true, data, images),
+            Err(e) => (format!("Error: {e}"), false, None, Vec::new()),
         }
     }
 }

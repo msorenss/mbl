@@ -24,6 +24,9 @@ pub fn headers(config: &ProviderConfig) -> HeaderMap {
 fn message(m: &Message) -> Value {
     match m.role {
         Role::System => json!({ "role": "system", "content": m.content }),
+        Role::User if !m.images.is_empty() => {
+            json!({ "role": "user", "content": parts(&m.content, &m.images) })
+        }
         Role::User => json!({ "role": "user", "content": m.content }),
         Role::Tool => json!({
             "role": "tool",
@@ -60,10 +63,46 @@ fn message(m: &Message) -> Value {
     }
 }
 
+/// Text followed by images, as content parts.
+fn parts(text: &str, images: &[crate::Image]) -> Vec<Value> {
+    let mut out = vec![json!({ "type": "text", "text": text })];
+    out.extend(
+        images.iter().map(|i| json!({ "type": "image_url", "image_url": { "url": i.data_url() } })),
+    );
+    out
+}
+
+/// Messages in protocol order. Tool results cannot carry images here, so images from a run of
+/// tool results follow in one user message after the run.
+fn messages(list: &[Message]) -> Vec<Value> {
+    let mut out = Vec::new();
+    let mut pending: Vec<crate::Image> = Vec::new();
+    for m in list {
+        if m.role != Role::Tool && !pending.is_empty() {
+            out.push(json!({
+                "role": "user",
+                "content": parts("Pictures from the tool results above.", &pending),
+            }));
+            pending.clear();
+        }
+        out.push(message(m));
+        if m.role == Role::Tool {
+            pending.extend(m.images.iter().cloned());
+        }
+    }
+    if !pending.is_empty() {
+        out.push(json!({
+            "role": "user",
+            "content": parts("Pictures from the tool results above.", &pending),
+        }));
+    }
+    out
+}
+
 pub fn body(config: &ProviderConfig, request: &ChatRequest, stream: bool) -> Value {
     let mut body = json!({
         "model": config.model,
-        "messages": request.messages.iter().map(message).collect::<Vec<_>>(),
+        "messages": messages(&request.messages),
     });
     // OpenAI's own API wants the newer field name; other servers know `max_tokens`.
     let limit_field = if config.base_url.contains("api.openai.com") {
@@ -253,6 +292,28 @@ mod tests {
             model: "m".into(),
             effort: None,
         }
+    }
+
+    #[test]
+    fn images_go_with_the_user_turn_or_after_the_tool_results() {
+        let image = crate::Image { media_type: "image/jpeg".into(), data: "QUJD".into() };
+        let call = ToolCall { id: "c1".into(), name: "frame".into(), arguments: json!({}) };
+        let request = ChatRequest {
+            messages: vec![
+                Message::user("look").with_images(vec![image.clone()]),
+                Message { tool_calls: vec![call], ..Message::assistant("") },
+                Message::tool_result("c1", "frame at 12 s").with_images(vec![image]),
+            ],
+            ..Default::default()
+        };
+        let b = body(&config("http://x"), &request, false);
+        let m = &b["messages"];
+        assert_eq!(m[0]["content"][0], json!({"type": "text", "text": "look"}));
+        assert_eq!(m[0]["content"][1]["image_url"]["url"], "data:image/jpeg;base64,QUJD");
+        assert_eq!(m[2]["content"], "frame at 12 s", "tool results stay text");
+        assert_eq!(m[3]["role"], "user");
+        assert_eq!(m[3]["content"][1]["type"], "image_url");
+        assert_eq!(m.as_array().unwrap().len(), 4);
     }
 
     #[test]

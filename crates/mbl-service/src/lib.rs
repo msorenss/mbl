@@ -55,9 +55,9 @@ pub use collections::{
     PlaylistService, UpdateCollectionRequest, UpdatePlaylistRequest,
 };
 pub use companion::{
-    COMPANION_WAIT_MAX_MS, CommentReason, CompanionActivity, CompanionFeed, CompanionFrequency,
-    CompanionMode, CompanionReaction, CompanionService, CompanionWake, DialogueLine,
-    DialogueStatus, LiveSessionContext,
+    COMPANION_WAIT_MAX_MS, CommentReason, CompanionActivity, CompanionFeed, CompanionFrame,
+    CompanionFrames, CompanionFrequency, CompanionMode, CompanionReaction, CompanionService,
+    CompanionWake, DialogueLine, DialogueStatus, LiveSessionContext,
 };
 pub use downloads::{
     CreateDownloadRequest, DownloadDto, DownloadFile, DownloadJobHandler, DownloadQuality,
