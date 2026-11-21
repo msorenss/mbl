@@ -32,6 +32,8 @@ impl EventService {
             Event::PlaybackStarted { user_id, .. } | Event::PlaybackStopped { user_id, .. } => {
                 actor.is_admin || actor.user_id == *user_id
             }
+            Event::MovieNightScheduled { user_ids, .. }
+            | Event::MovieNightDecided { user_ids, .. } => user_ids.contains(&actor.user_id),
             Event::ItemUpdated { item_id } => {
                 if actor.library_access == LibraryAccess::All {
                     return true;

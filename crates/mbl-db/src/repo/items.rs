@@ -14,6 +14,14 @@ use utoipa::ToSchema;
 use crate::Db;
 
 /// Filter shared collection/playlist membership through the same ACL and rating policy as browse.
+/// An item's title, without access checks (for notifications about an item already chosen).
+pub async fn title_of(db: &Db, id: ItemId) -> Result<Option<String>> {
+    Ok(sqlx::query_scalar("SELECT title FROM media_items WHERE id = ?")
+        .bind(id.0)
+        .fetch_optional(&db.read)
+        .await?)
+}
+
 pub async fn visible_ids(db: &Db, actor: &Actor, ids: &[ItemId]) -> Result<Vec<ItemId>> {
     if ids.is_empty() {
         return Ok(Vec::new());

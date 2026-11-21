@@ -27,7 +27,9 @@ async fn events(
     AuthUser(auth): AuthUser,
     ws: WebSocketUpgrade,
 ) -> Response {
-    ws.on_upgrade(move |socket| forward(state, auth.actor, socket))
+    // Answer the subprotocol a browser offers with its token, or the browser drops the socket.
+    ws.protocols([crate::extract::WEBSOCKET_PROTOCOL])
+        .on_upgrade(move |socket| forward(state, auth.actor, socket))
 }
 
 async fn forward(state: AppState, actor: Actor, mut socket: WebSocket) {

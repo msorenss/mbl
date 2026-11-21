@@ -779,39 +779,50 @@ pub struct MatchmakerSessionRow {
     /// People who have joined, including the creator and guests.
     #[serde(default)]
     pub member_count: i64,
+    /// Planned start: voting closes then and the most liked title wins.
+    #[serde(default)]
+    pub starts_at: Option<i64>,
 }
 
+/// Create a session with its creator and any invited users as members.
 pub async fn create_matchmaker_session(
     db: &Db,
     id: &str,
     created_by: UserId,
     filter_config: &str,
+    starts_at: Option<i64>,
+    invited: &[UserId],
 ) -> Result<()> {
     let now = now_ms();
     let mut tx = db.write.begin().await?;
     sqlx::query(
-        "INSERT INTO matchmaker_sessions (id, created_by, filter_config, status, created_at) VALUES (?, ?, ?, 'active', ?)",
+        "INSERT INTO matchmaker_sessions (id, created_by, filter_config, status, created_at, starts_at) VALUES (?, ?, ?, 'active', ?, ?)",
     )
     .bind(id)
     .bind(created_by.0)
     .bind(filter_config)
     .bind(now)
+    .bind(starts_at)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query("INSERT INTO matchmaker_members (session_id, user_id, joined_at) VALUES (?, ?, ?)")
+    for user in std::iter::once(created_by).chain(invited.iter().copied()) {
+        sqlx::query(
+            "INSERT OR IGNORE INTO matchmaker_members (session_id, user_id, joined_at) VALUES (?, ?, ?)",
+        )
         .bind(id)
-        .bind(created_by.0)
+        .bind(user.0)
         .bind(now)
         .execute(&mut *tx)
         .await?;
+    }
     tx.commit().await?;
     Ok(())
 }
 
 pub async fn get_matchmaker_session(db: &Db, id: &str) -> Result<Option<MatchmakerSessionRow>> {
     let row = sqlx::query(
-        "SELECT id, created_by, filter_config, status, matched_item_id, created_at, \
+        "SELECT id, created_by, filter_config, status, matched_item_id, created_at, starts_at, \
          (SELECT COUNT(*) FROM matchmaker_members m WHERE m.session_id = s.id) \
          + (SELECT COUNT(*) FROM matchmaker_guests g WHERE g.session_id = s.id) AS member_count \
          FROM matchmaker_sessions s WHERE id = ?",
@@ -828,6 +839,7 @@ pub async fn get_matchmaker_session(db: &Db, id: &str) -> Result<Option<Matchmak
         matched_item_id: r.get::<Option<i64>, _>("matched_item_id").map(ItemId),
         created_at: r.get("created_at"),
         member_count: r.get("member_count"),
+        starts_at: r.get("starts_at"),
     }))
 }
 
@@ -939,8 +951,16 @@ pub async fn get_subsonic_credentials(
 /// Joining requires the unguessable session link and an active authenticated identity.
 pub async fn join_matchmaker(db: &Db, id: &str, user: UserId) -> Result<()> {
     let mut tx = db.write.begin().await?;
-    let active: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM matchmaker_sessions WHERE id = ? AND status = 'active' AND created_at > ?)")
-        .bind(id).bind(now_ms() - 86_400_000).fetch_one(&mut *tx).await?;
+    let now = now_ms();
+    // Open: active, and planned for later or started without a time less than a day ago.
+    let active: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM matchmaker_sessions WHERE id = ? AND status = 'active' AND ((starts_at IS NULL AND created_at > ?) OR starts_at > ?))",
+    )
+    .bind(id)
+    .bind(now - 86_400_000)
+    .bind(now)
+    .fetch_one(&mut *tx)
+    .await?;
     if !active {
         return Err(Error::NotFound);
     }
@@ -977,6 +997,63 @@ pub async fn matchmaker_member_count(db: &Db, id: &str) -> Result<usize> {
     let count: i64 =
         sqlx::query_scalar(PEOPLE_IN_SESSION).bind(id).bind(id).fetch_one(&db.read).await?;
     Ok(count as usize)
+}
+
+/// Planned sessions whose time has come and that have not been decided yet.
+pub async fn due_matchmaker_sessions(db: &Db, now: i64) -> Result<Vec<String>> {
+    Ok(sqlx::query_scalar(
+        "SELECT id FROM matchmaker_sessions WHERE status = 'active' AND starts_at IS NOT NULL AND starts_at <= ? LIMIT 100",
+    )
+    .bind(now)
+    .fetch_all(&db.read)
+    .await?)
+}
+
+/// Close voting on a planned session whose time has come: the title with the most likes wins
+/// (the first one liked on a tie), or nothing when no one liked anything. Returns `None` when the
+/// session was not due (or already decided), otherwise the winner.
+pub async fn decide_matchmaker_session(
+    db: &Db,
+    id: &str,
+    now: i64,
+) -> Result<Option<Option<ItemId>>> {
+    let mut tx = db.write.begin().await?;
+    let due: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM matchmaker_sessions WHERE id = ? AND status = 'active' AND starts_at IS NOT NULL AND starts_at <= ?)",
+    )
+    .bind(id)
+    .bind(now)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !due {
+        return Ok(None);
+    }
+    let winner: Option<i64> = sqlx::query_scalar(
+        "SELECT item_id FROM matchmaker_votes WHERE session_id = ? AND vote = 1 \
+         GROUP BY item_id ORDER BY COUNT(DISTINCT user_name) DESC, MIN(rowid) LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    sqlx::query("UPDATE matchmaker_sessions SET status = ?, matched_item_id = ? WHERE id = ?")
+        .bind(if winner.is_some() { "matched" } else { "closed" })
+        .bind(winner)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Some(winner.map(ItemId)))
+}
+
+/// Account members of a session (not guests).
+pub async fn matchmaker_member_ids(db: &Db, id: &str) -> Result<Vec<UserId>> {
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT user_id FROM matchmaker_members WHERE session_id = ? ORDER BY user_id",
+    )
+    .bind(id)
+    .fetch_all(&db.read)
+    .await?;
+    Ok(ids.into_iter().map(UserId).collect())
 }
 
 /// The session's guest link code, if guests are allowed.
@@ -1030,11 +1107,14 @@ pub async fn join_matchmaker_guest(
     token_hash: &[u8],
 ) -> Result<MatchmakerGuest> {
     let mut tx = db.write.begin().await?;
+    let now = now_ms();
+    // Same open window as joining with an account.
     let session: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM matchmaker_sessions WHERE guest_code = ? AND status = 'active' AND created_at > ?",
+        "SELECT id FROM matchmaker_sessions WHERE guest_code = ? AND status = 'active' AND ((starts_at IS NULL AND created_at > ?) OR starts_at > ?)",
     )
     .bind(code)
-    .bind(now_ms() - 86_400_000)
+    .bind(now - 86_400_000)
+    .bind(now)
     .fetch_optional(&mut *tx)
     .await?;
     let Some(session_id) = session else { return Err(Error::NotFound) };

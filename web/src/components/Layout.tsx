@@ -52,6 +52,7 @@ interface NavItemDef {
 const AssistantChat = lazy(() => import("./AssistantChat"));
 // Only loaded when someone edits the menu.
 const NavEditor = lazy(() => import("./NavEditor"));
+const MovieNightNotices = lazy(() => import("./MovieNightNotices"));
 
 export function Layout(props: { children?: JSX.Element }) {
   const { user, logout } = useAuth();
@@ -817,6 +818,7 @@ export function Layout(props: { children?: JSX.Element }) {
 
             <Suspense>
               <AssistantChat />
+              <MovieNightNotices />
             </Suspense>
 
             <button

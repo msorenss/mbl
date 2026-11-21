@@ -1,6 +1,8 @@
 //! Movie Night Matchmaker ("Swipe to Match") service (M7.19).
 
-use mbl_core::{Actor, ArtworkId, Error, ItemId, LibraryId, Result};
+use mbl_core::events::{Event, EventBus};
+use mbl_core::time::now_ms;
+use mbl_core::{Actor, ArtworkId, Error, ItemId, LibraryId, Result, UserId};
 use mbl_db::Db;
 use mbl_db::repo::m7;
 pub use mbl_db::repo::m7::MatchmakerSessionRow;
@@ -12,7 +14,17 @@ use utoipa::ToSchema;
 #[serde(rename_all = "camelCase")]
 pub struct CreateMatchmakerSessionRequest {
     pub filter_config: Option<String>,
+    /// Planned start (Unix ms). Voting closes then and the most liked title wins. Up to 14 days
+    /// ahead.
+    #[serde(default)]
+    pub starts_at: Option<i64>,
+    /// Other users to invite; they become members right away and are notified.
+    #[serde(default)]
+    pub invite_user_ids: Vec<UserId>,
 }
+
+/// How far ahead a movie night can be planned.
+const MAX_PLAN_AHEAD_MS: i64 = 14 * 86_400_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +81,10 @@ pub struct MatchmakerGuestView {
     pub seed: String,
     pub name: String,
     pub member_count: i64,
+    /// `active`, `matched` or `closed` (planned time passed and no one liked anything).
+    pub status: String,
+    /// Planned start, when voting closes.
+    pub starts_at: Option<i64>,
     pub matched: Option<MatchmakerGuestTitle>,
     pub titles: Vec<MatchmakerGuestTitle>,
 }
@@ -98,11 +114,18 @@ struct GuestContext {
 #[derive(Debug, Clone)]
 pub struct MatchmakerService {
     db: Arc<Db>,
+    events: EventBus,
 }
 
 impl MatchmakerService {
     pub fn new(db: Arc<Db>) -> Self {
-        Self { db }
+        Self { db, events: EventBus::default() }
+    }
+
+    /// Publish movie night notifications on the server's event bus.
+    pub fn with_events(mut self, events: EventBus) -> Self {
+        self.events = events;
+        self
     }
 
     pub async fn create_session(
@@ -119,8 +142,79 @@ impl MatchmakerService {
             return Err(Error::Validation("filterConfig must be JSON up to 4096 bytes".into()));
         }
 
-        m7::create_matchmaker_session(&self.db, &session_id, user_id, &filter_config).await?;
+        let now = now_ms();
+        if let Some(at) = req.starts_at
+            && (at < now + 60_000 || at > now + MAX_PLAN_AHEAD_MS)
+        {
+            return Err(Error::Validation(
+                "Choose a time at least a minute from now and at most 14 days ahead".into(),
+            ));
+        }
+        let mut invited: Vec<UserId> =
+            req.invite_user_ids.into_iter().filter(|id| *id != user_id).collect();
+        invited.sort_by_key(|id| id.0);
+        invited.dedup();
+        if invited.len() > 15 {
+            return Err(Error::Validation("Invite at most 15 people".into()));
+        }
+        let users = mbl_db::repo::users::UsersRepo::new((*self.db).clone());
+        for id in &invited {
+            if users.get(*id).await?.is_none() {
+                return Err(Error::Validation(format!("There is no user {}", id.0)));
+            }
+        }
+
+        m7::create_matchmaker_session(
+            &self.db,
+            &session_id,
+            user_id,
+            &filter_config,
+            req.starts_at,
+            &invited,
+        )
+        .await?;
+        if let Some(starts_at) = req.starts_at {
+            let host = users.get(user_id).await?.map(|u| u.display_name).unwrap_or_default();
+            self.events.publish(Event::MovieNightScheduled {
+                session_id: session_id.clone(),
+                starts_at,
+                host_id: user_id,
+                host,
+                user_ids: m7::matchmaker_member_ids(&self.db, &session_id).await?,
+            });
+        }
         m7::get_matchmaker_session(&self.db, &session_id).await?.ok_or(Error::NotFound)
+    }
+
+    /// Close voting on every planned movie night whose time has come (run periodically).
+    pub async fn decide_due(&self) -> Result<usize> {
+        let due = m7::due_matchmaker_sessions(&self.db, now_ms()).await?;
+        let mut decided = 0;
+        for id in due {
+            if self.decide(&id).await? {
+                decided += 1;
+            }
+        }
+        Ok(decided)
+    }
+
+    /// Close voting on one session if its time has come, and tell its members.
+    async fn decide(&self, id: &str) -> Result<bool> {
+        let Some(winner) = m7::decide_matchmaker_session(&self.db, id, now_ms()).await? else {
+            return Ok(false);
+        };
+        let title = match winner {
+            Some(item) => mbl_db::repo::items::title_of(&self.db, item).await?,
+            None => None,
+        };
+        tracing::info!(picked = winner.is_some(), "movie night voting closed");
+        self.events.publish(Event::MovieNightDecided {
+            session_id: id.to_owned(),
+            item_id: winner,
+            title,
+            user_ids: m7::matchmaker_member_ids(&self.db, id).await?,
+        });
+        Ok(true)
     }
 
     pub async fn get_session(
@@ -131,6 +225,7 @@ impl MatchmakerService {
         if !m7::is_matchmaker_member(&self.db, id, actor.user_id).await? {
             return Err(Error::NotFound);
         }
+        self.decide(id).await?;
         let session = m7::get_matchmaker_session(&self.db, id).await?;
         if let Some(item) = session.as_ref().and_then(|s| s.matched_item_id) {
             crate::ItemService::new((*self.db).clone()).get(actor, item).await?;
@@ -188,6 +283,18 @@ impl MatchmakerService {
         let token = mbl_auth::new_token()?;
         let guest = m7::join_matchmaker_guest(&self.db, code, &name, &token.hash).await?;
         Ok(MatchmakerGuestJoined { token: token.value, name: guest.name })
+    }
+
+    /// The result of a session that no longer takes votes.
+    fn finished(session: &MatchmakerSessionRow) -> Result<Option<MatchmakerMatchResult>> {
+        match session.status.as_str() {
+            "matched" => Ok(Some(MatchmakerMatchResult {
+                matched: true,
+                matched_item_id: session.matched_item_id,
+            })),
+            "closed" => Err(Error::Conflict("voting has closed".into())),
+            _ => Ok(None),
+        }
     }
 
     async fn guest(&self, token: &str) -> Result<GuestContext> {
@@ -255,6 +362,8 @@ impl MatchmakerService {
             seed: session.id,
             name: guest.name,
             member_count: session.member_count,
+            status: session.status,
+            starts_at: session.starts_at,
             matched,
             titles,
         })
@@ -269,11 +378,8 @@ impl MatchmakerService {
         if req.vote != 0 && req.vote != 1 {
             return Err(Error::Validation("vote must be 0 or 1".into()));
         }
-        if session.status == "matched" {
-            return Ok(MatchmakerMatchResult {
-                matched: true,
-                matched_item_id: session.matched_item_id,
-            });
+        if let Some(result) = Self::finished(&session)? {
+            return Ok(result);
         }
         let item = crate::ItemService::new((*self.db).clone()).get(&host, req.item_id).await?;
         if Some(item.library_id) != session_library(&session) {
@@ -313,11 +419,8 @@ impl MatchmakerService {
         crate::ItemService::new((*self.db).clone()).get(actor, req.item_id).await?;
         let required_participants = m7::matchmaker_member_count(&self.db, session_id).await?.max(2);
 
-        if session.status == "matched" {
-            return Ok(MatchmakerMatchResult {
-                matched: true,
-                matched_item_id: session.matched_item_id,
-            });
+        if let Some(result) = Self::finished(&session)? {
+            return Ok(result);
         }
 
         m7::record_matchmaker_vote(

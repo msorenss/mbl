@@ -11086,6 +11086,21 @@
               "string",
               "null"
             ]
+          },
+          "inviteUserIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserId"
+            },
+            "description": "Other users to invite; they become members right away and are notified."
+          },
+          "startsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Planned start (Unix ms). Voting closes then and the most liked title wins. Up to 14 days\nahead."
           }
         }
       },
@@ -13728,6 +13743,7 @@
           "seed",
           "name",
           "memberCount",
+          "status",
           "titles"
         ],
         "properties": {
@@ -13751,6 +13767,18 @@
           "seed": {
             "type": "string",
             "description": "Seed for the shared shuffle, the same for everyone in the movie night."
+          },
+          "startsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Planned start, when voting closes."
+          },
+          "status": {
+            "type": "string",
+            "description": "`active`, `matched` or `closed` (planned time passed and no one liked anything)."
           },
           "titles": {
             "type": "array",
@@ -13835,6 +13863,14 @@
             "type": "integer",
             "format": "int64",
             "description": "People who have joined, including the creator and guests."
+          },
+          "startsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Planned start: voting closes then and the most liked title wins."
           },
           "status": {
             "type": "string"

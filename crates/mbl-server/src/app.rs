@@ -299,6 +299,8 @@ impl Server {
             stop.clone(),
         ));
 
+        let movie_nights = tokio::spawn(close_movie_nights(self.services.clone(), stop.clone()));
+
         let companion = tokio::spawn(mbl_mcp::companion_bot::run(
             mbl_mcp::assistant::AssistantRunner::new(self.db.clone(), self.services.clone())
                 .with_jobs(job_queue)
@@ -351,6 +353,7 @@ impl Server {
         let _ = webhooks.await;
         let _ = ssdp.await;
         let _ = companion.await;
+        let _ = movie_nights.await;
         if let Some(mdns) = mdns {
             let _ = mdns.await;
         }
@@ -421,6 +424,25 @@ fn local_mcp_url(bind: &str, port: u16) -> String {
         b => b.to_owned(),
     };
     format!("http://{host}:{port}/mcp")
+}
+
+/// Close voting on planned movie nights when their time comes, so members are told even when
+/// no one has the page open.
+async fn close_movie_nights(
+    services: mbl_service::Services,
+    stop: tokio_util::sync::CancellationToken,
+) {
+    let mut tick = tokio::time::interval(Duration::from_secs(20));
+    loop {
+        tokio::select! {
+            () = stop.cancelled() => return,
+            _ = tick.tick() => {
+                if let Err(e) = services.matchmaker.decide_due().await {
+                    tracing::warn!(failure = e.code(), "closing planned movie nights failed");
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

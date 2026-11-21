@@ -3,6 +3,7 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { Button } from "../components/ui";
+import { formatPlannedTime } from "../utils/plannedTime";
 import { seededShuffle } from "../utils/seededShuffle";
 
 type View = components["schemas"]["MatchmakerGuestView"];
@@ -69,7 +70,7 @@ export default function MovieNightGuest() {
 
   onMount(() => void load());
   const timer = setInterval(() => {
-    if (token() && !view()?.matched) void load();
+    if (token() && view()?.status !== "matched" && view()?.status !== "closed") void load();
   }, 3000);
   onCleanup(() => clearInterval(timer));
 
@@ -174,7 +175,13 @@ export default function MovieNightGuest() {
             </section>
           )}
         </Show>
-        <Show when={view() && !view()?.matched}>
+        <Show when={view()?.status === "closed"}>
+          <p class="mbl-card-section">Voting has closed and no title got a like.</p>
+        </Show>
+        <Show when={view() && view()?.status === "active"}>
+          <Show when={view()?.startsAt}>
+            {(at) => <p>{`Voting closes ${formatPlannedTime(at())}.`}</p>}
+          </Show>
           <p>{`${view()?.memberCount ?? 0} people have joined.`}</p>
           <Show
             when={current()}

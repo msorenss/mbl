@@ -20,6 +20,8 @@ const view = (matched: unknown = null) => ({
     seed: "mm_x",
     name: "Anna",
     memberCount: 2,
+    status: matched ? "matched" : "active",
+    startsAt: null,
     matched,
     titles: [{ id: 7, title: "Up", year: 2009, posterId: 3 }],
   },

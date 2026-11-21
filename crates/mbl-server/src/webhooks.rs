@@ -85,6 +85,27 @@ pub async fn payloads(db: &Db, event: &Event) -> Vec<(&'static str, Value)> {
                 "positionMs": position_ms, "durationMs": duration_ms, "completed": completed,
             }),
         )],
+        Event::MovieNightScheduled { session_id, starts_at, host, user_ids, .. } => vec![(
+            "movienight.scheduled",
+            json!({
+                "event": "movienight.scheduled",
+                "timestamp": now,
+                "sessionId": session_id,
+                "startsAt": starts_at,
+                "host": host,
+                "invited": user_ids.len().saturating_sub(1),
+            }),
+        )],
+        Event::MovieNightDecided { session_id, item_id, title, .. } => vec![(
+            "movienight.decided",
+            json!({
+                "event": "movienight.decided",
+                "timestamp": now,
+                "sessionId": session_id,
+                "itemId": item_id.map(|i| i.0),
+                "title": title,
+            }),
+        )],
         Event::JobUpdated { .. }
         | Event::ScanProgress { .. }
         | Event::LibraryUpdated { .. }

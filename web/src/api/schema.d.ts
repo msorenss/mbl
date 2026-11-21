@@ -3965,6 +3965,14 @@ export interface components {
         };
         CreateMatchmakerSessionRequest: {
             filterConfig?: string | null;
+            /** @description Other users to invite; they become members right away and are notified. */
+            inviteUserIds?: components["schemas"]["UserId"][];
+            /**
+             * Format: int64
+             * @description Planned start (Unix ms). Voting closes then and the most liked title wins. Up to 14 days
+             *     ahead.
+             */
+            startsAt?: number | null;
         };
         CreateMediaRequest: {
             /** @description Artist name for albums. */
@@ -4668,6 +4676,13 @@ export interface components {
             name: string;
             /** @description Seed for the shared shuffle, the same for everyone in the movie night. */
             seed: string;
+            /**
+             * Format: int64
+             * @description Planned start, when voting closes.
+             */
+            startsAt?: number | null;
+            /** @description `active`, `matched` or `closed` (planned time passed and no one liked anything). */
+            status: string;
             titles: components["schemas"]["MatchmakerGuestTitle"][];
         };
         MatchmakerGuestVote: {
@@ -4694,6 +4709,11 @@ export interface components {
              * @description People who have joined, including the creator and guests.
              */
             memberCount?: number;
+            /**
+             * Format: int64
+             * @description Planned start: voting closes then and the most liked title wins.
+             */
+            startsAt?: number | null;
             status: string;
         };
         MatchmakerVoteRequest: {

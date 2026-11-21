@@ -30,6 +30,8 @@ MBL is a complete personal media platform spanning video, music, and photography
 
 People without an account can join too. The person who started the movie night chooses **Invite guests** and shares the guest link. A guest types a name and swipes like everyone else; their votes belong to that browser, not to the name, so nobody can vote in someone else's place. Guests see the titles the host's profile may see (the same libraries and age limit), and count toward the 16 people. **Turn off guest link** removes the guests and their votes.
 
+A movie night can also be planned: choose **When** and who to **Invite** before starting it. Invited people become members right away and see a notice in MBL (and a system notification when their browser allows them). Voting closes at the chosen time: the title most people liked wins, or nothing when no one liked anything. Members get a notice with the result, and webhooks can react to `movienight.scheduled` and `movienight.decided` (for example to announce it through Home Assistant).
+
 ## Missing episodes and storage
 
 - **Check for missing episodes** on a show page lists gaps in each season's episode numbers. Episodes after the last one in the library are not known and are not listed.
@@ -57,6 +59,8 @@ People without an account can join too. The person who started the movie night c
 | `media.added` | A scan added new items (`count`) |
 | `library.scan_completed` | A library scan finished (`added`, `missing`) |
 | `library.unavailable` | A library folder could not be read |
+| `movienight.scheduled` | A movie night was planned (`startsAt`, `host`, `invited`) |
+| `movienight.decided` | Voting closed on a planned movie night (`itemId` and `title` of the pick, or null) |
 
 The header `X-MBL-Event` carries the event name. With a secret, `X-MBL-Signature: sha256=<hex>` is the HMAC-SHA256 of the raw body with the secret as key. A failed delivery is retried once after 10 seconds. Example body:
 

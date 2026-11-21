@@ -1,7 +1,7 @@
 # Senare: medtittande, NPU-kontext, undertexter, filmkväll och Arr-länkar
 
 Önskemål från användaren 2026-11-19. Allt går till 1.4.0 (beslut 2026-11-21).
-Klart 2026-11-21: punkt 3 (gäster på filmkväll) och 4 (Arr-länkar), samt redigerbar
+Klart 2026-11-21: punkt 3 (gäster på filmkväll), 4 (Arr-länkar) och 5 (schemalagd filmkväll; notiser i öppen flik, webbpush återstår), samt redigerbar
 meny (nytt önskemål). Se AGENTS.md.
 
 Grund som redan finns (2026-11-19, ej committad vid skrivandet): chatt mellan

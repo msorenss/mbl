@@ -21,6 +21,8 @@ pub const WEBHOOK_EVENTS: &[&str] = &[
     "media.added",
     "library.scan_completed",
     "library.unavailable",
+    "movienight.scheduled",
+    "movienight.decided",
 ];
 
 fn mask_secret(mut row: WebhookRow) -> WebhookRow {

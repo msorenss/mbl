@@ -188,7 +188,7 @@ impl Services {
         let companion = CompanionService::new().with_playback(playback.clone()).with_db(db.clone());
         let webhooks = WebhookService::new(db_arc.clone());
         let requests = MediaRequestService::new(db_arc.clone());
-        let matchmaker = MatchmakerService::new(db_arc.clone());
+        let matchmaker = MatchmakerService::new(db_arc.clone()).with_events(events.clone());
         let workers = WorkerService::new(db_arc.clone());
         let nodes = RemoteNodeService::new(db_arc.clone());
         let livetv = LiveTvService::new(db_arc.clone());

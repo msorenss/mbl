@@ -11,6 +11,8 @@ const EVENTS: { id: string; label: string }[] = [
   { id: "playback.stopped", label: "Playback stopped" },
   { id: "media.added", label: "New media added" },
   { id: "library.scan_completed", label: "Library scan finished" },
+  { id: "movienight.scheduled", label: "Movie night planned" },
+  { id: "movienight.decided", label: "Movie night decided" },
   { id: "library.unavailable", label: "Library folder unavailable" },
 ];
 

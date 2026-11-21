@@ -4,11 +4,13 @@ import client from "../api/client";
 import type { components } from "../api/schema";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import { formatPlannedTime } from "../utils/plannedTime";
 import { seededShuffle } from "../utils/seededShuffle";
 
 type Session = components["schemas"]["MatchmakerSessionRow"];
 type Item = components["schemas"]["ItemSummary"];
 type Library = components["schemas"]["LibraryDto"];
+type Profile = components["schemas"]["UserProfileDto"];
 
 export { seededShuffle };
 
@@ -25,7 +27,11 @@ const progressKey = (id: string) => `mbl.matchmaker.${id}`;
 
 function Lobby() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [libraries, setLibraries] = createSignal<Library[]>([]);
+  const [people, setPeople] = createSignal<Profile[]>([]);
+  const [invited, setInvited] = createSignal<number[]>([]);
+  const [when, setWhen] = createSignal("");
   const [library, setLibrary] = createSignal<number | null>(null);
   const [error, setError] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -38,6 +44,13 @@ function Lobby() {
       setLibrary(list[0]?.id ?? null);
     })
     .catch(() => setError("Could not load libraries."));
+  void client
+    .GET("/api/v1/users/profiles")
+    .then(({ data }) => setPeople((data ?? []).filter((p) => p.id !== user()?.id)))
+    .catch(() => undefined);
+
+  const toggle = (id: number) =>
+    setInvited((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
 
   const create = async () => {
     const id = library();
@@ -46,12 +59,23 @@ function Lobby() {
     setError("");
     try {
       const result = await client.POST("/api/v1/matchmaker/sessions", {
-        body: { filterConfig: JSON.stringify({ libraryId: id }) },
+        body: {
+          filterConfig: JSON.stringify({ libraryId: id }),
+          startsAt: when() ? new Date(when()).getTime() : undefined,
+          inviteUserIds: invited(),
+        },
       });
       if (!result.data) {
-        setError("Could not start a movie night.");
+        setError(
+          result.response.status === 422
+            ? "Choose a time at least a minute from now and at most 14 days ahead."
+            : "Could not start a movie night.",
+        );
         return;
       }
+      // Ask once, while the click counts, so the result can also arrive as a system notice.
+      if (when() && typeof Notification !== "undefined" && Notification.permission === "default")
+        void Notification.requestPermission().catch(() => undefined);
       navigate(`/matchmaker/${result.data.id}`);
     } catch {
       setError("Could not reach the server.");
@@ -79,7 +103,36 @@ function Lobby() {
           >
             <For each={libraries()}>{(l) => <option value={l.id}>{l.name}</option>}</For>
           </select>
-        </label>{" "}
+        </label>
+        <label style={{ display: "block", margin: "0.75rem 0" }}>
+          When (optional){" "}
+          <input
+            type="datetime-local"
+            value={when()}
+            onInput={(e) => setWhen(e.currentTarget.value)}
+          />
+        </label>
+        <p style={{ margin: "0 0 0.5rem", color: "var(--text-secondary)" }}>
+          With a time, voting closes then and the most liked title wins. Invited people get a
+          notice.
+        </p>
+        <Show when={people().length > 0}>
+          <fieldset style={{ border: "none", padding: 0, margin: "0 0 0.75rem" }}>
+            <legend>Invite</legend>
+            <For each={people()}>
+              {(p) => (
+                <label style={{ display: "inline-flex", gap: "4px", "margin-right": "12px" }}>
+                  <input
+                    type="checkbox"
+                    checked={invited().includes(p.id)}
+                    onChange={() => toggle(p.id)}
+                  />
+                  {p.displayName}
+                </label>
+              )}
+            </For>
+          </fieldset>
+        </Show>
         <Button onClick={create} disabled={busy() || library() === null}>
           Start movie night
         </Button>
@@ -224,10 +277,16 @@ function Swipe(props: { id: string }) {
           </section>
         )}
       </Show>
-      <Show when={!matched() && session()}>
+      <Show when={session()?.status === "closed"}>
+        <p class="mbl-card-section">Voting has closed and no title got a like.</p>
+      </Show>
+      <Show when={!matched() && session()?.status === "active" && session()}>
         {(s) => (
           <>
             <section class="mbl-card-section">
+              <Show when={s().startsAt}>
+                {(at) => <p>{`Voting closes ${formatPlannedTime(at())}.`}</p>}
+              </Show>
               <p>
                 {s().memberCount === 1
                   ? "Only you have joined so far. Send the link to the others."

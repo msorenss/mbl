@@ -51,6 +51,22 @@ pub enum Event {
         duration_ms: u64,
         completed: bool,
     },
+    /// A movie night was planned; `user_ids` are the people invited (and the host).
+    MovieNightScheduled {
+        session_id: String,
+        starts_at: i64,
+        host_id: UserId,
+        host: String,
+        user_ids: Vec<UserId>,
+    },
+    /// Voting closed on a planned movie night. `item_id` is the pick, or none when no one liked
+    /// anything.
+    MovieNightDecided {
+        session_id: String,
+        item_id: Option<ItemId>,
+        title: Option<String>,
+        user_ids: Vec<UserId>,
+    },
 }
 
 /// Cheap-to-clone broadcast bus. Slow subscribers miss events rather than block publishers.
