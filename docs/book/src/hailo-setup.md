@@ -106,8 +106,12 @@ MBL is careful about this:
 - It connects only when a model is actually needed, with one shared connection per model for
   the whole server.
 - It lets go of the detection model after 2 minutes without use, and of the scene description
-  model after 5 minutes. The next use connects again (the description model then takes about
-  45 seconds to load).
+  model after 15 minutes. Loading the description model takes about 45 seconds, and while it
+  loads Frigate's detections run slower (in a test, about 40 ms became up to 180 ms for that
+  time, then back to normal). So MBL loads it once per viewing: as soon as a companion joins the
+  session, not in the middle of a conversation, and keeps it while the companion uses it.
+- Running at the same time is fine: in the same test Frigate detected at its usual speed while
+  MBL described scenes and transcribed speech.
 - **Let MBL use the NPU** on the Hardware page turns it off completely; MBL then releases
   everything at once and the companion works from dialogue and metadata only. Turn it off if
   Frigate needs the board to itself.

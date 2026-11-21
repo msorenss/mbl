@@ -682,6 +682,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn whisper_junk_on_silence_is_dropped_but_short_replies_stay() {
+        use runtime::{HailoSpeechSegment as Seg, keep_spoken};
+        let seg = |a: f32, b: f32, t: &str| Seg { start_sec: a, end_sec: b, text: t.into() };
+        // What Whisper made of a minute of Dark Matter: music, then dialogue.
+        let kept = keep_spoken(vec![
+            seg(0.0, 5.0, "1.5."),
+            seg(10.0, 14.0, "nd"),
+            seg(40.0, 50.0, "ndt"),
+            seg(50.0, 53.0, "I'm going to the store for your mom."),
+            seg(55.0, 56.0, "No."),
+            seg(56.0, 57.0, "はい"),
+            seg(60.0, 60.0, "\u{2d8}\u{2d8}\u{2d8}"),
+        ]);
+        let texts: Vec<&str> = kept.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(texts, ["I'm going to the store for your mom.", "No.", "はい"]);
+    }
+
+    #[test]
     fn semantic_scene_search_ranks_snow_car_chase_first_m5_13() {
         let engine = HailoEngine::default();
         let snowy_img = DynamicImage::ImageRgb8(image::ImageBuffer::from_pixel(

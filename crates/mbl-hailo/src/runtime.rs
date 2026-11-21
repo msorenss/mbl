@@ -142,6 +142,21 @@ pub struct HailoSpeechSegment {
     pub text: String,
 }
 
+/// Whisper invents text where nobody speaks: fragments such as "nd" over several seconds of music,
+/// numbers like "1.5." or a row of accents at the very end. Real speech carries at least about one
+/// letter per second (even a short "No." does), so segments without letters, without length or
+/// with fewer letters than seconds are dropped.
+pub fn keep_spoken(segments: Vec<HailoSpeechSegment>) -> Vec<HailoSpeechSegment> {
+    segments
+        .into_iter()
+        .filter(|s| {
+            let letters = s.text.chars().filter(|c| c.is_alphabetic()).count();
+            let seconds = s.end_sec - s.start_sec;
+            letters > 0 && seconds > 0.0 && letters as f32 >= seconds
+        })
+        .collect()
+}
+
 /// Live device identification queried directly from `libhailort.so`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LibHailoProbe {
@@ -1099,7 +1114,7 @@ mod unix_ffi {
                     segs.push(HailoSpeechSegment { start_sec, end_sec, text });
                 }
             }
-            Some((segs, format!("hailort-whisper({model_name})")))
+            Some((super::keep_spoken(segs), format!("hailort-whisper({model_name})")))
         }
     }
 
@@ -1579,9 +1594,11 @@ pub struct NpuActivity {
 }
 
 /// MBL lets go of a model this long after its last use, so other programs (Frigate) get the
-/// board's connections back.
+/// board's connections back. The description model is kept longer: loading it takes about 45
+/// seconds and slows the other programs on the board meanwhile, so it should load once per
+/// viewing, not again between two companion comments (at most 10 minutes apart).
 const DETECTION_IDLE: std::time::Duration = std::time::Duration::from_secs(120);
-const DESCRIPTION_IDLE: std::time::Duration = std::time::Duration::from_secs(300);
+const DESCRIPTION_IDLE: std::time::Duration = std::time::Duration::from_secs(15 * 60);
 
 static NPU_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 

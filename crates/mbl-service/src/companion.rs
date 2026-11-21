@@ -571,18 +571,45 @@ impl CompanionService {
         if bot_name.eq_ignore_ascii_case(VIEWER_NAME) {
             return Err(Error::Validation(format!("`{VIEWER_NAME}` is reserved for the viewer")));
         }
+        let mut first = false;
         self.update_state(session_id, |state| {
             if !state.companions.iter().any(|b| b == bot_name) {
                 if state.companions.len() >= 16 {
                     return Err(Error::Conflict("too many companions".into()));
                 }
+                first = state.companions.is_empty();
                 state.companions.push(bot_name.to_owned());
                 if state.joined_at == 0 {
                     state.joined_at = now_ms();
                 }
             }
             Ok(())
-        })
+        })?;
+        if first {
+            self.warm_scene(actor, session_id);
+        }
+        Ok(())
+    }
+
+    /// Loading the scene description model onto the NPU takes about 45 seconds and slows other
+    /// programs on the board (Frigate) while it happens. When the first companion joins, the
+    /// current scene is analysed in the background, so the model loads now rather than in the
+    /// middle of a conversation; it then stays loaded while the companion keeps using it.
+    fn warm_scene(&self, actor: &Actor, session_id: &str) {
+        if !mbl_hailo::npu_enabled() || !vlm_installed() {
+            return;
+        }
+        let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
+        let Some(session) = self.playback.as_ref().and_then(|p| p.get_session(actor, session_id))
+        else {
+            return;
+        };
+        let (service, actor, session_id) = (self.clone(), actor.clone(), session_id.to_owned());
+        handle.spawn(async move {
+            let _ = service
+                .scene(&actor, &session_id, session.part_id, session.position_ms as i64)
+                .await;
+        });
     }
 
     /// Choose what companions may post and how often they comment on their own. Only the
