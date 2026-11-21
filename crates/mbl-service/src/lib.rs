@@ -13,6 +13,7 @@ pub mod dlna;
 pub mod downloads;
 mod dvr;
 pub mod events;
+pub mod hailo_models;
 pub mod http_base;
 pub mod hw;
 pub mod images;
@@ -166,6 +167,7 @@ pub struct Services {
     pub missing: missing::MissingService,
     pub maintenance: maintenance::MaintenanceService,
     pub speech: speech::SpeechService,
+    pub hailo_models: hailo_models::HailoModelService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -207,6 +209,7 @@ impl Services {
         let db_dlna = db.clone();
         let db_assistant = db.clone();
         let db_missing = db.clone();
+        let db_hailo = db.clone();
         let subtitles = subtitle_search::SubtitleSearchService::new(db.clone(), stream.clone());
         let metadata =
             metadata_edit::MetadataEditService::new(db.clone(), jobs.clone(), events.clone());
@@ -245,6 +248,7 @@ impl Services {
             missing: missing::MissingService::new(db_missing.clone()),
             maintenance: maintenance::MaintenanceService::new(db_missing),
             speech: speech::SpeechService::new(),
+            hailo_models: hailo_models::HailoModelService::new(db_hailo),
             metadata,
             restart: None,
         }

@@ -5,6 +5,7 @@ pub mod companion;
 pub mod dlna;
 pub mod downloads;
 pub mod events;
+pub mod hailo_models;
 pub mod hw;
 pub mod images;
 pub mod import;

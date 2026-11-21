@@ -458,3 +458,15 @@ reason = "Tells the web app whether to record speech for the server or use the b
 [[exclusions]]
 path = "/api/v1/speech/transcribe"
 reason = "Turns a person's recorded speech into chat text; agents work with text already."
+
+[[exclusions]]
+path = "/api/v1/hw/models"
+reason = "Hardware page view of the Hailo models; get_hw_report covers the NPU for agents."
+
+[[exclusions]]
+path = "/api/v1/hw/models/{file}/download"
+reason = "Downloads gigabytes from Hailo onto the server; an admin starts it from the Hardware page."
+
+[[exclusions]]
+path = "/api/v1/hw/models/{file}"
+reason = "Removes an installed NPU model; an admin does it from the Hardware page."

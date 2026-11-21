@@ -14,6 +14,7 @@
 # Core Features
 - [Web player & seek previews](playback.md)
 - [Hardware Acceleration](hardware-acceleration.md)
+- [Setting up a Hailo NPU](hailo-setup.md)
 - [Remote Access & Networking](remote-access.md)
 - [HTTPS, TLS & Certificates](tls-certificates.md)
 - [Distributed Nodes & Workers](distributed-workers.md)

@@ -776,6 +776,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hw/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * NPU, HailoRT version and the models MBL can use: size, installed, in use, and the running
+         *     download.
+         */
+        get: operations["hailo_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/models/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["remove_hailo_model"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/models/{file}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download a model from Hailo's server for the installed HailoRT version, in the background. */
+        post: operations["download_hailo_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hw/report": {
         parameters: {
             query?: never;
@@ -4505,6 +4558,46 @@ export interface components {
             npuProfile: components["schemas"]["NpuProfile"];
             sharingMode: string;
             vdeviceGroupId: string;
+        };
+        HailoModel: {
+            /** @description The NPU code would use this file for its role. */
+            active: boolean;
+            description: string;
+            file: string;
+            installed: boolean;
+            name: string;
+            recommended: boolean;
+            role: components["schemas"]["HailoModelRole"];
+            /**
+             * Format: int64
+             * @description Download size, when Hailo's server answered.
+             */
+            sizeBytes?: number | null;
+        };
+        HailoModelDownload: {
+            error?: string | null;
+            file: string;
+            finished: boolean;
+            /** Format: int64 */
+            receivedBytes: number;
+            /** Format: int64 */
+            totalBytes?: number | null;
+        };
+        /** @enum {string} */
+        HailoModelRole: "vision" | "speech";
+        HailoModelsStatus: {
+            directory: string;
+            download?: components["schemas"]["HailoModelDownload"] | null;
+            /** Format: int64 */
+            freeBytes?: number | null;
+            hailortVersion?: string | null;
+            models: components["schemas"]["HailoModel"][];
+            /** @description `hailo10H`, `hailo8`, … or none. */
+            npu?: string | null;
+            /** @description Why not, when not. */
+            reason?: string | null;
+            /** @description Models can be installed here (a Hailo-10H with a known HailoRT version). */
+            supported: boolean;
         };
         /**
          * @description AI media pipelines accelerated by Hailo-8 / Hailo-8L / Hailo-10H.
@@ -8724,6 +8817,115 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    hailo_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HailoModelsStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_hailo_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    download_hailo_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Model file, e.g. Qwen2-VL-2B-Instruct.hef */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Downloading; follow it in GET /hw/models */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Another model is downloading */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No Hailo-10H, no HailoRT, or not enough space */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

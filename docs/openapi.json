@@ -1728,6 +1728,99 @@
         }
       }
     },
+    "/api/v1/hw/models": {
+      "get": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "NPU, HailoRT version and the models MBL can use: size, installed, in use, and the running\ndownload.",
+        "operationId": "hailo_models",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HailoModelsStatus"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hw/models/{file}": {
+      "delete": {
+        "tags": [
+          "hardware"
+        ],
+        "operationId": "remove_hailo_model",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "403": {},
+          "404": {},
+          "409": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hw/models/{file}/download": {
+      "post": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Download a model from Hailo's server for the installed HailoRT version, in the background.",
+        "operationId": "download_hailo_model",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "description": "Model file, e.g. Qwen2-VL-2B-Instruct.hef",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Downloading; follow it in GET /hw/models"
+          },
+          "403": {},
+          "404": {},
+          "409": {
+            "description": "Another model is downloading"
+          },
+          "422": {
+            "description": "No Hailo-10H, no HailoRT, or not enough space"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/hw/report": {
       "get": {
         "tags": [
@@ -12828,6 +12921,154 @@
           },
           "vdeviceGroupId": {
             "type": "string"
+          }
+        }
+      },
+      "HailoModel": {
+        "type": "object",
+        "required": [
+          "file",
+          "role",
+          "name",
+          "description",
+          "recommended",
+          "installed",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "The NPU code would use this file for its role."
+          },
+          "description": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recommended": {
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/HailoModelRole"
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Download size, when Hailo's server answered.",
+            "minimum": 0
+          }
+        }
+      },
+      "HailoModelDownload": {
+        "type": "object",
+        "required": [
+          "file",
+          "receivedBytes",
+          "finished"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "type": "string"
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "receivedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "HailoModelRole": {
+        "type": "string",
+        "enum": [
+          "vision",
+          "speech"
+        ]
+      },
+      "HailoModelsStatus": {
+        "type": "object",
+        "required": [
+          "supported",
+          "directory",
+          "models"
+        ],
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "download": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HailoModelDownload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "hailortVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HailoModel"
+            }
+          },
+          "npu": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`hailo10H`, `hailo8`, … or none."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why not, when not."
+          },
+          "supported": {
+            "type": "boolean",
+            "description": "Models can be installed here (a Hailo-10H with a known HailoRT version)."
           }
         }
       },

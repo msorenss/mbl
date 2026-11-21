@@ -45,6 +45,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::missing::router())
         .merge(routes::maintenance::router())
         .merge(routes::speech::router())
+        .merge(routes::hailo_models::router())
         .merge(routes::matchmaker::router())
         .merge(routes::players::router())
         .merge(routes::companion::router())
