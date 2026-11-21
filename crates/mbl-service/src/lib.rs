@@ -26,6 +26,7 @@ pub mod lyrics;
 pub mod matchmaker;
 pub mod mcp;
 pub mod metadata_edit;
+pub mod missing;
 pub mod nodes;
 pub mod paths;
 pub mod playback;
@@ -160,6 +161,7 @@ pub struct Services {
     pub metadata: metadata_edit::MetadataEditService,
     pub assistant: assistant::AssistantService,
     pub subtitles: subtitle_search::SubtitleSearchService,
+    pub missing: missing::MissingService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -200,6 +202,7 @@ impl Services {
         let downloads = DownloadService::new(db.clone(), jobs.clone(), stream.clone());
         let db_dlna = db.clone();
         let db_assistant = db.clone();
+        let db_missing = db.clone();
         let subtitles = subtitle_search::SubtitleSearchService::new(db.clone(), stream.clone());
         let metadata =
             metadata_edit::MetadataEditService::new(db.clone(), jobs.clone(), events.clone());
@@ -235,6 +238,7 @@ impl Services {
             dlna: dlna::DlnaService::new(db_dlna),
             assistant: assistant::AssistantService::new(db_assistant),
             subtitles,
+            missing: missing::MissingService::new(db_missing),
             metadata,
             restart: None,
         }

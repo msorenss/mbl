@@ -442,3 +442,11 @@ reason = "Interactive search in the subtitle dialog; uses the server's OpenSubti
 [[exclusions]]
 path = "/api/v1/items/{id}/subtitles/download"
 reason = "Writes a file next to the media and uses the daily OpenSubtitles download quota; a person chooses the subtitle."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/missing"
+reason = "Interactive check on a show page against TMDB; agents find gaps with get_children."
+
+[[exclusions]]
+path = "/api/v1/libraries/{id}/missing"
+reason = "Library overview against TMDB that can take many TMDB calls; started by a person on the library page."

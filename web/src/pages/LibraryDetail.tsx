@@ -1,6 +1,16 @@
 import { useNavigate, useParams } from "@solidjs/router";
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  lazy,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+} from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { LibraryScanControl } from "../components/LibraryScanControl";
@@ -9,6 +19,8 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useI18n } from "../i18n";
 import { formatRelativeTime } from "../utils/time";
+
+const LibraryMissing = lazy(() => import("../components/LibraryMissing"));
 
 type ItemSummary = components["schemas"]["ItemSummary"];
 type LibraryDto = components["schemas"]["LibraryDto"];
@@ -255,6 +267,13 @@ export function LibraryDetail() {
               </span>
             </Show>
           </p>
+          <Show when={library()?.kind === "movie" || library()?.kind === "show"}>
+            <div style={{ margin: "8px 0 0 28px" }}>
+              <Suspense>
+                <LibraryMissing libraryId={libraryId()} />
+              </Suspense>
+            </div>
+          </Show>
         </div>
 
         {/* Scan & Refresh Buttons (Admin) */}

@@ -2495,6 +2495,50 @@
         }
       }
     },
+    "/api/v1/items/{id}/missing": {
+      "get": {
+        "tags": [
+          "browse"
+        ],
+        "summary": "Missing aired episodes of a show: gaps, episodes after the last one you have and whole\nseasons (specials are left out), with titles from TMDB.",
+        "operationId": "show_missing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Show",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowMissing"
+                }
+              }
+            }
+          },
+          "404": {},
+          "422": {
+            "description": "Not a show, or no TMDB API key"
+          },
+          "503": {
+            "description": "TMDB did not answer"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/items/{id}/next-episode": {
       "get": {
         "tags": [
@@ -3153,6 +3197,50 @@
           },
           "404": {}
         }
+      }
+    },
+    "/api/v1/libraries/{id}/missing": {
+      "get": {
+        "tags": [
+          "browse"
+        ],
+        "summary": "What a TV or movie library lacks: shows with missing episodes, and released movies from\ncollections (for example the second part of a trilogy).",
+        "operationId": "library_missing",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Library",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryMissing"
+                }
+              }
+            }
+          },
+          "404": {},
+          "422": {
+            "description": "No TMDB API key"
+          },
+          "503": {
+            "description": "TMDB did not answer"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
       }
     },
     "/api/v1/libraries/{id}/photos": {
@@ -13658,6 +13746,51 @@
           "homevideo"
         ]
       },
+      "LibraryMissing": {
+        "type": "object",
+        "required": [
+          "libraryId",
+          "shows",
+          "movies",
+          "checked",
+          "withoutTmdb",
+          "truncated"
+        ],
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Titles compared with TMDB.",
+            "minimum": 0
+          },
+          "libraryId": {
+            "$ref": "#/components/schemas/LibraryId"
+          },
+          "movies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingMovie"
+            }
+          },
+          "shows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShowMissing"
+            },
+            "description": "Shows with missing episodes (season lists without episode titles)."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The library had more titles than one overview checks."
+          },
+          "withoutTmdb": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Titles without a TMDB ID, which cannot be compared.",
+            "minimum": 0
+          }
+        }
+      },
       "LibraryScanStatus": {
         "type": "object",
         "required": [
@@ -14494,6 +14627,31 @@
           }
         }
       },
+      "MissingEpisode": {
+        "type": "object",
+        "required": [
+          "episode"
+        ],
+        "properties": {
+          "airDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "episode": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "MissingEpisodeInfo": {
         "type": "object",
         "required": [
@@ -14511,6 +14669,71 @@
           "seasonNumber": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "MissingMovie": {
+        "type": "object",
+        "description": "A released movie from a collection that the library lacks.",
+        "required": [
+          "tmdbId",
+          "title",
+          "collection"
+        ],
+        "properties": {
+          "collection": {
+            "type": "string"
+          },
+          "poster": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "MissingSeason": {
+        "type": "object",
+        "required": [
+          "season",
+          "whole",
+          "episodes"
+        ],
+        "properties": {
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingEpisode"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "season": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "whole": {
+            "type": "boolean",
+            "description": "No episode of this season is in the library."
           }
         }
       },
@@ -18289,6 +18512,42 @@
         "properties": {
           "needsSetup": {
             "type": "boolean"
+          }
+        }
+      },
+      "ShowMissing": {
+        "type": "object",
+        "description": "Missing episodes of one show.",
+        "required": [
+          "showId",
+          "title",
+          "missingCount",
+          "seasons"
+        ],
+        "properties": {
+          "missingCount": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingSeason"
+            }
+          },
+          "showId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tmdbId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         }
       },

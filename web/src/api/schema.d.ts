@@ -1087,6 +1087,26 @@ export interface paths {
         patch: operations["update_metadata"];
         trace?: never;
     };
+    "/api/v1/items/{id}/missing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Missing aired episodes of a show: gaps, episodes after the last one you have and whole
+         *     seasons (specials are left out), with titles from TMDB.
+         */
+        get: operations["show_missing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items/{id}/next-episode": {
         parameters: {
             query?: never;
@@ -1258,6 +1278,26 @@ export interface paths {
         };
         /** Items of a library, paginated. */
         get: operations["list_library_items"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/libraries/{id}/missing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a TV or movie library lacks: shows with missing episodes, and released movies from
+         *     collections (for example the second part of a trilogy).
+         */
+        get: operations["library_missing"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4677,6 +4717,24 @@ export interface components {
         LibraryId: number;
         /** @enum {string} */
         LibraryKind: "movie" | "show" | "music" | "photo" | "homevideo";
+        LibraryMissing: {
+            /**
+             * Format: int32
+             * @description Titles compared with TMDB.
+             */
+            checked: number;
+            libraryId: components["schemas"]["LibraryId"];
+            movies: components["schemas"]["MissingMovie"][];
+            /** @description Shows with missing episodes (season lists without episode titles). */
+            shows: components["schemas"]["ShowMissing"][];
+            /** @description The library had more titles than one overview checks. */
+            truncated: boolean;
+            /**
+             * Format: int32
+             * @description Titles without a TMDB ID, which cannot be compared.
+             */
+            withoutTmdb: number;
+        };
         LibraryScanStatus: {
             error?: string | null;
             jobId: components["schemas"]["JobId"];
@@ -4925,10 +4983,34 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
+        MissingEpisode: {
+            airDate?: string | null;
+            /** Format: int32 */
+            episode: number;
+            title?: string | null;
+        };
         MissingEpisodeInfo: {
             missingEpisodeNumbers: number[];
             /** Format: int64 */
             seasonNumber: number;
+        };
+        /** @description A released movie from a collection that the library lacks. */
+        MissingMovie: {
+            collection: string;
+            poster?: string | null;
+            title: string;
+            /** Format: int64 */
+            tmdbId: number;
+            /** Format: int64 */
+            year?: number | null;
+        };
+        MissingSeason: {
+            episodes: components["schemas"]["MissingEpisode"][];
+            name?: string | null;
+            /** Format: int32 */
+            season: number;
+            /** @description No episode of this season is in the library. */
+            whole: boolean;
         };
         /** @description An artist or album found through Lidarr, ready to be requested. */
         MusicSearchHit: {
@@ -5984,6 +6066,16 @@ export interface components {
         };
         SetupStatus: {
             needsSetup: boolean;
+        };
+        /** @description Missing episodes of one show. */
+        ShowMissing: {
+            /** Format: int32 */
+            missingCount: number;
+            seasons: components["schemas"]["MissingSeason"][];
+            showId: components["schemas"]["ItemId"];
+            title: string;
+            /** Format: int64 */
+            tmdbId?: number | null;
         };
         /** @enum {string} */
         SortField: "title" | "added" | "year" | "rating";
@@ -9156,6 +9248,48 @@ export interface operations {
             };
         };
     };
+    show_missing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Show */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShowMissing"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a show, or no TMDB API key */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description TMDB did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     next_episode: {
         parameters: {
             query?: never;
@@ -9682,6 +9816,48 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    library_missing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Library */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryMissing"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No TMDB API key */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description TMDB did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

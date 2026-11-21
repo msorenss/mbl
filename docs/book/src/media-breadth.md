@@ -32,9 +32,10 @@ People without an account can join too. The person who started the movie night c
 
 A movie night can also be planned: choose **When** and who to **Invite** before starting it. Invited people become members right away and see a notice in MBL (and a system notification when their browser allows them). Voting closes at the chosen time: the title most people liked wins, or nothing when no one liked anything. Members get a notice with the result, and webhooks can react to `movienight.scheduled` and `movienight.decided` (for example to announce it through Home Assistant).
 
-## Missing episodes and storage
+## Missing episodes, movies and storage
 
-- **Check for missing episodes** on a show page lists gaps in each season's episode numbers. Episodes after the last one in the library are not known and are not listed.
+- **Check for missing episodes** on a show page compares the show with TMDB: gaps, episodes after the last one you have and whole seasons, with episode titles and air dates. Only aired episodes count; specials (season 0) are left out, and a file with two episodes (`S01E05-E06`) counts as both. **Request the show** sends it to the Requests page (and on to Sonarr when connected).
+- **What's missing?** on a TV or movie library page lists the shows with missing episodes and the released movies from collections you have part of (for example the second film of a trilogy), each with **Request**. It needs the TMDB API key under Server settings; titles without a TMDB match are skipped and counted. TMDB answers are kept for 12 hours, and one check covers up to 300 shows or 600 movies.
 - **Storage check** (administrators, Requests page) counts the library files and how many are hardlinked elsewhere, for example from a Radarr or Sonarr download folder. Deleting a hardlinked file from the library frees no space until the other link is also removed, so the estimate counts only files without another link.
 
 ## DLNA for TVs
