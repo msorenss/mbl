@@ -29,6 +29,14 @@ pub fn build_args(p: &Pipeline, caps: &FfmpegCaps) -> Result<Vec<OsString>> {
     }
 
     if p.start_ms > 0 {
+        // Copied video can only start at the keyframe before the position. Without this the
+        // re-encoded audio would start exactly at the position instead, and players that line
+        // up the first frames would run the sound ahead by up to a keyframe interval.
+        if matches!(p.video, VideoOp::Copy | VideoOp::CopyHevc)
+            && !matches!(p.audio, AudioOp::EncodeShifted { .. })
+        {
+            push_str(&mut args, "-noaccurate_seek");
+        }
         push_pair(&mut args, "-ss", &format_timestamp_ms(p.start_ms));
         push_str(&mut args, "-copyts");
         push_pair(&mut args, "-avoid_negative_ts", "disabled");

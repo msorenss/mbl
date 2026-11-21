@@ -768,6 +768,7 @@ expression: rendered
             "-loglevel",
             "error",
             "-y",
+            "-noaccurate_seek",
             "-ss",
             "45.250",
             "-copyts",

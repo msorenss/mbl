@@ -1281,3 +1281,68 @@ async fn cast_bounds_normalize_anamorphic_and_rotated_video() {
         }
     }
 }
+
+/// Resuming in the middle of a GOP with copied video: the audio must start where the video does
+/// (the keyframe before the position), or players run the sound ahead by up to a GOP.
+#[tokio::test]
+async fn resume_with_copied_video_keeps_audio_and_video_starting_together() {
+    let Ok(tools) = mbl_probe::FfTools::locate("", "").await else {
+        eprintln!("skipping: ffmpeg/ffprobe not found on PATH");
+        return;
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("gop.mkv");
+    // Keyframes every 4 s; audio is a plain tone.
+    let source = tokio::process::Command::new(&tools.ffmpeg)
+        .args(["-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=s=64x64:r=25:d=20"])
+        .args(["-f", "lavfi", "-i", "sine=f=440:r=48000:d=20"])
+        .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "100", "-keyint_min", "100"])
+        .args(["-sc_threshold", "0", "-c:a", "flac"])
+        .arg(&input)
+        .output()
+        .await
+        .unwrap();
+    assert!(source.status.success(), "{}", String::from_utf8_lossy(&source.stderr));
+
+    let dir = tmp.path().join("out");
+    std::fs::create_dir_all(dir.join("0")).unwrap();
+    let pipeline = Pipeline {
+        input: Utf8PathBuf::from_path_buf(input.clone()).unwrap(),
+        // 2.5 s after the keyframe at 8 s.
+        start_ms: 10_500,
+        video: VideoOp::Copy,
+        audio: AudioOp::Encode { index: 1, codec: AudioCodec::Aac, channels: 2, bitrate: 128_000 },
+        subtitle: SubtitleOp::None,
+        output: HlsOutput {
+            dir: Utf8PathBuf::from_path_buf(dir.clone()).unwrap(),
+            segment_secs: 4,
+            start_number: 2,
+            renditions: vec![Rendition { name: "0".into(), width: Some(64), max_bitrate: 200_000 }],
+        },
+        backend: Backend::Software,
+    };
+    let output = tokio::process::Command::new(&tools.ffmpeg)
+        .args(build_args(&pipeline, &FfmpegCaps::default()).unwrap())
+        .output()
+        .await
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+
+    let probe = tokio::process::Command::new(&tools.ffprobe)
+        .args(["-v", "error", "-show_entries", "packet=stream_index,pts_time", "-of", "csv=p=0"])
+        .arg(dir.join("0/ffmpeg.m3u8"))
+        .output()
+        .await
+        .unwrap();
+    let text = String::from_utf8_lossy(&probe.stdout);
+    let first = |stream: &str| -> f64 {
+        text.lines()
+            .filter_map(|l| l.split_once(','))
+            .find(|(s, _)| *s == stream)
+            .and_then(|(_, t)| t.trim().parse().ok())
+            .unwrap_or_else(|| panic!("no packets for stream {stream}: {text}"))
+    };
+    let (video, audio) = (first("0"), first("1"));
+    assert!((video - 8.0).abs() < 0.05, "video should start at the keyframe, got {video}");
+    assert!((audio - video).abs() < 0.1, "audio starts at {audio}, video at {video}");
+}
