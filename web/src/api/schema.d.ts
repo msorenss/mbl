@@ -829,6 +829,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hw/npu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether MBL may use the NPU, what it has loaded and how often each model ran since start. */
+        get: operations["npu_activity"];
+        /** Turn MBL's use of the NPU on or off. Off releases everything MBL holds on the board at once. */
+        put: operations["set_npu"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hw/report": {
         parameters: {
             query?: never;
@@ -5390,6 +5408,31 @@ export interface components {
             size: number;
         };
         /**
+         * @description What MBL does with the NPU, for the Hardware page: whether it may use it, what is loaded,
+         *     how often each model ran in this run of the server and the last problem.
+         */
+        NpuActivity: {
+            descriptionLoaded: boolean;
+            /** Format: int64 */
+            descriptions: number;
+            detectionLoaded: boolean;
+            /** @description Detection model in use, e.g. `yolov11s.hef`. */
+            detectionModel?: string | null;
+            enabled: boolean;
+            /** Format: int64 */
+            failures: number;
+            /** Format: int64 */
+            framesDetected: number;
+            lastError?: string | null;
+            /**
+             * Format: int64
+             * @description Unix ms of the last use of any model.
+             */
+            lastUsedAt?: number | null;
+            /** Format: int64 */
+            transcriptions: number;
+        };
+        /**
          * @description Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).
          * @enum {string}
          */
@@ -6317,6 +6360,9 @@ export interface components {
         };
         /** Format: int64 */
         SessionId: number;
+        SetNpu: {
+            enabled: boolean;
+        };
         SetPinRequest: {
             /** @description 4-8 numeric digits, or null to remove PIN. */
             pin?: string | null;
@@ -8926,6 +8972,60 @@ export interface operations {
             };
             /** @description No Hailo-10H, no HailoRT, or not enough space */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    npu_activity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NpuActivity"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    set_npu: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetNpu"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NpuActivity"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

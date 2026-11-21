@@ -15,6 +15,37 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/hw/models", get(hailo_models))
         .route("/api/v1/hw/models/{file}/download", post(download_hailo_model))
         .route("/api/v1/hw/models/{file}", delete(remove_hailo_model))
+        .route("/api/v1/hw/npu", get(npu_activity).put(set_npu))
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SetNpu {
+    pub enabled: bool,
+}
+
+/// Whether MBL may use the NPU, what it has loaded and how often each model ran since start.
+#[utoipa::path(get, path = "/api/v1/hw/npu", operation_id = "npu_activity", tag = "hardware",
+    responses((status = 200, body = mbl_hailo::NpuActivity), (status = 403)),
+    security(("bearer_auth" = [])))]
+pub(crate) async fn npu_activity(
+    auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<mbl_hailo::NpuActivity>, ApiError> {
+    Ok(Json(state.services.hailo_models.npu(&auth.actor)?))
+}
+
+/// Turn MBL's use of the NPU on or off. Off releases everything MBL holds on the board at once.
+#[utoipa::path(put, path = "/api/v1/hw/npu", operation_id = "set_npu", tag = "hardware",
+    request_body = SetNpu,
+    responses((status = 200, body = mbl_hailo::NpuActivity), (status = 403)),
+    security(("bearer_auth" = [])))]
+pub(crate) async fn set_npu(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Json(body): Json<SetNpu>,
+) -> Result<Json<mbl_hailo::NpuActivity>, ApiError> {
+    Ok(Json(state.services.hailo_models.set_npu(&auth.actor, body.enabled).await?))
 }
 
 /// NPU, HailoRT version and the models MBL can use: size, installed, in use, and the running

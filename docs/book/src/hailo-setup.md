@@ -95,10 +95,29 @@ its `model_cache`; otherwise pick a `.hef` with **Choose .hef** on the same page
 
 ## Sharing the board with Frigate
 
-MBL and Frigate can use the NPU at the same time: MBL joins HailoRT's shared device and runs at a
-lower priority, so Frigate's detections are not delayed. Keep Frigate's image on the same HailoRT
-version as the system. The Hailo-10H has 8 GB of its own memory; Frigate's YOLO, the scene model
-and Whisper fit together, a large language model as well usually does not.
+With HailoRT 5 the Hailo-10H runs its own server on the board, and every program on the Pi
+(Frigate, MBL, `hailortcli`) connects to it as a client. There is no separate sharing service any
+more: an old `hailort.service` that starts `hailort_service` belongs to HailoRT 4 and only fails
+(see troubleshooting). Each connection uses a pair of the board's DMA channels, and there are
+only so many, so programs that hold connections they do not use can lock others out.
+
+MBL is careful about this:
+
+- It connects only when a model is actually needed, with one shared connection per model for
+  the whole server.
+- It lets go of the detection model after 2 minutes without use, and of the scene description
+  model after 5 minutes. The next use connects again (the description model then takes about
+  45 seconds to load).
+- **Let MBL use the NPU** on the Hardware page turns it off completely; MBL then releases
+  everything at once and the companion works from dialogue and metadata only. Turn it off if
+  Frigate needs the board to itself.
+- The Hardware page shows what MBL has loaded right now, how many frames, descriptions and
+  transcriptions it has done since it started and the last problem, so you can see whether the
+  NPU is doing anything useful.
+
+Keep Frigate's image on the same HailoRT version as the system. The Hailo-10H has 8 GB of its own
+memory; Frigate's YOLO, the scene model and Whisper fit together, a large language model as well
+usually does not.
 
 ## Upgrading HailoRT
 
@@ -121,3 +140,5 @@ Upgrade everything together, in this order:
 | Download says Hailo's server has no file for your version | Hailo publishes models for selected versions; install a HailoRT version that has them |
 | Scene sentences never appear | Check that the model shows **In use**, that `g++` is installed, and the MBL log (`journalctl -u mbl`) |
 | Frigate stops detecting after an upgrade | Frigate's image uses another HailoRT version than the driver; update the image |
+| Frigate says "Failed to connect to server" or "unsupported Hailo architecture: None" | The board has no free connections. Turn off **Let MBL use the NPU** for a moment, restart Frigate, and check that no test programs are left running |
+| `hailort.service` restarts over and over (`journalctl -u hailort.service`) | It is a HailoRT 4 leftover. With HailoRT 5: `sudo systemctl disable --now hailort.service` |

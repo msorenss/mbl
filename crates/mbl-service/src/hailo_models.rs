@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use utoipa::ToSchema;
 
+/// Setting that lets MBL use the NPU (`true` unless turned off).
+const NPU_SETTING: &str = "hailo_npu_enabled";
+
 /// Where Hailo publishes compiled GenAI models, per HailoRT version.
 const DOWNLOAD_BASE: &str = "https://dev-public.hailo.ai";
 
@@ -373,6 +376,31 @@ impl HailoModelService {
         }
         tokio::fs::rename(&part, &target).await.map_err(Error::internal)?;
         tracing::info!(file, bytes = received, "Hailo model installed");
+        Ok(())
+    }
+
+    /// What MBL does with the NPU now, and whether it may use it.
+    pub fn npu(&self, actor: &Actor) -> Result<mbl_hailo::NpuActivity> {
+        actor.require_admin()?;
+        Ok(mbl_hailo::npu_activity())
+    }
+
+    /// Let MBL use the NPU, or stop: everything it holds is released at once.
+    pub async fn set_npu(&self, actor: &Actor, enabled: bool) -> Result<mbl_hailo::NpuActivity> {
+        actor.require_admin()?;
+        mbl_db::repo::settings::SettingsRepo::new(self.db.clone())
+            .set(NPU_SETTING, if enabled { "true" } else { "false" })
+            .await?;
+        mbl_hailo::set_npu_enabled(enabled);
+        tracing::info!(enabled, "NPU use by MBL changed");
+        Ok(mbl_hailo::npu_activity())
+    }
+
+    /// Apply the saved switch at startup.
+    pub async fn apply_saved_setting(&self) -> Result<()> {
+        let saved =
+            mbl_db::repo::settings::SettingsRepo::new(self.db.clone()).get(NPU_SETTING).await?;
+        mbl_hailo::set_npu_enabled(saved.as_deref() != Some("false"));
         Ok(())
     }
 

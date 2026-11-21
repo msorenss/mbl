@@ -14,6 +14,7 @@ use mbl_hwaccel::NpuProfile;
 use mbl_hwaccel::fingerprint::detect_fingerprint_from_root;
 use mbl_hwaccel::hailo::{DutyCyclePacer, HailoConfig, HailoRuntimeStatus, NpuCoordinator};
 use runtime::{HailoNativeRuntime, map_detections_to_tags_and_faces};
+pub use runtime::{NpuActivity, npu_activity, npu_enabled, set_npu_enabled};
 use serde::{Deserialize, Serialize};
 
 /// Dimension of the L2-normalized multimodal scene/text embedding vector.

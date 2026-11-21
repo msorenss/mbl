@@ -1,10 +1,11 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
-import { Badge, Button } from "./ui";
+import { Badge, Button, Switch } from "./ui";
 
 type Status = components["schemas"]["HailoModelsStatus"];
 type Model = components["schemas"]["HailoModel"];
+type Activity = components["schemas"]["NpuActivity"];
 
 function size(bytes?: number | null): string {
   if (!bytes) return "";
@@ -26,7 +27,28 @@ export default function HailoModels() {
   const [status, setStatus] = createSignal<Status | null>(null);
   const [error, setError] = createSignal("");
   const [busy, setBusy] = createSignal(false);
+  const [activity, setActivity] = createSignal<Activity | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const loadActivity = async () => {
+    try {
+      const result = await client.GET("/api/v1/hw/npu");
+      if (result.data) setActivity(result.data);
+    } catch {}
+  };
+  const activityTimer = setInterval(() => void loadActivity(), 10_000);
+  onCleanup(() => clearInterval(activityTimer));
+
+  const toggle = async (enabled: boolean) => {
+    setError("");
+    try {
+      const result = await client.PUT("/api/v1/hw/npu", { body: { enabled } });
+      if (!result.data) throw new Error();
+      setActivity(result.data);
+    } catch {
+      setError("Could not change the NPU setting.");
+    }
+  };
 
   const load = async () => {
     try {
@@ -39,7 +61,10 @@ export default function HailoModels() {
       setError("Could not load the NPU models.");
     }
   };
-  onMount(() => void load());
+  onMount(() => {
+    void load();
+    void loadActivity();
+  });
   onCleanup(() => clearTimeout(timer));
 
   const download = async (model: Model) => {
@@ -99,6 +124,39 @@ export default function HailoModels() {
         the build that matches the installed HailoRT. Object detection (YOLO) needs no download when
         Frigate's models are present.
       </p>
+      <Show when={activity()}>
+        {(a) => (
+          <div style={{ display: "grid", gap: "6px", margin: "0 0 12px" }}>
+            <Switch
+              checked={a().enabled}
+              onChange={(on: boolean) => void toggle(on)}
+              label="Let MBL use the NPU"
+            />
+            <div style={{ "font-size": "13px", color: "var(--text-secondary)" }}>
+              {a().enabled
+                ? `Since start: ${a().framesDetected} frames analysed, ${a().descriptions} scene descriptions, ${a().transcriptions} transcriptions, ${a().failures} failures.`
+                : "Off: MBL does not use the NPU and has released everything it held. The companion uses dialogue and metadata only."}
+            </div>
+            <Show when={a().enabled}>
+              <div style={{ "font-size": "13px", color: "var(--text-secondary)" }}>
+                {`Loaded now: ${
+                  [
+                    a().detectionLoaded ? (a().detectionModel ?? "detection") : null,
+                    a().descriptionLoaded ? "scene description" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ") || "nothing (models are released when idle)"
+                }`}
+              </div>
+            </Show>
+            <Show when={a().lastError}>
+              <div style={{ "font-size": "13px", color: "var(--danger)" }}>
+                {`Last problem: ${a().lastError}`}
+              </div>
+            </Show>
+          </div>
+        )}
+      </Show>
       <Show when={status()}>
         {(s) => (
           <>

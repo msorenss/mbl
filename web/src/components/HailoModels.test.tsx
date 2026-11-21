@@ -47,19 +47,59 @@ const status = (download: unknown = null) => ({
   download,
 });
 
+const activity = {
+  enabled: true,
+  detectionLoaded: true,
+  descriptionLoaded: false,
+  framesDetected: 12,
+  descriptions: 3,
+  transcriptions: 1,
+  failures: 0,
+  lastUsedAt: 1,
+  lastError: null,
+  detectionModel: "yolov11s.hef",
+};
+
+it("shows what MBL does with the NPU and turns it off", async () => {
+  vi.spyOn(client, "GET").mockImplementation((async (path: string) => ({
+    data: path === "/api/v1/hw/npu" ? activity : status(),
+    response: new Response(),
+  })) as never);
+  const put = vi.spyOn(client, "PUT").mockResolvedValue({
+    data: { ...activity, enabled: false, detectionLoaded: false },
+    response: new Response(),
+  } as never);
+  dispose = render(() => createComponent(HailoModels, {}), document.body);
+  await tick();
+  await tick();
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("12 frames analysed, 3 scene descriptions, 1 transcriptions");
+  expect(text).toContain("Loaded now: yolov11s.hef");
+  (document.querySelector("[role=switch]") as HTMLButtonElement).click();
+  await tick();
+  expect(put.mock.calls[0][1]).toMatchObject({ body: { enabled: false } });
+  expect(document.body.textContent).toContain("Off: MBL does not use the NPU");
+});
+
 it("downloads after a confirmation and shows the progress", async () => {
-  vi.spyOn(client, "GET")
-    .mockResolvedValueOnce({ data: status(), response: new Response() } as never)
-    .mockResolvedValue({
-      data: status({
-        file: "Qwen2-VL-2B-Instruct.hef",
-        receivedBytes: 1627722090,
-        totalBytes: 3255444179,
-        finished: false,
-        error: null,
-      }),
+  let modelCalls = 0;
+  vi.spyOn(client, "GET").mockImplementation((async (path: string) => {
+    if (path === "/api/v1/hw/npu") return { data: activity, response: new Response() };
+    modelCalls += 1;
+    return {
+      data:
+        modelCalls === 1
+          ? status()
+          : status({
+              file: "Qwen2-VL-2B-Instruct.hef",
+              receivedBytes: 1627722090,
+              totalBytes: 3255444179,
+              finished: false,
+              error: null,
+            }),
       response: new Response(),
-    } as never);
+    };
+  }) as never);
   const post = vi
     .spyOn(client, "POST")
     .mockResolvedValue({ response: new Response(null, { status: 202 }) } as never);
@@ -83,15 +123,18 @@ it("downloads after a confirmation and shows the progress", async () => {
 });
 
 it("explains why nothing can be installed", async () => {
-  vi.spyOn(client, "GET").mockResolvedValue({
-    data: {
-      ...status(),
-      npu: "hailo8",
-      supported: false,
-      reason: "These models need a Hailo-10H; a Hailo-8 runs only detection models such as YOLO.",
-    },
-    response: new Response(),
-  } as never);
+  vi.spyOn(client, "GET").mockImplementation((async (path: string) => {
+    if (path === "/api/v1/hw/npu") return { data: activity, response: new Response() };
+    return {
+      data: {
+        ...status(),
+        npu: "hailo8",
+        supported: false,
+        reason: "These models need a Hailo-10H; a Hailo-8 runs only detection models such as YOLO.",
+      },
+      response: new Response(),
+    };
+  }) as never);
   dispose = render(() => createComponent(HailoModels, {}), document.body);
   await tick();
   expect(document.body.textContent).toContain("These models need a Hailo-10H");

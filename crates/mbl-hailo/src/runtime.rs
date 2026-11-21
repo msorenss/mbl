@@ -19,7 +19,7 @@ use std::path::Path;
 #[cfg(unix)]
 use std::process::Command;
 #[cfg(unix)]
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 
 use image::DynamicImage;
 #[cfg(unix)]
@@ -399,6 +399,16 @@ static genai::VLM *cached_vlm(const char *hef_path, const char *group_id) {
     g_vlm_vdevice = vdevice;
     g_vlm_path = hef_path;
     return g_vlm.get();
+}
+
+// Unload the vision-language model so its board connection goes back to other programs.
+int mbl_hailo_genai_vlm_release() {
+    std::lock_guard<std::mutex> lock(g_vlm_mutex);
+    bool loaded = static_cast<bool>(g_vlm);
+    g_vlm.reset();
+    g_vlm_vdevice.reset();
+    g_vlm_path.clear();
+    return loaded ? 1 : 0;
 }
 
 int mbl_hailo_genai_vlm_frame_shape(
@@ -908,12 +918,12 @@ mod unix_ffi {
 
     fn ensure_infer_bridge_loaded() -> Option<*mut c_void> {
         let addr_opt = *BRIDGE_HANDLE.get_or_init(|| {
-            let so_path = Path::new("/tmp/mbl_hailo_infer_bridge_v4.so");
+            let so_path = Path::new("/tmp/mbl_hailo_infer_bridge_v5.so");
             if !so_path.exists() {
                 if !Path::new("/usr/include/hailo/hailort.hpp").exists() {
                     return None;
                 }
-                let cpp_path = Path::new("/tmp/mbl_hailo_infer_bridge_v4.cpp");
+                let cpp_path = Path::new("/tmp/mbl_hailo_infer_bridge_v5.cpp");
                 std::fs::write(cpp_path, INFER_BRIDGE_CPP_SOURCE).ok()?;
                 let status = Command::new("g++")
                     .args([
@@ -921,10 +931,10 @@ mod unix_ffi {
                         "-fPIC",
                         "-O2",
                         "-std=c++17",
-                        "/tmp/mbl_hailo_infer_bridge_v4.cpp",
+                        "/tmp/mbl_hailo_infer_bridge_v5.cpp",
                         "-lhailort",
                         "-o",
-                        "/tmp/mbl_hailo_infer_bridge_v4.so.tmp",
+                        "/tmp/mbl_hailo_infer_bridge_v5.so.tmp",
                     ])
                     .status()
                     .ok()?;
@@ -932,7 +942,7 @@ mod unix_ffi {
                 if !status.success() {
                     return None;
                 }
-                std::fs::rename("/tmp/mbl_hailo_infer_bridge_v4.so.tmp", so_path).ok()?;
+                std::fs::rename("/tmp/mbl_hailo_infer_bridge_v5.so.tmp", so_path).ok()?;
             }
             let cstr = CString::new(so_path.to_str()?).ok()?;
             // SAFETY: `cstr` is a valid NUL-terminated path to the compiled bridge shared library.
@@ -943,6 +953,19 @@ mod unix_ffi {
     }
 
     /// Describe an image using a Hailo-10H Vision-Language Model (`hailort::genai::VLM`: Qwen2-VL / Qwen3-VL).
+    /// Unload the cached vision-language model (if the bridge is loaded at all).
+    pub fn release_vlm() {
+        let Some(bridge) = ensure_infer_bridge_loaded() else { return };
+        // SAFETY: `mbl_hailo_genai_vlm_release` takes no arguments and only resets C++ state
+        // guarded by the bridge's own mutex.
+        unsafe {
+            type FnRelease = unsafe extern "C" fn() -> c_int;
+            if let Some(release) = load_sym::<FnRelease>(bridge, b"mbl_hailo_genai_vlm_release\0") {
+                release();
+            }
+        }
+    }
+
     pub fn run_vlm_describe(
         hef_path: &Path,
         group_id: &str,
@@ -1529,8 +1552,118 @@ pub struct HailoNativeRuntime {
     group_id: String,
     #[cfg_attr(not(unix), allow(dead_code))]
     priority: u8,
+    /// Sharing mode says MBL must not run models on the board.
+    #[cfg_attr(not(unix), allow(dead_code))]
+    disabled: bool,
+}
+
+/// What MBL does with the NPU, for the Hardware page: whether it may use it, what is loaded,
+/// how often each model ran in this run of the server and the last problem.
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct NpuActivity {
+    pub enabled: bool,
+    pub detection_loaded: bool,
+    pub description_loaded: bool,
+    pub frames_detected: u64,
+    pub descriptions: u64,
+    pub transcriptions: u64,
+    pub failures: u64,
+    /// Unix ms of the last use of any model.
+    pub last_used_at: Option<i64>,
+    pub last_error: Option<String>,
+    /// Detection model in use, e.g. `yolov11s.hef`.
+    pub detection_model: Option<String>,
+}
+
+/// MBL lets go of a model this long after its last use, so other programs (Frigate) get the
+/// board's connections back.
+const DETECTION_IDLE: std::time::Duration = std::time::Duration::from_secs(120);
+const DESCRIPTION_IDLE: std::time::Duration = std::time::Duration::from_secs(300);
+
+static NPU_ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+#[derive(Default)]
+struct SharedNpu {
     #[cfg(unix)]
-    session: Arc<Mutex<Option<(std::path::PathBuf, unix_ffi::UnixHailoSession)>>>,
+    vision: Option<(std::path::PathBuf, unix_ffi::UnixHailoSession)>,
+    last_vision_use: Option<std::time::Instant>,
+    last_vlm_use: Option<std::time::Instant>,
+    vlm_loaded: bool,
+    activity: NpuActivity,
+}
+
+/// One set of board connections for the whole server process.
+fn shared() -> &'static Mutex<SharedNpu> {
+    static SHARED: OnceLock<Mutex<SharedNpu>> = OnceLock::new();
+    SHARED.get_or_init(|| {
+        // Close idle models in the background.
+        let _ = std::thread::Builder::new().name("mbl-npu-idle".into()).spawn(|| {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(20));
+                release_idle(false);
+            }
+        });
+        Mutex::new(SharedNpu::default())
+    })
+}
+
+fn now_unix_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| i64::try_from(d.as_millis()).unwrap_or(0))
+        .unwrap_or(0)
+}
+
+/// Close models that have been idle (or all, when `all`).
+fn release_idle(all: bool) {
+    let Ok(mut npu) = shared().lock() else { return };
+    let idle = |at: Option<std::time::Instant>, limit| at.is_none_or(|t| t.elapsed() >= limit);
+    #[cfg(unix)]
+    if npu.vision.is_some() && (all || idle(npu.last_vision_use, DETECTION_IDLE)) {
+        npu.vision = None;
+        npu.activity.detection_loaded = false;
+        tracing::info!("released the NPU detection model");
+    }
+    if npu.vlm_loaded && (all || idle(npu.last_vlm_use, DESCRIPTION_IDLE)) {
+        #[cfg(unix)]
+        unix_ffi::release_vlm();
+        npu.vlm_loaded = false;
+        npu.activity.description_loaded = false;
+        tracing::info!("released the NPU description model");
+    }
+}
+
+/// Let MBL use the NPU, or stop and let go of everything it holds.
+pub fn set_npu_enabled(enabled: bool) {
+    NPU_ENABLED.store(enabled, std::sync::atomic::Ordering::Release);
+    if !enabled {
+        release_idle(true);
+    }
+}
+
+pub fn npu_enabled() -> bool {
+    NPU_ENABLED.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// What MBL is doing with the NPU right now.
+pub fn npu_activity() -> NpuActivity {
+    let mut activity = shared().lock().map(|n| n.activity.clone()).unwrap_or_default();
+    activity.enabled = npu_enabled();
+    activity
+}
+
+fn record(update: impl FnOnce(&mut NpuActivity), error: Option<&str>) {
+    if let Ok(mut npu) = shared().lock() {
+        update(&mut npu.activity);
+        npu.activity.last_used_at = Some(now_unix_ms());
+        if let Some(e) = error {
+            npu.activity.failures += 1;
+            npu.activity.last_error = Some(e.to_owned());
+        }
+    }
 }
 
 impl std::fmt::Debug for HailoNativeRuntime {
@@ -1547,47 +1680,20 @@ impl HailoNativeRuntime {
             config.vdevice_group_id.clone()
         };
         let priority = if config.mode == HailoSharingMode::Exclusive { 16 } else { 8 };
-        #[cfg(unix)]
-        {
-            if matches!(config.mode, HailoSharingMode::Disabled | HailoSharingMode::OffloadOnly) {
-                return Self { group_id, priority, session: Arc::new(Mutex::new(None)) };
-            }
-            let fp = detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, None);
-            if !fp.npu_profile.is_present() {
-                return Self { group_id, priority, session: Arc::new(Mutex::new(None)) };
-            }
-            let Some(hef_path) = discover_hef_model_for_profile(Path::new("/"), fp.npu_profile)
-            else {
-                return Self { group_id, priority, session: Arc::new(Mutex::new(None)) };
-            };
-            let arch_label = fp
-                .hailo_devices
-                .first()
-                .map(|d| d.architecture.as_str())
-                .unwrap_or_else(|| fp.npu_profile.as_str());
-            let sess = unix_ffi::UnixHailoSession::open(&hef_path, &group_id, priority, arch_label);
-            if let Some(ref s) = sess {
-                tracing::info!(
-                    arch = %s.arch_label,
-                    model = %s.model_name,
-                    group_id = %group_id,
-                    shape = %format!("{}x{}x{}", s.width, s.height, s.channels),
-                    "Initialized native Hailo NPU inference session"
-                );
-            }
-            Self { group_id, priority, session: Arc::new(Mutex::new(sess.map(|s| (hef_path, s)))) }
-        }
-        #[cfg(not(unix))]
-        {
-            Self { group_id, priority }
-        }
+        // Nothing is opened here: a model connects to the board when it is first used and lets
+        // go again when idle.
+        let disabled =
+            matches!(config.mode, HailoSharingMode::Disabled | HailoSharingMode::OffloadOnly);
+        Self { group_id, priority, disabled }
+    }
+
+    fn usable(&self) -> bool {
+        !self.disabled && npu_enabled()
     }
 
     #[cfg(unix)]
-    fn ensure_vision_session(
-        &self,
-        guard: &mut Option<(std::path::PathBuf, unix_ffi::UnixHailoSession)>,
-    ) {
+    fn ensure_vision_session(&self, npu: &mut SharedNpu) {
+        let guard = &mut npu.vision;
         let fp = detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, None);
         if !fp.npu_profile.is_present() {
             return;
@@ -1614,9 +1720,12 @@ impl HailoNativeRuntime {
                 arch = %sess.arch_label,
                 model = %sess.model_name,
                 path = %target_hef.display(),
-                "Switched active Hailo NPU vision HEF model"
+                shape = %format!("{}x{}x{}", sess.width, sess.height, sess.channels),
+                "Opened the Hailo NPU detection model"
             );
+            npu.activity.detection_model = Some(sess.model_name.clone());
             *guard = Some((target_hef, sess));
+            npu.activity.detection_loaded = true;
         }
     }
 
@@ -1624,9 +1733,13 @@ impl HailoNativeRuntime {
     pub fn active_backend_name(&self) -> Option<String> {
         #[cfg(unix)]
         {
-            let mut guard = self.session.lock().ok()?;
-            self.ensure_vision_session(&mut guard);
-            let (_, sess) = guard.as_ref()?;
+            if !self.usable() {
+                return None;
+            }
+            let mut npu = shared().lock().ok()?;
+            self.ensure_vision_session(&mut npu);
+            npu.last_vision_use = Some(std::time::Instant::now());
+            let (_, sess) = npu.vision.as_ref()?;
             Some(format!("hailort-npu({},{})", sess.arch_label, sess.model_name))
         }
         #[cfg(not(unix))]
@@ -1639,13 +1752,24 @@ impl HailoNativeRuntime {
     pub fn infer_image(&self, img: &DynamicImage) -> Option<NpuFrameResult> {
         #[cfg(unix)]
         {
-            let mut guard = self.session.lock().ok()?;
-            self.ensure_vision_session(&mut guard);
-            let (_, sess) = guard.as_mut()?;
-            match sess.infer(img) {
-                Ok(res) => Some(res),
+            if !self.usable() {
+                return None;
+            }
+            let mut npu = shared().lock().ok()?;
+            self.ensure_vision_session(&mut npu);
+            npu.last_vision_use = Some(std::time::Instant::now());
+            let result = npu.vision.as_mut()?.1.infer(img);
+            drop(npu);
+            match result {
+                Ok(res) => {
+                    record(|a| a.frames_detected += 1, None);
+                    Some(res)
+                }
                 Err(e) => {
                     tracing::warn!(error = %e, "Hailo NPU frame inference failed; falling back to CPU heuristic");
+                    record(|_| {}, Some(&format!("detection: {e}")));
+                    // Reconnect next time rather than keep a broken session.
+                    release_idle(true);
                     None
                 }
             }
@@ -1668,11 +1792,27 @@ impl HailoNativeRuntime {
     ) -> Option<(String, String)> {
         #[cfg(unix)]
         {
+            if !self.usable() {
+                return None;
+            }
             let fp = detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, None);
             let hef_path =
                 mbl_hwaccel::hailo::discover_vlm_hef_model(Path::new("/"), fp.npu_profile)?;
             let group_id = if self.group_id.is_empty() { "SHARED" } else { &self.group_id };
-            unix_ffi::run_vlm_describe(&hef_path, group_id, img, prompt, max_tokens)
+            if let Ok(mut npu) = shared().lock() {
+                npu.last_vlm_use = Some(std::time::Instant::now());
+                npu.vlm_loaded = true;
+                npu.activity.description_loaded = true;
+            }
+            let result = unix_ffi::run_vlm_describe(&hef_path, group_id, img, prompt, max_tokens);
+            match &result {
+                Some(_) => record(|a| a.descriptions += 1, None),
+                None => record(|_| {}, Some("description: the vision model gave no answer")),
+            }
+            if let Ok(mut npu) = shared().lock() {
+                npu.last_vlm_use = Some(std::time::Instant::now());
+            }
+            result
         }
         #[cfg(not(unix))]
         {
@@ -1688,6 +1828,9 @@ impl HailoNativeRuntime {
     pub fn generate_text_llm(&self, prompt: &str, max_tokens: u32) -> Option<(String, String)> {
         #[cfg(unix)]
         {
+            if !self.usable() {
+                return None;
+            }
             let fp = detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, None);
             let hef_path =
                 mbl_hwaccel::hailo::discover_llm_hef_model(Path::new("/"), fp.npu_profile)?;
@@ -1712,17 +1855,25 @@ impl HailoNativeRuntime {
     ) -> Option<(Vec<HailoSpeechSegment>, String)> {
         #[cfg(unix)]
         {
+            if !self.usable() {
+                return None;
+            }
             let fp = detect_fingerprint_from_root(Path::new("/"), std::env::consts::ARCH, None);
             let hef_path =
                 mbl_hwaccel::hailo::discover_whisper_hef_model(Path::new("/"), fp.npu_profile)?;
             let group_id = if self.group_id.is_empty() { "SHARED" } else { &self.group_id };
-            unix_ffi::run_speech2text(
+            let result = unix_ffi::run_speech2text(
                 &hef_path,
                 group_id,
                 pcm_f32_16k,
                 language,
                 translate_to_english,
-            )
+            );
+            match &result {
+                Some(_) => record(|a| a.transcriptions += 1, None),
+                None => record(|_| {}, Some("speech: Whisper gave no answer")),
+            }
+            result
         }
         #[cfg(not(unix))]
         {

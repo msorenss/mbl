@@ -301,6 +301,9 @@ impl Server {
 
         let movie_nights = tokio::spawn(close_movie_nights(self.services.clone(), stop.clone()));
         let maintenance = tokio::spawn(scheduled_maintenance(self.services.clone(), stop.clone()));
+        if let Err(e) = self.services.hailo_models.apply_saved_setting().await {
+            tracing::warn!(failure = e.code(), "could not read the NPU setting");
+        }
 
         let companion = tokio::spawn(mbl_mcp::companion_bot::run(
             mbl_mcp::assistant::AssistantRunner::new(self.db.clone(), self.services.clone())

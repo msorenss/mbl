@@ -470,3 +470,7 @@ reason = "Downloads gigabytes from Hailo onto the server; an admin starts it fro
 [[exclusions]]
 path = "/api/v1/hw/models/{file}"
 reason = "Removes an installed NPU model; an admin does it from the Hardware page."
+
+[[exclusions]]
+path = "/api/v1/hw/npu"
+reason = "Hardware page switch and activity for MBL's use of the NPU; get_hw_report covers the NPU for agents."

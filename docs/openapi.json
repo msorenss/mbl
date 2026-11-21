@@ -1821,6 +1821,66 @@
         ]
       }
     },
+    "/api/v1/hw/npu": {
+      "get": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Whether MBL may use the NPU, what it has loaded and how often each model ran since start.",
+        "operationId": "npu_activity",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NpuActivity"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Turn MBL's use of the NPU on or off. Off releases everything MBL holds on the board at once.",
+        "operationId": "set_npu",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNpu"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NpuActivity"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/hw/report": {
       "get": {
         "tags": [
@@ -15744,6 +15804,71 @@
           }
         }
       },
+      "NpuActivity": {
+        "type": "object",
+        "description": "What MBL does with the NPU, for the Hardware page: whether it may use it, what is loaded,\nhow often each model ran in this run of the server and the last problem.",
+        "required": [
+          "enabled",
+          "detectionLoaded",
+          "descriptionLoaded",
+          "framesDetected",
+          "descriptions",
+          "transcriptions",
+          "failures"
+        ],
+        "properties": {
+          "descriptionLoaded": {
+            "type": "boolean"
+          },
+          "descriptions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "detectionLoaded": {
+            "type": "boolean"
+          },
+          "detectionModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Detection model in use, e.g. `yolov11s.hef`."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "failures": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "framesDetected": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastUsedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix ms of the last use of any model."
+          },
+          "transcriptions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "NpuProfile": {
         "type": "string",
         "description": "Detected Neural Processing Unit (NPU) accelerator profile (M4.1, M4.17).",
@@ -19113,6 +19238,17 @@
       "SessionId": {
         "type": "integer",
         "format": "int64"
+      },
+      "SetNpu": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
       },
       "SetPinRequest": {
         "type": "object",

@@ -44,4 +44,19 @@ async fn the_model_installer_lists_known_models_for_admins() {
     let res =
         app.call(Method::DELETE, "/api/v1/hw/models/Whisper-Base.hef", Some(&viewer), None).await;
     assert_eq!(res.status, StatusCode::FORBIDDEN);
+
+    // The NPU switch: admin only, saved, and off means nothing is held.
+    let res = app.call(Method::GET, "/api/v1/hw/npu", Some(&viewer), None).await;
+    assert_eq!(res.status, StatusCode::FORBIDDEN);
+    let off = serde_json::json!({ "enabled": false });
+    let res = app.call(Method::PUT, "/api/v1/hw/npu", Some(&admin), Some(off)).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["enabled"], false);
+    assert_eq!(res.body["detectionLoaded"], false);
+    assert_eq!(res.body["descriptionLoaded"], false);
+    let on = serde_json::json!({ "enabled": true });
+    let res = app.call(Method::PUT, "/api/v1/hw/npu", Some(&admin), Some(on)).await;
+    assert_eq!(res.body["enabled"], true);
+    let res = app.call(Method::GET, "/api/v1/hw/npu", Some(&admin), None).await;
+    assert_eq!(res.body["enabled"], true);
 }
