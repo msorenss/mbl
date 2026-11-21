@@ -108,6 +108,9 @@ pub async fn extract_or_convert_subtitle(
     let sub_cache_dir = cache_dir.join("subtitles");
     let cached_path =
         sub_cache_dir.join(format!("{}_{}.{}", part_id.0, stream_index, format.extension()));
+    // Wait for a batch extraction of this part that may be writing this very file.
+    let lock = part_lock(part_id);
+    let _guard = lock.lock().await;
 
     if let Ok(meta) = tokio::fs::metadata(&cached_path).await
         && meta.is_file()
@@ -181,6 +184,106 @@ pub async fn extract_or_convert_subtitle(
     tokio::fs::rename(&tmp_path, &cached_path).await.map_err(Error::internal)?;
 
     Ok(cached_path)
+}
+
+/// Path of the cached WebVTT file for one stream of a part.
+pub fn cached_vtt_path(cache_dir: &Path, part_id: PartId, stream_index: u32) -> PathBuf {
+    cache_dir.join("subtitles").join(format!("{}_{}.vtt", part_id.0, stream_index))
+}
+
+/// One batch extraction per part at a time; a second caller waits and then finds the files.
+fn part_lock(part_id: PartId) -> std::sync::Arc<tokio::sync::Mutex<()>> {
+    static LOCKS: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<i64, std::sync::Weak<tokio::sync::Mutex<()>>>>,
+    > = std::sync::OnceLock::new();
+    let mut map = LOCKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    map.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = map.get(&part_id.0).and_then(std::sync::Weak::upgrade) {
+        return lock;
+    }
+    let lock = std::sync::Arc::new(tokio::sync::Mutex::new(()));
+    map.insert(part_id.0, std::sync::Arc::downgrade(&lock));
+    lock
+}
+
+/// Extract the embedded text subtitle streams `indices` of `media_path` to WebVTT in the cache,
+/// all in one FFmpeg run. Subtitles are spread over the whole film, so FFmpeg reads the entire
+/// file for any one of them: 4.9 GB from an SD card took over two minutes per track. One run
+/// writes every track for the price of one. Tracks already cached are skipped; returns how many
+/// were written. Fails as a whole when FFmpeg fails (then extract the track on its own).
+pub async fn extract_embedded_vtt(
+    cache_dir: &Path,
+    ffmpeg_bin: &Path,
+    part_id: PartId,
+    media_path: &Path,
+    indices: &[u32],
+) -> Result<usize> {
+    let lock = part_lock(part_id);
+    let _guard = lock.lock().await;
+    let mut missing = Vec::new();
+    for &index in indices {
+        let cached = tokio::fs::metadata(cached_vtt_path(cache_dir, part_id, index)).await;
+        if !cached.is_ok_and(|m| m.is_file() && m.len() > 0) {
+            missing.push(index);
+        }
+    }
+    if missing.is_empty() {
+        return Ok(0);
+    }
+    let sub_cache_dir = cache_dir.join("subtitles");
+    tokio::fs::create_dir_all(&sub_cache_dir).await.map_err(Error::internal)?;
+    let unique = SUBTITLE_TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let outputs: Vec<(u32, PathBuf)> = missing
+        .iter()
+        .map(|&i| (i, sub_cache_dir.join(format!("{}_{}.{}.batch.tmp", part_id.0, i, unique))))
+        .collect();
+
+    let mut command = Command::new(ffmpeg_bin);
+    command.args(["-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i"]).arg(media_path);
+    for (index, tmp) in &outputs {
+        command
+            .arg("-map")
+            .arg(format!("0:{index}"))
+            .args(["-c:s", "webvtt", "-f", "webvtt"])
+            .arg(tmp);
+    }
+    let output = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .output()
+        .await
+        .map_err(|e| {
+            Error::Unavailable(format!("failed to launch ffmpeg (`{}`): {e}", ffmpeg_bin.display()))
+        });
+    let output = match output {
+        Ok(output) if output.status.success() => output,
+        other => {
+            for (_, tmp) in &outputs {
+                let _ = tokio::fs::remove_file(tmp).await;
+            }
+            return Err(match other {
+                Ok(output) => Error::Unavailable(format!(
+                    "ffmpeg subtitle extraction failed: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                )),
+                Err(error) => error,
+            });
+        }
+    };
+    drop(output);
+    let mut written = 0;
+    for (index, tmp) in outputs {
+        tokio::fs::rename(&tmp, cached_vtt_path(cache_dir, part_id, index))
+            .await
+            .map_err(Error::internal)?;
+        written += 1;
+    }
+    Ok(written)
 }
 
 /// Serve a converted or raw subtitle file with the appropriate MIME type and caching headers.

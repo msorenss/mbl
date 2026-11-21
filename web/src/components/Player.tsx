@@ -1534,6 +1534,17 @@ export function Player(props: PlayerProps) {
     const subs = playbackData()?.subtitles || [];
     return subs.find((s) => s.index === selectedSubtitleIndex());
   };
+  // Subtitles inside a file are taken out by the server, which reads the whole file the first
+  // time; on a slow disk that can take minutes. Say so instead of showing nothing.
+  const [subtitleLoad, setSubtitleLoad] = createSignal<"idle" | "loading" | "ready" | "failed">(
+    "idle",
+  );
+  createEffect(
+    on(
+      () => activeSubtitleTrack()?.url,
+      (url) => setSubtitleLoad(url ? "loading" : "idle"),
+    ),
+  );
 
   // Markers: intro, credits, chapters
   const currentMarkers = () => playbackData()?.markers || [];
@@ -1779,6 +1790,28 @@ export function Player(props: PlayerProps) {
           Preparing playback…
         </p>
       </Show>
+      <Show when={subtitleLoad() === "loading" || subtitleLoad() === "failed"}>
+        <p
+          role="status"
+          style={{
+            position: "absolute",
+            bottom: "120px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            "z-index": 10010,
+            background: "rgba(0, 0, 0, 0.75)",
+            color: "white",
+            padding: "8px 14px",
+            "border-radius": "8px",
+            "font-size": "14px",
+            "pointer-events": "none",
+          }}
+        >
+          {subtitleLoad() === "loading"
+            ? "Preparing subtitles… The first time can take a few minutes."
+            : "The subtitles could not be loaded."}
+        </p>
+      </Show>
       <Show when={recoveryNotice()}>
         <p
           role="status"
@@ -1921,8 +1954,11 @@ export function Player(props: PlayerProps) {
               label={sub().title || sub().language || "Subtitles"}
               default
               onLoad={(e) => {
-                e.currentTarget.track.mode = "showing";
+                setSubtitleLoad("ready");
+                const track = e.currentTarget.track;
+                if (track) track.mode = "showing";
               }}
+              onError={() => setSubtitleLoad("failed")}
             />
           )}
         </Show>

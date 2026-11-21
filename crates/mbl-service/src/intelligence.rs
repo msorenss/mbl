@@ -1297,6 +1297,45 @@ impl JobHandler for SceneIndexJobHandler {
     }
 }
 
+/// Takes the text subtitles out of new files after a scan (one read per file, see
+/// [`crate::StreamService::prepare_subtitles`]), so choosing a subtitle does not wait minutes for
+/// the file to be read. Gives way to playback and heat like the other idle jobs.
+pub struct SubtitleJobHandler {
+    pub stream: crate::StreamService,
+    pub playback: crate::PlaybackService,
+}
+#[async_trait]
+impl JobHandler for SubtitleJobHandler {
+    fn kind(&self) -> &'static str {
+        kinds::MEDIA_SUBTITLES
+    }
+    async fn run(&self, ctx: JobCtx, payload: serde_json::Value) -> Result<()> {
+        let library = payload["libraryId"]
+            .as_i64()
+            .ok_or_else(|| Error::Validation("subtitle job without libraryId".into()))?;
+        let parts = media::video_part_ids_for_library(&ctx.db, LibraryId(library)).await?;
+        for (index, part) in parts.iter().enumerate() {
+            tokio::select! {
+                () = ctx.cancel.cancelled() => return Ok(()),
+                () = async {
+                    loop {
+                        if mbl_jobs::ActivityProbe::playback_active(&self.playback)
+                            || mbl_jobs::ActivityProbe::thermal_throttled(&self.playback) { break; }
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                } => return Err(mbl_jobs::yield_to_idle()),
+                result = self.stream.prepare_subtitles(*part, false) => {
+                    if let Err(error) = result {
+                        tracing::warn!(part_id = %part, %error, "subtitles could not be prepared");
+                    }
+                }
+            }
+            ctx.progress.report((index + 1) as f32 / parts.len() as f32).await?;
+        }
+        Ok(())
+    }
+}
+
 pub struct TrickplayJobHandler {
     pub intelligence: MediaIntelligenceService,
     pub playback: crate::PlaybackService,

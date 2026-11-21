@@ -80,7 +80,8 @@ pub use intelligence::{
     MarkerAnalysisJobHandler, MediaIntelligenceService, OptimizeJobHandler,
     QuickConnectAuthorizeRequest, QuickConnectInitRequest, QuickConnectInitResponse,
     QuickConnectPending, QuickConnectPollRequest, QuickConnectPollResponse, SceneHintInput,
-    SceneIndexJobHandler, SceneSearchHit, SystemHealthReport, TrickplayJobHandler,
+    SceneIndexJobHandler, SceneSearchHit, SubtitleJobHandler, SystemHealthReport,
+    TrickplayJobHandler,
 };
 pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};

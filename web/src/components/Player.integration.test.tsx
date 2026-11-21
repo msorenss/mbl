@@ -664,6 +664,30 @@ it("switches audio at the current position and keeps current captions through qu
   );
   expect(container.querySelector("track")?.getAttribute("src")).toContain("-4.vtt");
 });
+it("says when subtitles are being prepared and when they fail", async () => {
+  mockTrackPlayback();
+  dispose = render(
+    () =>
+      createComponent(Player, {
+        itemId: 7,
+        audioStreamIndex: 1,
+        subtitleStreamIndex: null,
+        onClose: vi.fn(),
+      }),
+    container,
+  );
+  await tick();
+  await chooseSubtitle("Danish captions");
+  expect(container.textContent).toContain("Preparing subtitles");
+  container.querySelector("track")?.dispatchEvent(new Event("error"));
+  await tick();
+  expect(container.textContent).toContain("The subtitles could not be loaded.");
+  await chooseSubtitle("English captions");
+  expect(container.textContent).toContain("Preparing subtitles");
+  container.querySelector("track")?.dispatchEvent(new Event("load"));
+  await tick();
+  expect(container.textContent).not.toContain("Preparing subtitles");
+});
 it("retains the selected audio and session when the new track cannot be admitted", async () => {
   mockTrackPlayback();
   dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), container);

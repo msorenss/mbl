@@ -343,6 +343,13 @@ impl Scanner {
                 Priority::Idle,
             )
             .await?;
+            // Subtitles inside the files, ready before anyone presses play.
+            jobs.enqueue(
+                mbl_jobs::kinds::MEDIA_SUBTITLES,
+                &json!({"libraryId": library_id}),
+                Priority::Idle,
+            )
+            .await?;
             // Intro and credits markers for "Skip intro" / "Skip credits".
             if !matches!(library.kind, mbl_core::LibraryKind::HomeVideo) {
                 jobs.enqueue(

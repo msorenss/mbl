@@ -7,7 +7,10 @@ use mbl_core::{Actor, Error, ItemId, LibraryId, PartId, Result, StreamKind};
 use mbl_db::Db;
 use mbl_db::repo::libraries::LibrariesRepo;
 use mbl_db::repo::media;
-use mbl_stream::subtitles::{SubtitleFormat, SubtitleSource, extract_or_convert_subtitle};
+use mbl_stream::subtitles::{
+    SubtitleFormat, SubtitleSource, cached_vtt_path, extract_embedded_vtt,
+    extract_or_convert_subtitle,
+};
 use mbl_transcode::{HlsSession, SessionManager};
 
 /// Verified on-disk media part ready to be streamed.
@@ -204,10 +207,17 @@ impl StreamService {
             }
         };
 
-        let cache_dir = self
-            .cache_dir
-            .clone()
-            .unwrap_or_else(|| std::env::temp_dir().join("mbl-subtitle-cache"));
+        let cache_dir = self.subtitle_cache_dir();
+        // A text track inside the file: take out all of them in one read of the file.
+        if format == SubtitleFormat::Vtt
+            && matches!(source, SubtitleSource::Embedded { .. })
+            && !tokio::fs::metadata(cached_vtt_path(&cache_dir, part_id, stream_index))
+                .await
+                .is_ok_and(|m| m.len() > 0)
+            && let Err(error) = self.prepare_subtitles(part_id, true).await
+        {
+            tracing::warn!(%error, part = part_id.0, "subtitle batch failed; extracting one track");
+        }
         let ffmpeg_bin = self
             .hls
             .as_ref()
@@ -216,6 +226,42 @@ impl StreamService {
 
         extract_or_convert_subtitle(&cache_dir, ffmpeg_bin, part_id, stream_index, &source, format)
             .await
+    }
+
+    fn subtitle_cache_dir(&self) -> PathBuf {
+        self.cache_dir.clone().unwrap_or_else(|| std::env::temp_dir().join("mbl-subtitle-cache"))
+    }
+
+    /// Extract every embedded text subtitle track of `part_id` to WebVTT in one read of the file,
+    /// skipping tracks already cached. Returns how many tracks were written. No access check: for
+    /// background jobs and callers that have already checked. With `detached` the work runs in
+    /// its own task, so a viewer who gives up waiting does not throw it away; otherwise dropping
+    /// the future stops FFmpeg (a background job that gives way to playback).
+    pub async fn prepare_subtitles(&self, part_id: PartId, detached: bool) -> Result<usize> {
+        let part = media::part_for_stream(&self.db, part_id).await?.ok_or(Error::NotFound)?;
+        let indices: Vec<u32> = media::streams_for_part(&self.db, part_id)
+            .await?
+            .into_iter()
+            .filter(|s| s.kind == StreamKind::Subtitle && s.external_path.is_none())
+            .filter(|s| !mbl_stream::subtitles::is_image_subtitle(&s.codec))
+            .filter_map(|s| u32::try_from(s.idx).ok())
+            .collect();
+        if indices.is_empty() {
+            return Ok(0);
+        }
+        let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
+        let media_path = verify_under_library_roots(&part.path, &lib.paths)?;
+        let media_path = self.media_input(&media_path).await?;
+        let cache_dir = self.subtitle_cache_dir();
+        let ffmpeg_bin = self
+            .hls
+            .as_ref()
+            .map(|h| h.config().ffmpeg_bin.clone())
+            .unwrap_or_else(|| self.ffmpeg_bin.clone());
+        let work = async move {
+            extract_embedded_vtt(&cache_dir, &ffmpeg_bin, part_id, &media_path, &indices).await
+        };
+        if detached { tokio::spawn(work).await.map_err(Error::internal)? } else { work.await }
     }
 }
 
