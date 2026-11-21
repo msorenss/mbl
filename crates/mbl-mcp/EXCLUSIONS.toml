@@ -386,3 +386,7 @@ reason = "The person's private conversations with the built-in assistant; not fo
 [[exclusions]]
 path = "/api/v1/assistant/chat"
 reason = "The built-in assistant itself (which uses the MCP tools); an external agent has no reason to ask it."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/next-episode"
+reason = "Play button of the web's show and season pages; agents use get_children and get_continue_watching."

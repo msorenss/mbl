@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Changed
+- **Play** and **Cast to TV** work on a show or season page: they start the episode after the last one you finished (continuing where you stopped if you started it), a started episode if you have not finished any, or the first episode. The button shows which one, for example "Resume S2E9", and playback continues with the next episode. New `GET /api/v1/items/{id}/next-episode`.
+
 ### Fixed
 - The chat button in the player was invisible on computers without an emoji font (common on Linux, including Raspberry Pi OS): it was a 💬 emoji. It now has its own icon and the label **Chat**, and so does the assistant button in the top bar. The subtitle button no longer shows an emoji either.
 

@@ -2409,6 +2409,44 @@
         }
       }
     },
+    "/api/v1/items/{id}/next-episode": {
+      "get": {
+        "tags": [
+          "browse"
+        ],
+        "summary": "The episode to play from a show or season: the one after the last finished episode\n(resumed when started), else a started one, else the first. 204 when it has no playable\nepisode.",
+        "operationId": "next_episode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextEpisode"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No playable episode"
+          },
+          "404": {},
+          "422": {
+            "description": "Not a show or season"
+          }
+        }
+      }
+    },
     "/api/v1/items/{id}/optimize": {
       "post": {
         "tags": [
@@ -13640,6 +13678,24 @@
           "tailnet",
           "wan"
         ]
+      },
+      "NextEpisode": {
+        "type": "object",
+        "description": "The episode to play from a show or season page, with where to start.",
+        "required": [
+          "episode",
+          "startMs"
+        ],
+        "properties": {
+          "episode": {
+            "$ref": "#/components/schemas/ItemSummary"
+          },
+          "startMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Saved position to resume from, 0 to start from the beginning."
+          }
+        }
       },
       "NodeCapabilities": {
         "type": "object",

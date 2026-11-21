@@ -87,6 +87,7 @@ When a milestone is complete and the relevant checks are green:
 
 ### 2026-11-20 — Kö för 1.3.11 (buggfixar)
 - Klart, ej släppt: `f7583ed` chattknappen i spelaren (och assistentknappen) använder SVG-ikon och text i stället för emoji, som inte syns utan emoji-typsnitt (Raspberry Pi OS); undertextknappen utan emoji.
+- Klart, ej släppt: Spela/Cast på serie- och säsongssidan. `GET /api/v1/items/{id}/next-episode` (`ItemService::next_episode`, `items::episodes_in_order`, `pick_next_episode`): avsnittet efter senast färdigsedda (återupptas om påbörjat), annars ett påbörjat om inget är färdigt, annars första (även när allt är sett); 204 utan spelbart avsnitt, 422 för annat än serie/säsong. Webben visar t.ex. "Resume S2E9", spelar med `autoplayNext` och "Play on device" för avsnittet. Tester: `tests/next_episode.rs`, enhetstest för valet, webbtest.
 - Att åtgärda: CI-releasebygget rapporterar `gitCommit: "release"` i `/api/v1/system/info` i stället för commit-hashen.
 - Användaren väntar med testpaket till 1.3.11.
 

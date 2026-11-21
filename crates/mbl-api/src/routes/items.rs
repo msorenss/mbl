@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/libraries/{id}/items", get(list))
         .route("/api/v1/items/{id}", get(detail))
         .route("/api/v1/items/{id}/children", get(children))
+        .route("/api/v1/items/{id}/next-episode", get(next_episode))
         .route("/api/v1/items/{id}/lyrics", get(lyrics))
         .route(
             "/api/v1/items/{id}/playback-preview",
@@ -94,6 +95,29 @@ async fn children(
     Path(id): Path<ItemId>,
 ) -> Result<Json<Vec<ItemSummary>>, ApiError> {
     Ok(Json(state.services.items.children(&auth.actor, id).await?))
+}
+
+/// The episode to play from a show or season: the one after the last finished episode
+/// (resumed when started), else a started one, else the first. 204 when it has no playable
+/// episode.
+#[utoipa::path(get, path = "/api/v1/items/{id}/next-episode", tag = "browse",
+    params(("id" = i64, Path)),
+    responses(
+        (status = 200, body = mbl_service::items::NextEpisode),
+        (status = 204, description = "No playable episode"),
+        (status = 404),
+        (status = 422, description = "Not a show or season")
+    ))]
+async fn next_episode(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
+    Ok(match state.services.items.next_episode(&auth.actor, id).await? {
+        Some(next) => Json(next).into_response(),
+        None => axum::http::StatusCode::NO_CONTENT.into_response(),
+    })
 }
 
 /// Lyrics for a music track: a sidecar `.lrc` (synced) or the embedded lyrics tag.

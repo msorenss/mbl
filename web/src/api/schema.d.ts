@@ -1051,6 +1051,27 @@ export interface paths {
         patch: operations["update_metadata"];
         trace?: never;
     };
+    "/api/v1/items/{id}/next-episode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The episode to play from a show or season: the one after the last finished episode
+         *     (resumed when started), else a started one, else the first. 204 when it has no playable
+         *     episode.
+         */
+        get: operations["next_episode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items/{id}/optimize": {
         parameters: {
             query?: never;
@@ -4596,6 +4617,15 @@ export interface components {
          * @enum {string}
          */
         NetworkClass: "lan" | "tailnet" | "wan";
+        /** @description The episode to play from a show or season page, with where to start. */
+        NextEpisode: {
+            episode: components["schemas"]["ItemSummary"];
+            /**
+             * Format: int64
+             * @description Saved position to resume from, 0 to start from the beginning.
+             */
+            startMs: number;
+        };
         /** @description Node capabilities reported during pairing and health checks. */
         NodeCapabilities: {
             gpuVendor?: string | null;
@@ -8649,6 +8679,47 @@ export interface operations {
                 };
                 content?: never;
             };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    next_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextEpisode"];
+                };
+            };
+            /** @description No playable episode */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a show or season */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -398,6 +398,26 @@ pub async fn continue_watching(
     Ok(qb.build_query_as().fetch_all(&db.read).await?)
 }
 
+/// Episodes of a show (through its seasons) or of a season, in watching order, with the
+/// user's watch state. Only episodes with a file the user may see.
+pub async fn episodes_in_order(
+    db: &Db,
+    filter: &ItemFilter,
+    parent: ItemId,
+) -> Result<Vec<ItemSummary>> {
+    let mut qb = summary_query(filter);
+    qb.push(" AND i.kind = 'episode' AND (i.parent_id = ")
+        .push_bind(parent.0)
+        .push(
+            " OR i.parent_id IN (SELECT s.id FROM media_items s WHERE s.kind = 'season' \
+             AND s.parent_id = ",
+        )
+        .push_bind(parent.0)
+        .push("))");
+    qb.push(" ORDER BY COALESCE(i.parent_idx, 0), COALESCE(i.idx, 0), i.id");
+    Ok(qb.build_query_as().fetch_all(&db.read).await?)
+}
+
 /// The first unwatched episode of every show the user has watched something of.
 pub async fn up_next(db: &Db, filter: &ItemFilter, limit: u32) -> Result<Vec<ItemSummary>> {
     let mut qb = QueryBuilder::new(

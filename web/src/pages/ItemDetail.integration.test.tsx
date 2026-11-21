@@ -52,6 +52,8 @@ it("opens seasons instead of playing their nonexistent media and reloads watch s
         response: new Response(),
       } as never;
     if (path.endsWith("playback-preview")) return { response: new Response() } as never;
+    if (path.endsWith("/next-episode"))
+      return { response: new Response(null, { status: 204 }) } as never;
     return {
       data: {
         id: 1,
@@ -85,4 +87,61 @@ it("opens seasons instead of playing their nonexistent media and reloads watch s
   setRevision(1);
   await tick();
   expect(get.mock.calls.filter((c) => c[0] === "/api/v1/items/{id}").length).toBe(before + 1);
+});
+
+it("plays the next episode straight from the show page", async () => {
+  vi.spyOn(client, "GET").mockImplementation(async (path: string) => {
+    if (path.endsWith("/children"))
+      return {
+        data: [{ id: 2, kind: "season", title: "Season 2", idx: 2, viewOffsetMs: 0 }],
+        response: new Response(),
+      } as never;
+    if (path.endsWith("/next-episode"))
+      return {
+        data: {
+          episode: { id: 9, kind: "episode", title: "How to Build the Box", idx: 9, parentIdx: 2 },
+          startMs: 342000,
+        },
+        response: new Response(),
+      } as never;
+    return {
+      data: {
+        id: 1,
+        kind: "show",
+        title: "Dark Matter",
+        versions: [],
+        artwork: [],
+        watch: { viewOffsetMs: 0, viewCount: 0 },
+        genres: [],
+        studios: [],
+        people: [],
+        tags: [],
+        viewOffsetMs: 0,
+      },
+      response: new Response(),
+    } as never;
+  });
+  dispose = render(() => createComponent(ItemDetail, {}), document.body);
+  await tick();
+  await tick();
+  const play = [...document.querySelectorAll("button")].find((b) =>
+    b.textContent?.includes("S2E9"),
+  ) as HTMLButtonElement;
+  expect(play).toBeTruthy();
+  expect(play.disabled).toBe(false);
+  expect(play.textContent).toContain("resume");
+  play.click();
+  expect(state.play).toHaveBeenCalledWith(
+    expect.objectContaining({
+      itemId: 9,
+      initialStartMs: 342000,
+      autoplayNext: true,
+      title: "How to Build the Box",
+      subtitle: "Dark Matter · S2E9",
+    }),
+  );
+  const cast = [...document.querySelectorAll("button")].find((b) =>
+    b.textContent?.includes("Cast to TV"),
+  ) as HTMLButtonElement;
+  expect(cast.disabled).toBe(false);
 });

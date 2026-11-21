@@ -90,6 +90,21 @@ impl ItemService {
         Ok(groups)
     }
 
+    /// The episode to play from a show or season page: the one after the last finished
+    /// episode (resumed when started), else a started one when none is finished, else the
+    /// first. `None` when it has no playable episode.
+    pub async fn next_episode(&self, actor: &Actor, id: ItemId) -> Result<Option<NextEpisode>> {
+        let parent = self.get(actor, id).await?;
+        if !matches!(parent.kind, MediaKind::Show | MediaKind::Season) {
+            return Err(Error::Validation("only shows and seasons have episodes".into()));
+        }
+        let episodes = items::episodes_in_order(&self.db, &ItemFilter::for_user(actor), id).await?;
+        Ok(pick_next_episode(&episodes).map(|episode| NextEpisode {
+            start_ms: episode.view_offset_ms.max(0),
+            episode: episode.clone(),
+        }))
+    }
+
     /// Titles in the accessible libraries credited to a person (actor, director…).
     pub async fn by_person(
         &self,
@@ -150,5 +165,74 @@ impl ItemService {
         }
 
         Ok(hubs)
+    }
+}
+
+/// The episode to play from a show or season page, with where to start.
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NextEpisode {
+    pub episode: ItemSummary,
+    /// Saved position to resume from, 0 to start from the beginning.
+    pub start_ms: i64,
+}
+
+/// Picks from episodes in watching order (see [`ItemService::next_episode`]).
+fn pick_next_episode(episodes: &[ItemSummary]) -> Option<&ItemSummary> {
+    let after_last_watched = episodes.iter().rposition(|e| e.view_count > 0).map_or(0, |at| at + 1);
+    if after_last_watched == 0 {
+        // Nothing finished: a started episode wins over the first.
+        if let Some(started) = episodes.iter().find(|e| e.view_offset_ms > 0) {
+            return Some(started);
+        }
+    }
+    // Everything watched starts over.
+    episodes.get(after_last_watched).or_else(|| episodes.first())
+}
+
+#[cfg(test)]
+mod next_episode_tests {
+    use super::*;
+
+    fn episode(id: i64, view_count: i64, view_offset_ms: i64) -> ItemSummary {
+        ItemSummary {
+            id: ItemId(id),
+            library_id: LibraryId(1),
+            kind: MediaKind::Episode,
+            parent_id: None,
+            title: format!("E{id}"),
+            year: None,
+            idx: Some(id),
+            parent_idx: Some(1),
+            rating: None,
+            duration_ms: None,
+            added_at: 0,
+            poster_id: None,
+            poster_hash: None,
+            poster_blurhash: None,
+            view_offset_ms,
+            view_count,
+        }
+    }
+
+    fn picked(episodes: &[ItemSummary]) -> Option<i64> {
+        pick_next_episode(episodes).map(|e| e.id.0)
+    }
+
+    #[test]
+    fn the_next_episode_follows_what_was_watched() {
+        // Nothing watched: the first.
+        assert_eq!(picked(&[episode(1, 0, 0), episode(2, 0, 0)]), Some(1));
+        // Finished 1 and 2: the third.
+        assert_eq!(picked(&[episode(1, 1, 0), episode(2, 1, 0), episode(3, 0, 0)]), Some(3));
+        // Halfway through the one after the last finished: resume it.
+        assert_eq!(picked(&[episode(1, 1, 0), episode(2, 0, 90_000)]), Some(2));
+        // Nothing finished but episode 3 started: episode 3.
+        assert_eq!(picked(&[episode(1, 0, 0), episode(2, 0, 0), episode(3, 0, 5_000)]), Some(3));
+        // An old rewatch in progress earlier does not pull playback back.
+        assert_eq!(picked(&[episode(1, 0, 5_000), episode(2, 1, 0), episode(3, 0, 0)]), Some(3));
+        // Everything watched: start over.
+        assert_eq!(picked(&[episode(1, 1, 0), episode(2, 1, 0)]), Some(1));
+        assert_eq!(picked(&[]), None);
     }
 }

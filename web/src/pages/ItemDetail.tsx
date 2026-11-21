@@ -74,6 +74,8 @@ export function ItemDetail() {
   let loadVersion = 0;
   const [loading, setLoading] = createSignal(true);
   const [watchUpdating, setWatchUpdating] = createSignal(false);
+  // What Play starts on a show or season page.
+  const [nextEpisode, setNextEpisode] = createSignal<components["schemas"]["NextEpisode"]>();
 
   const loadData = async () => {
     const version = ++loadVersion;
@@ -86,6 +88,7 @@ export function ItemDetail() {
     setSelectedVersionId(null);
     setSelectedAudioIdx(null);
     setSelectedSubIdx(null);
+    setNextEpisode(undefined);
     try {
       const [detailRes, childrenRes] = await Promise.all([
         client.GET("/api/v1/items/{id}", {
@@ -100,6 +103,12 @@ export function ItemDetail() {
       if (!detailRes.data) throw new Error("Media details could not be loaded.");
       if (detailRes.data) setItem(detailRes.data);
       if (childrenRes.data) setChildren(childrenRes.data);
+      if (detailRes.data.kind === "show" || detailRes.data.kind === "season") {
+        const next = await client
+          .GET("/api/v1/items/{id}/next-episode", { params: { path: { id } } })
+          .catch(() => undefined);
+        if (version === loadVersion && next?.data) setNextEpisode(next.data);
+      }
     } catch {
       if (version === loadVersion) setLoadError("Media details could not be loaded.");
     } finally {
@@ -188,9 +197,33 @@ export function ItemDetail() {
   const audioStreams = () => primaryPart()?.streams.filter((s) => s.kind === "audio") || [];
   const subStreams = () => primaryPart()?.streams.filter((s) => s.kind === "subtitle") || [];
 
+  const isSeries = () => item()?.kind === "show" || item()?.kind === "season";
+  /** "S2E9" for the episode Play starts on a show or season page. */
+  const nextCode = () => {
+    const ep = nextEpisode()?.episode;
+    if (!ep) return "";
+    return `S${ep.parentIdx ?? 1}E${ep.idx ?? 1}`;
+  };
+  const playable = () => (isSeries() ? Boolean(nextEpisode()) : Boolean(primaryPart()));
+  const resumeAt = () => (isSeries() ? (nextEpisode()?.startMs ?? 0) : Math.max(0, viewOffsetMs()));
+
   const handlePlay = (startOffset = 0, castFirst = false) => {
     const it = item();
     if (!it) return;
+    const next = nextEpisode();
+    if (isSeries()) {
+      if (!next) return;
+      playItem({
+        itemId: next.episode.id,
+        initialStartMs: startOffset,
+        maxBitrate: selectedQuality() || undefined,
+        castFirst,
+        autoplayNext: true,
+        title: next.episode.title,
+        subtitle: `${it.title} · ${nextCode()}`,
+      });
+      return;
+    }
     playItem({
       itemId: it.id,
       partId:
@@ -387,14 +420,17 @@ export function ItemDetail() {
               <Button
                 size="lg"
                 variant="primary"
-                disabled={!primaryPart()}
-                onClick={() => handlePlay(Math.max(0, viewOffsetMs()))}
+                disabled={!playable()}
+                onClick={() => handlePlay(resumeAt())}
               >
                 <span>▶</span>
-                <span>{viewOffsetMs() > 0 ? t("resume") : t("play")}</span>
+                <span>{resumeAt() > 0 ? t("resume") : t("play")}</span>
+                <Show when={isSeries() && nextCode()}>
+                  <span>{nextCode()}</span>
+                </Show>
               </Button>
 
-              {viewOffsetMs() > 0 && (
+              {resumeAt() > 0 && (
                 <Button size="md" variant="secondary" onClick={() => handlePlay(0)}>
                   {t("fromBeginning")}
                 </Button>
@@ -403,14 +439,17 @@ export function ItemDetail() {
               <Button
                 size="md"
                 variant="secondary"
-                disabled={!primaryPart()}
-                onClick={() => handlePlay(Math.max(0, viewOffsetMs()), true)}
+                disabled={!playable()}
+                onClick={() => handlePlay(resumeAt(), true)}
               >
                 <span>⎚</span>
                 <span>Cast to TV</span>
               </Button>
-              <Show when={primaryPart()}>
+              <Show when={!isSeries() && primaryPart()}>
                 <PlayOnDevice itemId={itemId()} startMs={Math.max(0, viewOffsetMs())} />
+              </Show>
+              <Show when={isSeries() && nextEpisode()}>
+                {(next) => <PlayOnDevice itemId={next().episode.id} startMs={next().startMs} />}
               </Show>
 
               <Button
