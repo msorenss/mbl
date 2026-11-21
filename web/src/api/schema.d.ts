@@ -4844,6 +4844,7 @@ export interface components {
             positionMs: number;
             /** @description Up to the last six lines from the previous 90 seconds, oldest first. Never later lines. */
             recentDialogue?: components["schemas"]["DialogueLine"][];
+            scene?: components["schemas"]["SceneAnalysis"] | null;
             sessionId: string;
             title: string;
         };
@@ -6083,6 +6084,27 @@ export interface components {
             cleanup?: boolean;
             /** @description Report what would happen without changing anything. */
             dryRun?: boolean;
+        };
+        /**
+         * @description What is on screen, as text: from the NPU when there is one (objects, people, a description),
+         *     otherwise a rough guess from colours that is marked as such.
+         */
+        SceneAnalysis: {
+            /** @description `cpu-heuristic`, or the NPU model that looked at the frame. */
+            backend: string;
+            /** @description Rough impressions from the colours (`night`, `snow`…); a guess even with an NPU. */
+            colourGuess: string[];
+            /** @description A sentence from a vision-language model, when one is installed. */
+            description?: string | null;
+            /** @description True when an NPU analysed the frame; false for the colour guess. */
+            npu: boolean;
+            /** @description What the NPU detected, with counts (`2 person`, `cup`). Empty without an NPU. */
+            objects: string[];
+            /**
+             * Format: int64
+             * @description Position of the analysed frame (never later than the viewer's).
+             */
+            positionMs: number;
         };
         SceneEmbeddingRow: {
             backend: string;

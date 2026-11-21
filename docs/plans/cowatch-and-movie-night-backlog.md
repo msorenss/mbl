@@ -1,7 +1,7 @@
 # Senare: medtittande, NPU-kontext, undertexter, filmkväll och Arr-länkar
 
 Önskemål från användaren 2026-11-19. Allt går till 1.4.0 (beslut 2026-11-21).
-Klart 2026-11-21: punkt 1 (skärmdumpar, även för assistenten), 2b (undertextsökning; autosynk återstår), 3 (gäster på filmkväll), 4 (Arr-länkar), 5 (schemalagd filmkväll; notiser i öppen flik, webbpush återstår) 6 (databasunderhåll; föräldralösa cachefiler återstår) och 7 (saknade avsnitt och filmer; grå rader i säsongslistan återstår), samt redigerbar
+Klart 2026-11-21: punkt 1 (skärmdumpar, även för assistenten), 2 (NPU-kontext, provad på Hailo-10H; Hailo-8 och VLM återstår), 2b (undertextsökning; autosynk återstår), 3 (gäster på filmkväll), 4 (Arr-länkar), 5 (schemalagd filmkväll; notiser i öppen flik, webbpush återstår) 6 (databasunderhåll; föräldralösa cachefiler återstår) och 7 (saknade avsnitt och filmer; grå rader i säsongslistan återstår), samt redigerbar
 meny (nytt önskemål). Se AGENTS.md.
 
 Grund som redan finns (2026-11-19, ej committad vid skrivandet): chatt mellan

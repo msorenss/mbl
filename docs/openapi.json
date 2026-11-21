@@ -14090,6 +14090,17 @@
             },
             "description": "Up to the last six lines from the previous 90 seconds, oldest first. Never later lines."
           },
+          "scene": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SceneAnalysis",
+                "description": "What is on screen, analysed on the server (the picture does not leave it)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sessionId": {
             "type": "string"
           },
@@ -18396,6 +18407,53 @@
           "dryRun": {
             "type": "boolean",
             "description": "Report what would happen without changing anything."
+          }
+        }
+      },
+      "SceneAnalysis": {
+        "type": "object",
+        "description": "What is on screen, as text: from the NPU when there is one (objects, people, a description),\notherwise a rough guess from colours that is marked as such.",
+        "required": [
+          "positionMs",
+          "objects",
+          "colourGuess",
+          "backend",
+          "npu"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string",
+            "description": "`cpu-heuristic`, or the NPU model that looked at the frame."
+          },
+          "colourGuess": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rough impressions from the colours (`night`, `snow`…); a guess even with an NPU."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A sentence from a vision-language model, when one is installed."
+          },
+          "npu": {
+            "type": "boolean",
+            "description": "True when an NPU analysed the frame; false for the colour guess."
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the NPU detected, with counts (`2 person`, `cup`). Empty without an NPU."
+          },
+          "positionMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Position of the analysed frame (never later than the viewer's)."
           }
         }
       },

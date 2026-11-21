@@ -43,6 +43,15 @@ async fn screenshots_are_off_until_the_viewer_turns_them_on() {
     assert_eq!(res.status, StatusCode::CONFLICT, "off by default: {}", res.body);
     let context = app.call(Method::GET, &format!("{base}/context"), Some(&admin), None).await;
     assert_eq!(context.body["frames"], "off");
+    // The scene is analysed on the server either way (no picture leaves it): by the NPU when
+    // there is one, otherwise only as a colour guess, and the two are told apart.
+    let scene = &context.body["scene"];
+    assert_eq!(scene["positionMs"], 42000, "{}", context.body);
+    let backend = scene["backend"].as_str().unwrap();
+    assert_eq!(scene["npu"], backend != "cpu-heuristic");
+    if backend == "cpu-heuristic" {
+        assert_eq!(scene["objects"], serde_json::json!([]));
+    }
 
     let res = app
         .call(

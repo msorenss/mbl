@@ -214,7 +214,7 @@ use crate::routes::{
         mbl_service::MatchmakerMatchResult,
         mbl_service::PlayerInfo,
         mbl_service::PlayerCommand,
-        mbl_service::LiveSessionContext,
+        mbl_service::LiveSessionContext, mbl_service::SceneAnalysis,
         mbl_service::CompanionReaction,
         mbl_service::CompanionFeed,
         mbl_service::CompanionMode,

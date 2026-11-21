@@ -47,6 +47,10 @@ pub struct FrameAnalysis {
     pub caption: String,
     pub embedding: Vec<f32>,
     pub backend: String,
+    /// What the NPU detected, with counts, e.g. `2 person`, `refrigerator` (empty without NPU).
+    pub objects: Vec<String>,
+    /// A sentence from a vision-language model, when one ran.
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -82,6 +86,22 @@ pub struct SpoilerFreeRecap {
     pub spoiler_protected_unwatched_excluded: usize,
     pub recap_text: String,
     pub model_backend: String,
+}
+
+/// Detected labels with counts, most frequent first: `2 person`, `cup`.
+fn count_labels(detections: &[runtime::CocoDetection]) -> Vec<String> {
+    let mut counts: Vec<(&str, usize)> = Vec::new();
+    for d in detections {
+        match counts.iter_mut().find(|(label, _)| *label == d.label) {
+            Some((_, n)) => *n += 1,
+            None => counts.push((d.label, 1)),
+        }
+    }
+    counts.sort_by_key(|c| std::cmp::Reverse(c.1));
+    counts
+        .into_iter()
+        .map(|(label, n)| if n == 1 { label.to_owned() } else { format!("{n} {label}") })
+        .collect()
 }
 
 /// Runtime handle for Hailo NPU & `hailo-ollama` inference.
@@ -320,7 +340,7 @@ impl HailoEngine {
         }
         l2_normalize(&mut vec);
 
-        let caption = if let Some((vlm_text, _)) = vlm_caption_opt {
+        let caption = if let Some((vlm_text, _)) = &vlm_caption_opt {
             format!("{} ({})", vlm_text.trim(), tags.join(", "))
         } else {
             match hint_text {
@@ -329,7 +349,10 @@ impl HailoEngine {
             }
         };
 
-        FrameAnalysis { tags, face_count, caption, embedding: vec, backend }
+        let objects =
+            npu_result.as_ref().map(|npu| count_labels(&npu.detections)).unwrap_or_default();
+        let description = vlm_caption_opt.map(|(text, _)| text.trim().to_owned());
+        FrameAnalysis { tags, face_count, caption, embedding: vec, backend, objects, description }
     }
 
     /// Run a benchmark of semantic frame embedding extraction on the current host (M5.13 Accept).

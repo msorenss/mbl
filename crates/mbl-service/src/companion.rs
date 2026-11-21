@@ -155,6 +155,25 @@ impl CompanionFrames {
     }
 }
 
+/// What is on screen, as text: from the NPU when there is one (objects, people, a description),
+/// otherwise a rough guess from colours that is marked as such.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneAnalysis {
+    /// Position of the analysed frame (never later than the viewer's).
+    pub position_ms: i64,
+    /// What the NPU detected, with counts (`2 person`, `cup`). Empty without an NPU.
+    pub objects: Vec<String>,
+    /// A sentence from a vision-language model, when one is installed.
+    pub description: Option<String>,
+    /// Rough impressions from the colours (`night`, `snow`…); a guess even with an NPU.
+    pub colour_guess: Vec<String>,
+    /// `cpu-heuristic`, or the NPU model that looked at the frame.
+    pub backend: String,
+    /// True when an NPU analysed the frame; false for the colour guess.
+    pub npu: bool,
+}
+
 /// A screenshot of a playback session at a position, as JPEG.
 #[derive(Debug, Clone)]
 pub struct CompanionFrame {
@@ -191,11 +210,23 @@ pub struct LiveSessionContext {
     /// Whether (and how often) a screenshot of the scene may be fetched.
     #[serde(default)]
     pub frames: CompanionFrames,
+    /// What is on screen, analysed on the server (the picture does not leave it).
+    #[serde(default)]
+    pub scene: Option<SceneAnalysis>,
     pub connected_companions: Vec<String>,
 }
 
 fn no_dialogue() -> DialogueStatus {
     DialogueStatus::None
+}
+
+/// One analysis is reused this long (and not across a jump in position).
+const SCENE_REUSE_MS: i64 = 60_000;
+
+/// The NPU engine, opened once (it shares the device with other programs such as Frigate).
+fn hailo() -> &'static mbl_hailo::HailoEngine {
+    static ENGINE: std::sync::OnceLock<mbl_hailo::HailoEngine> = std::sync::OnceLock::new();
+    ENGINE.get_or_init(mbl_hailo::HailoEngine::default)
 }
 
 /// One JPEG frame at `position_ms`, scaled to at most [`FRAME_WIDTH`] pixels wide.
@@ -285,6 +316,8 @@ pub struct CompanionService {
     wake: Arc<tokio::sync::Notify>,
     /// Latest screenshot per session.
     frames: Arc<Mutex<HashMap<String, CompanionFrame>>>,
+    /// Latest scene analysis per session.
+    scenes: Arc<Mutex<HashMap<String, SceneAnalysis>>>,
     /// One screenshot is taken at a time, to spare the CPU (a Pi also encodes video).
     grabbing: Arc<tokio::sync::Semaphore>,
 }
@@ -309,6 +342,7 @@ impl CompanionService {
             activity_tx,
             wake: Arc::new(tokio::sync::Notify::new()),
             frames: Arc::new(Mutex::new(HashMap::new())),
+            scenes: Arc::new(Mutex::new(HashMap::new())),
             grabbing: Arc::new(tokio::sync::Semaphore::new(1)),
             playback: None,
             stream: None,
@@ -351,6 +385,8 @@ impl CompanionService {
         {
             context.current_chapter = chapter_at(&chapters, context.position_ms);
         }
+
+        context.scene = self.scene(actor, session_id, session.part_id, context.position_ms).await;
 
         let streams =
             mbl_db::repo::media::streams_for_part(db, session.part_id).await.unwrap_or_default();
@@ -716,8 +752,67 @@ impl CompanionService {
             mode: state.mode,
             frequency: state.frequency,
             frames: state.frames,
+            scene: None,
             connected_companions: state.companions,
         })
+    }
+
+    /// What is on screen at the viewer's position, analysed on the server. Reused for a minute
+    /// within the same stretch of the film; `None` when no frame could be taken right now.
+    async fn scene(
+        &self,
+        actor: &Actor,
+        session_id: &str,
+        part: PartId,
+        position: i64,
+    ) -> Option<SceneAnalysis> {
+        let reuse = |s: &SceneAnalysis| {
+            s.position_ms <= position && position - s.position_ms < SCENE_REUSE_MS
+        };
+        let cached = self.scenes.lock().ok().and_then(|m| m.get(session_id).cloned());
+        if let Some(scene) = cached.as_ref().filter(|s| reuse(s)) {
+            return Some(scene.clone());
+        }
+        // Shares the screenshot slot: one FFmpeg seek at a time.
+        let _permit = self.grabbing.clone().try_acquire_owned().ok()?;
+        let stream = self.stream.as_ref()?;
+        let resolved = stream.resolve_part(actor, part).await.ok()?;
+        let input = stream.media_input(&resolved.path).await.ok()?;
+        let jpeg = grab_frame(stream.ffmpeg_bin(), &input, position).await.ok()?;
+        let analysis = tokio::task::spawn_blocking(move || {
+            let image = image::load_from_memory(&jpeg).ok()?;
+            // No title or summary as a hint: the description must come from the picture alone.
+            Some(hailo().analyze_image(&image, None))
+        })
+        .await
+        .ok()
+        .flatten()?;
+        let npu = analysis.backend != "cpu-heuristic";
+        // Tags the detections or the description already account for are not colour guesses.
+        let colour_guess = analysis
+            .tags
+            .into_iter()
+            .filter(|t| {
+                t != "person"
+                    && t != "face"
+                    && !analysis.objects.iter().any(|o| o.ends_with(t.as_str()))
+            })
+            .collect();
+        let scene = SceneAnalysis {
+            position_ms: position,
+            objects: analysis.objects,
+            description: analysis.description,
+            colour_guess,
+            backend: analysis.backend,
+            npu,
+        };
+        if let Ok(mut map) = self.scenes.lock() {
+            if map.len() >= FRAME_SESSIONS && !map.contains_key(session_id) {
+                map.clear();
+            }
+            map.insert(session_id.to_owned(), scene.clone());
+        }
+        Some(scene)
     }
 
     /// A screenshot of the scene at the viewer's position, for an AI. Only when the viewer has

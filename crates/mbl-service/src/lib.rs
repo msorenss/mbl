@@ -61,7 +61,7 @@ pub use collections::{
 pub use companion::{
     COMPANION_WAIT_MAX_MS, CommentReason, CompanionActivity, CompanionFeed, CompanionFrame,
     CompanionFrames, CompanionFrequency, CompanionMode, CompanionReaction, CompanionService,
-    CompanionWake, DialogueLine, DialogueStatus, LiveSessionContext,
+    CompanionWake, DialogueLine, DialogueStatus, LiveSessionContext, SceneAnalysis,
 };
 pub use downloads::{
     CreateDownloadRequest, DownloadDto, DownloadFile, DownloadJobHandler, DownloadQuality,
