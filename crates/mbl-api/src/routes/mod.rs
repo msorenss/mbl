@@ -13,6 +13,7 @@ pub mod invites;
 pub mod items;
 pub mod libraries;
 pub mod livetv;
+pub mod maintenance;
 pub mod matchmaker;
 pub mod mcp;
 pub mod media_audio;

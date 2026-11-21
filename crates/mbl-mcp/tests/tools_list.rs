@@ -58,6 +58,6 @@ async fn snapshot_tools_list_admin_scope() {
         .collect();
 
     // 75 baseline tools plus online discovery, inspection and history.
-    assert_eq!(tools.len(), 82);
+    assert_eq!(tools.len(), 83);
     insta::assert_json_snapshot!("tools_list_admin", tools);
 }

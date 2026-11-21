@@ -94,7 +94,9 @@ pub async fn execute_tool(
         | "get_bandwidth_usage"
         | "update_remote_policy" => remote::execute(tool_name, args, caller, services).await,
         "get_settings" | "update_settings" | "create_backup" | "list_backups"
-        | "restart_server" => settings::execute(tool_name, args, caller, db, services).await,
+        | "run_maintenance" | "restart_server" => {
+            settings::execute(tool_name, args, caller, db, services).await
+        }
         "list_collections"
         | "create_collection"
         | "add_to_collection"

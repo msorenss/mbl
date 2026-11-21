@@ -14,6 +14,7 @@ pub mod m6;
 pub mod m7;
 pub mod m8;
 pub mod m9;
+pub mod maintenance;
 pub mod mcp;
 pub mod media;
 pub mod metadata;

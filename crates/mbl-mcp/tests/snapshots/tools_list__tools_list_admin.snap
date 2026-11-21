@@ -1216,6 +1216,35 @@ expression: tools
     }
   },
   {
+    "name": "run_maintenance",
+    "description": "Database upkeep: optimize, vacuum when much space is unused, an automatic backup and removal of old finished jobs. With cleanup: true it also removes titles whose files have been gone for the chosen number of days, and empty seasons/shows (never in libraries whose folders cannot be read). Preview with dry_run first and tell the person what would be removed; a real run needs confirm: true. Returns the schedule and last report when called with neither.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cleanup": {
+          "description": "Also remove titles whose files are gone",
+          "type": "boolean"
+        },
+        "confirm": {
+          "description": "Must be true to run for real",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Report what would happen without changing anything",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Run Maintenance",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "restart_server",
     "description": "Gracefully restart the MBL server. DESTRUCTIVE: Requires confirm: true.",
     "inputSchema": {

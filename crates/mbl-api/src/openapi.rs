@@ -10,9 +10,9 @@ use utoipa::{Modify, OpenApi};
 use crate::AppState;
 use crate::routes::{
     assistant, auth, collections, companion, downloads, events, hw, images, import, intelligence,
-    invites, items, libraries, livetv, matchmaker, mcp, media_audio, metadata, missing, nodes,
-    oauth, online, photos, playback, players, playlists, plugins, remote, requests, stream,
-    subtitles, system, tls, users, webhooks, workers,
+    invites, items, libraries, livetv, maintenance, matchmaker, mcp, media_audio, metadata,
+    missing, nodes, oauth, online, photos, playback, players, playlists, plugins, remote, requests,
+    stream, subtitles, system, tls, users, webhooks, workers,
 };
 
 #[derive(OpenApi)]
@@ -58,7 +58,7 @@ use crate::routes::{
         webhooks::list_webhooks, webhooks::create_webhook, webhooks::toggle_webhook, webhooks::delete_webhook, webhooks::test_webhook,
         requests::list_requests, requests::create_request, requests::update_request_status,
         requests::inspect_missing_episodes, requests::analyze_hardlinks,
-        requests::get_arr_settings, requests::update_arr_settings, requests::test_arr_connection, requests::search_music, requests::arr_links, subtitles::get_settings, subtitles::update_settings, subtitles::test_settings, subtitles::status, subtitles::search, subtitles::download, missing::show_missing, missing::library_missing, requests::request_arr_link, requests::item_arr_link,
+        requests::get_arr_settings, requests::update_arr_settings, requests::test_arr_connection, requests::search_music, requests::arr_links, subtitles::get_settings, subtitles::update_settings, subtitles::test_settings, subtitles::status, subtitles::search, subtitles::download, missing::show_missing, missing::library_missing, maintenance::get_maintenance, maintenance::update_maintenance, maintenance::run_maintenance, requests::request_arr_link, requests::item_arr_link,
         matchmaker::create_matchmaker_session,
         matchmaker::join_session, matchmaker::get_matchmaker_session, matchmaker::record_vote, matchmaker::allow_guests, matchmaker::stop_guests, matchmaker::join_as_guest, matchmaker::guest_view, matchmaker::guest_vote, matchmaker::guest_image,
         players::list_players, players::register_player, players::unregister_player, players::connect_player, players::send_player_command,
@@ -206,7 +206,7 @@ use crate::routes::{
         mbl_service::UpdateArrSettings,
         mbl_service::TestArrConnection,
         mbl_service::ArrOption,
-        mbl_service::ArrConnectionReport, mbl_service::ArrLink, mbl_service::subtitle_search::OpenSubtitlesSettings, mbl_service::subtitle_search::UpdateOpenSubtitlesSettings, mbl_service::subtitle_search::SubtitleSearchHit, mbl_service::subtitle_search::DownloadSubtitleRequest, mbl_service::subtitle_search::DownloadedSubtitleTrack, crate::routes::subtitles::SubtitleSearchStatus, mbl_service::missing::ShowMissing, mbl_service::missing::MissingSeason, mbl_service::missing::MissingEpisode, mbl_service::missing::LibraryMissing, mbl_service::missing::MissingMovie,
+        mbl_service::ArrConnectionReport, mbl_service::ArrLink, mbl_service::subtitle_search::OpenSubtitlesSettings, mbl_service::subtitle_search::UpdateOpenSubtitlesSettings, mbl_service::subtitle_search::SubtitleSearchHit, mbl_service::subtitle_search::DownloadSubtitleRequest, mbl_service::subtitle_search::DownloadedSubtitleTrack, crate::routes::subtitles::SubtitleSearchStatus, mbl_service::missing::ShowMissing, mbl_service::missing::MissingSeason, mbl_service::missing::MissingEpisode, mbl_service::missing::LibraryMissing, mbl_service::missing::MissingMovie, mbl_service::maintenance::MaintenanceReport, mbl_service::maintenance::MaintenanceSettings, mbl_service::maintenance::UpdateMaintenanceSettings, mbl_service::maintenance::RunMaintenance,
         mbl_service::MusicSearchHit,
         mbl_service::MatchmakerSessionRow,
         mbl_service::CreateMatchmakerSessionRequest,

@@ -2958,6 +2958,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_maintenance"];
+        put: operations["update_maintenance"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/maintenance/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run maintenance now, or preview it with `dryRun`. With `cleanup`, titles whose files have been
+         *     gone for the chosen number of days are removed (never in libraries whose folders cannot be
+         *     read).
+         */
+        post: operations["run_maintenance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/opensubtitles": {
         parameters: {
             query?: never;
@@ -4823,6 +4860,78 @@ export interface components {
         };
         /** @enum {string} */
         LyricsSource: "sidecar" | "embedded";
+        /** @description What a run did, or would do in a preview. */
+        MaintenanceReport: {
+            /** @description File name of the backup made (or that would be made). */
+            backup?: string | null;
+            /** Format: int32 */
+            backupsRemoved: number;
+            /** @description Whether titles were removed in this run. */
+            cleaned: boolean;
+            /** Format: int64 */
+            databaseBytes: number;
+            dryRun: boolean;
+            /** Format: int64 */
+            durationMs: number;
+            /**
+             * Format: int64
+             * @description Seasons, shows, albums and artists with nothing left in them.
+             */
+            emptyItems: number;
+            error?: string | null;
+            /** @description Up to ten of the titles that are (or would be) removed. */
+            examples: string[];
+            /** Format: int64 */
+            goneDays: number;
+            /**
+             * Format: int64
+             * @description Titles whose files have all been missing longer than `goneDays`.
+             */
+            goneItems: number;
+            /**
+             * Format: int64
+             * @description Finished jobs older than 30 days.
+             */
+            oldJobs: number;
+            /** Format: int64 */
+            startedAt: number;
+            /** @description Libraries left alone because their folders could not be read. */
+            unreachableLibraries: string[];
+            /**
+             * Format: int64
+             * @description Unused space in the database file before the run.
+             */
+            unusedBytes: number;
+            vacuumed: boolean;
+        };
+        MaintenanceSettings: {
+            /**
+             * Format: int32
+             * @description Remove titles whose files have been gone this many days; 0 never removes automatically.
+             */
+            cleanupAfterDays: number;
+            enabled: boolean;
+            /**
+             * Format: int32
+             * @description Local hour (0–23) to run at.
+             */
+            hour: number;
+            /** Format: int32 */
+            intervalDays: number;
+            /**
+             * Format: int32
+             * @description Automatic backups to keep; 0 makes none.
+             */
+            keepBackups: number;
+            lastReport?: components["schemas"]["MaintenanceReport"] | null;
+            /** Format: int64 */
+            lastRun?: number | null;
+            /**
+             * Format: int32
+             * @description The viewer's offset from UTC in minutes, so `hour` means their local time.
+             */
+            utcOffsetMinutes: number;
+        };
         MarkerRow: {
             /** Format: double */
             confidence: number;
@@ -5935,6 +6044,12 @@ export interface components {
         RevokeForm: {
             token: string;
         };
+        RunMaintenance: {
+            /** @description Also remove titles whose files are gone (and empty seasons/shows). */
+            cleanup?: boolean;
+            /** @description Report what would happen without changing anything. */
+            dryRun?: boolean;
+        };
         SceneEmbeddingRow: {
             backend: string;
             caption: string;
@@ -6541,6 +6656,19 @@ export interface components {
         UpdateLibraryRequest: {
             name?: string | null;
             paths?: string[] | null;
+        };
+        UpdateMaintenanceSettings: {
+            /** Format: int32 */
+            cleanupAfterDays: number;
+            enabled: boolean;
+            /** Format: int32 */
+            hour: number;
+            /** Format: int32 */
+            intervalDays: number;
+            /** Format: int32 */
+            keepBackups: number;
+            /** Format: int32 */
+            utcOffsetMinutes?: number;
         };
         /** @description Request payload to update MCP status (e.g. kill-switch toggle). */
         UpdateMcpStatusRequest: {
@@ -14032,6 +14160,102 @@ export interface operations {
                 content?: never;
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_maintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceSettings"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_maintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaintenanceSettings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceSettings"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    run_maintenance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunMaintenance"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceReport"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Maintenance is already running */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

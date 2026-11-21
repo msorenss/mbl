@@ -23,6 +23,7 @@ pub mod libraries;
 mod live_relay;
 pub mod livetv;
 pub mod lyrics;
+pub mod maintenance;
 pub mod matchmaker;
 pub mod mcp;
 pub mod metadata_edit;
@@ -162,6 +163,7 @@ pub struct Services {
     pub assistant: assistant::AssistantService,
     pub subtitles: subtitle_search::SubtitleSearchService,
     pub missing: missing::MissingService,
+    pub maintenance: maintenance::MaintenanceService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -238,7 +240,8 @@ impl Services {
             dlna: dlna::DlnaService::new(db_dlna),
             assistant: assistant::AssistantService::new(db_assistant),
             subtitles,
-            missing: missing::MissingService::new(db_missing),
+            missing: missing::MissingService::new(db_missing.clone()),
+            maintenance: maintenance::MaintenanceService::new(db_missing),
             metadata,
             restart: None,
         }

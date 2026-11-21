@@ -12,11 +12,13 @@ All notable changes to this project are documented here. The format is based on 
 - Screenshots to the AI: in the player chat, choose how often a picture of the scene may go to the AI (off by default). The built-in companion sees the scene with your question, and the assistant chat can look at your screen when you ask what is on it; it is never a picture from later than where you are. Images reach the model as images for Claude and OpenAI-compatible providers. New MCP tool `get_companion_frame` (82 tools) and `GET /api/v1/companion/sessions/{id}/frame`.
 - Find subtitles: with an OpenSubtitles API key under Server settings (an account allows more downloads per day), **Find subtitles** on movie and episode pages and in the player's subtitle menu searches by language and downloads the subtitle next to the video as `<name>.<language>.srt`. It becomes a track at once, and in the player it is selected right away.
 - What's missing: a show page lists the aired episodes you lack compared with TMDB (gaps, later episodes and whole seasons, with titles; not specials or unaired episodes), and a TV or movie library page lists shows with missing episodes and released movies from collections you have part of. Each can be requested, which goes on to Sonarr/Radarr when connected. New `GET /api/v1/items/{id}/missing` and `GET /api/v1/libraries/{id}/missing`.
+- Database maintenance under Server settings: at a chosen hour the server optimizes the database, vacuums when much of it is unused, keeps a number of automatic backups and removes old finished jobs. Titles whose files have been gone for a chosen number of days can be removed automatically or after a preview, together with empty seasons and shows; libraries whose folders cannot be read are left alone. New MCP tool `run_maintenance` (83 tools).
 
 ### Changed
 - **Play** and **Cast to TV** work on a show or season page: they start the episode after the last one you finished (continuing where you stopped if you started it), a started episode if you have not finished any, or the first episode. The button shows which one, for example "Resume S2E9", and playback continues with the next episode. New `GET /api/v1/items/{id}/next-episode`.
 
 ### Fixed
+- The MCP tool `create_backup` saved backups in a folder relative to the server's working directory, which the installed service may not write to; backups now go next to the database in `backups/`.
 - The chat button in the player was invisible on computers without an emoji font (common on Linux, including Raspberry Pi OS): it was a 💬 emoji. It now has its own icon and the label **Chat**, and so does the assistant button in the top bar. The subtitle button no longer shows an emoji either.
 
 ## [1.3.10] - 2026-11-20

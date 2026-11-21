@@ -300,6 +300,7 @@ impl Server {
         ));
 
         let movie_nights = tokio::spawn(close_movie_nights(self.services.clone(), stop.clone()));
+        let maintenance = tokio::spawn(scheduled_maintenance(self.services.clone(), stop.clone()));
 
         let companion = tokio::spawn(mbl_mcp::companion_bot::run(
             mbl_mcp::assistant::AssistantRunner::new(self.db.clone(), self.services.clone())
@@ -354,6 +355,7 @@ impl Server {
         let _ = ssdp.await;
         let _ = companion.await;
         let _ = movie_nights.await;
+        let _ = maintenance.await;
         if let Some(mdns) = mdns {
             let _ = mdns.await;
         }
@@ -424,6 +426,24 @@ fn local_mcp_url(bind: &str, port: u16) -> String {
         b => b.to_owned(),
     };
     format!("http://{host}:{port}/mcp")
+}
+
+/// Database upkeep at the hour the admin chose (checked every ten minutes).
+async fn scheduled_maintenance(
+    services: mbl_service::Services,
+    stop: tokio_util::sync::CancellationToken,
+) {
+    let mut tick = tokio::time::interval(Duration::from_secs(600));
+    loop {
+        tokio::select! {
+            () = stop.cancelled() => return,
+            _ = tick.tick() => {
+                if let Err(e) = services.maintenance.run_if_due().await {
+                    tracing::warn!(failure = e.code(), "scheduled database maintenance failed");
+                }
+            }
+        }
+    }
 }
 
 /// Close voting on planned movie nights when their time comes, so members are told even when

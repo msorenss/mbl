@@ -43,6 +43,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::requests::router())
         .merge(routes::subtitles::router())
         .merge(routes::missing::router())
+        .merge(routes::maintenance::router())
         .merge(routes::matchmaker::router())
         .merge(routes::players::router())
         .merge(routes::companion::router())

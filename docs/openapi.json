@@ -8157,6 +8157,104 @@
         }
       }
     },
+    "/api/v1/system/maintenance": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "get_maintenance",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSettings"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "update_maintenance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaintenanceSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceSettings"
+                }
+              }
+            }
+          },
+          "403": {},
+          "422": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/maintenance/run": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Run maintenance now, or preview it with `dryRun`. With `cleanup`, titles whose files have been\ngone for the chosen number of days are removed (never in libraries whose folders cannot be\nread).",
+        "operationId": "run_maintenance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunMaintenance"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceReport"
+                }
+              }
+            }
+          },
+          "403": {},
+          "409": {
+            "description": "Maintenance is already running"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/system/opensubtitles": {
       "get": {
         "tags": [
@@ -14077,6 +14175,167 @@
           "embedded"
         ]
       },
+      "MaintenanceReport": {
+        "type": "object",
+        "description": "What a run did, or would do in a preview.",
+        "required": [
+          "dryRun",
+          "startedAt",
+          "durationMs",
+          "databaseBytes",
+          "unusedBytes",
+          "vacuumed",
+          "backupsRemoved",
+          "oldJobs",
+          "goneItems",
+          "emptyItems",
+          "goneDays",
+          "examples",
+          "cleaned",
+          "unreachableLibraries"
+        ],
+        "properties": {
+          "backup": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "File name of the backup made (or that would be made)."
+          },
+          "backupsRemoved": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "cleaned": {
+            "type": "boolean",
+            "description": "Whether titles were removed in this run."
+          },
+          "databaseBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "emptyItems": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seasons, shows, albums and artists with nothing left in them."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to ten of the titles that are (or would be) removed."
+          },
+          "goneDays": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "goneItems": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Titles whose files have all been missing longer than `goneDays`."
+          },
+          "oldJobs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Finished jobs older than 30 days."
+          },
+          "startedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unreachableLibraries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Libraries left alone because their folders could not be read."
+          },
+          "unusedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unused space in the database file before the run."
+          },
+          "vacuumed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MaintenanceSettings": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "hour",
+          "intervalDays",
+          "keepBackups",
+          "cleanupAfterDays",
+          "utcOffsetMinutes"
+        ],
+        "properties": {
+          "cleanupAfterDays": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Remove titles whose files have been gone this many days; 0 never removes automatically.",
+            "minimum": 0
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "hour": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Local hour (0–23) to run at.",
+            "minimum": 0
+          },
+          "intervalDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "keepBackups": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Automatic backups to keep; 0 makes none.",
+            "minimum": 0
+          },
+          "lastReport": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MaintenanceReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastRun": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "utcOffsetMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The viewer's offset from UTC in minutes, so `hour` means their local time."
+          }
+        }
+      },
       "MarkerRow": {
         "type": "object",
         "required": [
@@ -18043,6 +18302,19 @@
           }
         }
       },
+      "RunMaintenance": {
+        "type": "object",
+        "properties": {
+          "cleanup": {
+            "type": "boolean",
+            "description": "Also remove titles whose files are gone (and empty seasons/shows)."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Report what would happen without changing anything."
+          }
+        }
+      },
       "SceneEmbeddingRow": {
         "type": "object",
         "required": [
@@ -20225,6 +20497,45 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "UpdateMaintenanceSettings": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "hour",
+          "intervalDays",
+          "keepBackups",
+          "cleanupAfterDays"
+        ],
+        "properties": {
+          "cleanupAfterDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "hour": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "intervalDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "keepBackups": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "utcOffsetMinutes": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

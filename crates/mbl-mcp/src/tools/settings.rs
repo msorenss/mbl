@@ -105,6 +105,29 @@ pub fn definitions() -> Vec<RegisteredTool> {
         RegisteredTool {
             scope: Scope::Admin,
             definition: ToolDefinition {
+                name: "run_maintenance".into(),
+                description: "Database upkeep: optimize, vacuum when much space is unused, an automatic backup and removal of old finished jobs. With cleanup: true it also removes titles whose files have been gone for the chosen number of days, and empty seasons/shows (never in libraries whose folders cannot be read). Preview with dry_run first and tell the person what would be removed; a real run needs confirm: true. Returns the schedule and last report when called with neither.".into(),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "dry_run": { "type": "boolean", "description": "Report what would happen without changing anything" },
+                        "cleanup": { "type": "boolean", "description": "Also remove titles whose files are gone" },
+                        "confirm": { "type": "boolean", "description": "Must be true to run for real" }
+                    },
+                    "additionalProperties": false
+                }),
+                annotations: Some(ToolAnnotations {
+                    title: Some("Run Maintenance".into()),
+                    read_only_hint: Some(false),
+                    destructive_hint: Some(true),
+                    idempotent_hint: Some(false),
+                    open_world_hint: Some(false),
+                }),
+            },
+        },
+        RegisteredTool {
+            scope: Scope::Admin,
+            definition: ToolDefinition {
                 name: "restart_server".into(),
                 description: "Gracefully restart the MBL server. DESTRUCTIVE: Requires confirm: true.".into(),
                 input_schema: json!({
@@ -242,7 +265,10 @@ pub async fn execute(
 
             let timestamp = now_ms();
             let backup_filename = format!("mbl-backup-{timestamp}.db");
-            let backup_dir = PathBuf::from("backups");
+            // Next to the database (the server's working folder may not be writable).
+            let backup_dir = mbl_service::maintenance::backup_dir(db)
+                .await
+                .unwrap_or_else(|_| PathBuf::from("backups"));
 
             if parsed.dry_run.unwrap_or(false) {
                 let plan = json!({
@@ -288,7 +314,9 @@ pub async fn execute(
         }
         "list_backups" => {
             caller.require(Scope::Admin).map_err(crate::server::map_service_error)?;
-            let backup_dir = PathBuf::from("backups");
+            let backup_dir = mbl_service::maintenance::backup_dir(db)
+                .await
+                .unwrap_or_else(|_| PathBuf::from("backups"));
             let mut list = Vec::new();
 
             if backup_dir.exists()
@@ -312,6 +340,52 @@ pub async fn execute(
 
             let summary = format!("Found {} database backups", list.len());
             Ok(CallToolResult::structured(&list, summary))
+        }
+        "run_maintenance" => {
+            caller.require(Scope::Admin).map_err(crate::server::map_service_error)?;
+            let flag = |key: &str| args.get(key).and_then(Value::as_bool);
+            let maintenance = &services.maintenance;
+            match (flag("dry_run"), flag("confirm")) {
+                (Some(true), _) => {
+                    let request = mbl_service::maintenance::RunMaintenance {
+                        dry_run: true,
+                        cleanup: flag("cleanup").unwrap_or(false),
+                    };
+                    let report = maintenance
+                        .run(&caller.actor, request)
+                        .await
+                        .map_err(crate::server::map_service_error)?;
+                    let summary = format!(
+                        "DRY RUN: {} titles gone for {}+ days, {} empty seasons/shows, {} old jobs",
+                        report.gone_items, report.gone_days, report.empty_items, report.old_jobs
+                    );
+                    Ok(CallToolResult::structured(&json!({ "report": report }), summary))
+                }
+                (_, Some(true)) => {
+                    let request = mbl_service::maintenance::RunMaintenance {
+                        dry_run: false,
+                        cleanup: flag("cleanup").unwrap_or(false),
+                    };
+                    let report = maintenance
+                        .run(&caller.actor, request)
+                        .await
+                        .map_err(crate::server::map_service_error)?;
+                    Ok(CallToolResult::structured(
+                        &json!({ "report": report }),
+                        "Maintenance finished",
+                    ))
+                }
+                _ => {
+                    let settings = maintenance
+                        .get_settings(&caller.actor)
+                        .await
+                        .map_err(crate::server::map_service_error)?;
+                    Ok(CallToolResult::structured(
+                        &json!({ "settings": settings }),
+                        "Maintenance schedule and last report. Use dry_run: true to preview, confirm: true to run.",
+                    ))
+                }
+            }
         }
         "restart_server" => {
             caller.require(Scope::Admin).map_err(crate::server::map_service_error)?;
