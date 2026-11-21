@@ -222,3 +222,24 @@ async fn database_files_are_readable_by_their_owner_only() {
     assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
     db.close().await;
 }
+
+#[tokio::test]
+async fn settings_are_cached_and_every_write_is_seen() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Db::connect(&temp_db_path(&dir), &DbOptions::default()).await.unwrap();
+    let (a, b) = (SettingsRepo::new(db.clone()), SettingsRepo::new(db.clone()));
+    assert_eq!(a.get("k").await.unwrap(), None);
+    b.set("k", "1").await.unwrap();
+    assert_eq!(a.get("k").await.unwrap().as_deref(), Some("1"));
+    b.set_many(&[("k", "2"), ("j", "x")]).await.unwrap();
+    assert_eq!(a.get("k").await.unwrap().as_deref(), Some("2"));
+    assert_eq!(a.get("j").await.unwrap().as_deref(), Some("x"));
+    assert!(b.delete("k").await.unwrap());
+    assert_eq!(a.get("k").await.unwrap(), None);
+    // Served from memory: a value changed behind the repo's back is not read again.
+    sqlx::query("UPDATE settings SET value = 'raw' WHERE key = 'j'")
+        .execute(&db.write)
+        .await
+        .unwrap();
+    assert_eq!(a.get("j").await.unwrap().as_deref(), Some("x"));
+}

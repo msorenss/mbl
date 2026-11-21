@@ -38,6 +38,8 @@ impl DbOptions {
 pub struct Db {
     pub read: SqlitePool,
     pub write: SqlitePool,
+    /// Server settings, kept in memory by [`crate::repo::settings::SettingsRepo`].
+    pub(crate) settings: std::sync::Arc<std::sync::Mutex<crate::repo::settings::SettingsCache>>,
 }
 
 impl Db {
@@ -45,8 +47,14 @@ impl Db {
     pub async fn connect(path: &Utf8Path, opts: &DbOptions) -> Result<Self> {
         let existed = std::fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false);
 
+        // Connections stay open for the life of the server: sqlx closes idle ones after 10
+        // minutes and every one after 30 by default, which throws away each connection's page
+        // cache, and reopening reads the files again. On an SD card that Frigate also records
+        // to, that alone took seconds.
         let write = SqlitePoolOptions::new()
             .max_connections(1)
+            .idle_timeout(None)
+            .max_lifetime(None)
             .connect_with(
                 base_options(path, opts)
                     .create_if_missing(true)
@@ -61,12 +69,14 @@ impl Db {
 
         let read = SqlitePoolOptions::new()
             .max_connections(opts.read_connections)
+            .idle_timeout(None)
+            .max_lifetime(None)
             .connect_with(base_options(path, opts).read_only(true))
             .await?;
 
         restrict_to_owner(path.as_std_path());
         tracing::info!(%path, "database ready");
-        Ok(Self { read, write })
+        Ok(Self { read, write, settings: Default::default() })
     }
 
     pub async fn close(&self) {

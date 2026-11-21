@@ -81,12 +81,7 @@ async fn missing_episodes_and_collection_movies() {
 
     let base = fake_tmdb().await;
     for (key, value) in [("tmdb_api_key", "key"), ("tmdb_base_url", base.as_str())] {
-        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
-            .bind(key)
-            .bind(value)
-            .execute(&db.write)
-            .await
-            .unwrap();
+        mbl_db::repo::settings::SettingsRepo::new(db.clone()).set(key, value).await.unwrap();
     }
     // The library has S1E1–E2. Missing: S1E3–E4 and S2E1 (aired so far); not specials or S3.
     let res = app.call(Method::GET, &path, Some(&admin), None).await;

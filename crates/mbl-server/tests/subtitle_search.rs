@@ -87,9 +87,8 @@ async fn a_downloaded_subtitle_becomes_a_track() {
     assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", res.body);
 
     let (base, seen) = fake_opensubtitles().await;
-    sqlx::query("INSERT INTO settings (key, value) VALUES ('opensubtitles_base_url', ?)")
-        .bind(&base)
-        .execute(&db.write)
+    mbl_db::repo::settings::SettingsRepo::new(db.clone())
+        .set("opensubtitles_base_url", &base)
         .await
         .unwrap();
     let res = app

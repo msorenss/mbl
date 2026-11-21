@@ -36,7 +36,18 @@ pub(crate) async fn build_runtime(
     recent_logs: mbl_api::logs::RecentLogs,
     restart: Option<Arc<tokio::sync::Notify>>,
 ) -> anyhow::Result<Server> {
-    let paths = config.paths();
+    let mut paths = config.paths();
+    let mut transcode_quota = config.transcode.temp_quota_mb.saturating_mul(1024 * 1024);
+    if let Some((dir, quota)) = transcode_in_memory(&config) {
+        tracing::info!(dir = %dir, quota_mb = quota / (1024 * 1024), "transcoding in memory");
+        // Segments from earlier runs on the disk are scratch; they would never be cleaned.
+        let old = paths.data.join("transcode");
+        if config.paths.transcode_dir.trim().is_empty() && old.as_std_path().is_dir() {
+            let _ = std::fs::remove_dir_all(old.as_std_path());
+        }
+        paths.transcode = dir;
+        transcode_quota = quota;
+    }
     for dir in [&paths.data, &paths.cache, &paths.transcode] {
         std::fs::create_dir_all(dir)?;
     }
@@ -72,7 +83,7 @@ pub(crate) async fn build_runtime(
         hls_cfg.max_video_sessions = usize::try_from(config.transcode.max_sessions).unwrap_or(1);
     }
     hls_cfg.ahead_segments = config.transcode.ahead_segments.max(1);
-    hls_cfg.temp_quota_bytes = config.transcode.temp_quota_mb.saturating_mul(1024 * 1024);
+    hls_cfg.temp_quota_bytes = transcode_quota;
     let hls_manager = mbl_transcode::SessionManager::new(hls_cfg)?;
     // Paired transcode workers take eligible encodes; the shared broker lives in both the
     // session manager and the worker API.
@@ -418,6 +429,32 @@ fn spawn_playback_maintenance(
         livetv.shutdown().await;
         playback.shutdown().await;
     })
+}
+
+/// Transcoding writes several megabytes a second. On a Raspberry Pi the disk is usually an SD
+/// card that other programs (Frigate's recordings) write to as well, so a busy card held up even
+/// one-row database reads for seconds, and the writes wear the card. On Linux with at least 4 GB
+/// of RAM the segments go to `/run/mbl/transcode` instead, when systemd made `/run/mbl` for MBL
+/// (`RuntimeDirectory=mbl`; tmpfs, cleared when MBL stops). The quota is a quarter of the RAM,
+/// at most half of what is free there and at most the configured quota. `None` keeps the disk:
+/// another platform, too little memory, a directory set in the config, or no `/run/mbl`.
+fn transcode_in_memory(config: &Config) -> Option<(camino::Utf8PathBuf, u64)> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    let selection = config.transcode_selection(true, mbl_platform::system::total_memory_bytes());
+    if !selection.is_tmpfs || !selection.path.parent()?.as_std_path().is_dir() {
+        return None;
+    }
+    std::fs::create_dir_all(selection.path.as_std_path()).ok()?;
+    let probe = selection.path.join(".mbl-write-test");
+    std::fs::write(probe.as_std_path(), b"").ok()?;
+    let _ = std::fs::remove_file(probe.as_std_path());
+    let free = mbl_platform::disk::available_bytes(selection.path.as_std_path()).ok()?;
+    let configured = config.transcode.temp_quota_mb.saturating_mul(1024 * 1024);
+    let quota = selection.quota_bytes.min(free / 2).min(configured);
+    // Too small to keep a useful stretch of a film ahead of the player.
+    (quota >= 512 * 1024 * 1024).then_some((selection.path, quota))
 }
 
 /// This server's MCP endpoint as seen from the same machine, for agent programs it runs.

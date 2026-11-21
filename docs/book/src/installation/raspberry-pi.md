@@ -12,7 +12,8 @@ MBL is engineered as the premier media server for the **Raspberry Pi 5**.
 ## Pi 5 Specific Optimizations
 
 - **V4L2 M2M & DRM:** Zero-copy hardware accelerated H.264/HEVC decoding and display pipeline via Linux kernel V4L2 M2M drivers.
-- **tmpfs Transcode Buffering:** Configured automatically by `mbl-server` to route live segments to `/dev/shm` (RAM), preserving SD card / NVMe lifespan.
+- **Transcoding in memory:** with at least 4 GB of RAM, MBL writes transcoding segments to `/run/mbl/transcode` (tmpfs, made by `RuntimeDirectory=mbl` in the service unit and cleared when MBL stops) instead of the disk, capped at a quarter of the RAM and half of the free space there. This spares the SD card and keeps it free for the database. A `transcode_dir` set in the configuration is used as is.
+- **Sharing the SD card:** if Frigate or another recorder writes to the same SD card, the card can stall for seconds and MBL waits with it. MBL keeps settings in memory and its database connections open, but the real fix is to put recordings, or MBL's `/var/lib/mbl`, on an NVMe or USB SSD.
 - **Thermal & Voltage Guard:** Built-in telemetry samples `/sys/class/thermal/thermal_zone0/temp` and `vcgencmd get_throttled`. If throttling is detected, background transcode jobs and metadata deep analysis are dynamically paused.
 
 ## Pre-baked OS Image (`pi-gen`)

@@ -14,6 +14,9 @@ RestartSec=5s
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/var/lib/mbl
+# /run/mbl (tmpfs): transcoding scratch in memory instead of on the disk
+RuntimeDirectory=mbl
+RuntimeDirectoryMode=0750
 NoNewPrivileges=true
 PrivateTmp=true
 
