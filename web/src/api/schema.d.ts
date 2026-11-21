@@ -1143,6 +1143,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/items/{id}/subtitles/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download a subtitle next to the video; it becomes a track at once. */
+        post: operations["download_subtitle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/items/{id}/subtitles/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Subtitles for a movie or episode, most downloaded first. */
+        get: operations["search_subtitles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items/{id}/watched": {
         parameters: {
             query?: never;
@@ -2711,6 +2745,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/subtitles/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["subtitle_search_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/assistant": {
         parameters: {
             query?: never;
@@ -2862,6 +2912,39 @@ export interface paths {
         get: operations["get_logs"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/opensubtitles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_opensubtitles_settings"];
+        put: operations["update_opensubtitles_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/opensubtitles/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check the API key, and the sign-in when a username is stored. */
+        post: operations["test_opensubtitles_settings"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4192,6 +4275,29 @@ export interface components {
         DownloadQuality: "original" | "universal_1080p" | "universal_720p";
         /** @enum {string} */
         DownloadStatus: "pending" | "transcoding" | "ready" | "failed";
+        DownloadSubtitleRequest: {
+            /** Format: int64 */
+            fileId: number;
+            hearingImpaired?: boolean;
+            /** @description Language of the file (`sv`, `en`…), used in the file name. */
+            language: string;
+        };
+        /** @description A subtitle saved next to the video and added as a track. */
+        DownloadedSubtitleTrack: {
+            fileName: string;
+            language: string;
+            partId: components["schemas"]["PartId"];
+            /**
+             * Format: int64
+             * @description Downloads left today, when OpenSubtitles says.
+             */
+            remaining?: number | null;
+            /**
+             * Format: int32
+             * @description Track index to choose in the player.
+             */
+            streamIndex: number;
+        };
         /** @description Linux DRM/KMS device node (`/dev/dri/card*`, `/dev/dri/renderD*`). */
         DrmDevice: {
             card: string;
@@ -5070,6 +5176,12 @@ export interface components {
             summary?: string | null;
             title: string;
             url: string;
+        };
+        /** @description OpenSubtitles settings as shown to an admin; the key and password are never returned. */
+        OpenSubtitlesSettings: {
+            hasApiKey: boolean;
+            hasPassword: boolean;
+            username: string;
         };
         OptimizationEstimate: {
             /** Format: int64 */
@@ -5954,6 +6066,23 @@ export interface components {
             method: components["schemas"]["SubtitleMethod"];
             targetFormat?: string | null;
         };
+        /** @description One subtitle file found. */
+        SubtitleSearchHit: {
+            /** Format: int32 */
+            downloads: number;
+            /** Format: int64 */
+            fileId: number;
+            fileName: string;
+            hearingImpaired: boolean;
+            language: string;
+            /** Format: double */
+            rating: number;
+            release: string;
+        };
+        /** @description Whether subtitle search is set up. */
+        SubtitleSearchStatus: {
+            available: boolean;
+        };
         SubtitleStylePreferences: {
             /** @description `"none" | "dim" | "solid"`, default `"dim"`. */
             background: string;
@@ -6324,6 +6453,15 @@ export interface components {
         /** @description Request payload to update MCP status (e.g. kill-switch toggle). */
         UpdateMcpStatusRequest: {
             enabled: boolean;
+        };
+        UpdateOpenSubtitlesSettings: {
+            /** @description New API key; leave out to keep the stored one. */
+            apiKey?: string | null;
+            /** @description Remove the stored key, username and password. */
+            clear?: boolean;
+            /** @description New password; leave out to keep the stored one. */
+            password?: string | null;
+            username?: string;
         };
         UpdatePlaylistRequest: {
             isPublic: boolean;
@@ -9162,6 +9300,107 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    download_subtitle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DownloadSubtitleRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadedSubtitleTrack"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not set up, or MBL may not write in the folder */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OpenSubtitles refused (for example the daily limit) or did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_subtitles: {
+        parameters: {
+            query: {
+                /** @description Two-letter language code, e.g. `sv` or `en`. */
+                language: string;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtitleSearchHit"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not set up, bad language or not a movie/episode */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OpenSubtitles refused or did not answer */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13351,6 +13590,25 @@ export interface operations {
             };
         };
     };
+    subtitle_search_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtitleSearchStatus"];
+                };
+            };
+        };
+    };
     get_assistant_settings: {
         parameters: {
             query?: never;
@@ -13598,6 +13856,98 @@ export interface operations {
                 content?: never;
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_opensubtitles_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenSubtitlesSettings"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_opensubtitles_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOpenSubtitlesSettings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenSubtitlesSettings"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    test_opensubtitles_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OpenSubtitles accepted the key */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No API key */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected or unreachable, with the reason */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

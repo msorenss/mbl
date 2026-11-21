@@ -9,6 +9,19 @@ import { lookupExtendedPhrase, NON_EN_LOCALES } from "./phraseEngine";
 
 /** Names, code and developer messages that stay as they are in every language. */
 const KEEP_ENGLISH = new Set([
+  // Each language's own name in the subtitle language list.
+  "Dansk",
+  "Deutsch",
+  "Español",
+  "Français",
+  "Italiano",
+  "Nederlands",
+  "Norsk",
+  "Polski",
+  "Português",
+  "Suomi",
+  "Svenska",
+  "Türkçe",
   "*.ts.net",
   "-----BEGIN PRIVATE KEY-----",
   "Amazon Prime Video",

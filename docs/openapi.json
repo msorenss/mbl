@@ -2706,6 +2706,116 @@
         }
       }
     },
+    "/api/v1/items/{id}/subtitles/download": {
+      "post": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Download a subtitle next to the video; it becomes a track at once.",
+        "operationId": "download_subtitle",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadSubtitleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadedSubtitleTrack"
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {},
+          "422": {
+            "description": "Not set up, or MBL may not write in the folder"
+          },
+          "503": {
+            "description": "OpenSubtitles refused (for example the daily limit) or did not answer"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/items/{id}/subtitles/search": {
+      "get": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Subtitles for a movie or episode, most downloaded first.",
+        "operationId": "search_subtitles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Two-letter language code, e.g. `sv` or `en`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubtitleSearchHit"
+                  }
+                }
+              }
+            }
+          },
+          "403": {},
+          "404": {},
+          "422": {
+            "description": "Not set up, bad language or not a movie/episode"
+          },
+          "503": {
+            "description": "OpenSubtitles refused or did not answer"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/items/{id}/watched": {
       "post": {
         "tags": [
@@ -7643,6 +7753,30 @@
         }
       }
     },
+    "/api/v1/subtitles/status": {
+      "get": {
+        "tags": [
+          "subtitles"
+        ],
+        "operationId": "subtitle_search_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtitleSearchStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/system/assistant": {
       "get": {
         "tags": [
@@ -7933,6 +8067,90 @@
           "401": {},
           "403": {}
         }
+      }
+    },
+    "/api/v1/system/opensubtitles": {
+      "get": {
+        "tags": [
+          "subtitles"
+        ],
+        "operationId": "get_opensubtitles_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenSubtitlesSettings"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "subtitles"
+        ],
+        "operationId": "update_opensubtitles_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOpenSubtitlesSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenSubtitlesSettings"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/opensubtitles/test": {
+      "post": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Check the API key, and the sign-in when a username is stored.",
+        "operationId": "test_opensubtitles_settings",
+        "responses": {
+          "204": {
+            "description": "OpenSubtitles accepted the key"
+          },
+          "403": {},
+          "422": {
+            "description": "No API key"
+          },
+          "503": {
+            "description": "Rejected or unreachable, with the reason"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
       }
     },
     "/api/v1/system/reachability-test": {
@@ -11898,6 +12116,62 @@
           "failed"
         ]
       },
+      "DownloadSubtitleRequest": {
+        "type": "object",
+        "required": [
+          "fileId",
+          "language"
+        ],
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "hearingImpaired": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language of the file (`sv`, `en`…), used in the file name."
+          }
+        }
+      },
+      "DownloadedSubtitleTrack": {
+        "type": "object",
+        "description": "A subtitle saved next to the video and added as a track.",
+        "required": [
+          "partId",
+          "streamIndex",
+          "language",
+          "fileName"
+        ],
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "partId": {
+            "$ref": "#/components/schemas/PartId"
+          },
+          "remaining": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Downloads left today, when OpenSubtitles says."
+          },
+          "streamIndex": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Track index to choose in the player.",
+            "minimum": 0
+          }
+        }
+      },
       "DrmDevice": {
         "type": "object",
         "description": "Linux DRM/KMS device node (`/dev/dri/card*`, `/dev/dri/renderD*`).",
@@ -15076,6 +15350,26 @@
             "type": "string"
           },
           "url": {
+            "type": "string"
+          }
+        }
+      },
+      "OpenSubtitlesSettings": {
+        "type": "object",
+        "description": "OpenSubtitles settings as shown to an admin; the key and password are never returned.",
+        "required": [
+          "hasApiKey",
+          "username",
+          "hasPassword"
+        ],
+        "properties": {
+          "hasApiKey": {
+            "type": "boolean"
+          },
+          "hasPassword": {
+            "type": "boolean"
+          },
+          "username": {
             "type": "string"
           }
         }
@@ -18315,6 +18609,59 @@
         },
         "additionalProperties": false
       },
+      "SubtitleSearchHit": {
+        "type": "object",
+        "description": "One subtitle file found.",
+        "required": [
+          "fileId",
+          "language",
+          "release",
+          "fileName",
+          "downloads",
+          "rating",
+          "hearingImpaired"
+        ],
+        "properties": {
+          "downloads": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "fileId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "hearingImpaired": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "number",
+            "format": "double"
+          },
+          "release": {
+            "type": "string"
+          }
+        }
+      },
+      "SubtitleSearchStatus": {
+        "type": "object",
+        "description": "Whether subtitle search is set up.",
+        "required": [
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          }
+        }
+      },
       "SubtitleStylePreferences": {
         "type": "object",
         "required": [
@@ -19631,6 +19978,32 @@
         "properties": {
           "enabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "UpdateOpenSubtitlesSettings": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New API key; leave out to keep the stored one."
+          },
+          "clear": {
+            "type": "boolean",
+            "description": "Remove the stored key, username and password."
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New password; leave out to keep the stored one."
+          },
+          "username": {
+            "type": "string"
           }
         }
       },

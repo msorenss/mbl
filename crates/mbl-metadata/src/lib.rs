@@ -15,8 +15,10 @@ use mbl_db::repo::metadata::PersonCredit;
 pub use matcher::{normalize_title, score};
 pub use musicbrainz::{MbArtist, MbRelease, MbReleaseDetails, MbTrack, MusicBrainzClient};
 pub use nfo::{LocalArtwork, find_local_artwork, parse_nfo};
-pub use opensubtitles::{OpenSubtitlesClient, SubtitleCandidate};
-pub use tmdb::{TmdbClient, TmdbConfig};
+pub use opensubtitles::{
+    DownloadedSubtitle, OpenSubtitlesClient, SubtitleCandidate, SubtitleQuery,
+};
+pub use tmdb::{TmdbClient, TmdbCollectionPart, TmdbConfig, TmdbSeasonSummary, TmdbShowOverview};
 pub use worker::{MatchHandler, Matcher, RefreshHandler};
 
 /// Everything an agent knows about one item. Fields left `None`/empty are filled by later agents.

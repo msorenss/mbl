@@ -1,5 +1,16 @@
 import Hls from "hls.js";
-import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import {
+  createEffect,
+  createResource,
+  createSignal,
+  For,
+  lazy,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+} from "solid-js";
 import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
 import { findNextEpisode } from "../api/nextEpisode";
@@ -12,11 +23,14 @@ import { castDiagnostics } from "../utils/castDiagnostics";
 import { type CastProfileSelection, SAFE_CAST_PROFILE } from "../utils/castProfile";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
 import { startLocalRemote } from "../utils/localRemote";
+import { subtitleSearchAvailable } from "../utils/subtitleSearch";
 import CastDiagnostics from "./CastDiagnostics";
 import CompanionReactions from "./CompanionReactions";
 import LyricsPanel from "./LyricsPanel";
 import TrickplayPreview from "./TrickplayPreview";
 import { AppIcon, Button } from "./ui";
+
+const SubtitleSearch = lazy(() => import("./SubtitleSearch"));
 
 type PlaybackResponse = components["schemas"]["PlaybackResponse"];
 type PlaybackSubtitleTrack = components["schemas"]["PlaybackSubtitleTrack"];
@@ -157,6 +171,8 @@ export function Player(props: PlayerProps) {
     props.subtitleStreamIndex ?? -1,
   );
   const [showSubtitlesMenu, setShowSubtitlesMenu] = createSignal(false);
+  const [subtitlesAvailable] = createResource(subtitleSearchAvailable);
+  const [findingSubtitles, setFindingSubtitles] = createSignal(false);
   const [showSpeedMenu, setShowSpeedMenu] = createSignal(false);
   const [playbackRate, setPlaybackRate] = createSignal(1.0);
   const [showStats, setShowStats] = createSignal(false);
@@ -1778,6 +1794,20 @@ export function Player(props: PlayerProps) {
           {recoveryNotice()}
         </p>
       </Show>
+      <Show when={findingSubtitles()}>
+        <Suspense>
+          <SubtitleSearch
+            itemId={mediaItemId()}
+            title={mediaTitle() || ""}
+            onClose={() => setFindingSubtitles(false)}
+            onDownloaded={(track) => {
+              setFindingSubtitles(false);
+              // A new session lists the new track; it is selected right away.
+              void changeQuality(quality(), audioSyncMs(), selectedAudioIndex(), track.streamIndex);
+            }}
+          />
+        </Suspense>
+      </Show>
       <CompanionReactions
         sessionId={playbackData()?.sessionId}
         open={chatOpen()}
@@ -2816,6 +2846,29 @@ export function Player(props: PlayerProps) {
                         </button>
                       )}
                     </For>
+                    <Show when={subtitlesAvailable() && !isCasting()}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSubtitlesMenu(false);
+                          setFindingSubtitles(true);
+                        }}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          padding: "8px 14px",
+                          "text-align": "left",
+                          background: "transparent",
+                          color: "#fff",
+                          border: "none",
+                          "border-top": "1px solid var(--border)",
+                          cursor: "pointer",
+                          "font-size": "13px",
+                        }}
+                      >
+                        Find subtitles…
+                      </button>
+                    </Show>
                     <div class="mbl-player-sub-style">
                       <label>
                         Size

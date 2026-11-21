@@ -36,6 +36,7 @@ pub mod remote_probe;
 pub mod requests;
 pub mod server_id;
 pub mod stream;
+pub mod subtitle_search;
 pub mod users;
 mod validate;
 pub mod watch;
@@ -158,6 +159,7 @@ pub struct Services {
     pub dlna: dlna::DlnaService,
     pub metadata: metadata_edit::MetadataEditService,
     pub assistant: assistant::AssistantService,
+    pub subtitles: subtitle_search::SubtitleSearchService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -198,6 +200,7 @@ impl Services {
         let downloads = DownloadService::new(db.clone(), jobs.clone(), stream.clone());
         let db_dlna = db.clone();
         let db_assistant = db.clone();
+        let subtitles = subtitle_search::SubtitleSearchService::new(db.clone(), stream.clone());
         let metadata =
             metadata_edit::MetadataEditService::new(db.clone(), jobs.clone(), events.clone());
 
@@ -231,6 +234,7 @@ impl Services {
             downloads,
             dlna: dlna::DlnaService::new(db_dlna),
             assistant: assistant::AssistantService::new(db_assistant),
+            subtitles,
             metadata,
             restart: None,
         }

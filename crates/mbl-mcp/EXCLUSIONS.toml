@@ -422,3 +422,23 @@ reason = "A guest's own vote from the guest page; agents do not vote for people.
 [[exclusions]]
 path = "/api/v1/matchmaker/guest/images/{id}"
 reason = "Posters for the guest page, authenticated by a guest token."
+
+[[exclusions]]
+path = "/api/v1/system/opensubtitles"
+reason = "OpenSubtitles API key and account password are human-only credentials."
+
+[[exclusions]]
+path = "/api/v1/system/opensubtitles/test"
+reason = "Interactive check of the OpenSubtitles credentials in the admin UI."
+
+[[exclusions]]
+path = "/api/v1/subtitles/status"
+reason = "Tells the web UI whether to show subtitle search."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/subtitles/search"
+reason = "Interactive search in the subtitle dialog; uses the server's OpenSubtitles quota."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/subtitles/download"
+reason = "Writes a file next to the media and uses the daily OpenSubtitles download quota; a person chooses the subtitle."

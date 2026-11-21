@@ -14,6 +14,47 @@ use utoipa::ToSchema;
 use crate::Db;
 
 /// Filter shared collection/playlist membership through the same ACL and rating policy as browse.
+/// A top-level title with its TMDB ID, for comparing a library with TMDB.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct TmdbTitle {
+    pub id: i64,
+    pub title: String,
+    pub year: Option<i64>,
+    pub tmdb_id: Option<i64>,
+    pub content_rating: Option<String>,
+}
+
+/// Top-level movies or shows of a library (`kind` is `movie` or `show`). Access to the library
+/// is checked by the caller; age limits with [`ItemFilter::allows_rating`].
+pub async fn top_level_with_tmdb(
+    db: &Db,
+    library: LibraryId,
+    kind: &str,
+) -> Result<Vec<TmdbTitle>> {
+    Ok(sqlx::query_as(
+        "SELECT id, title, year, tmdb_id, content_rating FROM media_items \
+         WHERE library_id = ? AND kind = ? AND parent_id IS NULL ORDER BY sort_title, id",
+    )
+    .bind(library.0)
+    .bind(kind)
+    .fetch_all(&db.read)
+    .await?)
+}
+
+/// Season and episode numbers of a show's episodes (multi-episode files count each episode).
+pub async fn episode_numbers(db: &Db, show: ItemId) -> Result<Vec<(i64, i64)>> {
+    Ok(sqlx::query_as(
+        "SELECT COALESCE(e.parent_idx, s.idx, 0), e.idx FROM media_items e \
+         LEFT JOIN media_items s ON s.id = e.parent_id AND s.kind = 'season' \
+         WHERE e.kind = 'episode' AND e.idx IS NOT NULL \
+           AND (e.parent_id = ? OR s.parent_id = ?)",
+    )
+    .bind(show.0)
+    .bind(show.0)
+    .fetch_all(&db.read)
+    .await?)
+}
+
 /// An item's title, without access checks (for notifications about an item already chosen).
 pub async fn title_of(db: &Db, id: ItemId) -> Result<Option<String>> {
     Ok(sqlx::query_scalar("SELECT title FROM media_items WHERE id = ?")

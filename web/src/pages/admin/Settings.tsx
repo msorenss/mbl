@@ -5,6 +5,7 @@ import AssistantSettings from "../../components/AssistantSettings";
 import CastDiagnostics from "../../components/CastDiagnostics";
 import CastReceiverSettings from "../../components/CastReceiverSettings";
 import DlnaSettings from "../../components/DlnaSettings";
+import OpenSubtitlesSettings from "../../components/OpenSubtitlesSettings";
 import { RestartServerControl } from "../../components/RestartServerControl";
 import TlsSettings from "../../components/TlsSettings";
 import { Button } from "../../components/ui";
@@ -704,6 +705,7 @@ export default function Settings() {
       <TlsSettings />
       <WebhookSettings />
       <AssistantSettings />
+      <OpenSubtitlesSettings />
 
       {/* 2. Library Scanning & Automation Section */}
       <div

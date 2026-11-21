@@ -104,8 +104,20 @@ befintlig källa; ljudbyte, nytt media och ny inbränning kräver frånkoppling.
 Nästa avsnitt är därför spärrat medan sådan mottagare används.
 
 Videor utan ljud kan också omkodas till HLS. Korta klipps verkliga längd bevaras;
-servern annonserar inte ett extra sexsekundersintervall för dem. Sökning,
-nedladdning, autosynk och generering av nya undertexter återstår i restlistan.
+servern annonserar inte ett extra sexsekundersintervall för dem.
+
+## Hitta undertexter
+
+När en admin har lagt in en API-nyckel från OpenSubtitles (**Server settings →
+Subtitle search**, användarnamn och lösenord ger fler nedladdningar per dag)
+finns **Find subtitles** på film- och avsnittssidor och **Find subtitles…** i
+spelarens undertextmeny. Välj språk, sök och ladda ned: filen sparas bredvid
+videon som `<namn>.<språk>.srt` (en till på samma språk blir `<namn>.<språk>.1.srt`)
+och blir ett spår direkt, utan omskanning. I spelaren väljs den nya undertexten
+med en gång. Filmer söks på TMDB/IMDb-ID, avsnitt på seriens TMDB-ID med säsong
+och avsnitt, annat på namn. MBL-tjänsten måste få skriva i mediemappen; annars
+säger felet vilken mapp det gäller. Hanterade profiler kan inte ladda ned.
+Autosynk och generering av nya undertexter återstår.
 
 ## Fjärrkontroll
 

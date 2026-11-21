@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createResource, createSignal, For, lazy, Show, Suspense } from "solid-js";
 import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
 import type { components } from "../api/schema";
@@ -14,6 +14,9 @@ import { useAuth } from "../context/AuthContext";
 import { usePlayer } from "../context/PlayerContext";
 import { useToast } from "../context/ToastContext";
 import { useI18n } from "../i18n";
+import { subtitleSearchAvailable } from "../utils/subtitleSearch";
+
+const SubtitleSearch = lazy(() => import("../components/SubtitleSearch"));
 
 type ItemDetailDto = components["schemas"]["ItemDetail"];
 type ItemSummary = components["schemas"]["ItemSummary"];
@@ -75,6 +78,8 @@ export function ItemDetail() {
   let loadVersion = 0;
   const [loading, setLoading] = createSignal(true);
   const [watchUpdating, setWatchUpdating] = createSignal(false);
+  const [subtitlesAvailable] = createResource(subtitleSearchAvailable);
+  const [findingSubtitles, setFindingSubtitles] = createSignal(false);
   // What Play starts on a show or season page.
   const [nextEpisode, setNextEpisode] = createSignal<components["schemas"]["NextEpisode"]>();
 
@@ -464,6 +469,25 @@ export function ItemDetail() {
               </Button>
               <Show when={user()?.isAdmin}>
                 <MetadataEditor itemId={itemId()} onSaved={() => void loadData()} />
+              </Show>
+              <Show
+                when={
+                  subtitlesAvailable() && (item()?.kind === "movie" || item()?.kind === "episode")
+                }
+              >
+                <Button size="md" variant="outline" onClick={() => setFindingSubtitles(true)}>
+                  Find subtitles
+                </Button>
+              </Show>
+              <Show when={findingSubtitles()}>
+                <Suspense>
+                  <SubtitleSearch
+                    itemId={itemId()}
+                    title={item()?.title ?? ""}
+                    onClose={() => setFindingSubtitles(false)}
+                    onDownloaded={() => void loadData()}
+                  />
+                </Suspense>
               </Show>
               <Show when={user()?.isAdmin && (item()?.kind === "movie" || item()?.kind === "show")}>
                 <ArrLinkButton

@@ -365,6 +365,36 @@ pub async fn move_part(
     Ok(())
 }
 
+/// Add a sidecar subtitle (downloaded next to the video) as the part's next track. Returns its
+/// track index.
+pub async fn add_external_subtitle(
+    db: &Db,
+    part_id: PartId,
+    language: &str,
+    hearing_impaired: bool,
+    path: &str,
+) -> Result<u32> {
+    let mut tx = db.write.begin().await?;
+    let next: i64 =
+        sqlx::query_scalar("SELECT COALESCE(MAX(idx), -1) + 1 FROM streams WHERE part_id = ?")
+            .bind(part_id.0)
+            .fetch_one(&mut *tx)
+            .await?;
+    sqlx::query(
+        "INSERT INTO streams (part_id, idx, kind, codec, language, title, is_default, is_forced, external_path) \
+         VALUES (?, ?, 'subtitle', 'subrip', ?, ?, 0, 0, ?)",
+    )
+    .bind(part_id.0)
+    .bind(next)
+    .bind(language)
+    .bind(hearing_impaired.then_some("SDH"))
+    .bind(path)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    u32::try_from(next).map_err(mbl_core::Error::internal)
+}
+
 pub async fn replace_streams(
     conn: &mut SqliteConnection,
     part_id: PartId,

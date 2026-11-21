@@ -66,6 +66,29 @@ pub struct TmdbEpisode {
     pub still: Option<String>,
 }
 
+/// A season as listed on a show.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TmdbSeasonSummary {
+    pub number: u32,
+    pub episode_count: u32,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TmdbShowOverview {
+    pub seasons: Vec<TmdbSeasonSummary>,
+    /// Season and episode of the latest aired episode.
+    pub last_aired: Option<(u32, u32)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TmdbCollectionPart {
+    pub tmdb_id: i64,
+    pub title: String,
+    pub release_date: Option<String>,
+    pub poster: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TmdbSeason {
     pub summary: Option<String>,
@@ -116,6 +139,59 @@ impl TmdbClient {
             .get(&format!("/tv/{id}"), &[("append_to_response", "credits,external_ids".to_owned())])
             .await?;
         Ok(d.bundle(id))
+    }
+
+    /// A show's seasons and the latest episode that has aired, for finding missing episodes.
+    pub async fn tv_episodes_overview(&self, id: i64) -> Result<TmdbShowOverview> {
+        let v: serde_json::Value = self.get(&format!("/tv/{id}"), &[]).await?;
+        let seasons = v["seasons"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|s| {
+                Some(TmdbSeasonSummary {
+                    number: u32::try_from(s["season_number"].as_u64()?).ok()?,
+                    episode_count: u32::try_from(s["episode_count"].as_u64().unwrap_or(0)).ok()?,
+                    name: s["name"].as_str().map(str::to_owned),
+                })
+            })
+            .collect();
+        let last = &v["last_episode_to_air"];
+        let last_aired = match (last["season_number"].as_u64(), last["episode_number"].as_u64()) {
+            (Some(s), Some(e)) => {
+                Some((u32::try_from(s).unwrap_or(0), u32::try_from(e).unwrap_or(0)))
+            }
+            _ => None,
+        };
+        Ok(TmdbShowOverview { seasons, last_aired })
+    }
+
+    /// The collection a movie belongs to (for example a trilogy), if any: its ID and name.
+    pub async fn movie_collection(&self, id: i64) -> Result<Option<(i64, String)>> {
+        let v: serde_json::Value = self.get(&format!("/movie/{id}"), &[]).await?;
+        let c = &v["belongs_to_collection"];
+        Ok(c["id"].as_i64().map(|cid| (cid, c["name"].as_str().unwrap_or_default().to_owned())))
+    }
+
+    /// Movies in a collection, with release dates.
+    pub async fn collection_parts(&self, id: i64) -> Result<Vec<TmdbCollectionPart>> {
+        let v: serde_json::Value = self.get(&format!("/collection/{id}"), &[]).await?;
+        Ok(v["parts"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|p| {
+                Some(TmdbCollectionPart {
+                    tmdb_id: p["id"].as_i64()?,
+                    title: p["title"].as_str()?.to_owned(),
+                    release_date: p["release_date"]
+                        .as_str()
+                        .filter(|d| !d.is_empty())
+                        .map(str::to_owned),
+                    poster: image(p["poster_path"].as_str().map(str::to_owned)),
+                })
+            })
+            .collect())
     }
 
     pub async fn season(&self, tv_id: i64, season: u32) -> Result<TmdbSeason> {
