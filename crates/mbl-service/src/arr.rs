@@ -179,6 +179,31 @@ fn image(item: &Value) -> Option<String> {
     pick("poster").or_else(|| pick("cover")).or_else(|| pick("fanart"))
 }
 
+/// A link that opens a download service in the browser. Only for admins: it shows the service's
+/// address on the home network.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ArrLink {
+    pub service: ArrKind,
+    pub url: String,
+    /// True when the link opens the title itself, false for the service's start page.
+    pub direct: bool,
+}
+
+/// Page of a title in the service's web interface, from the title as the service returns it.
+fn title_page(kind: ArrKind, what: &str, item: &Value) -> Option<String> {
+    let (page, field) = match (kind, what) {
+        (ArrKind::Radarr, _) => ("movie", "titleSlug"),
+        (ArrKind::Sonarr, _) => ("series", "titleSlug"),
+        (ArrKind::Lidarr, "album") => ("album", "foreignAlbumId"),
+        (ArrKind::Lidarr, _) => ("artist", "foreignArtistId"),
+    };
+    // Slugs and MusicBrainz IDs are letters, digits and hyphens; anything else stays out of the path.
+    let value = item[field].as_str()?;
+    let safe = !value.is_empty() && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    safe.then(|| format!("/{page}/{value}"))
+}
+
 /// Connection details for an enabled-or-not service that has an address and a key.
 struct Conn {
     url: String,
@@ -397,6 +422,62 @@ impl ArrService {
             .collect())
     }
 
+    /// Start pages of the services that have an address and a key, for the "Open in …" links.
+    pub async fn links(&self, actor: &Actor) -> Result<Vec<ArrLink>> {
+        actor.require_admin()?;
+        let mut links = Vec::new();
+        for kind in [ArrKind::Radarr, ArrKind::Sonarr, ArrKind::Lidarr] {
+            if let Ok(Conn { url, .. }) = self.conn(kind).await {
+                links.push(ArrLink { service: kind, url, direct: false });
+            }
+        }
+        Ok(links)
+    }
+
+    /// Link to a title in the service that handles `what` (movie, show, artist or album):
+    /// straight to the title when the service has it, otherwise its start page. `None` when that
+    /// service has no address or key. `arr_id` is the service's own ID; without it a movie or
+    /// show is looked up by TMDB ID among the service's titles.
+    pub async fn title_link(
+        &self,
+        actor: &Actor,
+        what: &str,
+        arr_id: Option<i64>,
+        tmdb_id: Option<i64>,
+    ) -> Result<Option<ArrLink>> {
+        actor.require_admin()?;
+        let Some(kind) = ArrKind::for_request(what) else { return Ok(None) };
+        let Ok(Conn { url, key }) = self.conn(kind).await else { return Ok(None) };
+        let found = match (arr_id, tmdb_id) {
+            (Some(id), _) => {
+                let path = match (kind, what) {
+                    (ArrKind::Lidarr, "album") => format!("/api/v1/album/{id}"),
+                    (ArrKind::Lidarr, _) => format!("/api/v1/artist/{id}"),
+                    (ArrKind::Radarr, _) => format!("/api/v3/movie/{id}"),
+                    (ArrKind::Sonarr, _) => format!("/api/v3/series/{id}"),
+                };
+                self.call(&url, &key, &path).await.ok()
+            }
+            (None, Some(tmdb)) if kind == ArrKind::Radarr => self
+                .call(&url, &key, &format!("/api/v3/movie?tmdbId={tmdb}"))
+                .await
+                .ok()
+                .and_then(|list| list.as_array()?.first().cloned()),
+            (None, Some(tmdb)) if kind == ArrKind::Sonarr => {
+                self.call(&url, &key, "/api/v3/series").await.ok().and_then(|list| {
+                    list.as_array()?.iter().find(|s| s["tmdbId"].as_i64() == Some(tmdb)).cloned()
+                })
+            }
+            _ => None,
+        };
+        let page = found.as_ref().and_then(|item| title_page(kind, what, item));
+        Ok(Some(ArrLink {
+            service: kind,
+            direct: page.is_some(),
+            url: format!("{url}{}", page.unwrap_or_default()),
+        }))
+    }
+
     /// Add a request's title to the service that handles its kind. Returns the service and its
     /// ID, or `None` when that service is not turned on (the request is then only approved).
     pub async fn add(&self, req: &MediaRequestRow) -> Result<Option<(ArrKind, i64)>> {
@@ -538,5 +619,33 @@ fn merge(target: &mut Value, extra: &Value) {
         for (k, v) in e {
             t.insert(k.clone(), v.clone());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn title_pages_follow_each_service() {
+        let movie = json!({ "titleSlug": "the-matrix-603" });
+        assert_eq!(
+            title_page(ArrKind::Radarr, "movie", &movie).as_deref(),
+            Some("/movie/the-matrix-603")
+        );
+        let show = json!({ "titleSlug": "dark-matter" });
+        assert_eq!(
+            title_page(ArrKind::Sonarr, "show", &show).as_deref(),
+            Some("/series/dark-matter")
+        );
+        let mbid = "a74b1b7f-71a5-4011-9441-d0b5e4122711";
+        let artist = json!({ "foreignArtistId": mbid });
+        assert_eq!(title_page(ArrKind::Lidarr, "artist", &artist), Some(format!("/artist/{mbid}")));
+        let album = json!({ "foreignAlbumId": mbid });
+        assert_eq!(title_page(ArrKind::Lidarr, "album", &album), Some(format!("/album/{mbid}")));
+        // Nothing usable, or something that would change the path, gives the start page.
+        assert_eq!(title_page(ArrKind::Radarr, "movie", &json!({})), None);
+        assert_eq!(title_page(ArrKind::Radarr, "movie", &json!({ "titleSlug": "../x" })), None);
+        assert_eq!(title_page(ArrKind::Sonarr, "show", &json!({ "titleSlug": "" })), None);
     }
 }

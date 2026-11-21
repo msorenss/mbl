@@ -776,7 +776,7 @@ pub struct MatchmakerSessionRow {
     pub status: String,
     pub matched_item_id: Option<ItemId>,
     pub created_at: i64,
-    /// People who have joined, including the creator.
+    /// People who have joined, including the creator and guests.
     #[serde(default)]
     pub member_count: i64,
 }
@@ -812,7 +812,8 @@ pub async fn create_matchmaker_session(
 pub async fn get_matchmaker_session(db: &Db, id: &str) -> Result<Option<MatchmakerSessionRow>> {
     let row = sqlx::query(
         "SELECT id, created_by, filter_config, status, matched_item_id, created_at, \
-         (SELECT COUNT(*) FROM matchmaker_members m WHERE m.session_id = s.id) AS member_count \
+         (SELECT COUNT(*) FROM matchmaker_members m WHERE m.session_id = s.id) \
+         + (SELECT COUNT(*) FROM matchmaker_guests g WHERE g.session_id = s.id) AS member_count \
          FROM matchmaker_sessions s WHERE id = ?",
     )
     .bind(id)
@@ -944,11 +945,8 @@ pub async fn join_matchmaker(db: &Db, id: &str, user: UserId) -> Result<()> {
         return Err(Error::NotFound);
     }
     let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM matchmaker_members WHERE session_id = ?")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
-    if count >= 16 {
+        sqlx::query_scalar(PEOPLE_IN_SESSION).bind(id).bind(id).fetch_one(&mut *tx).await?;
+    if count >= MAX_PEOPLE {
         return Err(Error::Conflict("matchmaker lobby is full".into()));
     }
     sqlx::query("INSERT OR IGNORE INTO matchmaker_members (session_id, user_id, joined_at) VALUES (?, ?, ?)")
@@ -968,13 +966,114 @@ pub async fn is_matchmaker_member(db: &Db, id: &str, user: UserId) -> Result<boo
     .map_err(Error::from)
 }
 
+/// Members and guests of a session (binds the session ID twice).
+const PEOPLE_IN_SESSION: &str = "SELECT (SELECT COUNT(*) FROM matchmaker_members WHERE session_id = ?) \
+     + (SELECT COUNT(*) FROM matchmaker_guests WHERE session_id = ?)";
+/// Most people in one movie night, members and guests together.
+const MAX_PEOPLE: i64 = 16;
+
+/// Everyone who votes in a session: members and guests.
 pub async fn matchmaker_member_count(db: &Db, id: &str) -> Result<usize> {
     let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM matchmaker_members WHERE session_id = ?")
-            .bind(id)
-            .fetch_one(&db.read)
-            .await?;
+        sqlx::query_scalar(PEOPLE_IN_SESSION).bind(id).bind(id).fetch_one(&db.read).await?;
     Ok(count as usize)
+}
+
+/// The session's guest link code, if guests are allowed.
+pub async fn matchmaker_guest_code(db: &Db, id: &str) -> Result<Option<String>> {
+    Ok(sqlx::query_scalar("SELECT guest_code FROM matchmaker_sessions WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&db.read)
+        .await?
+        .flatten())
+}
+
+/// Allow guests with `code`, or stop allowing them (`None`), which also removes the guests and
+/// their votes.
+pub async fn set_matchmaker_guest_code(db: &Db, id: &str, code: Option<&str>) -> Result<()> {
+    let mut tx = db.write.begin().await?;
+    sqlx::query("UPDATE matchmaker_sessions SET guest_code = ? WHERE id = ?")
+        .bind(code)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    if code.is_none() {
+        sqlx::query(
+            "DELETE FROM matchmaker_votes WHERE session_id = ? AND user_name LIKE 'guest:%'",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM matchmaker_guests WHERE session_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// A guest at a movie night.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchmakerGuest {
+    pub id: i64,
+    pub session_id: String,
+    pub name: String,
+}
+
+/// Join the active session that has this guest code. Fails with `NotFound` for an unknown or
+/// expired code and `Conflict` when the session is full.
+pub async fn join_matchmaker_guest(
+    db: &Db,
+    code: &str,
+    name: &str,
+    token_hash: &[u8],
+) -> Result<MatchmakerGuest> {
+    let mut tx = db.write.begin().await?;
+    let session: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM matchmaker_sessions WHERE guest_code = ? AND status = 'active' AND created_at > ?",
+    )
+    .bind(code)
+    .bind(now_ms() - 86_400_000)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(session_id) = session else { return Err(Error::NotFound) };
+    let count: i64 = sqlx::query_scalar(PEOPLE_IN_SESSION)
+        .bind(&session_id)
+        .bind(&session_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if count >= MAX_PEOPLE {
+        return Err(Error::Conflict("this movie night is full".into()));
+    }
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO matchmaker_guests (session_id, name, token_hash, joined_at) VALUES (?, ?, ?, ?) RETURNING id",
+    )
+    .bind(&session_id)
+    .bind(name)
+    .bind(token_hash)
+    .bind(now_ms())
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(MatchmakerGuest { id, session_id, name: name.to_owned() })
+}
+
+/// The guest a token belongs to.
+pub async fn matchmaker_guest_by_token(
+    db: &Db,
+    token_hash: &[u8],
+) -> Result<Option<MatchmakerGuest>> {
+    let row =
+        sqlx::query("SELECT id, session_id, name FROM matchmaker_guests WHERE token_hash = ?")
+            .bind(token_hash)
+            .fetch_optional(&db.read)
+            .await?;
+    Ok(row.map(|r| MatchmakerGuest {
+        id: r.get("id"),
+        session_id: r.get("session_id"),
+        name: r.get("name"),
+    }))
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]

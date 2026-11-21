@@ -4,6 +4,7 @@ import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
 import type { components } from "../api/schema";
 import { collectTracks, shuffled } from "../api/tracks";
+import ArrLinkButton from "../components/ArrLinkButton";
 import MetadataEditor from "../components/MetadataEditor";
 import MissingEpisodes from "../components/MissingEpisodes";
 import PlayOnDevice from "../components/PlayOnDevice";
@@ -463,6 +464,13 @@ export function ItemDetail() {
               </Button>
               <Show when={user()?.isAdmin}>
                 <MetadataEditor itemId={itemId()} onSaved={() => void loadData()} />
+              </Show>
+              <Show when={user()?.isAdmin && (item()?.kind === "movie" || item()?.kind === "show")}>
+                <ArrLinkButton
+                  size="md"
+                  service={item()?.kind === "show" ? "sonarr" : "radarr"}
+                  target={{ item: itemId() }}
+                />
               </Show>
             </div>
 

@@ -910,6 +910,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/items/{id}/arr-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["item_arr_link"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items/{id}/artwork": {
         parameters: {
             query?: never;
@@ -1583,6 +1599,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/matchmaker/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["guest_view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/guest/images/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A poster for a guest, as the host may see it. */
+        get: operations["guest_image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/guest/join/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join a movie night without an account. The token in the answer goes in the `X-Mbl-Guest`
+         *     header of the other guest calls.
+         */
+        post: operations["join_as_guest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/guest/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["guest_vote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/matchmaker/sessions": {
         parameters: {
             query?: never;
@@ -1610,6 +1695,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matchmaker/sessions/{id}/guests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["allow_guests"];
+        delete: operations["stop_guests"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2271,6 +2372,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/requests/arr-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["arr_links"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/requests/arr/{service}": {
         parameters: {
             query?: never;
@@ -2343,6 +2460,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["search_music"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{id}/arr-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["request_arr_link"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3489,6 +3622,16 @@ export interface components {
         };
         /** @enum {string} */
         ArrKind: "radarr" | "sonarr" | "lidarr";
+        /**
+         * @description A link that opens a download service in the browser. Only for admins: it shows the service's
+         *     address on the home network.
+         */
+        ArrLink: {
+            /** @description True when the link opens the title itself, false for the service's start page. */
+            direct: boolean;
+            service: components["schemas"]["ArrKind"];
+            url: string;
+        };
         ArrOption: {
             /** Format: int64 */
             id: number;
@@ -4372,6 +4515,10 @@ export interface components {
         };
         /** Format: int64 */
         JobId: number;
+        JoinMatchmakerAsGuest: {
+            /** @description Shown to the others; 1–40 characters. */
+            name: string;
+        };
         JoinSessionRequest: {
             botName: string;
         };
@@ -4496,6 +4643,41 @@ export interface components {
             /** Format: int64 */
             tmdbId: number;
         };
+        /** @description Handed out once when a guest joins. The token identifies the guest from then on. */
+        MatchmakerGuestJoined: {
+            name: string;
+            token: string;
+        };
+        /** @description The link code guests use to join a movie night. */
+        MatchmakerGuestLink: {
+            code: string;
+        };
+        /** @description A title as a guest sees it. */
+        MatchmakerGuestTitle: {
+            id: components["schemas"]["ItemId"];
+            posterId?: components["schemas"]["ArtworkId"] | null;
+            title: string;
+            /** Format: int64 */
+            year?: number | null;
+        };
+        /** @description What a guest needs to vote: the titles (in the host's order before shuffling) and the result. */
+        MatchmakerGuestView: {
+            matched?: components["schemas"]["MatchmakerGuestTitle"] | null;
+            /** Format: int64 */
+            memberCount: number;
+            name: string;
+            /** @description Seed for the shared shuffle, the same for everyone in the movie night. */
+            seed: string;
+            titles: components["schemas"]["MatchmakerGuestTitle"][];
+        };
+        MatchmakerGuestVote: {
+            itemId: components["schemas"]["ItemId"];
+            /**
+             * Format: int32
+             * @description 1 to like, 0 to pass.
+             */
+            vote: number;
+        };
         MatchmakerMatchResult: {
             matched: boolean;
             matchedItemId?: components["schemas"]["ItemId"] | null;
@@ -4509,7 +4691,7 @@ export interface components {
             matchedItemId?: components["schemas"]["ItemId"] | null;
             /**
              * Format: int64
-             * @description People who have joined, including the creator.
+             * @description People who have joined, including the creator and guests.
              */
             memberCount?: number;
             status: string;
@@ -6153,8 +6335,10 @@ export interface components {
             /** Format: int64 */
             audioOffsetMs?: number | null;
             hiddenHubs?: string[] | null;
+            hiddenNav?: string[] | null;
             homeLayout?: string[] | null;
             locale?: string | null;
+            navOrder?: string[] | null;
             nightMode?: boolean | null;
             reducedMotion?: boolean | null;
             subtitleStyle?: components["schemas"]["SubtitleStylePreferences"] | null;
@@ -6195,6 +6379,11 @@ export interface components {
              */
             hiddenHubs: string[];
             /**
+             * @description Menu entries the user has hidden.
+             * @default []
+             */
+            hiddenNav: string[];
+            /**
              * @description Ordered hub keys (`"continueWatching"`, `"upNext"`, `"recentlyAdded.<id>"`).
              * @default []
              */
@@ -6204,6 +6393,12 @@ export interface components {
              * @default en
              */
             locale: string;
+            /**
+             * @description Menu entries (their paths, e.g. `"/livetv"`) in the user's order; entries missing
+             *     here keep their default place after the ordered ones.
+             * @default []
+             */
+            navOrder: string[];
             /** @default false */
             nightMode: boolean;
             /** @default false */
@@ -8316,6 +8511,49 @@ export interface operations {
             };
         };
     };
+    item_arr_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Movie or show */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link to the movie in Radarr or the show in Sonarr, or to its start page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrLink"];
+                };
+            };
+            /** @description Not a movie or show, or the service has no address or key */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     artwork_candidates: {
         parameters: {
             query?: {
@@ -10324,6 +10562,162 @@ export interface operations {
             };
         };
     };
+    guest_view: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Guest token */
+                "x-mbl-guest": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Titles to vote on (what the host may see) and the result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerGuestView"];
+                };
+            };
+            /** @description Unknown guest token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    guest_image: {
+        parameters: {
+            query: {
+                /** @description Guest token (images are loaded by `<img>`, which cannot send headers). */
+                token: string;
+                w?: number;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    join_as_guest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Code from the host's guest link */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinMatchmakerAsGuest"];
+            };
+        };
+        responses: {
+            /** @description Joined */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerGuestJoined"];
+                };
+            };
+            /** @description Unknown code, guests turned off, or the movie night is over */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The movie night is full */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or too long name */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    guest_vote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Guest token */
+                "x-mbl-guest": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatchmakerGuestVote"];
+            };
+        };
+        responses: {
+            /** @description Vote recorded and match evaluated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerMatchResult"];
+                };
+            };
+            /** @description Unknown guest token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not one of this movie night's titles */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     create_matchmaker_session: {
         parameters: {
             query?: never;
@@ -10370,6 +10764,83 @@ export interface operations {
                 };
             };
             /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    allow_guests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Matchmaker session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Guests may join with this code (the existing one if already allowed) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchmakerGuestLink"];
+                };
+            };
+            /** @description Only the host or an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The movie night is over */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stop_guests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Matchmaker session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Guests removed and the guest link turned off */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only the host or an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12044,6 +12515,33 @@ export interface operations {
             };
         };
     };
+    arr_links: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Start pages of the download services that have an address and a key */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrLink"][];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_arr_settings: {
         parameters: {
             query?: never;
@@ -12217,6 +12715,49 @@ export interface operations {
             };
             /** @description Lidarr is not connected or did not answer */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    request_arr_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link to the title in Radarr, Sonarr or Lidarr, or to its start page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArrLink"];
+                };
+            };
+            /** @description The service for this request has no address or key */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

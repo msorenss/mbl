@@ -6,7 +6,7 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use mbl_core::{ItemId, RequestId};
 use mbl_service::{
-    ArrConnectionReport, ArrKind, ArrSettings, CreateMediaRequest, MediaRequestRow,
+    ArrConnectionReport, ArrKind, ArrLink, ArrSettings, CreateMediaRequest, MediaRequestRow,
     MissingEpisodeInfo, MusicSearchHit, StorageHardlinkReport, TestArrConnection,
     UpdateArrSettings,
 };
@@ -45,6 +45,83 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/requests/arr/{service}", get(get_arr_settings).put(update_arr_settings))
         .route("/api/v1/requests/arr/{service}/test", post(test_arr_connection))
         .route("/api/v1/requests/music/search", get(search_music))
+        .route("/api/v1/requests/arr-links", get(arr_links))
+        .route("/api/v1/requests/{id}/arr-link", get(request_arr_link))
+        .route("/api/v1/items/{id}/arr-link", get(item_arr_link))
+}
+
+fn link_response(link: Option<ArrLink>) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    match link {
+        Some(link) => Json(link).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/requests/arr-links",
+    responses(
+        (status = 200, description = "Start pages of the download services that have an address and a key", body = Vec<ArrLink>),
+        (status = 403, description = "Admin required")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn arr_links(
+    auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ArrLink>>, ApiError> {
+    Ok(Json(state.services.requests.arr.links(&auth.actor).await?))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/requests/{id}/arr-link",
+    params(("id" = i64, Path, description = "Request ID")),
+    responses(
+        (status = 200, description = "Link to the title in Radarr, Sonarr or Lidarr, or to its start page", body = ArrLink),
+        (status = 204, description = "The service for this request has no address or key"),
+        (status = 403, description = "Admin required"),
+        (status = 404)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn request_arr_link(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<axum::response::Response, ApiError> {
+    let link = state.services.requests.arr_link(&auth.actor, RequestId(id)).await?;
+    Ok(link_response(link))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/items/{id}/arr-link",
+    params(("id" = i64, Path, description = "Movie or show")),
+    responses(
+        (status = 200, description = "Link to the movie in Radarr or the show in Sonarr, or to its start page", body = ArrLink),
+        (status = 204, description = "Not a movie or show, or the service has no address or key"),
+        (status = 403, description = "Admin required"),
+        (status = 404)
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn item_arr_link(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<ItemId>,
+) -> Result<axum::response::Response, ApiError> {
+    auth.actor.require_admin()?;
+    let item = state.services.items.get(&auth.actor, id).await?;
+    let what = match item.kind {
+        mbl_core::MediaKind::Movie => "movie",
+        mbl_core::MediaKind::Show => "show",
+        _ => return Ok(link_response(None)),
+    };
+    let link =
+        state.services.requests.arr.title_link(&auth.actor, what, None, item.tmdb_id).await?;
+    Ok(link_response(link))
 }
 
 #[utoipa::path(

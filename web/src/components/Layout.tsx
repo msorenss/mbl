@@ -19,6 +19,7 @@ import {
 } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { localizeDomSubtree, SUPPORTED_LOCALES, useI18n } from "../i18n";
+import { arrangeNav } from "../utils/navLayout";
 import {
   canInstallPwa,
   isIosSafariInstallCandidate,
@@ -49,14 +50,29 @@ interface NavItemDef {
 
 // Loaded after the page so the assistant adds nothing to the first download.
 const AssistantChat = lazy(() => import("./AssistantChat"));
+// Only loaded when someone edits the menu.
+const NavEditor = lazy(() => import("./NavEditor"));
 
 export function Layout(props: { children?: JSX.Element }) {
   const { user, logout } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme, setTheme, accent, setAccent, locale, setLocale, reducedMotion, setReducedMotion } =
-    useTheme();
+  const {
+    theme,
+    setTheme,
+    accent,
+    setAccent,
+    locale,
+    setLocale,
+    reducedMotion,
+    setReducedMotion,
+    navOrder,
+    hiddenNav,
+  } = useTheme();
+  const visible = <T extends { href: string }>(links: readonly T[]) =>
+    arrangeNav(links, navOrder(), hiddenNav());
+  const [navEditorOpen, setNavEditorOpen] = createSignal(false);
   const { t } = useI18n();
   const { isOpen: isCommandOpen, open: openCommand, close: closeCommand } = useCommandPalette();
 
@@ -297,6 +313,12 @@ export function Layout(props: { children?: JSX.Element }) {
         icon: <AppIcon name="appearance" size={18} />,
         onSelect: () => setSettingsOpen(true),
       },
+      {
+        id: "edit-menu",
+        label: t("Edit menu"),
+        icon: <AppIcon name="menu" size={18} />,
+        onSelect: () => setNavEditorOpen(true),
+      },
     ];
 
     if (canInstallPwa()) {
@@ -474,7 +496,7 @@ export function Layout(props: { children?: JSX.Element }) {
           >
             {t("browse")}
           </div>
-          <For each={browseLinks}>{renderSidebarLink}</For>
+          <For each={visible(browseLinks)}>{renderSidebarLink}</For>
 
           <div class="mbl-sidebar-rail-divider" aria-hidden="true" />
           <div
@@ -491,7 +513,7 @@ export function Layout(props: { children?: JSX.Element }) {
           >
             {t("personal")}
           </div>
-          <For each={personalLinks}>{renderSidebarLink}</For>
+          <For each={visible(personalLinks)}>{renderSidebarLink}</For>
 
           <Show when={user()?.isAdmin}>
             <div class="mbl-sidebar-rail-divider" aria-hidden="true" />
@@ -509,7 +531,7 @@ export function Layout(props: { children?: JSX.Element }) {
             >
               {t("admin")}
             </div>
-            <For each={adminLinks}>{renderSidebarLink}</For>
+            <For each={visible(adminLinks)}>{renderSidebarLink}</For>
           </Show>
         </nav>
 
@@ -922,16 +944,7 @@ export function Layout(props: { children?: JSX.Element }) {
             "z-index": 50,
           }}
         >
-          <For
-            each={
-              [
-                { href: "/", icon: "home", label: () => t("home") },
-                { href: "/libraries", icon: "libraries", label: () => t("libraries") },
-                { href: "/search", icon: "search", label: () => t("search") },
-                { href: "/livetv", icon: "livetv", label: () => t("liveTv") },
-              ] as NavItemDef[]
-            }
-          >
+          <For each={visible(browseLinks).slice(0, 4)}>
             {(tab) => {
               const active = () => isNavActive(tab.href);
               return (
@@ -1010,6 +1023,18 @@ export function Layout(props: { children?: JSX.Element }) {
 
       {/* Command Palette Modal */}
       <CommandPalette open={isCommandOpen()} onClose={closeCommand} />
+      <Show when={navEditorOpen()}>
+        <Suspense>
+          <NavEditor
+            groups={[
+              { title: t("browse"), links: browseLinks },
+              { title: t("personal"), links: personalLinks },
+              ...(user()?.isAdmin ? [{ title: t("admin"), links: adminLinks }] : []),
+            ]}
+            onClose={() => setNavEditorOpen(false)}
+          />
+        </Suspense>
+      </Show>
 
       {/* Mobile "More" Navigation Drawer (Bottom Sheet) */}
       <Sheet
@@ -1028,19 +1053,21 @@ export function Layout(props: { children?: JSX.Element }) {
             }}
           >
             <For
-              each={
-                [
-                  { href: "/webtv", icon: "webtv", label: () => t("webtv") },
-                  { href: "/collections", icon: "collections", label: () => t("collections") },
-                  { href: "/requests", icon: "requests", label: () => t("mediaRequests") },
-                  { href: "/remote", icon: "remote", label: () => t("Remote control") },
-                  { href: "/matchmaker", icon: "profiles", label: () => t("Movie night") },
-                  { href: "/discover", icon: "ai-agents", label: () => t("Scene search") },
-                  { href: "/profiles", icon: "profiles", label: () => t("switchProfile") },
-                  { href: "/account", icon: "account", label: () => t("accountSecurity") },
-                  { href: "/connect", icon: "remote", label: () => t("Sign in a device") },
-                ] as NavItemDef[]
-              }
+              each={[
+                // Browse entries that do not fit in the bottom bar, then the personal ones.
+                ...visible(browseLinks).slice(4),
+                ...visible(personalLinks),
+                {
+                  href: "/profiles",
+                  icon: "profiles",
+                  label: () => t("switchProfile"),
+                } as NavItemDef,
+                {
+                  href: "/connect",
+                  icon: "remote",
+                  label: () => t("Sign in a device"),
+                } as NavItemDef,
+              ]}
             >
               {(item) => (
                 <A

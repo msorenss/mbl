@@ -1,6 +1,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import ArrLinkButton from "../components/ArrLinkButton";
 import ArrSettings from "../components/ArrSettings";
 import StorageCheck from "../components/StorageCheck";
 import { Button } from "../components/ui";
@@ -15,6 +16,14 @@ const KIND_LABEL: Record<string, string> = {
   show: "TV Show",
   artist: "Artist",
   album: "Album",
+};
+
+const SERVICE_KEY: Record<string, "radarr" | "sonarr" | "lidarr"> = {
+  movie: "radarr",
+  show: "sonarr",
+  series: "sonarr",
+  artist: "lidarr",
+  album: "lidarr",
 };
 
 const SERVICE: Record<string, string> = {
@@ -723,6 +732,11 @@ export default function Requests() {
                   </div>
                   <Show when={user()?.isAdmin}>
                     <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap" }}>
+                      <Show when={SERVICE_KEY[request.kind]}>
+                        {(service) => (
+                          <ArrLinkButton service={service()} target={{ request: request.id }} />
+                        )}
+                      </Show>
                       <Show when={request.status === "approved" && !request.arrId}>
                         <Button
                           size="sm"

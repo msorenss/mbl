@@ -36,11 +36,22 @@ async fn image(
     Query(q): Query<ImageQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    image_response(&state, &auth.actor, id, &q, &headers).await
+}
+
+/// An artwork as `actor` may see it, resized, with caching headers.
+pub(crate) async fn image_response(
+    state: &AppState,
+    actor: &mbl_core::Actor,
+    id: ArtworkId,
+    q: &ImageQuery,
+    headers: &HeaderMap,
+) -> Result<Response, ApiError> {
     let is_blur = q.blur.as_deref().is_some_and(|b| b == "1" || b.eq_ignore_ascii_case("true"));
     let file = state
         .services
         .images
-        .get_with_blur(&auth.actor, id, q.w.unwrap_or(480), q.q.unwrap_or(80), is_blur)
+        .get_with_blur(actor, id, q.w.unwrap_or(480), q.q.unwrap_or(80), is_blur)
         .await?;
     let etag = if file.blurred {
         format!("\"{}-{}-{}-blur\"", file.hash, file.width, file.quality)

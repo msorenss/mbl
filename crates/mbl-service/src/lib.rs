@@ -81,8 +81,9 @@ pub use items::{Hub, ItemService, SearchGroup};
 pub use libraries::{CreateLibrary, LibraryService, UpdateLibrary};
 pub use livetv::LiveTvService;
 pub use matchmaker::{
-    CreateMatchmakerSessionRequest, MatchmakerMatchResult, MatchmakerService, MatchmakerSessionRow,
-    MatchmakerVoteRequest,
+    CreateMatchmakerSessionRequest, JoinMatchmakerAsGuest, MatchmakerGuestJoined,
+    MatchmakerGuestLink, MatchmakerGuestTitle, MatchmakerGuestView, MatchmakerGuestVote,
+    MatchmakerMatchResult, MatchmakerService, MatchmakerSessionRow, MatchmakerVoteRequest,
 };
 pub use mbl_playback::{Network as PlaybackNetwork, PlayMethod, StreamAction, SubtitleDelivery};
 pub use mcp::{
@@ -100,7 +101,7 @@ pub use players::{PlayerCommand, PlayerInfo, PlayerRegistry};
 pub use plugins::PluginService;
 pub mod online;
 pub use arr::{
-    ArrConnectionReport, ArrKind, ArrOption, ArrService, ArrSettings, MusicSearchHit,
+    ArrConnectionReport, ArrKind, ArrLink, ArrOption, ArrService, ArrSettings, MusicSearchHit,
     TestArrConnection, UpdateArrSettings,
 };
 pub use lyrics::{LyricLine, LyricsResponse, LyricsSource};

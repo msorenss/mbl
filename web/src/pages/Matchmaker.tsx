@@ -4,28 +4,13 @@ import client from "../api/client";
 import type { components } from "../api/schema";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import { seededShuffle } from "../utils/seededShuffle";
 
 type Session = components["schemas"]["MatchmakerSessionRow"];
 type Item = components["schemas"]["ItemSummary"];
 type Library = components["schemas"]["LibraryDto"];
 
-/** Deterministic shuffle so everyone in a session sees the same order. */
-export function seededShuffle<T>(list: T[], seed: string): T[] {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
-  const next = () => {
-    h = Math.imul(h ^ (h >>> 15), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  };
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
+export { seededShuffle };
 
 function libraryOf(session: Session): number | null {
   try {
@@ -79,7 +64,8 @@ function Lobby() {
     <section class="mbl-card-section">
       <p>
         Everyone swipes through the same titles on their own device. When all of you like the same
-        title, it is your pick for tonight. Each person signs in with their own account.
+        title, it is your pick for tonight. Each person signs in with their own account, or joins as
+        a guest with the guest link.
       </p>
       <Show
         when={libraries().length > 0}
@@ -252,6 +238,9 @@ function Swipe(props: { id: string }) {
                 {copied() ? "Copied" : "Copy link"}
               </Button>
             </section>
+            <Show when={s().createdBy === user()?.id || user()?.isAdmin}>
+              <GuestInvite id={props.id} />
+            </Show>
             <Show
               when={current()}
               fallback={
@@ -296,6 +285,81 @@ function Swipe(props: { id: string }) {
         )}
       </Show>
     </>
+  );
+}
+
+/**
+ * Host only: a link for people without an account. Guests see what the host may see, and turning
+ * the link off removes them and their votes.
+ */
+function GuestInvite(props: { id: string }) {
+  const [code, setCode] = createSignal<string | null>(null);
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [copied, setCopied] = createSignal(false);
+  const link = () => `${window.location.origin}/movie-night/${code()}`;
+
+  const change = async (allow: boolean) => {
+    setBusy(true);
+    setError("");
+    try {
+      const params = { params: { path: { id: props.id } } };
+      if (allow) {
+        const result = await client.POST("/api/v1/matchmaker/sessions/{id}/guests", params);
+        if (!result.data) throw new Error();
+        setCode(result.data.code);
+      } else {
+        const result = await client.DELETE("/api/v1/matchmaker/sessions/{id}/guests", params);
+        if (result.error) throw new Error();
+        setCode(null);
+      }
+    } catch {
+      setError(allow ? "Could not create a guest link." : "Could not turn off the guest link.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link());
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <section class="mbl-card-section">
+      <h2 style={{ "font-size": "1rem", margin: "0 0 0.5rem" }}>Guests without an account</h2>
+      <Show
+        when={code()}
+        fallback={
+          <>
+            <p>
+              Anyone with the guest link can join with just a name. They see the titles your profile
+              may see.
+            </p>
+            <Button variant="secondary" disabled={busy()} onClick={() => change(true)}>
+              Invite guests
+            </Button>
+          </>
+        }
+      >
+        <input readonly value={link()} aria-label="Guest link" style={{ width: "100%" }} />
+        <div style={{ display: "flex", gap: "8px", "flex-wrap": "wrap" }}>
+          <Button variant="secondary" onClick={copy}>
+            {copied() ? "Copied" : "Copy guest link"}
+          </Button>
+          <Button variant="secondary" disabled={busy()} onClick={() => change(false)}>
+            Turn off guest link
+          </Button>
+        </div>
+      </Show>
+      <Show when={error()}>
+        <p role="alert">{error()}</p>
+      </Show>
+    </section>
   );
 }
 

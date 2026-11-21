@@ -50,6 +50,11 @@ pub struct UserPreferences {
     pub home_layout: Vec<String>,
     /// Hub keys hidden by the user on the Home screen.
     pub hidden_hubs: Vec<String>,
+    /// Menu entries (their paths, e.g. `"/livetv"`) in the user's order; entries missing
+    /// here keep their default place after the ordered ones.
+    pub nav_order: Vec<String>,
+    /// Menu entries the user has hidden.
+    pub hidden_nav: Vec<String>,
 }
 
 impl Default for UserPreferences {
@@ -64,6 +69,8 @@ impl Default for UserPreferences {
             subtitle_style: SubtitleStylePreferences::default(),
             home_layout: Vec::new(),
             hidden_hubs: Vec::new(),
+            nav_order: Vec::new(),
+            hidden_nav: Vec::new(),
         }
     }
 }
@@ -80,6 +87,8 @@ pub struct UpdateUserPreferences {
     pub subtitle_style: Option<SubtitleStylePreferences>,
     pub home_layout: Option<Vec<String>>,
     pub hidden_hubs: Option<Vec<String>>,
+    pub nav_order: Option<Vec<String>>,
+    pub hidden_nav: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

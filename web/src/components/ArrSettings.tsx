@@ -1,6 +1,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
+import { forgetArrServices } from "./ArrLinkButton";
 import { Badge, Button } from "./ui";
 
 type Kind = "radarr" | "sonarr" | "lidarr";
@@ -118,6 +119,7 @@ function ArrService(props: { kind: Kind }) {
       if (!result.data) throw new Error(reason(result.error, "Could not save settings."));
       setHasKey(result.data.hasApiKey);
       setApiKey("");
+      forgetArrServices();
       setNotice(result.data.enabled ? info.savedOn : `Saved. ${info.name} is turned off.`);
     });
 

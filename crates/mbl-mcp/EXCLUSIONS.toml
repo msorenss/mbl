@@ -390,3 +390,35 @@ reason = "The built-in assistant itself (which uses the MCP tools); an external 
 [[exclusions]]
 path = "/api/v1/items/{id}/next-episode"
 reason = "Play button of the web's show and season pages; agents use get_children and get_continue_watching."
+
+[[exclusions]]
+path = "/api/v1/requests/arr-links"
+reason = "Browser links to the Radarr/Sonarr/Lidarr web interfaces for admins; they expose internal addresses and are of no use to an agent."
+
+[[exclusions]]
+path = "/api/v1/requests/{id}/arr-link"
+reason = "Browser link that opens the request's title in Radarr/Sonarr/Lidarr for an admin."
+
+[[exclusions]]
+path = "/api/v1/items/{id}/arr-link"
+reason = "Browser link that opens a movie in Radarr or a show in Sonarr for an admin."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/sessions/{id}/guests"
+reason = "The host shares a guest link with people in the room; inviting people without an account is a human decision, not an agent action."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/guest/join/{code}"
+reason = "Public join for guests without an account, from the guest page in a browser."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/guest"
+reason = "Authenticated by a guest token, not an account; only the guest page uses it."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/guest/vote"
+reason = "A guest's own vote from the guest page; agents do not vote for people."
+
+[[exclusions]]
+path = "/api/v1/matchmaker/guest/images/{id}"
+reason = "Posters for the guest page, authenticated by a guest token."

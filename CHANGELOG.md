@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- Edit the menu: choose **Edit menu** in the user menu to hide entries and change their order within each group (drag an entry, or use the arrows). The layout is saved with your account, so every device shows the same menu; **Reset to default** brings back the standard menu. Home is always shown.
+- **Open in Radarr/Sonarr/Lidarr** for administrators: on requests and on movie and show pages. It opens the title in the download service when the service has it, otherwise the service's start page, and appears only for services with an address and an API key. New `GET /api/v1/requests/arr-links`, `GET /api/v1/requests/{id}/arr-link` and `GET /api/v1/items/{id}/arr-link`.
+- Guests at movie night: the host chooses **Invite guests** and shares a link; anyone can join with just a name, without an account, and swipe with the others. A guest's votes are bound to their browser, not to the name they type. Guests see only what the host's profile may see. **Turn off guest link** removes the guests and their votes.
+
 ### Changed
 - **Play** and **Cast to TV** work on a show or season page: they start the episode after the last one you finished (continuing where you stopped if you started it), a started episode if you have not finished any, or the first episode. The button shows which one, for example "Resume S2E9", and playback continues with the next episode. New `GET /api/v1/items/{id}/next-episode`.
 

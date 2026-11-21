@@ -2022,6 +2022,50 @@
         }
       }
     },
+    "/api/v1/items/{id}/arr-link": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "item_arr_link",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Movie or show",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link to the movie in Radarr or the show in Sonarr, or to its start page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrLink"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Not a movie or show, or the service has no address or key"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/items/{id}/artwork": {
       "get": {
         "tags": [
@@ -4440,6 +4484,186 @@
         ]
       }
     },
+    "/api/v1/matchmaker/guest": {
+      "get": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "guest_view",
+        "parameters": [
+          {
+            "name": "x-mbl-guest",
+            "in": "header",
+            "description": "Guest token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Titles to vote on (what the host may see) and the result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerGuestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown guest token"
+          }
+        }
+      }
+    },
+    "/api/v1/matchmaker/guest/images/{id}": {
+      "get": {
+        "tags": [
+          "matchmaker"
+        ],
+        "summary": "A poster for a guest, as the host may see it.",
+        "operationId": "guest_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Guest token (images are loaded by `<img>`, which cannot send headers).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "w",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "401": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/matchmaker/guest/join/{code}": {
+      "post": {
+        "tags": [
+          "matchmaker"
+        ],
+        "summary": "Join a movie night without an account. The token in the answer goes in the `X-Mbl-Guest`\nheader of the other guest calls.",
+        "operationId": "join_as_guest",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "description": "Code from the host's guest link",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinMatchmakerAsGuest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Joined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerGuestJoined"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown code, guests turned off, or the movie night is over"
+          },
+          "409": {
+            "description": "The movie night is full"
+          },
+          "422": {
+            "description": "Missing or too long name"
+          }
+        }
+      }
+    },
+    "/api/v1/matchmaker/guest/vote": {
+      "post": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "guest_vote",
+        "parameters": [
+          {
+            "name": "x-mbl-guest",
+            "in": "header",
+            "description": "Guest token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchmakerGuestVote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Vote recorded and match evaluated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerMatchResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown guest token"
+          },
+          "404": {
+            "description": "Not one of this movie night's titles"
+          }
+        }
+      }
+    },
     "/api/v1/matchmaker/sessions": {
       "post": {
         "tags": [
@@ -4506,6 +4730,80 @@
           "404": {
             "description": "Session not found"
           }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/matchmaker/sessions/{id}/guests": {
+      "post": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "allow_guests",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Matchmaker session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guests may join with this code (the existing one if already allowed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakerGuestLink"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the host or an admin"
+          },
+          "404": {},
+          "409": {
+            "description": "The movie night is over"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "matchmaker"
+        ],
+        "operationId": "stop_guests",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Matchmaker session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Guests removed and the guest link turned off"
+          },
+          "403": {
+            "description": "Only the host or an admin"
+          },
+          "404": {}
         },
         "security": [
           {
@@ -6438,6 +6736,37 @@
         ]
       }
     },
+    "/api/v1/requests/arr-links": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "arr_links",
+        "responses": {
+          "200": {
+            "description": "Start pages of the download services that have an address and a key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArrLink"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/requests/arr/{service}": {
       "get": {
         "tags": [
@@ -6684,6 +7013,50 @@
           "503": {
             "description": "Lidarr is not connected or did not answer"
           }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/requests/{id}/arr-link": {
+      "get": {
+        "tags": [
+          "requests"
+        ],
+        "operationId": "request_arr_link",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Request ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link to the title in Radarr, Sonarr or Lidarr, or to its start page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrLink"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "The service for this request has no address or key"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {}
         },
         "security": [
           {
@@ -9554,6 +9927,27 @@
           "sonarr",
           "lidarr"
         ]
+      },
+      "ArrLink": {
+        "type": "object",
+        "description": "A link that opens a download service in the browser. Only for admins: it shows the service's\naddress on the home network.",
+        "required": [
+          "service",
+          "url",
+          "direct"
+        ],
+        "properties": {
+          "direct": {
+            "type": "boolean",
+            "description": "True when the link opens the title itself, false for the service's start page."
+          },
+          "service": {
+            "$ref": "#/components/schemas/ArrKind"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
       },
       "ArrOption": {
         "type": "object",
@@ -12837,6 +13231,18 @@
         "type": "integer",
         "format": "int64"
       },
+      "JoinMatchmakerAsGuest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Shown to the others; 1–40 characters."
+          }
+        }
+      },
       "JoinSessionRequest": {
         "type": "object",
         "required": [
@@ -13254,6 +13660,123 @@
           }
         }
       },
+      "MatchmakerGuestJoined": {
+        "type": "object",
+        "description": "Handed out once when a guest joins. The token identifies the guest from then on.",
+        "required": [
+          "token",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "MatchmakerGuestLink": {
+        "type": "object",
+        "description": "The link code guests use to join a movie night.",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "MatchmakerGuestTitle": {
+        "type": "object",
+        "description": "A title as a guest sees it.",
+        "required": [
+          "id",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "posterId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArtworkId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "MatchmakerGuestView": {
+        "type": "object",
+        "description": "What a guest needs to vote: the titles (in the host's order before shuffling) and the result.",
+        "required": [
+          "seed",
+          "name",
+          "memberCount",
+          "titles"
+        ],
+        "properties": {
+          "matched": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MatchmakerGuestTitle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "string",
+            "description": "Seed for the shared shuffle, the same for everyone in the movie night."
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchmakerGuestTitle"
+            }
+          }
+        }
+      },
+      "MatchmakerGuestVote": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "vote"
+        ],
+        "properties": {
+          "itemId": {
+            "$ref": "#/components/schemas/ItemId"
+          },
+          "vote": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to like, 0 to pass."
+          }
+        }
+      },
       "MatchmakerMatchResult": {
         "type": "object",
         "required": [
@@ -13311,7 +13834,7 @@
           "memberCount": {
             "type": "integer",
             "format": "int64",
-            "description": "People who have joined, including the creator."
+            "description": "People who have joined, including the creator and guests."
           },
           "status": {
             "type": "string"
@@ -19268,6 +19791,15 @@
               "type": "string"
             }
           },
+          "hiddenNav": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
           "homeLayout": {
             "type": [
               "array",
@@ -19282,6 +19814,15 @@
               "string",
               "null"
             ]
+          },
+          "navOrder": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           },
           "nightMode": {
             "type": [
@@ -19400,6 +19941,14 @@
             "description": "Hub keys hidden by the user on the Home screen.",
             "default": []
           },
+          "hiddenNav": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Menu entries the user has hidden.",
+            "default": []
+          },
           "homeLayout": {
             "type": "array",
             "items": {
@@ -19412,6 +19961,14 @@
             "type": "string",
             "description": "`\"en\" | \"sv\" | \"de\"`, default `\"en\"`.",
             "default": "en"
+          },
+          "navOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Menu entries (their paths, e.g. `\"/livetv\"`) in the user's order; entries missing\nhere keep their default place after the ordered ones.",
+            "default": []
           },
           "nightMode": {
             "type": "boolean",

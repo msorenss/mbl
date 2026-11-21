@@ -224,6 +224,12 @@ impl UserService {
             }
             prefs.hidden_hubs = hidden_hubs;
         }
+        if let Some(order) = patch.nav_order {
+            prefs.nav_order = clean_nav_paths(order, "navOrder")?;
+        }
+        if let Some(hidden) = patch.hidden_nav {
+            prefs.hidden_nav = clean_nav_paths(hidden, "hiddenNav")?;
+        }
         self.users.set_preferences(actor.user_id, &prefs).await?;
         Ok(prefs)
     }
@@ -437,4 +443,22 @@ fn validate_subtitle_style(sub: &SubtitleStylePreferences) -> Result<()> {
         return Err(Error::Validation(format!("invalid subtitle font: {}", sub.font)));
     }
     Ok(())
+}
+
+/// Menu entry paths as the web sends them: unique, starting with `/`, at most 64.
+fn clean_nav_paths(paths: Vec<String>, field: &str) -> Result<Vec<String>> {
+    if paths.len() > 64 {
+        return Err(Error::Validation(format!("{field} has too many entries")));
+    }
+    let mut out: Vec<String> = Vec::new();
+    for path in paths {
+        let path = path.trim().to_owned();
+        if !path.starts_with('/') || path.len() > 100 || path.contains(char::is_whitespace) {
+            return Err(Error::Validation(format!("{field} has an invalid entry")));
+        }
+        if !out.contains(&path) {
+            out.push(path);
+        }
+    }
+    Ok(out)
 }

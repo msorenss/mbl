@@ -28,6 +28,8 @@ MBL is a complete personal media platform spanning video, music, and photography
 
 **Movie night** (`/matchmaker`) helps a group pick something to watch. One person chooses a movie or TV library and sends the link. Everyone opens it signed in with their own account and swipes **Like** or **Pass** through the same titles in the same order. When every member has liked the same title, everyone sees the match. A session holds up to 16 people and can be joined for 24 hours.
 
+People without an account can join too. The person who started the movie night chooses **Invite guests** and shares the guest link. A guest types a name and swipes like everyone else; their votes belong to that browser, not to the name, so nobody can vote in someone else's place. Guests see the titles the host's profile may see (the same libraries and age limit), and count toward the 16 people. **Turn off guest link** removes the guests and their votes.
+
 ## Missing episodes and storage
 
 - **Check for missing episodes** on a show page lists gaps in each season's episode numbers. Episodes after the last one in the library are not known and are not listed.

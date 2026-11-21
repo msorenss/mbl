@@ -89,6 +89,11 @@ interface ThemeContextValue {
   setNightMode: (nm: boolean) => void;
   audioOffsetMs: () => number;
   setAudioOffsetMs: (ms: number) => void;
+  /** Menu entries (paths) in the user's order. */
+  navOrder: () => string[];
+  /** Menu entries the user has hidden. */
+  hiddenNav: () => string[];
+  setNavLayout: (order: string[], hidden: string[]) => void;
   syncWithBackend: () => Promise<void>;
 }
 
@@ -102,7 +107,26 @@ const STORAGE_KEYS = {
   subtitleStyle: "mbl.subtitleStyle",
   nightMode: "mbl.nightMode",
   audioOffsetMs: "mbl.audioOffsetMs",
+  navOrder: "mbl.navOrder",
+  hiddenNav: "mbl.hiddenNav",
 };
+
+/** A list saved in the browser as a fallback until the server answers. */
+function readList(key: string): string[] {
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeList(key: string, list: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {}
+}
 
 export function ThemeProvider(props: ParentProps) {
   const [theme, setThemeSignal] = createSignal<ThemeMode>(
@@ -137,6 +161,8 @@ export function ThemeProvider(props: ParentProps) {
   const [nightMode, setNightModeSignal] = createSignal<boolean>(
     typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEYS.nightMode) === "true",
   );
+  const [navOrder, setNavOrderSignal] = createSignal<string[]>(readList(STORAGE_KEYS.navOrder));
+  const [hiddenNav, setHiddenNavSignal] = createSignal<string[]>(readList(STORAGE_KEYS.hiddenNav));
   const [audioOffsetMs, setAudioOffsetMsSignal] = createSignal<number>(
     typeof localStorage !== "undefined"
       ? Number.parseInt(localStorage.getItem(STORAGE_KEYS.audioOffsetMs) || "0", 10) || 0
@@ -181,6 +207,8 @@ export function ThemeProvider(props: ParentProps) {
     nightMode?: boolean;
     audioOffsetMs?: number;
     subtitleStyle?: SubtitleStyle;
+    navOrder?: string[];
+    hiddenNav?: string[];
   }) => {
     try {
       await client.PATCH("/api/v1/users/me/preferences", {
@@ -237,6 +265,14 @@ export function ThemeProvider(props: ParentProps) {
     saveToBackend({ audioOffsetMs: ms });
   };
 
+  const setNavLayout = (order: string[], hidden: string[]) => {
+    setNavOrderSignal(order);
+    setHiddenNavSignal(hidden);
+    writeList(STORAGE_KEYS.navOrder, order);
+    writeList(STORAGE_KEYS.hiddenNav, hidden);
+    saveToBackend({ navOrder: order, hiddenNav: hidden });
+  };
+
   const syncWithBackend = async () => {
     try {
       const res = await client.GET("/api/v1/users/me/preferences");
@@ -248,6 +284,8 @@ export function ThemeProvider(props: ParentProps) {
         if (typeof d.reducedMotion === "boolean") setReducedMotionSignal(d.reducedMotion);
         if (typeof d.nightMode === "boolean") setNightModeSignal(d.nightMode);
         if (typeof d.audioOffsetMs === "number") setAudioOffsetMsSignal(d.audioOffsetMs);
+        if (Array.isArray(d.navOrder)) setNavOrderSignal(d.navOrder);
+        if (Array.isArray(d.hiddenNav)) setHiddenNavSignal(d.hiddenNav);
         if (d.subtitleStyle) {
           setSubtitleStyleSignal({
             size: d.subtitleStyle.size || "md",
@@ -285,6 +323,9 @@ export function ThemeProvider(props: ParentProps) {
         setNightMode,
         audioOffsetMs,
         setAudioOffsetMs,
+        navOrder,
+        hiddenNav,
+        setNavLayout,
         syncWithBackend,
       }}
     >

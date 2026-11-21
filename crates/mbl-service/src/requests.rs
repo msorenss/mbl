@@ -1,6 +1,6 @@
 //! Built-in Media Requests, Sonarr/Radarr Bridge & Hardlink Storage Hygiene (M7.20).
 
-use crate::arr::{ArrKind, ArrService};
+use crate::arr::{ArrKind, ArrLink, ArrService};
 use mbl_core::{Actor, Error, RequestId, Result};
 use mbl_db::Db;
 use mbl_db::repo::m7;
@@ -116,6 +116,18 @@ impl MediaRequestService {
         m7::mark_requests_available_from_library(&self.db).await?;
         let user_filter = if actor.is_admin { None } else { Some(actor.user_id) };
         m7::list_media_requests(&self.db, user_filter, status).await
+    }
+
+    /// "Open in Radarr/Sonarr/Lidarr" for a request (admin only).
+    pub async fn arr_link(&self, actor: &Actor, id: RequestId) -> Result<Option<ArrLink>> {
+        actor.require_admin()?;
+        let request = m7::list_media_requests(&self.db, None, None)
+            .await?
+            .into_iter()
+            .find(|r| r.id == id)
+            .ok_or(Error::NotFound)?;
+        let tmdb = Some(request.tmdb_id).filter(|id| *id > 0);
+        self.arr.title_link(actor, &request.kind, request.arr_id, tmdb).await
     }
 
     pub async fn update_status(

@@ -23,6 +23,7 @@ const Account = lazy(() => import("./pages/Account"));
 const Photos = lazy(() => import("./pages/Photos"));
 const Profiles = lazy(() => import("./pages/Profiles"));
 const Invite = lazy(() => import("./pages/Invite"));
+const MovieNightGuest = lazy(() => import("./pages/MovieNightGuest"));
 const Login = lazy(() => import("./pages/Login"));
 const Setup = lazy(() => import("./pages/Setup"));
 const Users = lazy(() => import("./pages/admin/Users"));
@@ -43,6 +44,7 @@ export function App() {
           <PlayerProvider>
             <Router>
               <Route path="/invite/:code" component={Invite} />
+              <Route path="/movie-night/:code" component={MovieNightGuest} />
               <Route path="/login" component={Login} />
               <Route path="/setup" component={Setup} />
               <Route
