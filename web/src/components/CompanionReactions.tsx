@@ -2,6 +2,8 @@ import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n";
+import { canSpeak, readAloud, setReadAloud, speak, stopSpeaking } from "../utils/speech";
+import MicButton from "./MicButton";
 
 type Reaction = components["schemas"]["CompanionReaction"];
 type Mode = components["schemas"]["CompanionMode"];
@@ -98,7 +100,8 @@ export default function CompanionReactions(props: {
   open: boolean;
   onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [speakReplies, setSpeakReplies] = createSignal(readAloud("player"));
   const [shown, setShown] = createSignal<Reaction[]>([]);
   const [history, setHistory] = createSignal<Reaction[]>([]);
   const [companions, setCompanions] = createSignal<string[]>([]);
@@ -122,7 +125,27 @@ export default function CompanionReactions(props: {
     if (fresh.length === 0) return;
     setHistory((list) => [...list, ...fresh].slice(-HISTORY));
     setShown((list) => [...list, ...fresh.filter((r) => !r.fromViewer)].slice(-3));
+    if (speakReplies()) for (const r of fresh.filter((r) => !r.fromViewer)) sayAloud(r.commentary);
   };
+
+  /** Read a companion's reply aloud, with the film quieter meanwhile. */
+  const sayAloud = (text: string) => {
+    const video = document.querySelector("video");
+    let restore: number | undefined;
+    speak(text, locale(), {
+      onStart: () => {
+        if (video && restore === undefined) {
+          restore = video.volume;
+          video.volume = Math.min(video.volume, 0.3);
+        }
+      },
+      onEnd: () => {
+        if (video && restore !== undefined && !window.speechSynthesis.speaking)
+          video.volume = restore;
+      },
+    });
+  };
+  onCleanup(stopSpeaking);
 
   createEffect(
     on(
@@ -491,7 +514,27 @@ export default function CompanionReactions(props: {
               <button type="submit" disabled={sending() || !draft().trim()}>
                 Send
               </button>
+              <MicButton
+                language={locale()}
+                onText={(text) => void say(text, false)}
+                onError={setError}
+              />
             </form>
+            <Show when={canSpeak()}>
+              <label style={{ display: "flex", gap: "6px", "align-items": "center" }}>
+                <input
+                  type="checkbox"
+                  checked={speakReplies()}
+                  onChange={(e) => {
+                    const on = e.currentTarget.checked;
+                    setSpeakReplies(on);
+                    setReadAloud("player", on);
+                    if (!on) stopSpeaking();
+                  }}
+                />
+                Read replies aloud
+              </label>
+            </Show>
             <Show when={error()}>
               <p role="alert" style={{ margin: 0, color: "#ffb4b4", "font-size": "0.85rem" }}>
                 {error()}

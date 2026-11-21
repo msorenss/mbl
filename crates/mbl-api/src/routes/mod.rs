@@ -29,6 +29,7 @@ pub mod playlists;
 pub mod plugins;
 pub mod remote;
 pub mod requests;
+pub mod speech;
 pub mod stream;
 pub mod subsonic;
 pub mod subtitles;

@@ -450,3 +450,11 @@ reason = "Interactive check on a show page against TMDB; agents find gaps with g
 [[exclusions]]
 path = "/api/v1/libraries/{id}/missing"
 reason = "Library overview against TMDB that can take many TMDB calls; started by a person on the library page."
+
+[[exclusions]]
+path = "/api/v1/speech/status"
+reason = "Tells the web app whether to record speech for the server or use the browser's recognition."
+
+[[exclusions]]
+path = "/api/v1/speech/transcribe"
+reason = "Turns a person's recorded speech into chat text; agents work with text already."

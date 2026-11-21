@@ -2628,6 +2628,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/speech/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the server can turn speech into text. */
+        get: operations["speech_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/speech/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turn a short recording (the request body, e.g. `audio/webm`, up to 4 MB) into text. */
+        post: operations["transcribe_speech"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stream/audio/{partId}": {
         parameters: {
             query?: never;
@@ -6196,6 +6230,12 @@ export interface components {
         SortField: "title" | "added" | "year" | "rating";
         /** @enum {string} */
         SortOrder: "asc" | "desc";
+        SpeechStatus: {
+            /** @description Which model, e.g. `Whisper-Base.hef`. */
+            engine?: string | null;
+            /** @description The server can turn speech into text (Whisper on the NPU). */
+            serverRecognition: boolean;
+        };
         SpoilerFreeRecap: {
             episodesIncluded: number;
             modelBackend: string;
@@ -6495,6 +6535,10 @@ export interface components {
             audioCodecs: string[];
             container: string;
             videoCodecs: string[];
+        };
+        Transcript: {
+            engine: string;
+            text: string;
         };
         TrickplayManifest: {
             /** Format: int32 */
@@ -13494,6 +13538,72 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    speech_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeechStatus"];
+                };
+            };
+        };
+    };
+    transcribe_speech: {
+        parameters: {
+            query?: {
+                /** @description Two-letter language code; leave out to let the model decide. */
+                language?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The recording */
+        requestBody: {
+            content: {
+                "audio/webm": number[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transcript"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unreadable or too long */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No speech recognition on this server */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

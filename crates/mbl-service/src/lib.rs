@@ -37,6 +37,7 @@ pub mod remote;
 pub mod remote_probe;
 pub mod requests;
 pub mod server_id;
+pub mod speech;
 pub mod stream;
 pub mod subtitle_search;
 pub mod users;
@@ -164,6 +165,7 @@ pub struct Services {
     pub subtitles: subtitle_search::SubtitleSearchService,
     pub missing: missing::MissingService,
     pub maintenance: maintenance::MaintenanceService,
+    pub speech: speech::SpeechService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -242,6 +244,7 @@ impl Services {
             subtitles,
             missing: missing::MissingService::new(db_missing.clone()),
             maintenance: maintenance::MaintenanceService::new(db_missing),
+            speech: speech::SpeechService::new(),
             metadata,
             restart: None,
         }

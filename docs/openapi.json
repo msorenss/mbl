@@ -7422,6 +7422,90 @@
         }
       }
     },
+    "/api/v1/speech/status": {
+      "get": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Whether the server can turn speech into text.",
+        "operationId": "speech_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/speech/transcribe": {
+      "post": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Turn a short recording (the request body, e.g. `audio/webm`, up to 4 MB) into text.",
+        "operationId": "transcribe_speech",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Two-letter language code; leave out to let the model decide.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The recording",
+          "content": {
+            "audio/webm": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            }
+          },
+          "403": {},
+          "422": {
+            "description": "Unreadable or too long"
+          },
+          "503": {
+            "description": "No speech recognition on this server"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/stream/audio/{partId}": {
       "get": {
         "tags": [
@@ -18839,6 +18923,25 @@
           "desc"
         ]
       },
+      "SpeechStatus": {
+        "type": "object",
+        "required": [
+          "serverRecognition"
+        ],
+        "properties": {
+          "engine": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Which model, e.g. `Whisper-Base.hef`."
+          },
+          "serverRecognition": {
+            "type": "boolean",
+            "description": "The server can turn speech into text (Whisper on the NPU)."
+          }
+        }
+      },
       "SpoilerFreeRecap": {
         "type": "object",
         "required": [
@@ -19938,6 +20041,21 @@
           }
         },
         "additionalProperties": false
+      },
+      "Transcript": {
+        "type": "object",
+        "required": [
+          "text",
+          "engine"
+        ],
+        "properties": {
+          "engine": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
       },
       "TrickplayManifest": {
         "type": "object",

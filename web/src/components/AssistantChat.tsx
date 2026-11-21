@@ -4,7 +4,10 @@ import { Portal } from "solid-js/web";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { usePlayer } from "../context/PlayerContext";
+import { useI18n } from "../i18n";
 import { onAssistantAsk, setAssistantAvailable } from "../utils/assistantBridge";
+import { canSpeak, readAloud, setReadAloud, speak, stopSpeaking } from "../utils/speech";
+import MicButton from "./MicButton";
 import { AppIcon } from "./ui";
 
 type Conversation = components["schemas"]["Conversation"];
@@ -61,6 +64,9 @@ export default function AssistantChat() {
   const [draft, setDraft] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal("");
+  const { locale } = useI18n();
+  const [speakReplies, setSpeakReplies] = createSignal(readAloud("assistant"));
+  onCleanup(stopSpeaking);
   let log: HTMLDivElement | undefined;
   let input: HTMLTextAreaElement | undefined;
   let abort: AbortController | undefined;
@@ -196,6 +202,7 @@ export default function AssistantChat() {
             content: message?.content ?? l.content,
             items: message?.items ?? [],
           }));
+          if (speakReplies() && message?.content) speak(message.content, locale());
           // The person asked to watch something here.
           const play = d.play as Mention | null | undefined;
           if (play) {
@@ -437,10 +444,44 @@ export default function AssistantChat() {
                 aria-label="Ask the assistant"
                 style={{ flex: 1, "min-width": 0, resize: "none" }}
               />
-              <button type="submit" disabled={busy() || !draft().trim()}>
-                Send
-              </button>
+              <div style={{ display: "flex", "flex-direction": "column", gap: "6px" }}>
+                <button type="submit" disabled={busy() || !draft().trim()}>
+                  Send
+                </button>
+                <MicButton
+                  language={locale()}
+                  onText={(text) => {
+                    setDraft(text);
+                    void send();
+                  }}
+                  onError={setError}
+                  style={{ border: "1px solid var(--border)" }}
+                />
+              </div>
             </form>
+            <Show when={canSpeak()}>
+              <label
+                style={{
+                  display: "flex",
+                  gap: "6px",
+                  "align-items": "center",
+                  padding: "0 12px 12px",
+                  "font-size": "13px",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={speakReplies()}
+                  onChange={(e) => {
+                    const on = e.currentTarget.checked;
+                    setSpeakReplies(on);
+                    setReadAloud("assistant", on);
+                    if (!on) stopSpeaking();
+                  }}
+                />
+                Read replies aloud
+              </label>
+            </Show>
           </section>
         </Portal>
       </Show>
