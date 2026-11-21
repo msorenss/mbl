@@ -174,6 +174,7 @@ const INFER_BRIDGE_CPP_SOURCE: &str = r#"
 #include <cstring>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <hailo/hailort.hpp>
 
@@ -373,6 +374,33 @@ static std::string json_escape(const char *s) {
     return out;
 }
 
+// The vision-language model stays loaded between frames: loading the 3 GB model takes
+// about a minute and a half on a Hailo-10H. One model at a time, one caller at a time.
+static std::mutex g_vlm_mutex;
+static std::string g_vlm_path;
+static std::shared_ptr<VDevice> g_vlm_vdevice;
+static std::unique_ptr<genai::VLM> g_vlm;
+
+static genai::VLM *cached_vlm(const char *hef_path, const char *group_id) {
+    if (g_vlm && g_vlm_path == hef_path) return g_vlm.get();
+    g_vlm.reset();
+    g_vlm_vdevice.reset();
+    hailo_vdevice_params_t params;
+    if (hailo_init_vdevice_params(&params) != HAILO_SUCCESS) return nullptr;
+    params.group_id = group_id;
+    params.scheduling_algorithm = HAILO_SCHEDULING_ALGORITHM_ROUND_ROBIN;
+    auto vdevice_exp = VDevice::create_shared(params);
+    if (!vdevice_exp) return nullptr;
+    auto vdevice = vdevice_exp.release();
+    genai::VLMParams vlm_params(std::string(hef_path), true);
+    auto vlm_exp = genai::VLM::create(vdevice, vlm_params);
+    if (!vlm_exp) return nullptr;
+    g_vlm = std::make_unique<genai::VLM>(vlm_exp.release());
+    g_vlm_vdevice = vdevice;
+    g_vlm_path = hef_path;
+    return g_vlm.get();
+}
+
 int mbl_hailo_genai_vlm_frame_shape(
     const char *hef_path,
     const char *group_id,
@@ -381,19 +409,10 @@ int mbl_hailo_genai_vlm_frame_shape(
     uint32_t *out_c
 ) {
     if (!hef_path || !group_id) return -1;
-    hailo_vdevice_params_t params;
-    if (hailo_init_vdevice_params(&params) != HAILO_SUCCESS) return -1;
-    params.group_id = group_id;
-    params.scheduling_algorithm = HAILO_SCHEDULING_ALGORITHM_ROUND_ROBIN;
-
-    auto vdevice_exp = VDevice::create_shared(params);
-    if (!vdevice_exp) return -1;
-    auto vdevice = vdevice_exp.release();
-
-    genai::VLMParams vlm_params(std::string(hef_path), true);
-    auto vlm_exp = genai::VLM::create(vdevice, vlm_params);
-    if (!vlm_exp) return -1;
-    auto vlm = vlm_exp.release();
+    std::lock_guard<std::mutex> lock(g_vlm_mutex);
+    genai::VLM *cached = cached_vlm(hef_path, group_id);
+    if (!cached) return -1;
+    genai::VLM &vlm = *cached;
 
     auto shape = vlm.input_frame_shape();
     if (out_w) *out_w = shape.width;
@@ -415,19 +434,12 @@ int mbl_hailo_genai_vlm_describe(
     if (!hef_path || !group_id || !prompt || !rgb_data || !out_text || out_capacity == 0) return -1;
     out_text[0] = '\0';
 
-    hailo_vdevice_params_t params;
-    if (hailo_init_vdevice_params(&params) != HAILO_SUCCESS) return -1;
-    params.group_id = group_id;
-    params.scheduling_algorithm = HAILO_SCHEDULING_ALGORITHM_ROUND_ROBIN;
-
-    auto vdevice_exp = VDevice::create_shared(params);
-    if (!vdevice_exp) return -2;
-    auto vdevice = vdevice_exp.release();
-
-    genai::VLMParams vlm_params(std::string(hef_path), true);
-    auto vlm_exp = genai::VLM::create(vdevice, vlm_params);
-    if (!vlm_exp) return -3;
-    auto vlm = vlm_exp.release();
+    std::lock_guard<std::mutex> lock(g_vlm_mutex);
+    genai::VLM *cached = cached_vlm(hef_path, group_id);
+    if (!cached) return -3;
+    genai::VLM &vlm = *cached;
+    // Each frame is a new question, not a continuation of the last one.
+    vlm.clear_context();
 
     uint32_t expected_sz = vlm.input_frame_size();
     if (expected_sz == 0 || rgb_len < expected_sz) return -4;
@@ -896,12 +908,12 @@ mod unix_ffi {
 
     fn ensure_infer_bridge_loaded() -> Option<*mut c_void> {
         let addr_opt = *BRIDGE_HANDLE.get_or_init(|| {
-            let so_path = Path::new("/tmp/mbl_hailo_infer_bridge_v3.so");
+            let so_path = Path::new("/tmp/mbl_hailo_infer_bridge_v4.so");
             if !so_path.exists() {
                 if !Path::new("/usr/include/hailo/hailort.hpp").exists() {
                     return None;
                 }
-                let cpp_path = Path::new("/tmp/mbl_hailo_infer_bridge_v3.cpp");
+                let cpp_path = Path::new("/tmp/mbl_hailo_infer_bridge_v4.cpp");
                 std::fs::write(cpp_path, INFER_BRIDGE_CPP_SOURCE).ok()?;
                 let status = Command::new("g++")
                     .args([
@@ -909,10 +921,10 @@ mod unix_ffi {
                         "-fPIC",
                         "-O2",
                         "-std=c++17",
-                        "/tmp/mbl_hailo_infer_bridge_v3.cpp",
+                        "/tmp/mbl_hailo_infer_bridge_v4.cpp",
                         "-lhailort",
                         "-o",
-                        "/tmp/mbl_hailo_infer_bridge_v3.so.tmp",
+                        "/tmp/mbl_hailo_infer_bridge_v4.so.tmp",
                     ])
                     .status()
                     .ok()?;
@@ -920,7 +932,7 @@ mod unix_ffi {
                 if !status.success() {
                     return None;
                 }
-                std::fs::rename("/tmp/mbl_hailo_infer_bridge_v3.so.tmp", so_path).ok()?;
+                std::fs::rename("/tmp/mbl_hailo_infer_bridge_v4.so.tmp", so_path).ok()?;
             }
             let cstr = CString::new(so_path.to_str()?).ok()?;
             // SAFETY: `cstr` is a valid NUL-terminated path to the compiled bridge shared library.
@@ -971,7 +983,10 @@ mod unix_ffi {
             if rc <= 0 {
                 return None;
             }
-            let text = String::from_utf8_lossy(&out_buf[..(rc as usize)]).trim().to_owned();
+            let text = String::from_utf8_lossy(&out_buf[..(rc as usize)])
+                .replace("<|im_end|>", "")
+                .trim()
+                .to_owned();
             if text.is_empty() { None } else { Some((text, format!("hailort-vlm({model_name})"))) }
         }
     }
@@ -1005,7 +1020,10 @@ mod unix_ffi {
             if rc <= 0 {
                 return None;
             }
-            let text = String::from_utf8_lossy(&out_buf[..(rc as usize)]).trim().to_owned();
+            let text = String::from_utf8_lossy(&out_buf[..(rc as usize)])
+                .replace("<|im_end|>", "")
+                .trim()
+                .to_owned();
             if text.is_empty() { None } else { Some((text, format!("hailort-llm({model_name})"))) }
         }
     }

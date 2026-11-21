@@ -223,6 +223,30 @@ fn no_dialogue() -> DialogueStatus {
 /// One analysis is reused this long (and not across a jump in position).
 const SCENE_REUSE_MS: i64 = 60_000;
 
+/// What the vision-language model is asked about a frame.
+const SCENE_PROMPT: &str = "Describe this frame from a film in one or two short sentences: who \
+is there (without guessing names), where they are and what they are doing.";
+const SCENE_TOKENS: u32 = 60;
+
+/// The text up to its last full stop (a model cut off by its token limit stops mid-sentence).
+fn whole_sentences(text: &str) -> String {
+    let text = text.trim();
+    match text.rfind(['.', '!', '?']) {
+        Some(end) => text[..=end].to_owned(),
+        None => text.to_owned(),
+    }
+}
+
+/// Whether a vision-language model is installed for the NPU.
+fn vlm_installed() -> bool {
+    let fp = mbl_hwaccel::detect_fingerprint_from_root(
+        std::path::Path::new("/"),
+        std::env::consts::ARCH,
+        None,
+    );
+    mbl_hwaccel::hailo::discover_vlm_hef_model(std::path::Path::new("/"), fp.npu_profile).is_some()
+}
+
 /// The NPU engine, opened once (it shares the device with other programs such as Frigate).
 fn hailo() -> &'static mbl_hailo::HailoEngine {
     static ENGINE: std::sync::OnceLock<mbl_hailo::HailoEngine> = std::sync::OnceLock::new();
@@ -779,6 +803,7 @@ impl CompanionService {
         let resolved = stream.resolve_part(actor, part).await.ok()?;
         let input = stream.media_input(&resolved.path).await.ok()?;
         let jpeg = grab_frame(stream.ffmpeg_bin(), &input, position).await.ok()?;
+        let vlm_jpeg = jpeg.clone();
         let analysis = tokio::task::spawn_blocking(move || {
             let image = image::load_from_memory(&jpeg).ok()?;
             // No title or summary as a hint: the description must come from the picture alone.
@@ -806,13 +831,50 @@ impl CompanionService {
             backend: analysis.backend,
             npu,
         };
+        // Keep the last description while the stretch of the film is the same.
+        let mut scene = scene;
+        if scene.description.is_none()
+            && let Some(previous) = cached.filter(|c| c.position_ms <= position)
+            && position - previous.position_ms < 2 * SCENE_REUSE_MS
+        {
+            scene.description = previous.description;
+        }
         if let Ok(mut map) = self.scenes.lock() {
             if map.len() >= FRAME_SESSIONS && !map.contains_key(session_id) {
                 map.clear();
             }
             map.insert(session_id.to_owned(), scene.clone());
         }
+        self.describe_in_background(session_id, position, vlm_jpeg);
         Some(scene)
+    }
+
+    /// A vision-language model takes seconds per frame (and the first time long enough to load),
+    /// so its sentence is made in the background and added to the stored analysis when ready.
+    fn describe_in_background(&self, session_id: &str, position: i64, jpeg: Vec<u8>) {
+        if !vlm_installed() {
+            return;
+        }
+        static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if BUSY.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            return;
+        }
+        let scenes = self.scenes.clone();
+        let session_id = session_id.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let text = image::load_from_memory(&jpeg)
+                .ok()
+                .and_then(|image| hailo().describe_image_vlm(&image, SCENE_PROMPT, SCENE_TOKENS))
+                .map(|(text, _)| whole_sentences(&text))
+                .filter(|t| !t.is_empty());
+            if let (Some(text), Ok(mut map)) = (text, scenes.lock())
+                && let Some(scene) = map.get_mut(&session_id)
+                && scene.position_ms == position
+            {
+                scene.description = Some(text);
+            }
+            BUSY.store(false, std::sync::atomic::Ordering::Release);
+        });
     }
 
     /// A screenshot of the scene at the viewer's position, for an AI. Only when the viewer has
@@ -1170,6 +1232,13 @@ impl Default for CompanionService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn descriptions_end_on_a_whole_sentence() {
+        assert_eq!(whole_sentences("A man stands. The mood is som"), "A man stands.");
+        assert_eq!(whole_sentences(" Two people talk! "), "Two people talk!");
+        assert_eq!(whole_sentences("no full stop"), "no full stop");
+    }
 
     #[test]
     fn chapter_is_found_by_position() {
