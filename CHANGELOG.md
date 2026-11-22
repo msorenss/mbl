@@ -4,7 +4,13 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-22
+
 ### Fixed
+- On phones the player's audio, quality, sync and subtitle settings are in one sheet behind **Settings** instead of crowding the controls.
+- The player's chat button always opens the chat (it did nothing while Cast was starting); the assistant chat on phones no longer hides its input under the bottom tabs.
+- "Starting playback on the receiver…" goes away once the TV plays, and "Preparing subtitles…" is no longer shown while casting.
+- `url` 2.5.9 (RUSTSEC-2026-0592: stack overflow on nested `blob:` URLs).
 - The Windows packages now include FFmpeg's license (GPL-3.0) and where to get its source, as the GPL requires.
 - Only voices free for any use are offered for reading aloud (public domain, CC0 or CC BY with the credit shown); Hindi, Chinese, Italian and Arabic have none yet.
 

@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.4.0
+Current release: v1.4.1
 
-This release makes watching together and alone better. The watch companion and the assistant can see the scene (as a screenshot you allow, or analysed on a Hailo NPU without anything leaving the server) and you can talk to them. Movie nights can be planned and guests join without an account. Subtitles can be found and downloaded, embedded subtitles are ready in seconds, and "Continue watching" shows where you stopped. Libraries show what is missing, the database looks after itself, the menu can be rearranged, and on a Raspberry Pi transcoding no longer writes to the SD card. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release lets the assistant run on a Hailo-10H with Hailo-Ollama, reads replies aloud on the server with Piper when the browser has no voices, matches subtitles to the speech, and shows companion comments on the TV while casting with MBL's own Cast receiver, now the default for every installation. On phones the player is tidier. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 
