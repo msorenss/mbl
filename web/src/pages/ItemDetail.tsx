@@ -299,6 +299,7 @@ export function ItemDetail() {
       >
         {/* Ambient Blurred Backdrop Top */}
         <div
+          class="mbl-item-detail-backdrop"
           style={{
             position: "relative",
             width: "100%",
