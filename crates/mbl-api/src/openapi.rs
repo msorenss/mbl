@@ -34,7 +34,7 @@ use crate::routes::{
         oauth::register_client, oauth::authorize, oauth::token_endpoint, oauth::revoke_token,
         libraries::list, libraries::get_one, libraries::create, libraries::update,
         libraries::remove, libraries::scan, libraries::scan_status, libraries::refresh, libraries::browse,
-        items::list, items::detail, items::children, items::next_episode, items::lyrics, items::search, items::home,
+        items::list, items::detail, items::children, items::next_episode, items::lyrics, items::snapshot, items::search, items::home,
         items::mark_watched, items::mark_unwatched,
         metadata::get_metadata, metadata::update_metadata, metadata::match_item,
         metadata::artwork_candidates, metadata::choose_artwork,

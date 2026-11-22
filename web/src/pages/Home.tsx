@@ -198,6 +198,7 @@ export function Home() {
                           <LandscapeCard
                             item={item}
                             badge={isContinue() ? t("Resume") : t("upNext")}
+                            snapshot={isContinue()}
                             subtitle={
                               item.kind === "episode" && item.idx != null && item.parentIdx != null
                                 ? `S${item.parentIdx} · E${item.idx}`

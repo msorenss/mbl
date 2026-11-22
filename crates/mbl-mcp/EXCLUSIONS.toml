@@ -288,6 +288,10 @@ path = "/api/v1/items/{id}/lyrics"
 reason = "Song lyrics for client players' lyric views; raw song text is not useful to agents."
 
 [[exclusions]]
+path = "/api/v1/items/{id}/snapshot"
+reason = "JPEG for the Continue watching cards; agents look at the screen with get_companion_frame."
+
+[[exclusions]]
 path = "/api/v1/system/endpoints"
 reason = "Unauthenticated discovery document for client devices pairing with the server."
 

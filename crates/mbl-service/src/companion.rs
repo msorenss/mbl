@@ -259,28 +259,7 @@ async fn grab_frame(
     input: &std::path::Path,
     position_ms: i64,
 ) -> Result<Vec<u8>> {
-    let seconds = format!("{:.3}", position_ms.max(0) as f64 / 1000.0);
-    let scale = format!("scale='min({FRAME_WIDTH},iw)':-2");
-    let mut command = tokio::process::Command::new(ffmpeg);
-    command
-        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-ss", &seconds, "-i"])
-        .arg(input)
-        .args(["-map", "0:v:0", "-frames:v", "1", "-vf", &scale, "-q:v", "5"])
-        .args(["-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true);
-    let output = tokio::time::timeout(FRAME_TIMEOUT, command.output())
-        .await
-        .map_err(|_| Error::Unavailable("taking the screenshot took too long".into()))?
-        .map_err(Error::internal)?;
-    if !output.status.success()
-        || output.stdout.len() < 100
-        || output.stdout.len() > FRAME_MAX_BYTES
-    {
-        return Err(Error::Unavailable("could not take a screenshot of this video".into()));
-    }
-    Ok(output.stdout)
+    crate::stream::grab_jpeg(ffmpeg, input, position_ms, FRAME_WIDTH).await
 }
 
 /// Feed entries kept per playback session so the player can show them.
@@ -350,8 +329,6 @@ pub struct CompanionService {
 const FRAME_SESSIONS: usize = 32;
 /// Width of a screenshot sent to the AI.
 const FRAME_WIDTH: u32 = 768;
-const FRAME_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
-const FRAME_MAX_BYTES: usize = 2 * 1024 * 1024;
 
 impl CompanionService {
     pub fn new() -> Self {

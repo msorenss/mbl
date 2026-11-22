@@ -10,6 +10,8 @@ export interface LandscapeCardProps {
   subtitle?: string;
   badge?: string;
   onClick?: () => void;
+  /** Show the video where the viewer stopped instead of the poster ("Continue watching"). */
+  snapshot?: boolean;
 }
 
 export function LandscapeCard(props: LandscapeCardProps) {
@@ -17,8 +19,26 @@ export function LandscapeCard(props: LandscapeCardProps) {
   const [imageLoaded, setImageLoaded] = createSignal(false);
   const [imageError, setImageError] = createSignal(false);
 
+  const [snapshotFailed, setSnapshotFailed] = createSignal(false);
+
   const item = () => props.item;
-  const imageUrl = () => (item().posterId ? `/api/v1/images/${item().posterId}?w=480` : null);
+  const posterUrl = () => (item().posterId ? `/api/v1/images/${item().posterId}?w=480` : null);
+  const snapshotUrl = () => {
+    const at = item().viewOffsetMs;
+    if (!props.snapshot || snapshotFailed() || at <= 0 || !item().durationMs) return null;
+    // Rounded like the server, so a few seconds more watching keeps the cached picture.
+    return `/api/v1/items/${item().id}/snapshot?at=${Math.floor(at / 10_000) * 10_000}`;
+  };
+  const imageUrl = () => snapshotUrl() ?? posterUrl();
+  const onImageError = () => {
+    if (snapshotUrl()) {
+      // No picture from the video: fall back to the poster.
+      setImageLoaded(false);
+      setSnapshotFailed(true);
+    } else {
+      setImageError(true);
+    }
+  };
 
   const progressPercent = () => {
     const cur = item().viewOffsetMs;
@@ -94,7 +114,7 @@ export function LandscapeCard(props: LandscapeCardProps) {
               alt={item().title}
               loading="lazy"
               onLoad={() => setImageLoaded(true)}
-              onError={() => setImageError(true)}
+              onError={onImageError}
               style={{
                 width: "100%",
                 height: "100%",

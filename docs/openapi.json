@@ -2903,6 +2903,45 @@
         }
       }
     },
+    "/api/v1/items/{id}/snapshot": {
+      "get": {
+        "tags": [
+          "browse"
+        ],
+        "summary": "A JPEG of the video at a position, for \"Continue watching\": where the viewer stopped.",
+        "operationId": "item_snapshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "at",
+            "in": "query",
+            "description": "Position in milliseconds; rounded down to 10 seconds.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "404": {},
+          "503": {}
+        }
+      }
+    },
     "/api/v1/items/{id}/subtitles/download": {
       "post": {
         "tags": [

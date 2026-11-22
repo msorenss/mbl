@@ -20,6 +20,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/items/{id}/children", get(children))
         .route("/api/v1/items/{id}/next-episode", get(next_episode))
         .route("/api/v1/items/{id}/lyrics", get(lyrics))
+        .route("/api/v1/items/{id}/snapshot", get(snapshot))
         .route(
             "/api/v1/items/{id}/playback-preview",
             get(playback_preview_get).post(playback_preview_post),
@@ -130,6 +131,36 @@ pub(crate) async fn lyrics(
     Path(id): Path<ItemId>,
 ) -> Result<Json<mbl_service::LyricsResponse>, ApiError> {
     Ok(Json(state.services.items.lyrics(&auth.actor, id).await?))
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct SnapshotQuery {
+    /// Position in milliseconds; rounded down to 10 seconds.
+    pub at: i64,
+}
+
+/// A JPEG of the video at a position, for "Continue watching": where the viewer stopped.
+#[utoipa::path(get, path = "/api/v1/items/{id}/snapshot", tag = "browse",
+    operation_id = "item_snapshot",
+    params(("id" = i64, Path), SnapshotQuery),
+    responses((status = 200, content_type = "image/jpeg"), (status = 404), (status = 503)))]
+pub(crate) async fn snapshot(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<ItemId>,
+    Query(q): Query<SnapshotQuery>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
+    let jpeg = state.services.stream.snapshot(&auth.actor, id, q.at).await?;
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "image/jpeg"),
+            (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
+        ],
+        jpeg,
+    )
+        .into_response())
 }
 
 /// Title search grouped by kind, at most 10 per group.

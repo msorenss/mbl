@@ -265,6 +265,107 @@ impl StreamService {
     }
 }
 
+/// One JPEG frame at `position_ms`, at most `max_width` pixels wide. Seeks before opening the
+/// input, so it lands on the nearest keyframe and reads little of the file.
+pub(crate) async fn grab_jpeg(
+    ffmpeg: &Path,
+    input: &Path,
+    position_ms: i64,
+    max_width: u32,
+) -> Result<Vec<u8>> {
+    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+    const MAX_BYTES: usize = 2 * 1024 * 1024;
+    let seconds = format!("{:.3}", position_ms.max(0) as f64 / 1000.0);
+    let scale = format!("scale='min({max_width},iw)':-2");
+    let mut command = tokio::process::Command::new(ffmpeg);
+    command
+        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-ss", &seconds, "-i"])
+        .arg(input)
+        .args(["-map", "0:v:0", "-frames:v", "1", "-vf", &scale, "-q:v", "5"])
+        .args(["-f", "image2pipe", "-c:v", "mjpeg", "pipe:1"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    let output = tokio::time::timeout(TIMEOUT, command.output())
+        .await
+        .map_err(|_| Error::Unavailable("taking the screenshot took too long".into()))?
+        .map_err(Error::internal)?;
+    if !output.status.success() || output.stdout.len() < 100 || output.stdout.len() > MAX_BYTES {
+        return Err(Error::Unavailable("could not take a screenshot of this video".into()));
+    }
+    Ok(output.stdout)
+}
+
+/// Width of a "Continue watching" snapshot.
+const SNAPSHOT_WIDTH: u32 = 480;
+/// Snapshots are taken at whole multiples of this, so a few seconds more watching reuses one.
+const SNAPSHOT_STEP_MS: i64 = 10_000;
+/// Snapshots kept on disk; the oldest go first.
+const SNAPSHOTS_KEPT: usize = 400;
+
+impl StreamService {
+    /// A picture of the video at `at_ms`, for the "Continue watching" cards: where the viewer
+    /// stopped rather than the poster. Rounded down to 10 seconds and cached on disk, so a card
+    /// costs one FFmpeg seek the first time. Same access checks as playing the item.
+    pub async fn snapshot(&self, actor: &Actor, item_id: ItemId, at_ms: i64) -> Result<Vec<u8>> {
+        let first = media::parts_for_item(&self.db, item_id)
+            .await?
+            .into_iter()
+            .find(|p| p.missing_since.is_none())
+            .ok_or(Error::NotFound)?;
+        let part = self.resolve_part(actor, first.id).await?;
+        let mut at = at_ms.max(0) / SNAPSHOT_STEP_MS * SNAPSHOT_STEP_MS;
+        if let Some(duration) = part.duration_ms.filter(|d| *d > 2_000) {
+            at = at.min(duration - 2_000);
+        }
+        let dir = self
+            .cache_dir
+            .clone()
+            .unwrap_or_else(|| std::env::temp_dir().join("mbl-cache"))
+            .join("snapshots");
+        let file = dir.join(format!("{}_{}.jpg", part.id.0, at));
+        if let Ok(bytes) = tokio::fs::read(&file).await {
+            return Ok(bytes);
+        }
+        // Two at a time: a home page full of cards must not start a crowd of FFmpegs on a Pi.
+        static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+        let _slot = SLOTS.acquire().await.map_err(Error::internal)?;
+        if let Ok(bytes) = tokio::fs::read(&file).await {
+            return Ok(bytes);
+        }
+        let input = self.media_input(&part.path).await?;
+        let jpeg = grab_jpeg(&self.ffmpeg_bin, &input, at, SNAPSHOT_WIDTH).await?;
+        if tokio::fs::create_dir_all(&dir).await.is_ok() {
+            let tmp = dir.join(format!(".{}_{}.tmp", part.id.0, at));
+            if tokio::fs::write(&tmp, &jpeg).await.is_ok() {
+                let _ = tokio::fs::rename(&tmp, &file).await;
+            }
+            prune_oldest(&dir, SNAPSHOTS_KEPT).await;
+        }
+        Ok(jpeg)
+    }
+}
+
+/// Remove the oldest files in `dir` beyond `keep`.
+async fn prune_oldest(dir: &Path, keep: usize) {
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else { return };
+    let mut files = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        if let Ok(meta) = entry.metadata().await
+            && meta.is_file()
+        {
+            files.push((meta.modified().ok(), entry.path()));
+        }
+    }
+    if files.len() <= keep {
+        return;
+    }
+    files.sort_by_key(|(modified, _)| *modified);
+    for (_, path) in files.iter().take(files.len() - keep) {
+        let _ = tokio::fs::remove_file(path).await;
+    }
+}
+
 /// Ensure `raw_path` contains no parent-directory traversal (`..`) and resolves inside one of `roots`.
 pub fn verify_under_library_roots(raw_path: &str, roots: &[String]) -> Result<PathBuf> {
     // Storage-node files are addressed by URI; the node itself confines them to its folder.

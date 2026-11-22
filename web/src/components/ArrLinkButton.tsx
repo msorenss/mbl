@@ -15,7 +15,7 @@ export function configuredArrServices(): Promise<ArrLink[]> {
   if (!cached || Date.now() - cached.at > 60_000) {
     const links = client
       .GET("/api/v1/requests/arr-links")
-      .then((r) => r.data ?? [])
+      .then((r) => (Array.isArray(r.data) ? r.data : []))
       .catch(() => []);
     cached = { at: Date.now(), links };
   }
