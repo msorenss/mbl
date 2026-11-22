@@ -52,18 +52,82 @@ export interface Listening {
   cancel: () => void;
 }
 
+/** Above this level (RMS of the samples, 0–1) the microphone hears speech. */
+export const SPEECH_LEVEL = 0.02;
+/** Quiet this long after speech ends the recording. */
+export const SILENCE_MS = 1500;
+/** Nothing heard this long after starting ends it too. */
+export const NOTHING_HEARD_MS = 8000;
+/** Never record longer than the server accepts. */
+export const LONGEST_MS = 60_000;
+
 /**
- * Start listening. The microphone is only on until `stop` or `cancel`.
+ * Decide from the microphone level whether to stop: after `SILENCE_MS` of quiet once speech was
+ * heard, after `NOTHING_HEARD_MS` without any, and at `LONGEST_MS`.
+ */
+export function silenceDetector(now: number) {
+  const started = now;
+  let heard = false;
+  let quietSince = now;
+  return (level: number, at: number): boolean => {
+    if (level > SPEECH_LEVEL) {
+      heard = true;
+      quietSince = at;
+    }
+    return (
+      (heard && at - quietSince >= SILENCE_MS) ||
+      (!heard && at - started >= NOTHING_HEARD_MS) ||
+      at - started >= LONGEST_MS
+    );
+  };
+}
+
+/** Watch the microphone and call `onSilence` once when the speaker has stopped. */
+function watchSilence(stream: MediaStream, onSilence: () => void): () => void {
+  const Ctx =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return () => undefined;
+  const context = new Ctx();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Float32Array(analyser.fftSize);
+  const shouldStop = silenceDetector(Date.now());
+  const stop = () => {
+    clearInterval(timer);
+    void context.close().catch(() => undefined);
+  };
+  const timer = setInterval(() => {
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const v of samples) sum += v * v;
+    if (shouldStop(Math.sqrt(sum / samples.length), Date.now())) {
+      stop();
+      onSilence();
+    }
+  }, 100);
+  return stop;
+}
+
+/**
+ * Start listening. The microphone is only on until `stop` or `cancel`, or until the speaker has
+ * been quiet for a moment: then `onSilence` is called and the caller should `stop`.
  * `language` is a two-letter code such as `sv`.
  */
-export async function startListening(engine: ListenEngine, language: string): Promise<Listening> {
+export async function startListening(
+  engine: ListenEngine,
+  language: string,
+  onSilence?: () => void,
+): Promise<Listening> {
   if (engine === "browser") {
     const Ctor = browserRecognition();
     if (!Ctor) throw new Error("This browser cannot recognize speech.");
     const recognition = new Ctor();
     recognition.lang = language;
     recognition.interimResults = false;
-    recognition.continuous = true;
+    // Without `continuous` the browser ends the recognition when the speaker pauses.
+    recognition.continuous = !onSilence;
     let text = "";
     let failure = "";
     let finished: () => void = () => undefined;
@@ -79,10 +143,15 @@ export async function startListening(engine: ListenEngine, language: string): Pr
     recognition.onerror = (event) => {
       failure = event.error;
     };
-    recognition.onend = () => finished();
+    let stopping = false;
+    recognition.onend = () => {
+      finished();
+      if (!stopping) onSilence?.();
+    };
     recognition.start();
     return {
       stop: async () => {
+        stopping = true;
         recognition.stop();
         await done;
         if (!text && failure && failure !== "no-speech")
@@ -90,6 +159,7 @@ export async function startListening(engine: ListenEngine, language: string): Pr
         return text;
       },
       cancel: () => {
+        stopping = true;
         recognition.onresult = null;
         recognition.stop();
       },
@@ -105,7 +175,9 @@ export async function startListening(engine: ListenEngine, language: string): Pr
   const stopped = new Promise<void>((resolve) => {
     recorder.onstop = () => resolve();
   });
+  const unwatch = onSilence ? watchSilence(stream, onSilence) : () => undefined;
   const release = () => {
+    unwatch();
     for (const track of stream.getTracks()) track.stop();
   };
   recorder.start();

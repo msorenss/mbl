@@ -2,9 +2,9 @@ import { createResource, createSignal, onCleanup, Show } from "solid-js";
 import { type Listening, listenEngine, startListening } from "../utils/speech";
 
 /**
- * Talk instead of typing: hold the button (or click once to start and once to stop). The
- * microphone is only on while it says "Listening…". Hidden when neither the server nor the
- * browser can recognize speech.
+ * Talk instead of typing: click once and speak (it stops by itself after a moment of quiet), hold
+ * the button, or click again to stop. The microphone is only on while it says "Listening…".
+ * Hidden when neither the server nor the browser can recognize speech.
  */
 export default function MicButton(props: {
   language: string;
@@ -27,7 +27,8 @@ export default function MicButton(props: {
     starting = true;
     stopWhenStarted = false;
     try {
-      active = await startListening(which, props.language);
+      // Stops by itself when the speaker has been quiet for a moment.
+      active = await startListening(which, props.language, () => void finish());
       setListening(true);
       if (stopWhenStarted) void finish();
     } catch {

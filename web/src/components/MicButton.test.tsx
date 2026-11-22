@@ -22,6 +22,8 @@ class FakeRecognition {
   onerror: ((e: unknown) => void) | null = null;
   onend: (() => void) | null = null;
   started = false;
+  /** A real recognition that has ended ignores `stop`. */
+  ended = false;
   constructor() {
     FakeRecognition.last = this;
   }
@@ -29,6 +31,8 @@ class FakeRecognition {
     this.started = true;
   }
   stop() {
+    if (this.ended) return;
+    this.ended = true;
     this.onresult?.({ results: [[{ transcript: "vem är det där" }]] });
     this.onend?.();
   }
@@ -59,6 +63,33 @@ it("uses the browser's recognition when the server has none, and sends the text"
   await tick();
   await tick();
   expect(onText).toHaveBeenCalledWith("vem är det där");
+});
+
+it("stops by itself when the speaker pauses", async () => {
+  vi.spyOn(client, "GET").mockResolvedValue({
+    data: { serverRecognition: false, engine: null },
+    response: new Response(),
+  } as never);
+  (window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition =
+    FakeRecognition;
+  const onText = vi.fn();
+  dispose = render(() => createComponent(MicButton, { language: "sv", onText }), document.body);
+  await tick();
+  await tick();
+  const button = document.querySelector("button") as HTMLButtonElement;
+  button.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  button.dispatchEvent(new Event("pointerup", { bubbles: true }));
+  await tick();
+  // The browser ends recognition after a pause, without a second press.
+  expect(FakeRecognition.last?.continuous).toBe(false);
+  const recognition = FakeRecognition.last as FakeRecognition;
+  recognition.onresult?.({ results: [[{ transcript: "pausa filmen" }]] });
+  recognition.ended = true;
+  recognition.onend?.();
+  await tick();
+  await tick();
+  expect(onText).toHaveBeenCalledWith("pausa filmen");
+  expect(button.textContent).toContain("Talk");
 });
 
 it("is hidden when nothing can recognize speech", async () => {

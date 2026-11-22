@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Changed
+- **Talk** stops by itself after a moment of quiet (or after 8 seconds without speech), so one click is enough; holding the button or clicking again still works. A tap that records nothing gives "No speech was heard" instead of an error, and the server logs why a recording could not be read.
+
 ## [1.4.0] - 2026-11-22
 
 ### Added

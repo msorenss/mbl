@@ -94,7 +94,7 @@ impl SpeechService {
             ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| Error::Unavailable(format!("FFmpeg could not start: {e}")))?;
@@ -108,11 +108,11 @@ impl SpeechService {
             .map_err(|_| Error::Unavailable("decoding the recording took too long".into()))?
             .map_err(Error::internal)?;
         let _ = writer.await;
-        // At least a quarter of a second of audio.
-        if !output.status.success() || output.stdout.len() < 16_000 {
-            return Err(Error::Validation(
-                "The recording could not be read or is too short".into(),
-            ));
+        if !output.status.success() {
+            let reason = String::from_utf8_lossy(&output.stderr);
+            let reason = reason.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
+            tracing::warn!(bytes = audio.len(), %reason, "speech recording could not be decoded");
+            return Err(Error::Validation("The recording could not be read".into()));
         }
         Ok(samples(&output.stdout))
     }
@@ -137,6 +137,14 @@ impl SpeechService {
             ));
         };
         let pcm = self.decode(audio).await?;
+        // Under a quarter of a second (a tap on the button): nothing was said.
+        if pcm.len() < 4_000 {
+            tracing::info!(bytes = audio.len(), samples = pcm.len(), "speech recording too short");
+            return Ok(Transcript {
+                text: String::new(),
+                engine: model.file_name().and_then(|n| n.to_str()).unwrap_or("Whisper").to_owned(),
+            });
+        }
         let language = language
             .map(|l| l.trim().to_ascii_lowercase())
             .filter(|l| l.len() == 2 && l.chars().all(|c| c.is_ascii_lowercase()));
