@@ -29,6 +29,30 @@ type Row22 = readonly [
 
 /** Complete UI strings (exact match). */
 export const UI_PHRASES_22: Record<string, Row22> = {
+  "The microphone sent no sound. Check that the right microphone is chosen and not muted.": [
+    "Mikrofonen skickade inget ljud. Kontrollera att rätt mikrofon är vald och inte avstängd.",
+    "Das Mikrofon hat keinen Ton gesendet. Prüfen Sie, ob das richtige Mikrofon gewählt und nicht stummgeschaltet ist.",
+    "Le micro n’a envoyé aucun son. Vérifiez que le bon micro est choisi et qu’il n’est pas coupé.",
+    "El micrófono no envió sonido. Comprueba que esté elegido el micrófono correcto y que no esté silenciado.",
+    "O microfone não enviou som. Verifique se o microfone certo está escolhido e não está silenciado.",
+    "Il microfono non ha inviato alcun suono. Controlla che sia scelto il microfono giusto e che non sia disattivato.",
+    "De microfoon stuurde geen geluid. Controleer of de juiste microfoon is gekozen en niet gedempt is.",
+    "Mikrofon nie przesłał dźwięku. Sprawdź, czy wybrano właściwy mikrofon i czy nie jest wyciszony.",
+    "Mikrofon ses göndermedi. Doğru mikrofonun seçili olduğunu ve sessize alınmadığını kontrol edin.",
+    "Микрофон не передал звук. Проверьте, что выбран нужный микрофон и он не выключен.",
+    "Мікрофон не передав звук. Перевірте, що вибрано правильний мікрофон і його не вимкнено.",
+    "لم يرسل الميكروفون أي صوت. تحقّق من اختيار الميكروفون الصحيح وأنه غير مكتوم.",
+    "माइक्रोफ़ोन ने कोई आवाज़ नहीं भेजी। जाँचें कि सही माइक्रोफ़ोन चुना गया है और म्यूट नहीं है।",
+    "麦克风没有发送任何声音。请检查是否选择了正确的麦克风且未静音。",
+    "マイクから音が届いていません。正しいマイクが選ばれていて、ミュートになっていないか確認してください。",
+    "마이크에서 소리가 전달되지 않았습니다. 올바른 마이크가 선택되어 있고 음소거되지 않았는지 확인하세요.",
+    "Mikrofon tidak mengirim suara. Periksa bahwa mikrofon yang benar dipilih dan tidak dibisukan.",
+    "Micrô không gửi âm thanh nào. Hãy kiểm tra đã chọn đúng micrô và micrô không bị tắt tiếng.",
+    "Mikrofonen sendte ingen lyd. Kontroller at riktig mikrofon er valgt og ikke dempet.",
+    "Walang ipinadalang tunog ang mikropono. Tiyaking tama ang napiling mikropono at hindi ito naka-mute.",
+    "Walay tingog nga gipadala ang mikropono. Siguroha nga sakto ang napili nga mikropono ug dili kini naka-mute.",
+    "Waray tingog nga ginpadara an mikropono. Siguruha nga husto an ginpili nga mikropono ngan diri ini naka-mute.",
+  ],
   "Read replies aloud in the chats even in browsers without voices of their own, such as the Raspberry Pi's. The server reads with Piper, a small speech program that runs on its processor; nothing leaves the server.":
     [
       "Läs upp svar i chattarna även i webbläsare utan egna röster, som Raspberry Pi:ns. Servern läser upp med Piper, ett litet talprogram som körs på dess processor; inget lämnar servern.",

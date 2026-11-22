@@ -211,6 +211,11 @@ export async function startListening(
       release();
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
       if (blob.size === 0) return "";
+      // Only the file header, not one sample: the microphone delivered no sound at all.
+      if (blob.size < 1000)
+        throw new Error(
+          "The microphone sent no sound. Check that the right microphone is chosen and not muted.",
+        );
       const token = getStoredToken();
       const response = await fetch(
         `/api/v1/speech/transcribe?language=${encodeURIComponent(language)}`,
