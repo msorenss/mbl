@@ -100,7 +100,11 @@ describe("CAF receiver", () => {
     expect(receiverConfiguration()).toEqual({ appId: "CC1AD845", custom: false });
     expect(() => saveReceiverConfiguration("https://bad")).toThrow();
     saveReceiverConfiguration(null);
-    expect(receiverConfiguration()).toEqual({ appId: "422EE6A6", custom: true });
+    expect(receiverConfiguration()).toEqual({ appId: "4D0903C0", custom: true });
+    // A browser that saved the earlier default moves to the current receiver.
+    localStorage.setItem("mbl.cast.receiver.v1", "422EE6A6");
+    expect(receiverConfiguration()).toEqual({ appId: "4D0903C0", custom: true });
+    localStorage.removeItem("mbl.cast.receiver.v1");
   });
 });
 

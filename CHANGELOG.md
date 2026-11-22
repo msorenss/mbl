@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format is based on 
 - Subtitle settings (size, font, colour, background and matching) sit next to quality and audio before playback and in the player's settings; the subtitle menu keeps the languages.
 
 ### Changed
+- Every MBL installation now casts with MBL's own Cast receiver (application ID `4D0903C0`), so all get the receiver's capability check and comments on the TV. Browsers that had saved the earlier ID `422EE6A6` move to the new one; the standard receiver can still be chosen under Settings.
 - **Read replies aloud** picks a voice for your language and says so when the browser has no voices at all (Chromium on Linux, including on a Raspberry Pi, has none without a speech engine), instead of staying silent.
 - **Talk** stops by itself after a moment of quiet (or after 8 seconds without speech), so one click is enough; holding the button or clicking again still works. A tap that records nothing gives "No speech was heard" instead of an error, and the server logs why a recording could not be read.
 

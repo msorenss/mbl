@@ -2,7 +2,9 @@ const KEY = "mbl.cast.receiver.v1";
 /** Google's Default Media Receiver: no MBL code, safe compatibility profile. */
 export const STANDARD_RECEIVER_APP_ID = "CC1AD845";
 /** The published MBL receiver, hosted from the project's GitHub Pages site. */
-export const MBL_RECEIVER_APP_ID = "422EE6A6";
+export const MBL_RECEIVER_APP_ID = "4D0903C0";
+/** Earlier default; a browser that saved it moves to the current one. */
+const OLD_MBL_RECEIVER_APP_IDS = ["422EE6A6"];
 export function validReceiverAppId(value: string) {
   return /^[A-F0-9]{8}$/i.test(value);
 }
@@ -10,6 +12,7 @@ export function receiverConfiguration(): { appId: string; custom: boolean } {
   let override: string | null = null;
   try {
     override = localStorage.getItem(KEY);
+    if (override && OLD_MBL_RECEIVER_APP_IDS.includes(override.toUpperCase())) override = null;
   } catch {
     /* Storage unavailable. */
   }

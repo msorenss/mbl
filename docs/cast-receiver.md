@@ -110,7 +110,7 @@ tre assetberoenden. Inga fysiska mottagarresultat ingår i dessa kontroller.
 
 ## Shared hosting (default since 1.3.8)
 
-The default Cast application ID (`422EE6A6`, `MBL_RECEIVER_APP_ID` in
+The default Cast application ID (`4D0903C0`, `MBL_RECEIVER_APP_ID` in
 `web/src/utils/castReceiverConfig.ts`) is one receiver shared by every MBL installation. The
 receiver is a static page without MBL sign-in; each sender supplies its own media URLs.
 
