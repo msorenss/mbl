@@ -6442,6 +6442,8 @@ export interface components {
             installed: boolean;
             /** @description Two-letter language code. */
             language: string;
+            /** @description The voice's license, with the credit CC BY asks for. */
+            license: string;
             name: string;
         };
         SessionDto: {

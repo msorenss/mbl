@@ -72,7 +72,7 @@ async fn piper_and_a_voice_are_installed_and_read_text_aloud() {
             }),
         )
         .route(
-            "/sv/sv_SE/lisa/medium/{file}",
+            "/sv/sv_SE/nst/medium/{file}",
             axum::routing::get(
                 |axum::extract::Path(file): axum::extract::Path<String>| async move {
                     if file.ends_with(".json") { "{}".as_bytes().to_vec() } else { vec![7u8; 4096] }

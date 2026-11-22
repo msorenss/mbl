@@ -16,8 +16,8 @@ const status = (programInstalled: boolean, download: unknown = null) => ({
   supported: true,
   programInstalled,
   voices: [
-    { language: "sv", name: "Lisa (svenska)", installed: false },
-    { language: "en", name: "Amy (English, US)", installed: true },
+    { language: "sv", name: "NST (svenska)", license: "CC0", installed: false },
+    { language: "en", name: "LJSpeech (English, US)", license: "Public domain", installed: true },
   ],
   download,
 });

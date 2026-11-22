@@ -231,6 +231,8 @@ jobs:
             "staging\mbl-node.exe",
             "staging\ffmpeg.exe",
             "staging\ffprobe.exe",
+            "staging\FFMPEG-LICENSE.txt",
+            "staging\FFMPEG-NOTICE.txt",
             "staging\README.txt",
             "staging\LICENSE.txt"
           )
@@ -242,6 +244,8 @@ jobs:
             "staging\mbl-worker.exe",
             "staging\ffmpeg.exe",
             "staging\ffprobe.exe",
+            "staging\FFMPEG-LICENSE.txt",
+            "staging\FFMPEG-NOTICE.txt",
             "packaging\windows\README-worker.txt",
             "staging\LICENSE.txt"
           )
@@ -252,6 +256,8 @@ jobs:
             "staging\mbl-node.exe",
             "staging\ffmpeg.exe",
             "staging\ffprobe.exe",
+            "staging\FFMPEG-LICENSE.txt",
+            "staging\FFMPEG-NOTICE.txt",
             "packaging\windows\README-node.txt",
             "staging\LICENSE.txt"
           )

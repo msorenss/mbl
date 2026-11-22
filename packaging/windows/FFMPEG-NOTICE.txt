@@ -1,0 +1,20 @@
+FFmpeg in this package
+======================
+
+ffmpeg.exe and ffprobe.exe are FFmpeg (https://ffmpeg.org), built for Windows by
+Gyan Doshi ("release essentials" build, https://www.gyan.dev/ffmpeg/builds/).
+
+This build includes GPL components (for example x264), so FFmpeg as shipped here is
+licensed under the GNU General Public License, version 3. The full text is in
+FFMPEG-LICENSE.txt next to this file.
+
+MBL starts FFmpeg as a separate program; MBL itself is licensed under the GNU
+Affero General Public License, version 3 or later (LICENSE.txt).
+
+Source code
+-----------
+The source code of FFmpeg is available from https://ffmpeg.org/download.html and
+https://git.ffmpeg.org/ffmpeg.git. The exact version is shown by `ffmpeg -version`;
+the build configuration and the sources of the included libraries are listed at
+https://www.gyan.dev/ffmpeg/builds/ (the "essentials" build). On request, the MBL
+project provides the corresponding source code for the FFmpeg version it ships.

@@ -39,6 +39,10 @@ foreach ($binary in @("mbl-server.exe", "mbl-cli.exe", "mbl-tv.exe", "mbl-worker
     Copy-Item -Path $source -Destination $OutputDir -Force
 }
 
+# FFmpeg is GPL-3.0 in this build: its license and where to find the source ship with it.
+Copy-Item -Path (Join-Path $PSScriptRoot "FFMPEG-NOTICE.txt") -Destination $OutputDir -Force
+Copy-Item -Path (Join-Path $PSScriptRoot "..\..\LICENSES\GPL-3.0.txt") -Destination (Join-Path $OutputDir "FFMPEG-LICENSE.txt") -Force
+
 # Ensure FFmpeg and FFprobe binaries are present in staging for out-of-the-box scanning & transcoding
 $ffmpegExe = Join-Path $OutputDir "ffmpeg.exe"
 $ffprobeExe = Join-Path $OutputDir "ffprobe.exe"

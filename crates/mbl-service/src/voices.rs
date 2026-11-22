@@ -32,30 +32,54 @@ fn program_archive() -> Option<&'static str> {
     }
 }
 
-/// One voice per language (two-letter code as MBL uses it), picked from Piper's list:
-/// medium quality, one speaker.
-const VOICES: &[(&str, &str, &str)] = &[
-    ("sv", "Lisa (svenska)", "sv/sv_SE/lisa/medium/sv_SE-lisa-medium"),
-    ("en", "Amy (English, US)", "en/en_US/amy/medium/en_US-amy-medium"),
-    ("no", "Talesyntese (norsk)", "no/no_NO/talesyntese/medium/no_NO-talesyntese-medium"),
-    ("de", "Thorsten (Deutsch)", "de/de_DE/thorsten/medium/de_DE-thorsten-medium"),
-    ("fr", "Siwis (français)", "fr/fr_FR/siwis/medium/fr_FR-siwis-medium"),
-    ("es", "Davefx (español)", "es/es_ES/davefx/medium/es_ES-davefx-medium"),
-    ("pt", "Cadu (português, BR)", "pt/pt_BR/cadu/medium/pt_BR-cadu-medium"),
-    ("it", "Paola (italiano)", "it/it_IT/paola/medium/it_IT-paola-medium"),
-    ("nl", "Pim (Nederlands)", "nl/nl_NL/pim/medium/nl_NL-pim-medium"),
-    ("pl", "Darkman (polski)", "pl/pl_PL/darkman/medium/pl_PL-darkman-medium"),
-    ("tr", "DFKI (Türkçe)", "tr/tr_TR/dfki/medium/tr_TR-dfki-medium"),
-    ("ru", "Denis (русский)", "ru/ru_RU/denis/medium/ru_RU-denis-medium"),
+/// One voice per language (two-letter code as MBL uses it), picked from Piper's list: medium
+/// quality, one speaker, and a license that allows any use (public domain, CC0 or CC BY with the
+/// credit shown next to the voice). Voices under non-commercial or unknown terms are left out,
+/// which is why some of MBL's languages have none yet.
+const VOICES: &[(&str, &str, &str, &str)] = &[
+    ("sv", "NST (svenska)", "sv/sv_SE/nst/medium/sv_SE-nst-medium", "CC0 · Språkbanken NST"),
+    (
+        "en",
+        "LJSpeech (English, US)",
+        "en/en_US/ljspeech/medium/en_US-ljspeech-medium",
+        "Public domain · LJ Speech",
+    ),
+    ("no", "Talesyntese (norsk)", "no/no_NO/talesyntese/medium/no_NO-talesyntese-medium", "CC0"),
+    (
+        "de",
+        "Thorsten (Deutsch)",
+        "de/de_DE/thorsten/medium/de_DE-thorsten-medium",
+        "CC0 · Thorsten-Voice",
+    ),
+    (
+        "fr",
+        "Siwis (français)",
+        "fr/fr_FR/siwis/medium/fr_FR-siwis-medium",
+        "CC BY 4.0 · SIWIS French Speech Synthesis Database",
+    ),
+    ("es", "Davefx (español)", "es/es_ES/davefx/medium/es_ES-davefx-medium", "CC0"),
+    ("pt", "Cadu (português, BR)", "pt/pt_BR/cadu/medium/pt_BR-cadu-medium", "CC0"),
+    ("nl", "Pim (Nederlands)", "nl/nl_NL/pim/medium/nl_NL-pim-medium", "CC0"),
+    ("pl", "Darkman (polski)", "pl/pl_PL/darkman/medium/pl_PL-darkman-medium", "CC0"),
+    (
+        "tr",
+        "Fahrettin (Türkçe)",
+        "tr/tr_TR/fahrettin/medium/tr_TR-fahrettin-medium",
+        "CC0 · Nabu Casa voice datasets",
+    ),
+    ("ru", "Denis (русский)", "ru/ru_RU/denis/medium/ru_RU-denis-medium", "CC0"),
     (
         "uk",
         "Ukrainian TTS (українська)",
         "uk/uk_UA/ukrainian_tts/medium/uk_UA-ukrainian_tts-medium",
+        "CC0",
     ),
-    ("ar", "Kareem (العربية)", "ar/ar_JO/kareem/medium/ar_JO-kareem-medium"),
-    ("hi", "Pratham (हिन्दी)", "hi/hi_IN/pratham/medium/hi_IN-pratham-medium"),
-    ("zh", "Huayan (中文)", "zh/zh_CN/huayan/medium/zh_CN-huayan-medium"),
-    ("vi", "Vais1000 (Tiếng Việt)", "vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium"),
+    (
+        "vi",
+        "Vais1000 (Tiếng Việt)",
+        "vi/vi_VN/vais1000/medium/vi_VN-vais1000-medium",
+        "CC BY 4.0 · VAIS-1000",
+    ),
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -64,6 +88,8 @@ pub struct ServerVoice {
     /// Two-letter language code.
     pub language: String,
     pub name: String,
+    /// The voice's license, with the credit CC BY asks for.
+    pub license: String,
     pub installed: bool,
 }
 
@@ -147,7 +173,7 @@ impl VoiceService {
     }
 
     async fn voice_file(&self, language: &str) -> Result<Option<PathBuf>> {
-        let Some((_, _, path)) = VOICES.iter().find(|(l, _, _)| *l == language) else {
+        let Some((_, _, path, _)) = VOICES.iter().find(|(l, _, _, _)| *l == language) else {
             return Ok(None);
         };
         let name = path.rsplit('/').next().unwrap_or(path);
@@ -160,7 +186,7 @@ impl VoiceService {
             return Vec::new();
         }
         let mut out = Vec::new();
-        for (language, _, _) in VOICES {
+        for (language, _, _, _) in VOICES {
             if let Ok(Some(file)) = self.voice_file(language).await
                 && file.is_file()
             {
@@ -177,11 +203,12 @@ impl VoiceService {
         let download = self.download.lock().ok().and_then(|d| d.clone());
         let program_installed = self.program().await.is_ok_and(|p| p.is_file());
         let mut voices = Vec::new();
-        for (language, name, _) in VOICES {
+        for (language, name, _, license) in VOICES {
             let installed = self.voice_file(language).await?.is_some_and(|f| f.is_file());
             voices.push(ServerVoice {
                 language: (*language).to_owned(),
                 name: (*name).to_owned(),
+                license: (*license).to_owned(),
                 installed,
             });
         }
@@ -263,9 +290,9 @@ impl VoiceService {
     /// Start installing the voice for `language` (about 60 MB). Progress is in `status`.
     pub async fn install_voice(&self, actor: &Actor, language: &str) -> Result<()> {
         actor.require_admin()?;
-        let (_, _, path) = VOICES
+        let (_, _, path, _) = VOICES
             .iter()
-            .find(|(l, _, _)| *l == language)
+            .find(|(l, _, _, _)| *l == language)
             .ok_or_else(|| Error::Validation(format!("no voice for `{language}`")))?;
         let model = self.voice_file(language).await?.ok_or(Error::NotFound)?;
         let base = self.base_override.as_ref().map_or(VOICE_BASE, |(_, v)| v.as_str()).to_owned();
@@ -421,8 +448,14 @@ mod tests {
     #[test]
     fn every_voice_is_one_of_mbls_languages_and_unique() {
         let mut seen = std::collections::HashSet::new();
-        for (language, _, path) in VOICES {
+        for (language, _, path, license) in VOICES {
             assert_eq!(language.len(), 2, "{language}");
+            assert!(
+                license.starts_with("CC0")
+                    || license.starts_with("CC BY 4.0")
+                    || license.starts_with("Public domain"),
+                "{language}: {license}"
+            );
             assert!(seen.insert(*language), "two voices for {language}");
             assert!(path.ends_with("-medium"), "{path}");
         }

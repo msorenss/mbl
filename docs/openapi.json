@@ -19402,6 +19402,7 @@
         "required": [
           "language",
           "name",
+          "license",
           "installed"
         ],
         "properties": {
@@ -19411,6 +19412,10 @@
           "language": {
             "type": "string",
             "description": "Two-letter language code."
+          },
+          "license": {
+            "type": "string",
+            "description": "The voice's license, with the credit CC BY asks for."
           },
           "name": {
             "type": "string"

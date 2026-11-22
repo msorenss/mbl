@@ -140,7 +140,18 @@ export default function ServerVoices() {
                         "flex-wrap": "wrap",
                       }}
                     >
-                      <span style={{ flex: 1, "min-width": "160px" }}>{voice.name}</span>
+                      <span style={{ flex: 1, "min-width": "160px" }}>
+                        {voice.name}
+                        <span
+                          style={{
+                            display: "block",
+                            "font-size": "12px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {voice.license}
+                        </span>
+                      </span>
                       <Show
                         when={running()?.what === voice.language}
                         fallback={

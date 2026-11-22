@@ -112,6 +112,9 @@
       <Component Id="MblFfmpegBinaries" Guid="778899aa-bbcc-ddee-ff00-112233445566" Win64="yes">
         <File Id="ffmpeg_exe" Source="ffmpeg.exe" KeyPath="yes" />
         <File Id="ffprobe_exe" Source="ffprobe.exe" />
+        <!-- FFmpeg here is GPL-3.0: its license and where to get the source. -->
+        <File Id="ffmpeg_license" Source="FFMPEG-LICENSE.txt" />
+        <File Id="ffmpeg_notice" Source="FFMPEG-NOTICE.txt" />
       </Component>
     </ComponentGroup>
 
