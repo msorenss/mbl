@@ -280,7 +280,8 @@ export default function AssistantChat() {
             aria-label="Assistant"
             style={{
               position: "fixed",
-              top: "56px",
+              // Below the header (taller on phones with a notch) and above the bottom tabs.
+              top: "calc(56px + env(safe-area-inset-top))",
               right: "0",
               bottom: "0",
               width: "min(420px, 100vw)",
@@ -289,7 +290,7 @@ export default function AssistantChat() {
               "box-shadow": "var(--shadow-lg, 0 0 24px rgba(0,0,0,0.3))",
               display: "flex",
               "flex-direction": "column",
-              "z-index": 40,
+              "z-index": 60,
               "padding-bottom": "env(safe-area-inset-bottom)",
             }}
             onKeyDown={(e) => {
