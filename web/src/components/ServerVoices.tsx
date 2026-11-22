@@ -140,7 +140,7 @@ export default function ServerVoices() {
                         "flex-wrap": "wrap",
                       }}
                     >
-                      <span style={{ flex: 1, "min-width": "160px" }}>
+                      <span translate="no" style={{ flex: 1, "min-width": "160px" }}>
                         {voice.name}
                         <span
                           style={{

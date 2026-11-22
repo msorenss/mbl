@@ -29,6 +29,31 @@ type Row22 = readonly [
 
 /** Complete UI strings (exact match). */
 export const UI_PHRASES_22: Record<string, Row22> = {
+  "Read replies aloud in the chats even in browsers without voices of their own, such as the Raspberry Pi's. The server reads with Piper, a small speech program that runs on its processor; nothing leaves the server.":
+    [
+      "Läs upp svar i chattarna även i webbläsare utan egna röster, som Raspberry Pi:ns. Servern läser upp med Piper, ett litet talprogram som körs på dess processor; inget lämnar servern.",
+      "Antworten in den Chats auch in Browsern ohne eigene Stimmen vorlesen, etwa auf dem Raspberry Pi. Der Server liest mit Piper vor, einem kleinen Sprachprogramm auf seinem Prozessor; nichts verlässt den Server.",
+      "Lire les réponses à voix haute dans les discussions, même dans les navigateurs sans voix, comme celui du Raspberry Pi. Le serveur lit avec Piper, un petit programme vocal qui tourne sur son processeur ; rien ne quitte le serveur.",
+      "Lee en voz alta las respuestas de los chats incluso en navegadores sin voces propias, como el de la Raspberry Pi. El servidor lee con Piper, un pequeño programa de voz que se ejecuta en su procesador; nada sale del servidor.",
+      "Leia as respostas em voz alta nos chats mesmo em navegadores sem vozes próprias, como o do Raspberry Pi. O servidor lê com o Piper, um pequeno programa de voz que corre no seu processador; nada sai do servidor.",
+      "Leggi ad alta voce le risposte nelle chat anche nei browser senza voci proprie, come quello del Raspberry Pi. Il server legge con Piper, un piccolo programma vocale che gira sul suo processore; nulla lascia il server.",
+      "Lees antwoorden in de chats voor, ook in browsers zonder eigen stemmen, zoals die van de Raspberry Pi. De server leest voor met Piper, een klein spraakprogramma dat op zijn processor draait; niets verlaat de server.",
+      "Czytaj odpowiedzi w czatach na głos nawet w przeglądarkach bez własnych głosów, jak na Raspberry Pi. Serwer czyta za pomocą Piper, małego programu mowy działającego na jego procesorze; nic nie opuszcza serwera.",
+      "Sohbetlerdeki yanıtları kendi sesi olmayan tarayıcılarda bile, örneğin Raspberry Pi'dekinde, sesli okuyun. Sunucu, işlemcisinde çalışan küçük bir konuşma programı olan Piper ile okur; hiçbir şey sunucudan çıkmaz.",
+      "Читайте ответы в чатах вслух даже в браузерах без собственных голосов, например на Raspberry Pi. Сервер читает с помощью Piper — небольшой программы синтеза речи на его процессоре; ничего не покидает сервер.",
+      "Читайте відповіді в чатах уголос навіть у браузерах без власних голосів, як на Raspberry Pi. Сервер читає за допомогою Piper — невеликої програми мовлення на його процесорі; нічого не залишає сервер.",
+      "اقرأ الردود في المحادثات بصوت عالٍ حتى في المتصفحات التي لا تملك أصواتًا، مثل متصفح Raspberry Pi. يقرأ الخادم باستخدام Piper، وهو برنامج كلام صغير يعمل على معالجه؛ لا يغادر شيء الخادم.",
+      "चैट में जवाब उन ब्राउज़रों में भी पढ़कर सुनाएँ जिनकी अपनी आवाज़ें नहीं हैं, जैसे Raspberry Pi का। सर्वर Piper से पढ़ता है, जो उसके प्रोसेसर पर चलने वाला छोटा वाक् प्रोग्राम है; कुछ भी सर्वर से बाहर नहीं जाता।",
+      "即使在没有自带语音的浏览器（如 Raspberry Pi 的浏览器）中，也能朗读聊天中的回复。服务器使用 Piper 朗读，这是一个在其处理器上运行的小型语音程序；没有任何内容离开服务器。",
+      "Raspberry Pi のように音声を持たないブラウザーでも、チャットの返信を読み上げます。サーバーはプロセッサー上で動く小さな音声プログラム Piper で読み上げます。サーバーの外には何も出ません。",
+      "Raspberry Pi처럼 자체 음성이 없는 브라우저에서도 채팅 답변을 읽어 줍니다. 서버는 프로세서에서 실행되는 작은 음성 프로그램 Piper로 읽습니다. 서버 밖으로 나가는 것은 없습니다.",
+      "Bacakan balasan di obrolan bahkan di browser tanpa suara sendiri, seperti milik Raspberry Pi. Server membaca dengan Piper, program suara kecil yang berjalan di prosesornya; tidak ada yang keluar dari server.",
+      "Đọc to câu trả lời trong trò chuyện ngay cả trên trình duyệt không có giọng riêng, như của Raspberry Pi. Máy chủ đọc bằng Piper, một chương trình giọng nói nhỏ chạy trên bộ xử lý của nó; không gì rời khỏi máy chủ.",
+      "Les opp svar i chattene også i nettlesere uten egne stemmer, som Raspberry Pi-ens. Serveren leser opp med Piper, et lite taleprogram som kjører på prosessoren; ingenting forlater serveren.",
+      "Basahin nang malakas ang mga sagot sa chat kahit sa mga browser na walang sariling boses, gaya ng sa Raspberry Pi. Binabasa ito ng server gamit ang Piper, isang maliit na speech program na tumatakbo sa processor nito; walang lumalabas sa server.",
+      "Basaha og kusog ang mga tubag sa chat bisan sa mga browser nga walay kaugalingong tingog, sama sa Raspberry Pi. Ang server mobasa gamit ang Piper, usa ka gamay nga speech program nga nagdagan sa processor niini; walay mogawas sa server.",
+      "Basaha hin makusog an mga baton ha chat bisan ha mga browser nga waray kalugaringon nga tingog, sugad han ha Raspberry Pi. An server nababasa gamit an Piper, usa nga gutiay nga speech program nga nagdadalagan ha processor niya; waray nagawas ha server.",
+    ],
   "Voices for reading aloud": [
     "Röster för uppläsning",
     "Stimmen zum Vorlesen",

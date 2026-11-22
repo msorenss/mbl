@@ -230,6 +230,9 @@ impl VoiceService {
     }
 
     fn end(&self, outcome: Result<()>) {
+        if let Err(error) = &outcome {
+            tracing::warn!(%error, "voice download failed");
+        }
         if let Ok(mut lock) = self.download.lock()
             && let Some(d) = lock.as_mut()
         {
@@ -336,9 +339,26 @@ impl VoiceService {
         let mut part = target.as_os_str().to_owned();
         part.push(".part");
         let part = PathBuf::from(part);
-        let mut resp = self.http.get(url).send().await.map_err(|e| {
-            Error::External(format!("Could not reach the download server: {}", e.without_url()))
-        })?;
+        // One more try after a short wait: a home network drops a connection now and then.
+        let mut resp = match self.http.get(url).send().await {
+            Ok(resp) => resp,
+            Err(first) if first.is_connect() || first.is_timeout() => {
+                tracing::info!(error = %error_chain(&first), "download failed to connect; trying again");
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                self.http.get(url).send().await.map_err(|e| {
+                    Error::External(format!(
+                        "Could not reach the download server: {}",
+                        error_chain(&e)
+                    ))
+                })?
+            }
+            Err(e) => {
+                return Err(Error::External(format!(
+                    "Could not reach the download server: {}",
+                    error_chain(&e)
+                )));
+            }
+        };
         if !resp.status().is_success() {
             return Err(Error::External(format!("The download server said {}", resp.status())));
         }
@@ -350,7 +370,7 @@ impl VoiceService {
                 .await
                 .map_err(|_| Error::External("The download stalled".into()))?
                 .map_err(|e| {
-                    Error::External(format!("The download broke off: {}", e.without_url()))
+                    Error::External(format!("The download broke off: {}", error_chain(&e)))
                 })?;
             let Some(chunk) = chunk else { break };
             out.write_all(&chunk).await.map_err(Error::internal)?;
@@ -439,6 +459,27 @@ impl VoiceService {
         }
         Ok(wav)
     }
+}
+
+/// A request error with its causes ("error sending request" alone says nothing about DNS, TLS
+/// or a firewall), without the address, which can carry tokens for other services.
+fn error_chain(error: &reqwest::Error) -> String {
+    let mut text = if error.is_timeout() {
+        "timed out".to_owned()
+    } else if error.is_connect() {
+        "could not connect".to_owned()
+    } else if error.is_redirect() {
+        "too many redirects".to_owned()
+    } else {
+        "request failed".to_owned()
+    };
+    let mut source = std::error::Error::source(error);
+    while let Some(cause) = source {
+        text.push_str(": ");
+        text.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    text
 }
 
 #[cfg(test)]

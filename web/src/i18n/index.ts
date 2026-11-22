@@ -1244,7 +1244,9 @@ export function localizeDomSubtree(root: ParentNode, loc: AppLocale): void {
         parentTag !== "SCRIPT" &&
         parentTag !== "STYLE" &&
         parentTag !== "CODE" &&
-        parentTag !== "PRE"
+        parentTag !== "PRE" &&
+        // The HTML way to keep names, licences and codes as they are.
+        !current.parentElement?.closest('[translate="no"]')
       ) {
         const curVal = current.nodeValue ?? "";
         const prevState = originalTextNodes.get(current);
