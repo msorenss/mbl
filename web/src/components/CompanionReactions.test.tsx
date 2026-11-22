@@ -241,3 +241,65 @@ it("opens the chat without companions, sets how often and asks for a comment", a
   });
   localStorage.removeItem("mbl.companion.frequency");
 });
+
+it("shows companion comments on the TV when chosen while casting", async () => {
+  vi.useFakeTimers();
+  localStorage.removeItem("mbl.companion.display");
+  vi.spyOn(client, "GET").mockResolvedValue({
+    data: {
+      companions: ["Hermes"],
+      reactions: [
+        {
+          id: 3,
+          sessionId: "s1",
+          botName: "Hermes",
+          timestampMs: 1000,
+          commentary: "On the big screen",
+          createdAt: Date.now() + 10,
+        },
+      ],
+    },
+    response: new Response(),
+  } as never);
+  const show = vi.fn();
+  dispose = render(
+    () =>
+      createComponent(CompanionReactions, {
+        sessionId: "s1",
+        open: true,
+        onClose: () => {},
+        tv: { available: true, show },
+      }),
+    document.body,
+  );
+  const tvButton = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent === "On the TV",
+  ) as HTMLButtonElement;
+  tvButton.click();
+  await vi.advanceTimersByTimeAsync(2500);
+  expect(show).toHaveBeenCalledWith("Hermes", "On the big screen");
+  expect(localStorage.getItem("mbl.companion.display")).toBe("tv");
+  localStorage.removeItem("mbl.companion.display");
+});
+
+it("keeps comments on the device when the receiver cannot show them", async () => {
+  vi.spyOn(client, "GET").mockResolvedValue({
+    data: { companions: [], reactions: [] },
+    response: new Response(),
+  } as never);
+  dispose = render(
+    () =>
+      createComponent(CompanionReactions, {
+        sessionId: "s1",
+        open: true,
+        onClose: () => {},
+        tv: { available: false, show: vi.fn() },
+      }),
+    document.body,
+  );
+  const tvButton = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent === "On the TV",
+  ) as HTMLButtonElement;
+  expect(tvButton.disabled).toBe(true);
+  expect(document.body.textContent).toContain("only with MBL's own Cast receiver");
+});

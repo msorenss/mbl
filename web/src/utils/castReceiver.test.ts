@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CAPABILITY_NAMESPACE, resolveCastProfile } from "./castProfile";
 import {
+  COMPANION_NAMESPACE,
   capabilityReport,
+  companionComment,
   installCapabilityChannel,
+  installCompanionOverlay,
   type ReceiverContext,
   receiverTelemetry,
 } from "./castReceiver";
@@ -98,5 +101,37 @@ describe("CAF receiver", () => {
     expect(() => saveReceiverConfiguration("https://bad")).toThrow();
     saveReceiverConfiguration(null);
     expect(receiverConfiguration()).toEqual({ appId: "422EE6A6", custom: true });
+  });
+});
+
+describe("companion comments on the TV", () => {
+  it("accepts only bounded text comments", () => {
+    expect(companionComment({ type: "comment", author: "MBL", text: " Look! " })).toEqual({
+      author: "MBL",
+      text: "Look!",
+    });
+    expect(companionComment('{"type":"comment","text":"Hi"}')).toEqual({ author: "", text: "Hi" });
+    expect(companionComment({ type: "probe", text: "x" })).toBeNull();
+    expect(companionComment("not json")).toBeNull();
+    expect(companionComment({ type: "comment", text: "a".repeat(900) })?.text).toHaveLength(500);
+  });
+
+  it("draws up to three comments as text and removes them after a while", () => {
+    vi.useFakeTimers();
+    const ctx = context();
+    installCompanionOverlay(ctx);
+    const call = vi.mocked(ctx.addCustomMessageListener).mock.calls[0];
+    expect(call[0]).toBe(COMPANION_NAMESPACE);
+    const listener = call[1];
+    for (const text of ["one", "two", "three", "<b>four</b>"])
+      listener({ data: { type: "comment", author: "MBL", text }, senderId: "s" });
+    const box = document.body.lastElementChild as HTMLElement;
+    expect(box.childElementCount).toBe(3);
+    expect(box.textContent).toContain("MBL: <b>four</b>");
+    expect(box.querySelector("b")).toBeNull();
+    vi.advanceTimersByTime(16000);
+    expect(box.childElementCount).toBe(0);
+    box.remove();
+    vi.useRealTimers();
   });
 });

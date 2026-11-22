@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { CAPABILITY_NAMESPACE } from "./utils/castProfile";
-import { TELEMETRY_NAMESPACE } from "./utils/castReceiver";
+import { COMPANION_NAMESPACE, TELEMETRY_NAMESPACE } from "./utils/castReceiver";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -27,7 +27,11 @@ it("boots CAF namespaces before start and exports only bounded diagnostic fields
   });
   await import("./castReceiver");
   expect(context.start).toHaveBeenCalledWith({
-    customNamespaces: { [CAPABILITY_NAMESPACE]: "JSON", [TELEMETRY_NAMESPACE]: "JSON" },
+    customNamespaces: {
+      [CAPABILITY_NAMESPACE]: "JSON",
+      [TELEMETRY_NAMESPACE]: "JSON",
+      [COMPANION_NAMESPACE]: "JSON",
+    },
   });
   expect(context.addCustomMessageListener.mock.invocationCallOrder[0]).toBeLessThan(
     context.start.mock.invocationCallOrder[0],

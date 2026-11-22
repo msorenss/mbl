@@ -70,6 +70,17 @@ function storedFrequency(): Frequency {
   return "medium";
 }
 
+/** Where companion comments appear while casting: this device, or over the video on the TV. */
+type Display = "device" | "tv";
+const DISPLAY_KEY = "mbl.companion.display";
+
+function storedDisplay(): Display {
+  try {
+    if (localStorage.getItem(DISPLAY_KEY) === "tv") return "tv";
+  } catch {}
+  return "device";
+}
+
 function store(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
@@ -106,6 +117,8 @@ export default function CompanionReactions(props: {
   /** The chat panel is open; toggled from the player's control bar. */
   open: boolean;
   onClose: () => void;
+  /** Set while casting: whether the receiver can draw comments, and how to send it one. */
+  tv?: { available: boolean; show: (author: string, text: string) => void } | null;
 }) {
   const { t, locale } = useI18n();
   const [speakReplies, setSpeakReplies] = createSignal(readAloud("player"));
@@ -115,6 +128,8 @@ export default function CompanionReactions(props: {
   const [mode, setMode] = createSignal<Mode>(storedMode());
   const [frequency, setFrequency] = createSignal<Frequency>(storedFrequency());
   const [frames, setFrames] = createSignal<Frames>(storedFrames());
+  const [display, setDisplay] = createSignal<Display>(storedDisplay());
+  const onTv = () => display() === "tv" && props.tv?.available === true;
   const [listening, setListening] = createSignal<string[]>([]);
   const [assistant, setAssistant] = createSignal(false);
   // Someone will hear the viewer: a connected companion or the built-in assistant.
@@ -131,7 +146,9 @@ export default function CompanionReactions(props: {
     const fresh = entries.filter((r) => !history().some((h) => h.id === r.id));
     if (fresh.length === 0) return;
     setHistory((list) => [...list, ...fresh].slice(-HISTORY));
-    setShown((list) => [...list, ...fresh.filter((r) => !r.fromViewer)].slice(-3));
+    const comments = fresh.filter((r) => !r.fromViewer);
+    if (onTv()) for (const r of comments) props.tv?.show(r.botName, r.commentary);
+    else setShown((list) => [...list, ...comments].slice(-3));
     if (speakReplies()) for (const r of fresh.filter((r) => !r.fromViewer)) sayAloud(r.commentary);
   };
 
@@ -438,6 +455,54 @@ export default function CompanionReactions(props: {
                     Comment now
                   </button>
                 </div>
+              </Show>
+              <Show when={props.tv}>
+                {(tv) => (
+                  <>
+                    <fieldset
+                      aria-label="Show comments"
+                      style={{
+                        display: "flex",
+                        gap: "6px",
+                        "align-items": "center",
+                        margin: 0,
+                        padding: 0,
+                        border: "none",
+                      }}
+                    >
+                      <span style={{ flex: 1, "font-size": "0.85rem" }}>Show comments</span>
+                      <button
+                        type="button"
+                        aria-pressed={!onTv()}
+                        onClick={() => {
+                          setDisplay("device");
+                          store(DISPLAY_KEY, "device");
+                        }}
+                        style={choice(!onTv())}
+                      >
+                        On this device
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={onTv()}
+                        disabled={!tv().available}
+                        onClick={() => {
+                          setShown([]);
+                          setDisplay("tv");
+                          store(DISPLAY_KEY, "tv");
+                        }}
+                        style={choice(onTv())}
+                      >
+                        On the TV
+                      </button>
+                    </fieldset>
+                    <Show when={!tv().available}>
+                      <p style={{ margin: 0, "font-size": "0.8rem", opacity: 0.8 }}>
+                        The TV shows comments only with MBL's own Cast receiver.
+                      </p>
+                    </Show>
+                  </>
+                )}
               </Show>
               <label style={{ display: "flex", gap: "6px", "align-items": "center" }}>
                 <span style={{ flex: 1 }}>Screenshots to the AI</span>

@@ -122,3 +122,52 @@ export function receiverTelemetry(event: string, value: unknown, video?: HTMLVid
   }
   return output;
 }
+
+/** Companion comments relayed by the sender, drawn over the video on the TV. */
+export const COMPANION_NAMESPACE = "urn:x-cast:com.mbl.companion";
+const COMPANION_VISIBLE_MS = 15000;
+
+/** A comment from the sender, or null when the message is not one (bounded, text only). */
+export function companionComment(data: unknown): { author: string; text: string } | null {
+  const value = typeof data === "string" ? safeJson(data) : data;
+  if (!value || typeof value !== "object") return null;
+  const r = value as Record<string, unknown>;
+  if (r.type !== "comment" || typeof r.text !== "string" || !r.text.trim()) return null;
+  const author = typeof r.author === "string" ? r.author.slice(0, 40) : "";
+  return { author, text: r.text.trim().slice(0, 500) };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/** Shows relayed comments top right, at most three, each for 15 seconds. */
+export function installCompanionOverlay(context: ReceiverContext, doc: Document = document) {
+  const box = doc.createElement("div");
+  box.setAttribute("aria-live", "polite");
+  box.style.cssText =
+    "position:fixed;top:5%;right:4%;max-width:38%;display:flex;flex-direction:column;" +
+    "gap:12px;align-items:flex-end;z-index:10;pointer-events:none;font:28px sans-serif";
+  doc.body.appendChild(box);
+  context.addCustomMessageListener(COMPANION_NAMESPACE, ({ data }) => {
+    const comment = companionComment(data);
+    if (!comment) return;
+    const bubble = doc.createElement("p");
+    bubble.style.cssText =
+      "margin:0;padding:14px 20px;border-radius:16px;background:rgba(10,12,16,0.82);" +
+      "color:#fff;line-height:1.35;box-shadow:0 4px 24px rgba(0,0,0,0.4)";
+    if (comment.author) {
+      const name = doc.createElement("strong");
+      name.textContent = `${comment.author}: `;
+      bubble.appendChild(name);
+    }
+    bubble.appendChild(doc.createTextNode(comment.text));
+    box.appendChild(bubble);
+    while (box.childElementCount > 3) box.firstElementChild?.remove();
+    setTimeout(() => bubble.remove(), COMPANION_VISIBLE_MS);
+  });
+}

@@ -133,6 +133,7 @@ export function Player(props: PlayerProps) {
   } | null>(null);
   const [castProfile, setCastProfile] = createSignal<CastProfileSelection | null>(null);
   const [receiverAutoplaySupported, setReceiverAutoplaySupported] = createSignal(false);
+  const [receiverShowsComments, setReceiverShowsComments] = createSignal(false);
   let lastFinishedLoad = -1;
   let lastAutoplayLoad = -1;
   let nextVersion = 0;
@@ -1044,6 +1045,7 @@ export function Player(props: PlayerProps) {
       setIsCasting(cState.isCasting);
       setCastProfile(cState.profileSelection ?? null);
       setReceiverAutoplaySupported(cState.supportsAutoplayNext === true);
+      setReceiverShowsComments(cState.receiverShowsComments === true);
       if (!cState.isCasting || !cState.playbackEnded) setReceiverFinish(null);
       if (wasCasting && !cState.isCasting && !disposed && videoRef && !castConnecting()) {
         const receiverError = castManager.getLastError();
@@ -1864,6 +1866,14 @@ export function Player(props: PlayerProps) {
         sessionId={playbackData()?.sessionId}
         open={chatOpen()}
         onClose={() => setChatOpen(false)}
+        tv={
+          isCasting()
+            ? {
+                available: receiverShowsComments(),
+                show: (author, text) => void castManager.showComment(author, text),
+              }
+            : null
+        }
       />
       <Show when={controlNotice()}>
         <p

@@ -1,6 +1,8 @@
 import { CAPABILITY_NAMESPACE } from "./utils/castProfile";
 import {
+  COMPANION_NAMESPACE,
   installCapabilityChannel,
+  installCompanionOverlay,
   type ReceiverContext,
   receiverTelemetry,
   TELEMETRY_NAMESPACE,
@@ -23,6 +25,7 @@ const framework = (globalThis as unknown as { cast?: { framework?: Framework } }
 if (framework) {
   const context = framework.CastReceiverContext.getInstance();
   installCapabilityChannel(context);
+  installCompanionOverlay(context);
   const player = context.getPlayerManager();
   const lastSent = new Map<string, number>();
   for (const name of [
@@ -55,6 +58,7 @@ if (framework) {
     customNamespaces: {
       [CAPABILITY_NAMESPACE]: framework.system.MessageType.JSON,
       [TELEMETRY_NAMESPACE]: framework.system.MessageType.JSON,
+      [COMPANION_NAMESPACE]: framework.system.MessageType.JSON,
     },
   });
 } else {

@@ -1,4 +1,4 @@
-import { TELEMETRY_NAMESPACE } from "./castReceiver";
+import { COMPANION_NAMESPACE, TELEMETRY_NAMESPACE } from "./castReceiver";
 import { receiverConfiguration } from "./castReceiverConfig";
 /**
  * Chromecast & Remote Playback Management (M12).
@@ -98,6 +98,8 @@ export type CastStateListener = (state: {
   isCasting: boolean;
   deviceName: string | null;
   profileSelection: CastProfileSelection | null;
+  /** MBL's own receiver answered, so it can show companion comments over the video. */
+  receiverShowsComments: boolean;
   playerState: "idle" | "playing" | "paused" | "buffering";
   currentTime: number;
   duration: number;
@@ -376,12 +378,35 @@ class CastManager {
       isCasting: this.isCasting,
       deviceName: this.deviceName,
       profileSelection: this.profileSelection,
+      receiverShowsComments: this.receiverShowsComments(),
       playerState: this.playerState,
       currentTime: this.currentTime,
       duration: this.duration,
       volume: this.volume,
       isMuted: this.isMuted,
     };
+  }
+
+  private receiverShowsComments(): boolean {
+    return (
+      this.isCasting && this.mode === "google" && this.profileSelection?.source === "receiver-probe"
+    );
+  }
+
+  /** Show a companion comment over the video on MBL's own receiver. False when it cannot. */
+  public async showComment(author: string, text: string): Promise<boolean> {
+    if (!this.receiverShowsComments()) return false;
+    const session = window.cast?.framework?.CastContext.getInstance().getCurrentSession() as
+      | CapabilitySession
+      | null
+      | undefined;
+    if (!session?.sendMessage) return false;
+    try {
+      await session.sendMessage(COMPANION_NAMESPACE, { type: "comment", author, text });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private notify() {
