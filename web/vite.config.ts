@@ -20,6 +20,9 @@ try {
 
 const buildDate = `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
 
+/** The MBL server the dev server forwards API calls to (`MBL_API`, default the local install). */
+const apiTarget = process.env.MBL_API ?? "http://localhost:8420";
+
 export default defineConfig({
   plugins: [solid()],
   build: {
@@ -37,23 +40,23 @@ export default defineConfig({
     __MBL_BUILD_DATE__: JSON.stringify(buildDate),
   },
   server: {
-    port: 3000,
+    port: Number(process.env.MBL_DEV_PORT ?? 3000),
     proxy: {
       "/api": {
-        target: "http://localhost:8420",
+        target: apiTarget,
         changeOrigin: false,
         ws: true,
       },
       "/mcp": {
-        target: "http://localhost:8420",
+        target: apiTarget,
         changeOrigin: true,
       },
       "/stream": {
-        target: "http://localhost:8420",
+        target: apiTarget,
         changeOrigin: true,
       },
       "/images": {
-        target: "http://localhost:8420",
+        target: apiTarget,
         changeOrigin: true,
       },
     },

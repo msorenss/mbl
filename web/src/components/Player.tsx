@@ -2634,11 +2634,76 @@ export function Player(props: PlayerProps) {
             style={{ display: "flex", "align-items": "center", position: "relative" }}
           >
             <div class="mbl-player-settings">
-              <Show when={(playbackData()?.audioTracks?.length ?? 0) > 0}>
-                <label for="player-audio-track">Audio track</label>
+              <div class="mbl-player-settings-group">
+                <Show when={(playbackData()?.audioTracks?.length ?? 0) > 0}>
+                  <label for="player-audio-track">Audio track</label>
+                  <select
+                    id="player-audio-track"
+                    value={selectedAudioIndex()}
+                    disabled={
+                      loading() ||
+                      changingQuality() ||
+                      castConnecting() ||
+                      (isCasting() && !receiverAutoplaySupported())
+                    }
+                    onChange={(event) => {
+                      const select = event.currentTarget;
+                      void changeAudioTrack(Number(select.value)).finally(() => {
+                        select.value = String(selectedAudioIndex() ?? "");
+                      });
+                    }}
+                  >
+                    <For each={playbackData()?.audioTracks}>
+                      {(track) => (
+                        <option value={track.index}>
+                          {track.title || track.language || `Track ${track.index}`} · {track.codec}
+                          {track.channels ? ` · ${track.channels}ch` : ""}
+                        </option>
+                      )}
+                    </For>
+                  </select>
+                </Show>
+                <Show when={!isAudioOnly()}>
+                  <Show when={isCasting() && castProfile()}>
+                    <p
+                      class="cast-profile-notice"
+                      role="status"
+                      style={{ "overflow-wrap": "anywhere", "max-width": "100%" }}
+                    >
+                      Automatic · up to {castProfile()?.maxHeight}p ·{" "}
+                      {castProfile()?.source === "receiver-probe"
+                        ? "receiver capability verified"
+                        : "Limited compatibility — receiver capabilities could not be verified"}
+                    </p>
+                  </Show>
+                  <label for="player-quality">Quality limit</label>
+                  <select
+                    id="player-quality"
+                    value={quality()}
+                    disabled={
+                      loading() ||
+                      changingQuality() ||
+                      castConnecting() ||
+                      (isCasting() && !receiverAutoplaySupported())
+                    }
+                    onChange={(event) => {
+                      const select = event.currentTarget;
+                      void changeQuality(Number(select.value)).finally(() => {
+                        select.value = String(quality());
+                      });
+                    }}
+                  >
+                    <option value={0}>Automatic</option>
+                    <option value={2000000}>2 Mbps</option>
+                    <option value={4000000}>4 Mbps</option>
+                    <option value={8000000}>8 Mbps</option>
+                    <option value={20000000}>20 Mbps</option>
+                  </select>
+                </Show>
+                <label for="player-audio-delay">Audio sync (− earlier, + later)</label>
                 <select
-                  id="player-audio-track"
-                  value={selectedAudioIndex()}
+                  id="player-audio-delay"
+                  value={audioSyncMs()}
                   disabled={
                     loading() ||
                     changingQuality() ||
@@ -2647,100 +2712,37 @@ export function Player(props: PlayerProps) {
                   }
                   onChange={(event) => {
                     const select = event.currentTarget;
-                    void changeAudioTrack(Number(select.value)).finally(() => {
-                      select.value = String(selectedAudioIndex() ?? "");
+                    void changeAudioSync(Number(select.value)).finally(() => {
+                      select.value = String(audioSyncMs());
                     });
                   }}
                 >
-                  <For each={playbackData()?.audioTracks}>
-                    {(track) => (
-                      <option value={track.index}>
-                        {track.title || track.language || `Track ${track.index}`} · {track.codec}
-                        {track.channels ? ` · ${track.channels}ch` : ""}
-                      </option>
+                  <For
+                    each={Array.from(
+                      new Set([
+                        -10000,
+                        -5000,
+                        -2000,
+                        -1000,
+                        -500,
+                        -250,
+                        -100,
+                        0,
+                        100,
+                        250,
+                        500,
+                        1000,
+                        2000,
+                        5000,
+                        10000,
+                        audioSyncMs(),
+                      ]),
                     )}
+                  >
+                    {(milliseconds) => <option value={milliseconds}>{milliseconds} ms</option>}
                   </For>
                 </select>
-              </Show>
-              <Show when={!isAudioOnly()}>
-                <Show when={isCasting() && castProfile()}>
-                  <p
-                    class="cast-profile-notice"
-                    role="status"
-                    style={{ "overflow-wrap": "anywhere", "max-width": "100%" }}
-                  >
-                    Automatic · up to {castProfile()?.maxHeight}p ·{" "}
-                    {castProfile()?.source === "receiver-probe"
-                      ? "receiver capability verified"
-                      : "Limited compatibility — receiver capabilities could not be verified"}
-                  </p>
-                </Show>
-                <label for="player-quality">Quality limit</label>
-                <select
-                  id="player-quality"
-                  value={quality()}
-                  disabled={
-                    loading() ||
-                    changingQuality() ||
-                    castConnecting() ||
-                    (isCasting() && !receiverAutoplaySupported())
-                  }
-                  onChange={(event) => {
-                    const select = event.currentTarget;
-                    void changeQuality(Number(select.value)).finally(() => {
-                      select.value = String(quality());
-                    });
-                  }}
-                >
-                  <option value={0}>Automatic</option>
-                  <option value={2000000}>2 Mbps</option>
-                  <option value={4000000}>4 Mbps</option>
-                  <option value={8000000}>8 Mbps</option>
-                  <option value={20000000}>20 Mbps</option>
-                </select>
-              </Show>
-              <label for="player-audio-delay">Audio sync (− earlier, + later)</label>
-              <select
-                id="player-audio-delay"
-                value={audioSyncMs()}
-                disabled={
-                  loading() ||
-                  changingQuality() ||
-                  castConnecting() ||
-                  (isCasting() && !receiverAutoplaySupported())
-                }
-                onChange={(event) => {
-                  const select = event.currentTarget;
-                  void changeAudioSync(Number(select.value)).finally(() => {
-                    select.value = String(audioSyncMs());
-                  });
-                }}
-              >
-                <For
-                  each={Array.from(
-                    new Set([
-                      -10000,
-                      -5000,
-                      -2000,
-                      -1000,
-                      -500,
-                      -250,
-                      -100,
-                      0,
-                      100,
-                      250,
-                      500,
-                      1000,
-                      2000,
-                      5000,
-                      10000,
-                      audioSyncMs(),
-                    ]),
-                  )}
-                >
-                  {(milliseconds) => <option value={milliseconds}>{milliseconds} ms</option>}
-                </For>
-              </select>
+              </div>
               <Show when={subtitleChoices().length > 0}>
                 <SubtitleOptions
                   style={subtitleStyle()}

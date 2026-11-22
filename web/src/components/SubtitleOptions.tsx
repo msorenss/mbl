@@ -70,7 +70,12 @@ export default function SubtitleOptions(props: {
       <Show when={!props.hideMatchSpeech}>
         <label
           title="For subtitles timed for another release or frame rate. The first time takes as long as reading the film once."
-          style={{ display: "flex", gap: "6px", "align-items": "center" }}
+          style={{
+            display: "flex",
+            gap: "6px",
+            "align-items": "center",
+            "justify-content": "flex-start",
+          }}
         >
           <input
             type="checkbox"
