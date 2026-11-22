@@ -310,7 +310,8 @@ export default function CompanionReactions(props: {
   const author = (r: Reaction) => (r.fromViewer ? "You" : r.botName);
 
   return (
-    <Show when={props.sessionId}>
+    // Also open without a session, to say why there is nothing to chat in yet.
+    <Show when={props.sessionId || props.open}>
       <div
         style={{
           // Top right, clear of the control bar and of subtitles at the bottom.
@@ -375,189 +376,198 @@ export default function CompanionReactions(props: {
                 ✕
               </button>
             </div>
-            <fieldset
-              aria-label="Companion comments"
-              style={{ display: "flex", gap: "6px", margin: 0, padding: 0, border: "none" }}
+            <Show
+              when={props.sessionId}
+              fallback={
+                <p role="status" style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
+                  The chat starts when playback has started.
+                </p>
+              }
             >
-              <For each={MODES}>
-                {(option) => (
-                  <button
-                    type="button"
-                    aria-pressed={mode() === option.value}
-                    onClick={() => void choose(option.value, frequency())}
-                    style={choice(mode() === option.value)}
-                  >
-                    {option.label}
-                  </button>
-                )}
-              </For>
-            </fieldset>
-            <Show when={mode() !== "off"}>
-              <div style={{ display: "flex", gap: "6px", "align-items": "center" }}>
-                <Show when={mode() === "on"}>
-                  <fieldset
-                    aria-label="How often"
-                    style={{
-                      display: "flex",
-                      gap: "6px",
-                      flex: 1,
-                      margin: 0,
-                      padding: 0,
-                      border: "none",
-                    }}
-                  >
-                    <For each={FREQUENCIES}>
-                      {(option) => (
-                        <button
-                          type="button"
-                          aria-pressed={frequency() === option.value}
-                          onClick={() => void choose(mode(), option.value)}
-                          style={choice(frequency() === option.value)}
-                        >
-                          {option.label}
-                        </button>
-                      )}
-                    </For>
-                  </fieldset>
-                </Show>
-                <button
-                  type="button"
-                  disabled={!heard()}
-                  onClick={() => void nudge()}
-                  style={choice(false)}
-                >
-                  Comment now
-                </button>
-              </div>
-            </Show>
-            <label style={{ display: "flex", gap: "6px", "align-items": "center" }}>
-              <span style={{ flex: 1 }}>Screenshots to the AI</span>
-              <select
-                value={frames()}
-                onChange={(e) => void chooseFrames(e.currentTarget.value as Frames)}
-              >
-                <For each={FRAMES}>
-                  {(option) => (
-                    <option value={option.value} selected={frames() === option.value}>
-                      {option.label}
-                    </option>
-                  )}
-                </For>
-              </select>
-            </label>
-            <Show when={frames() !== "off"}>
-              <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
-                A picture of the scene goes to the AI provider, never one from later than where you
-                are.
-              </p>
-            </Show>
-            <Show when={!heard()}>
-              <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
-                No companion has joined yet. Your messages will wait for one.
-              </p>
-            </Show>
-            <div
-              ref={log}
-              role="log"
-              aria-live="polite"
-              aria-label="Watch companions"
-              style={{
-                "max-height": "38vh",
-                "overflow-y": "auto",
-                display: "flex",
-                "flex-direction": "column",
-                gap: "6px",
-              }}
-            >
-              <For each={visible(history())}>
-                {(reaction) => (
-                  <p
-                    style={{
-                      margin: 0,
-                      "align-self": reaction.fromViewer ? "flex-end" : "flex-start",
-                      "max-width": "90%",
-                      padding: "6px 10px",
-                      "border-radius": "10px",
-                      background: reaction.fromViewer
-                        ? "rgba(80, 120, 255, 0.45)"
-                        : "rgba(255,255,255,0.12)",
-                    }}
-                  >
-                    <strong>{author(reaction)}:</strong> {reaction.commentary}
-                  </p>
-                )}
-              </For>
-            </div>
-            <Show when={heard() && mode() !== "off"}>
               <fieldset
-                aria-label="Quick questions"
-                style={{
-                  display: "flex",
-                  gap: "6px",
-                  "flex-wrap": "wrap",
-                  margin: 0,
-                  padding: 0,
-                  border: "none",
-                }}
+                aria-label="Companion comments"
+                style={{ display: "flex", gap: "6px", margin: 0, padding: 0, border: "none" }}
               >
-                <For each={QUICK_QUESTIONS}>
-                  {(question) => (
+                <For each={MODES}>
+                  {(option) => (
                     <button
                       type="button"
-                      disabled={sending()}
-                      // Sent in the viewer's language, so the answer comes back in it.
-                      onClick={() => void say(t(question.text), false)}
-                      style={{ ...choice(false), flex: "none" }}
+                      aria-pressed={mode() === option.value}
+                      onClick={() => void choose(option.value, frequency())}
+                      style={choice(mode() === option.value)}
                     >
-                      {question.label}
+                      {option.label}
                     </button>
                   )}
                 </For>
               </fieldset>
-            </Show>
-            <form onSubmit={send} style={{ display: "flex", gap: "6px" }}>
-              <input
-                type="text"
-                maxLength={500}
-                value={draft()}
-                onInput={(e) => setDraft(e.currentTarget.value)}
-                placeholder="Write to your companions"
-                aria-label="Write to your companions"
-                style={{ flex: 1, "min-width": 0 }}
-              />
-              <button type="submit" disabled={sending() || !draft().trim()}>
-                Send
-              </button>
-              <MicButton
-                language={locale()}
-                onText={(text) => void say(text, false)}
-                onError={setError}
-              />
-            </form>
-            <Show when={canSpeak()}>
+              <Show when={mode() !== "off"}>
+                <div style={{ display: "flex", gap: "6px", "align-items": "center" }}>
+                  <Show when={mode() === "on"}>
+                    <fieldset
+                      aria-label="How often"
+                      style={{
+                        display: "flex",
+                        gap: "6px",
+                        flex: 1,
+                        margin: 0,
+                        padding: 0,
+                        border: "none",
+                      }}
+                    >
+                      <For each={FREQUENCIES}>
+                        {(option) => (
+                          <button
+                            type="button"
+                            aria-pressed={frequency() === option.value}
+                            onClick={() => void choose(mode(), option.value)}
+                            style={choice(frequency() === option.value)}
+                          >
+                            {option.label}
+                          </button>
+                        )}
+                      </For>
+                    </fieldset>
+                  </Show>
+                  <button
+                    type="button"
+                    disabled={!heard()}
+                    onClick={() => void nudge()}
+                    style={choice(false)}
+                  >
+                    Comment now
+                  </button>
+                </div>
+              </Show>
               <label style={{ display: "flex", gap: "6px", "align-items": "center" }}>
-                <input
-                  type="checkbox"
-                  checked={speakReplies()}
-                  onChange={(e) => {
-                    const on = e.currentTarget.checked;
-                    setSpeakReplies(on);
-                    setReadAloud("player", on);
-                    if (!on) stopSpeaking();
-                    // A browser without voices would stay silent; say so.
-                    else
-                      void readAloudProblem(locale()).then(
-                        (problem) => problem && setError(problem),
-                      );
-                  }}
-                />
-                Read replies aloud
+                <span style={{ flex: 1 }}>Screenshots to the AI</span>
+                <select
+                  value={frames()}
+                  onChange={(e) => void chooseFrames(e.currentTarget.value as Frames)}
+                >
+                  <For each={FRAMES}>
+                    {(option) => (
+                      <option value={option.value} selected={frames() === option.value}>
+                        {option.label}
+                      </option>
+                    )}
+                  </For>
+                </select>
               </label>
-            </Show>
-            <Show when={error()}>
-              <p role="alert" style={{ margin: 0, color: "#ffb4b4", "font-size": "0.85rem" }}>
-                {error()}
-              </p>
+              <Show when={frames() !== "off"}>
+                <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
+                  A picture of the scene goes to the AI provider, never one from later than where
+                  you are.
+                </p>
+              </Show>
+              <Show when={!heard()}>
+                <p style={{ margin: 0, "font-size": "0.85rem", opacity: 0.8 }}>
+                  No companion has joined yet. Your messages will wait for one.
+                </p>
+              </Show>
+              <div
+                ref={log}
+                role="log"
+                aria-live="polite"
+                aria-label="Watch companions"
+                style={{
+                  "max-height": "38vh",
+                  "overflow-y": "auto",
+                  display: "flex",
+                  "flex-direction": "column",
+                  gap: "6px",
+                }}
+              >
+                <For each={visible(history())}>
+                  {(reaction) => (
+                    <p
+                      style={{
+                        margin: 0,
+                        "align-self": reaction.fromViewer ? "flex-end" : "flex-start",
+                        "max-width": "90%",
+                        padding: "6px 10px",
+                        "border-radius": "10px",
+                        background: reaction.fromViewer
+                          ? "rgba(80, 120, 255, 0.45)"
+                          : "rgba(255,255,255,0.12)",
+                      }}
+                    >
+                      <strong>{author(reaction)}:</strong> {reaction.commentary}
+                    </p>
+                  )}
+                </For>
+              </div>
+              <Show when={heard() && mode() !== "off"}>
+                <fieldset
+                  aria-label="Quick questions"
+                  style={{
+                    display: "flex",
+                    gap: "6px",
+                    "flex-wrap": "wrap",
+                    margin: 0,
+                    padding: 0,
+                    border: "none",
+                  }}
+                >
+                  <For each={QUICK_QUESTIONS}>
+                    {(question) => (
+                      <button
+                        type="button"
+                        disabled={sending()}
+                        // Sent in the viewer's language, so the answer comes back in it.
+                        onClick={() => void say(t(question.text), false)}
+                        style={{ ...choice(false), flex: "none" }}
+                      >
+                        {question.label}
+                      </button>
+                    )}
+                  </For>
+                </fieldset>
+              </Show>
+              <form onSubmit={send} style={{ display: "flex", gap: "6px" }}>
+                <input
+                  type="text"
+                  maxLength={500}
+                  value={draft()}
+                  onInput={(e) => setDraft(e.currentTarget.value)}
+                  placeholder="Write to your companions"
+                  aria-label="Write to your companions"
+                  style={{ flex: 1, "min-width": 0 }}
+                />
+                <button type="submit" disabled={sending() || !draft().trim()}>
+                  Send
+                </button>
+                <MicButton
+                  language={locale()}
+                  onText={(text) => void say(text, false)}
+                  onError={setError}
+                />
+              </form>
+              <Show when={canSpeak()}>
+                <label style={{ display: "flex", gap: "6px", "align-items": "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={speakReplies()}
+                    onChange={(e) => {
+                      const on = e.currentTarget.checked;
+                      setSpeakReplies(on);
+                      setReadAloud("player", on);
+                      if (!on) stopSpeaking();
+                      // A browser without voices would stay silent; say so.
+                      else
+                        void readAloudProblem(locale()).then(
+                          (problem) => problem && setError(problem),
+                        );
+                    }}
+                  />
+                  Read replies aloud
+                </label>
+              </Show>
+              <Show when={error()}>
+                <p role="alert" style={{ margin: 0, color: "#ffb4b4", "font-size": "0.85rem" }}>
+                  {error()}
+                </p>
+              </Show>
             </Show>
           </section>
         </Show>

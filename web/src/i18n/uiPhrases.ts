@@ -29,6 +29,30 @@ type Row22 = readonly [
 
 /** Complete UI strings (exact match). */
 export const UI_PHRASES_22: Record<string, Row22> = {
+  "The chat starts when playback has started.": [
+    "Chatten börjar när uppspelningen har startat.",
+    "Der Chat beginnt, sobald die Wiedergabe gestartet ist.",
+    "Le chat commence une fois la lecture démarrée.",
+    "El chat empieza cuando se ha iniciado la reproducción.",
+    "O chat começa quando a reprodução tiver iniciado.",
+    "La chat inizia quando la riproduzione è partita.",
+    "De chat begint zodra het afspelen is gestart.",
+    "Czat zacznie się po rozpoczęciu odtwarzania.",
+    "Sohbet, oynatma başladığında başlar.",
+    "Чат начнётся, когда начнётся воспроизведение.",
+    "Чат почнеться, коли почнеться відтворення.",
+    "تبدأ الدردشة عند بدء التشغيل.",
+    "प्लेबैक शुरू होने पर चैट शुरू होगी।",
+    "播放开始后即可聊天。",
+    "再生が始まるとチャットが始まります。",
+    "재생이 시작되면 채팅이 시작됩니다.",
+    "Obrolan dimulai saat pemutaran sudah dimulai.",
+    "Trò chuyện sẽ bắt đầu khi phát lại đã bắt đầu.",
+    "Chatten starter når avspillingen har startet.",
+    "Magsisimula ang chat kapag nagsimula na ang pag-play.",
+    "Magsugod ang chat kung nagsugod na ang pag-play.",
+    "Magtitikang an chat kon nagtikang na an pag-play.",
+  ],
   "Could not load Hailo-Ollama.": [
     "Det gick inte att läsa in Hailo-Ollama.",
     "Hailo-Ollama konnte nicht geladen werden.",
