@@ -213,6 +213,13 @@ export default function CompanionReactions(props: {
   );
 
   // Newest message in view whenever the chat opens or grows.
+  // Read-aloud already on from an earlier visit: still say when this browser cannot speak.
+  createEffect(
+    on([() => props.open, speakReplies], ([isOpen, speaking]) => {
+      if (isOpen && speaking)
+        void readAloudProblem(locale()).then((problem) => problem && setError(problem));
+    }),
+  );
   createEffect(
     on([() => history().length, () => props.open], () => {
       if (props.open && log) log.scrollTop = log.scrollHeight;

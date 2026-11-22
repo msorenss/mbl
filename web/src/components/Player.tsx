@@ -173,6 +173,7 @@ export function Player(props: PlayerProps) {
     props.subtitleStreamIndex ?? -1,
   );
   const [showSubtitlesMenu, setShowSubtitlesMenu] = createSignal(false);
+  const [showSubtitleSettings, setShowSubtitleSettings] = createSignal(false);
   const [subtitlesAvailable] = createResource(subtitleSearchAvailable);
   const [findingSubtitles, setFindingSubtitles] = createSignal(false);
   const [showSpeedMenu, setShowSpeedMenu] = createSignal(false);
@@ -2742,14 +2743,33 @@ export function Player(props: PlayerProps) {
                     {(milliseconds) => <option value={milliseconds}>{milliseconds} ms</option>}
                   </For>
                 </select>
+                <Show when={subtitleChoices().length > 0}>
+                  <span>Subtitles</span>
+                  <div class="mbl-player-menu-anchor">
+                    <button
+                      type="button"
+                      class="mbl-player-sub-settings-toggle"
+                      aria-expanded={showSubtitleSettings()}
+                      onClick={() => {
+                        setShowSubtitlesMenu(false);
+                        setShowSpeedMenu(false);
+                        setShowSubtitleSettings(!showSubtitleSettings());
+                      }}
+                    >
+                      Subtitle settings
+                    </button>
+                    <Show when={showSubtitleSettings()}>
+                      <div class="mbl-player-menu mbl-player-sub-settings">
+                        <SubtitleOptions
+                          style={subtitleStyle()}
+                          onChange={updateSubtitleStyle}
+                          hideMatchSpeech={isCasting()}
+                        />
+                      </div>
+                    </Show>
+                  </div>
+                </Show>
               </div>
-              <Show when={subtitleChoices().length > 0}>
-                <SubtitleOptions
-                  style={subtitleStyle()}
-                  onChange={updateSubtitleStyle}
-                  hideMatchSpeech={isCasting()}
-                />
-              </Show>
             </div>
             {/* Speed Selector */}
             <div class="mbl-player-menu-anchor">
@@ -2758,6 +2778,7 @@ export function Player(props: PlayerProps) {
                 disabled={isCasting()}
                 onClick={() => {
                   setShowSubtitlesMenu(false);
+                  setShowSubtitleSettings(false);
                   setShowSpeedMenu(!showSpeedMenu());
                 }}
                 style={{
@@ -2822,6 +2843,7 @@ export function Player(props: PlayerProps) {
                   disabled={loading() || changingQuality() || castConnecting()}
                   onClick={() => {
                     setShowSpeedMenu(false);
+                    setShowSubtitleSettings(false);
                     setShowSubtitlesMenu(!showSubtitlesMenu());
                   }}
                   style={{

@@ -93,6 +93,13 @@ export default function AssistantChat() {
     if (result?.data) setConversations(result.data);
   };
 
+  // Read-aloud already on from an earlier visit: still say when this browser cannot speak.
+  createEffect(
+    on([open, speakReplies], ([isOpen, speaking]) => {
+      if (isOpen && speaking)
+        void readAloudProblem(locale()).then((problem) => problem && setError(problem));
+    }),
+  );
   createEffect(
     on(open, (isOpen) => {
       if (!isOpen) return;
