@@ -85,6 +85,8 @@ impl WebLogFields {
                 | "segment_number"
                 | "variant_count"
                 | "variant_index"
+                | "took_ms"
+                | "position_ms"
         ) {
             self.details.insert(field.name().to_owned(), value.to_string());
         }
@@ -110,8 +112,17 @@ impl Visit for WebLogFields {
             || (field.name() == "failure"
                 && value.len() <= 32
                 && value.bytes().all(|b| b.is_ascii_lowercase() || b == b'_'))
+            || (field.name() == "npu_model"
+                && value.len() <= 64
+                && value.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b)))
         {
             self.details.insert(field.name().to_owned(), value.to_owned());
+        } else if field.name() == "npu_text" {
+            // What an NPU model said (a scene description, detected objects, heard speech), so
+            // an administrator can follow what it does. Shortened and without control characters.
+            let text: String =
+                value.chars().map(|c| if c.is_control() { ' ' } else { c }).take(300).collect();
+            self.details.insert(field.name().to_owned(), text);
         }
     }
 

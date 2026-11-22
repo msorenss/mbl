@@ -1820,6 +1820,13 @@ impl HailoNativeRuntime {
             let group_id = if self.group_id.is_empty() { "SHARED" } else { &self.group_id };
             if let Ok(mut npu) = shared().lock() {
                 npu.last_vlm_use = Some(std::time::Instant::now());
+                if !npu.vlm_loaded {
+                    tracing::info!(
+                        target: "mbl::npu",
+                        npu_model = %hef_path.file_name().and_then(|n| n.to_str()).unwrap_or("VLM"),
+                        "Loading the NPU scene description model (about 45 seconds)"
+                    );
+                }
                 npu.vlm_loaded = true;
                 npu.activity.description_loaded = true;
             }

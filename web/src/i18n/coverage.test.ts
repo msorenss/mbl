@@ -9,6 +9,7 @@ import { lookupExtendedPhrase, NON_EN_LOCALES } from "./phraseEngine";
 
 /** Names, code and developer messages that stay as they are in every language. */
 const KEEP_ENGLISH = new Set([
+  "Piper",
   // Each language's own name in the subtitle language list.
   "Dansk",
   "Deutsch",

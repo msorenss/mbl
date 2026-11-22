@@ -147,7 +147,7 @@ export default function CompanionReactions(props: {
         }
       },
       onEnd: () => {
-        if (video && restore !== undefined && !window.speechSynthesis.speaking)
+        if (video && restore !== undefined && !window.speechSynthesis?.speaking)
           video.volume = restore;
       },
     });

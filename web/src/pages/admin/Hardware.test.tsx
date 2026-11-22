@@ -6,6 +6,7 @@ import { Hardware } from "./Hardware";
 
 // The NPU models section has its own test.
 vi.mock("../../components/HailoModels", () => ({ default: () => null }));
+vi.mock("../../components/ServerVoices", () => ({ default: () => null }));
 
 describe("Admin Hardware Acceleration UI (M4.15)", () => {
   it.each([

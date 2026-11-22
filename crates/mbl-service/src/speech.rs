@@ -26,6 +26,9 @@ pub struct SpeechStatus {
     pub server_recognition: bool,
     /// Which model, e.g. `Whisper-Base.hef`.
     pub engine: Option<String>,
+    /// Languages the server can read aloud (Piper voices installed).
+    #[serde(default)]
+    pub server_voices: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -74,6 +77,7 @@ impl SpeechService {
         SpeechStatus {
             server_recognition: model.is_some(),
             engine: model.and_then(|m| m.file_name().and_then(|n| n.to_str()).map(str::to_owned)),
+            server_voices: Vec::new(),
         }
     }
 
@@ -148,6 +152,7 @@ impl SpeechService {
         let language = language
             .map(|l| l.trim().to_ascii_lowercase())
             .filter(|l| l.len() == 2 && l.chars().all(|c| c.is_ascii_lowercase()));
+        let started = std::time::Instant::now();
         let result = tokio::task::spawn_blocking(move || {
             mbl_hailo::HailoEngine::default().transcribe_audio(&pcm, language.as_deref(), false)
         })
@@ -161,6 +166,13 @@ impl SpeechService {
             .filter(|t| !t.is_empty())
             .collect::<Vec<_>>()
             .join(" ");
+        tracing::info!(
+            target: "mbl::npu",
+            npu_model = %model.file_name().and_then(|n| n.to_str()).unwrap_or("Whisper"),
+            took_ms = started.elapsed().as_millis() as u64,
+            npu_text = %if text.is_empty() { "(nothing heard)" } else { text.as_str() },
+            "NPU recognized speech"
+        );
         Ok(Transcript {
             text,
             engine: model.file_name().and_then(|n| n.to_str()).unwrap_or("Whisper").to_owned(),

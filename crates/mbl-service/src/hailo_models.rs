@@ -217,6 +217,8 @@ impl HailoModelService {
 
     pub async fn status(&self, actor: &Actor) -> Result<HailoModelsStatus> {
         actor.require_admin()?;
+        // Read the download first, so a finished download is never shown with its model missing.
+        let download = self.download.lock().ok().and_then(|d| d.clone());
         let (profile, version) = tokio::task::spawn_blocking(|| {
             (mbl_hwaccel::detect_fingerprint().npu_profile, hailort_version())
         })
@@ -271,7 +273,7 @@ impl HailoModelService {
             directory: dir.display().to_string(),
             free_bytes,
             models,
-            download: self.download.lock().ok().and_then(|d| d.clone()),
+            download,
         })
     }
 

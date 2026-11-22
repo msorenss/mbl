@@ -2716,6 +2716,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/speech/piper": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start downloading the Piper program (admin, about 25 MB). */
+        post: operations["install_piper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/speech/say": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read text aloud on the server (Piper): a WAV file for the browser to play. */
+        post: operations["say_text"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/speech/status": {
         parameters: {
             query?: never;
@@ -2745,6 +2779,41 @@ export interface paths {
         /** Turn a short recording (the request body, e.g. `audio/webm`, up to 4 MB) into text. */
         post: operations["transcribe_speech"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/speech/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Piper program and voices for reading aloud on the server (admin). */
+        get: operations["voices_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/speech/voices/{language}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start downloading the voice for a language (admin, about 60 MB). */
+        post: operations["install_voice"];
+        /** Remove an installed voice (admin). */
+        delete: operations["remove_voice"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6238,6 +6307,12 @@ export interface components {
             /** @description Report what would happen without changing anything. */
             dryRun?: boolean;
         };
+        SayRequest: {
+            /** @description Two-letter language code. */
+            language: string;
+            /** @description Up to 2,000 characters. */
+            text: string;
+        };
         /**
          * @description What is on screen, as text: from the NPU when there is one (objects, people, a description),
          *     otherwise a rough guess from colours that is marked as such.
@@ -6363,6 +6438,12 @@ export interface components {
             /** Format: int64 */
             timestampMs: number;
         };
+        ServerVoice: {
+            installed: boolean;
+            /** @description Two-letter language code. */
+            language: string;
+            name: string;
+        };
         SessionDto: {
             clientName?: string | null;
             /** Format: int64 */
@@ -6413,6 +6494,8 @@ export interface components {
             engine?: string | null;
             /** @description The server can turn speech into text (Whisper on the NPU). */
             serverRecognition: boolean;
+            /** @description Languages the server can read aloud (Piper voices installed). */
+            serverVoices?: string[];
         };
         SpoilerFreeRecap: {
             episodesIncluded: number;
@@ -7140,6 +7223,24 @@ export interface components {
             nextTitle?: string | null;
             /** Format: double */
             offsetSecs: number;
+        };
+        VoiceDownload: {
+            error?: string | null;
+            finished: boolean;
+            /** Format: int64 */
+            receivedBytes: number;
+            /** Format: int64 */
+            totalBytes?: number | null;
+            /** @description `program` or a language code. */
+            what: string;
+        };
+        VoicesStatus: {
+            download?: components["schemas"]["VoiceDownload"] | null;
+            /** @description The Piper program is installed. */
+            programInstalled: boolean;
+            /** @description Piper exists for this computer. */
+            supported: boolean;
+            voices: components["schemas"]["ServerVoice"][];
         };
         WatchState: {
             /** Format: int64 */
@@ -13928,6 +14029,83 @@ export interface operations {
             };
         };
     };
+    install_piper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    say_text: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SayRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/wav": unknown;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No voice for this language on the server */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     speech_status: {
         parameters: {
             query?: never;
@@ -13987,6 +14165,99 @@ export interface operations {
             };
             /** @description No speech recognition on this server */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    voices_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoicesStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    install_voice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                language: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_voice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                language: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

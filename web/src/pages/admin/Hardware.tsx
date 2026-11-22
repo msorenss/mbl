@@ -3,6 +3,7 @@ import client from "../../api/client";
 import type { components } from "../../api/schema";
 import HailoModels from "../../components/HailoModels";
 import { HefModelPickerDialog, type HefModelSlot } from "../../components/HefModelPickerDialog";
+import ServerVoices from "../../components/ServerVoices";
 import { useToast } from "../../context/ToastContext";
 import { useI18n } from "../../i18n";
 
@@ -784,6 +785,8 @@ export function Hardware() {
             </div>
 
             <HailoModels />
+
+            <ServerVoices />
 
             {/* Self-Test Capability Matrix Table */}
             <div>

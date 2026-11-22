@@ -7614,6 +7614,62 @@
         }
       }
     },
+    "/api/v1/speech/piper": {
+      "post": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Start downloading the Piper program (admin, about 25 MB).",
+        "operationId": "install_piper",
+        "responses": {
+          "202": {},
+          "403": {},
+          "409": {},
+          "422": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/speech/say": {
+      "post": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Read text aloud on the server (Piper): a WAV file for the browser to play.",
+        "operationId": "say_text",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "audio/wav": {}
+            }
+          },
+          "403": {},
+          "422": {},
+          "503": {
+            "description": "No voice for this language on the server"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/speech/status": {
       "get": {
         "tags": [
@@ -7690,6 +7746,89 @@
           "503": {
             "description": "No speech recognition on this server"
           }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/speech/voices": {
+      "get": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "The Piper program and voices for reading aloud on the server (admin).",
+        "operationId": "voices_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoicesStatus"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/speech/voices/{language}": {
+      "post": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Start downloading the voice for a language (admin, about 60 MB).",
+        "operationId": "install_voice",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {},
+          "403": {},
+          "409": {},
+          "422": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Remove an installed voice (admin).",
+        "operationId": "remove_voice",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "403": {},
+          "404": {}
         },
         "security": [
           {
@@ -18824,6 +18963,23 @@
           }
         }
       },
+      "SayRequest": {
+        "type": "object",
+        "required": [
+          "text",
+          "language"
+        ],
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "Two-letter language code."
+          },
+          "text": {
+            "type": "string",
+            "description": "Up to 2,000 characters."
+          }
+        }
+      },
       "SceneAnalysis": {
         "type": "object",
         "description": "What is on screen, as text: from the NPU when there is one (objects, people, a description),\notherwise a rough guess from colours that is marked as such.",
@@ -19241,6 +19397,26 @@
           }
         }
       },
+      "ServerVoice": {
+        "type": "object",
+        "required": [
+          "language",
+          "name",
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string",
+            "description": "Two-letter language code."
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "SessionDto": {
         "type": "object",
         "required": [
@@ -19422,6 +19598,13 @@
           "serverRecognition": {
             "type": "boolean",
             "description": "The server can turn speech into text (Whisper on the NPU)."
+          },
+          "serverVoices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Languages the server can read aloud (Piper voices installed)."
           }
         }
       },
@@ -21971,6 +22154,76 @@
           "offsetSecs": {
             "type": "number",
             "format": "double"
+          }
+        }
+      },
+      "VoiceDownload": {
+        "type": "object",
+        "required": [
+          "what",
+          "receivedBytes",
+          "finished"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "receivedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "totalBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "what": {
+            "type": "string",
+            "description": "`program` or a language code."
+          }
+        }
+      },
+      "VoicesStatus": {
+        "type": "object",
+        "required": [
+          "supported",
+          "programInstalled",
+          "voices"
+        ],
+        "properties": {
+          "download": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VoiceDownload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "programInstalled": {
+            "type": "boolean",
+            "description": "The Piper program is installed."
+          },
+          "supported": {
+            "type": "boolean",
+            "description": "Piper exists for this computer."
+          },
+          "voices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerVoice"
+            }
           }
         }
       },

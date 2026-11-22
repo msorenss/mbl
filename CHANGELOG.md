@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Added
+- **Reading aloud on the server with Piper**, for browsers without voices of their own (Chromium on a Raspberry Pi has none). Install the program (about 25 MB) and a voice per language (about 60 MB; 17 languages) under Hardware → Voices for reading aloud. Replies use the browser's own voice for the language when it has one, otherwise the server's. New `POST /api/v1/speech/say`, `GET /api/v1/speech/voices`, `POST /api/v1/speech/piper`, `POST/DELETE /api/v1/speech/voices/{language}`; `serverVoices` in the speech status.
+- The diagnostic log shows what the NPU models do: what Qwen says about the scene and how long it took, which objects YOLO saw, what Whisper heard, and when the scene model loads.
 - **Match subtitles to the speech** (an option): MBL finds where people speak in the audio and moves the subtitles there, also when they were timed for another frame rate, and leaves them alone when they already fit. The speech is mapped in the same read of the file as the subtitles.
 - Subtitle settings (size, font, colour, background and matching) sit next to quality and audio before playback and in the player's settings; the subtitle menu keeps the languages.
 

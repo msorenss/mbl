@@ -43,6 +43,7 @@ pub mod stream;
 pub mod subtitle_search;
 pub mod users;
 mod validate;
+pub mod voices;
 pub mod watch;
 pub mod webhooks;
 pub mod workers;
@@ -168,6 +169,7 @@ pub struct Services {
     pub missing: missing::MissingService,
     pub maintenance: maintenance::MaintenanceService,
     pub speech: speech::SpeechService,
+    pub voices: voices::VoiceService,
     pub hailo_models: hailo_models::HailoModelService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
@@ -249,6 +251,7 @@ impl Services {
             missing: missing::MissingService::new(db_missing.clone()),
             maintenance: maintenance::MaintenanceService::new(db_missing),
             speech: speech::SpeechService::new(),
+            voices: voices::VoiceService::new(db_hailo.clone()),
             hailo_models: hailo_models::HailoModelService::new(db_hailo),
             metadata,
             restart: None,

@@ -30,7 +30,9 @@ fn main() {
     ] {
         let moved: Vec<(i64, i64)> = cues
             .iter()
-            .map(|(a, b)| ((*a as f64 * scale) as i64 + offset, (*b as f64 * scale) as i64 + offset))
+            .map(|(a, b)| {
+                ((*a as f64 * scale) as i64 + offset, (*b as f64 * scale) as i64 + offset)
+            })
             .collect();
         let t = std::time::Instant::now();
         let found = align_to_speech(&speech, &moved, 30_000).expect("alignment");

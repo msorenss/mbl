@@ -237,6 +237,12 @@ fn whole_sentences(text: &str) -> String {
     }
 }
 
+/// The model file in a backend label such as `hailort-npu(HAILO10H,yolov11s.hef)` or
+/// `hailort-vlm(Qwen2-VL-2B-Instruct.hef)`, for the log.
+fn npu_model_name(backend: &str) -> String {
+    backend.rsplit([',', '(']).next().unwrap_or(backend).trim_end_matches(')').to_owned()
+}
+
 /// Whether a vision-language model is installed for the NPU.
 fn vlm_installed() -> bool {
     let fp = mbl_hwaccel::detect_fingerprint_from_root(
@@ -818,6 +824,19 @@ impl CompanionService {
         .ok()
         .flatten()?;
         let npu = analysis.backend != "cpu-heuristic";
+        if npu {
+            tracing::info!(
+                target: "mbl::npu",
+                npu_model = %npu_model_name(&analysis.backend),
+                position_ms = position,
+                npu_text = %if analysis.objects.is_empty() {
+                    "nothing".to_owned()
+                } else {
+                    analysis.objects.join(", ")
+                },
+                "NPU looked at the picture"
+            );
+        }
         // Tags the detections or the description already account for are not colour guesses.
         let colour_guess = analysis
             .tags
@@ -867,11 +886,26 @@ impl CompanionService {
         let scenes = self.scenes.clone();
         let session_id = session_id.to_owned();
         tokio::task::spawn_blocking(move || {
-            let text = image::load_from_memory(&jpeg)
+            let started = std::time::Instant::now();
+            let answer = image::load_from_memory(&jpeg)
                 .ok()
-                .and_then(|image| hailo().describe_image_vlm(&image, SCENE_PROMPT, SCENE_TOKENS))
-                .map(|(text, _)| whole_sentences(&text))
-                .filter(|t| !t.is_empty());
+                .and_then(|image| hailo().describe_image_vlm(&image, SCENE_PROMPT, SCENE_TOKENS));
+            let took_ms = started.elapsed().as_millis() as u64;
+            let text =
+                answer.as_ref().map(|(text, _)| whole_sentences(text)).filter(|t| !t.is_empty());
+            match (&answer, &text) {
+                (Some((_, backend)), Some(text)) => tracing::info!(
+                    target: "mbl::npu",
+                    npu_model = %npu_model_name(backend),
+                    position_ms = position,
+                    took_ms,
+                    npu_text = %text,
+                    "NPU described the scene"
+                ),
+                _ => {
+                    tracing::info!(target: "mbl::npu", position_ms = position, took_ms, "NPU gave no scene description")
+                }
+            }
             if let (Some(text), Ok(mut map)) = (text, scenes.lock())
                 && let Some(scene) = map.get_mut(&session_id)
                 && scene.position_ms == position
@@ -1237,6 +1271,16 @@ impl Default for CompanionService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_log_names_the_npu_model() {
+        assert_eq!(npu_model_name("hailort-npu(HAILO10H,yolov11s.hef)"), "yolov11s.hef");
+        assert_eq!(
+            npu_model_name("hailort-vlm(Qwen2-VL-2B-Instruct.hef)"),
+            "Qwen2-VL-2B-Instruct.hef"
+        );
+        assert_eq!(npu_model_name("cpu-heuristic"), "cpu-heuristic");
+    }
 
     #[test]
     fn descriptions_end_on_a_whole_sentence() {

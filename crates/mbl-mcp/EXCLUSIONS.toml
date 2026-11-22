@@ -478,3 +478,19 @@ reason = "Removes an installed NPU model; an admin does it from the Hardware pag
 [[exclusions]]
 path = "/api/v1/hw/npu"
 reason = "Hardware page switch and activity for MBL's use of the NPU; get_hw_report covers the NPU for agents."
+
+[[exclusions]]
+path = "/api/v1/speech/say"
+reason = "Audio for the browser to play; agents work with text."
+
+[[exclusions]]
+path = "/api/v1/speech/voices"
+reason = "Installing reading-aloud voices is an admin task in the web interface (downloads)."
+
+[[exclusions]]
+path = "/api/v1/speech/piper"
+reason = "Installing the reading-aloud program is an admin task in the web interface (download)."
+
+[[exclusions]]
+path = "/api/v1/speech/voices/{language}"
+reason = "Installing reading-aloud voices is an admin task in the web interface (downloads)."

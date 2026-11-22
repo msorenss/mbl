@@ -24,15 +24,38 @@ function browserRecognition(): RecognitionCtor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
-let serverStatus: Promise<boolean> | undefined;
+interface ServerSpeech {
+  recognition: boolean;
+  /** Languages the server can read aloud (Piper voices). */
+  voices: string[];
+}
 
-/** Whether the server can recognize speech (asked once per page load). */
-export function serverListens(): Promise<boolean> {
+let serverStatus: Promise<ServerSpeech> | undefined;
+
+function serverSpeech(): Promise<ServerSpeech> {
   serverStatus ??= client
     .GET("/api/v1/speech/status")
-    .then((r) => r.data?.serverRecognition ?? false)
-    .catch(() => false);
+    .then((r) => ({
+      recognition: r.data?.serverRecognition ?? false,
+      voices: r.data?.serverVoices ?? [],
+    }))
+    .catch(() => ({ recognition: false, voices: [] }));
   return serverStatus;
+}
+
+/** Whether the server can recognize speech (asked once per page load). */
+export async function serverListens(): Promise<boolean> {
+  return (await serverSpeech()).recognition;
+}
+
+/** Whether the server can read `language` aloud. */
+export async function serverSpeaks(language: string): Promise<boolean> {
+  return (await serverSpeech()).voices.includes(language);
+}
+
+/** Forget what the server could do, after an administrator installed or removed a voice. */
+export function forgetServerSpeech() {
+  serverStatus = undefined;
 }
 
 /** The engine to use, or `null` when neither the server nor the browser can listen. */
@@ -212,8 +235,9 @@ export async function startListening(
 }
 
 /** Whether the browser can read text aloud. */
+/** Whether replies can be read aloud here: by the browser, or by the server and played. */
 export function canSpeak(): boolean {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
+  return typeof window !== "undefined" && ("speechSynthesis" in window || "Audio" in window);
 }
 
 /** The browser's voices. Some browsers load them a moment after the page; wait up to 1.5 s. */
@@ -243,6 +267,7 @@ export function voiceFor(
  */
 export async function readAloudProblem(language: string): Promise<string | null> {
   const voices = await browserVoices();
+  if (!voiceFor(voices, language) && (await serverSpeaks(language))) return null;
   if (voices.length === 0)
     return "This browser has no voices to read with. Install a speech voice on this device or use another browser.";
   if (!voiceFor(voices, language))
@@ -250,27 +275,101 @@ export async function readAloudProblem(language: string): Promise<string | null>
   return null;
 }
 
+let serverAudio: HTMLAudioElement | undefined;
+
 /**
  * Read `text` aloud in `language`. `onStart`/`onEnd` let the player lower its volume meanwhile.
+ * Uses the browser's own voice for the language when it has one, otherwise the server's (Piper),
+ * which also works in browsers without any voices.
  */
 export function speak(
   text: string,
   language: string,
   hooks: { onStart?: () => void; onEnd?: () => void } = {},
 ) {
-  if (!canSpeak() || !text.trim()) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language;
-  const voice = voiceFor(window.speechSynthesis.getVoices(), language);
-  if (voice) utterance.voice = voice;
-  utterance.onstart = () => hooks.onStart?.();
-  utterance.onend = () => hooks.onEnd?.();
-  utterance.onerror = () => hooks.onEnd?.();
-  window.speechSynthesis.speak(utterance);
+  if (!text.trim()) return;
+  const browserVoice =
+    canSpeakInBrowser() && voiceFor(window.speechSynthesis.getVoices(), language);
+  if (browserVoice) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language;
+    utterance.voice = browserVoice;
+    utterance.onstart = () => hooks.onStart?.();
+    utterance.onend = () => hooks.onEnd?.();
+    utterance.onerror = () => hooks.onEnd?.();
+    window.speechSynthesis.speak(utterance);
+    return;
+  }
+  void (async () => {
+    if (await serverSpeaks(language)) {
+      await speakOnServer(text, language, hooks);
+    } else if (canSpeakInBrowser()) {
+      // No voice for the language anywhere: the browser's default voice is better than silence.
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language;
+      utterance.onstart = () => hooks.onStart?.();
+      utterance.onend = () => hooks.onEnd?.();
+      utterance.onerror = () => hooks.onEnd?.();
+      window.speechSynthesis.speak(utterance);
+    }
+  })();
+}
+
+/** Replies read one after another, like the browser's own queue. */
+let serverQueue: Promise<void> = Promise.resolve();
+
+function speakOnServer(
+  text: string,
+  language: string,
+  hooks: { onStart?: () => void; onEnd?: () => void },
+): Promise<void> {
+  const turn = serverQueue.then(async () => {
+    try {
+      const token = getStoredToken();
+      const response = await fetch("/api/v1/speech/say", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text, language }),
+      });
+      if (!response.ok) return;
+      const url = URL.createObjectURL(await response.blob());
+      const audio = new Audio(url);
+      serverAudio = audio;
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          URL.revokeObjectURL(url);
+          if (serverAudio === audio) serverAudio = undefined;
+          hooks.onEnd?.();
+          resolve();
+        };
+        audio.onplay = () => hooks.onStart?.();
+        audio.onended = done;
+        audio.onerror = done;
+        audio.onpause = () => {
+          if (!audio.ended) done();
+        };
+        void audio.play().catch(done);
+      });
+    } catch {
+      hooks.onEnd?.();
+    }
+  });
+  serverQueue = turn;
+  return turn;
+}
+
+function canSpeakInBrowser(): boolean {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
 export function stopSpeaking() {
-  if (canSpeak()) window.speechSynthesis.cancel();
+  if (canSpeakInBrowser()) window.speechSynthesis.cancel();
+  serverAudio?.pause();
+  serverAudio = undefined;
+  serverQueue = Promise.resolve();
 }
 
 const SPEAK_KEY = "mbl.speech.readAloud";
