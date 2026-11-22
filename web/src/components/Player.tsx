@@ -1061,6 +1061,15 @@ export function Player(props: PlayerProps) {
         setIsMuted(videoRef.muted);
       }
       setCastDevice(cState.deviceName);
+      // The receiver answered the play command (or stopped casting): the "starting" notice is done.
+      if (
+        (!cState.isCasting || cState.playerState === "playing") &&
+        (controlNotice() === "Starting playback on the receiver…" ||
+          controlNotice() === "The receiver is starting playback…")
+      ) {
+        castPlayRequestedAt = 0;
+        setControlNotice("");
+      }
       if (cState.isCasting) {
         if (!wasCasting && cState.supportsAutoplayNext) {
           recordLocalCastState("local.handoff");

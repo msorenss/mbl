@@ -1375,3 +1375,17 @@ it("ignores a second play press while the receiver is still starting", async () 
   expect(cast.play).toHaveBeenCalledTimes(1);
   expect(cast.pause).not.toHaveBeenCalled();
 });
+
+it("clears the receiver starting notice once the receiver plays", async () => {
+  dispose = render(() => createComponent(Player, { itemId: 7, onClose: vi.fn() }), document.body);
+  await tick();
+  state = { ...state, isCasting: true, deviceName: "TV", playerState: "paused", currentTime: 30 };
+  emit(state);
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
+  expect(castManager.play).toHaveBeenCalled();
+  expect(document.body.textContent).toContain("Starting playback on the receiver…");
+  state = { ...state, playerState: "playing" };
+  emit(state);
+  await tick();
+  expect(document.body.textContent).not.toContain("Starting playback on the receiver…");
+});
