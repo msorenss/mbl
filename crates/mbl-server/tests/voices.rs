@@ -95,7 +95,8 @@ async fn piper_and_a_voice_are_installed_and_read_text_aloud() {
         }
         panic!("the download never finished");
     };
-    if voices.status(&actor).await.unwrap().supported {
+    // The fake Piper is a shell script, so the install-and-speak part runs on Unix only.
+    if cfg!(unix) && voices.status(&actor).await.unwrap().supported {
         voices.install_program(&actor).await.unwrap();
         let status = wait().await;
         assert_eq!(status.download.clone().unwrap().error, None);
