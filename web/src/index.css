@@ -1121,6 +1121,19 @@ dialog[open],
   min-width: 0;
 }
 
+.mbl-player-settings-toggle,
+.mbl-player-settings-close {
+  display: none;
+  padding: 6px 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* Subtitle look, opened from "Subtitle settings" like the other player menus. */
 .mbl-player-sub-settings-toggle {
   width: 100%;
@@ -1210,10 +1223,41 @@ dialog[open],
     max-width: 100%;
   }
 
+  .mbl-player-settings-toggle {
+    display: inline-block;
+  }
+
+  /* Phones: audio, quality, sync and subtitle look in a sheet behind "Settings". */
+  .mbl-player-settings {
+    display: none;
+  }
+
+  .mbl-player-settings.open {
+    display: grid;
+    gap: 10px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10003;
+    max-height: 75dvh;
+    overflow: auto;
+    padding: 14px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    background: rgba(20, 20, 20, 0.97);
+    border-top: 1px solid var(--border);
+    border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
+  }
+
+  .mbl-player-settings-close {
+    display: block;
+    justify-self: end;
+  }
+
   .mbl-player-settings-group {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
     align-items: center;
-    gap: 4px 8px;
+    gap: 10px 12px;
   }
 
   .mbl-player-sub-settings {

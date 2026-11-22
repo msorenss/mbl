@@ -174,6 +174,8 @@ export function Player(props: PlayerProps) {
   );
   const [showSubtitlesMenu, setShowSubtitlesMenu] = createSignal(false);
   const [showSubtitleSettings, setShowSubtitleSettings] = createSignal(false);
+  // On phones the track, quality and sync controls sit behind one button.
+  const [showSettingsSheet, setShowSettingsSheet] = createSignal(false);
   const [subtitlesAvailable] = createResource(subtitleSearchAvailable);
   const [findingSubtitles, setFindingSubtitles] = createSignal(false);
   const [showSpeedMenu, setShowSpeedMenu] = createSignal(false);
@@ -1797,7 +1799,8 @@ export function Player(props: PlayerProps) {
           Preparing playback…
         </p>
       </Show>
-      <Show when={subtitleLoad() === "loading" || subtitleLoad() === "failed"}>
+      {/* While casting the receiver loads its own text track; the local one never loads. */}
+      <Show when={!isCasting() && (subtitleLoad() === "loading" || subtitleLoad() === "failed")}>
         <p
           role="status"
           style={{
@@ -2634,7 +2637,29 @@ export function Player(props: PlayerProps) {
             class="mbl-player-options"
             style={{ display: "flex", "align-items": "center", position: "relative" }}
           >
-            <div class="mbl-player-settings">
+            <button
+              type="button"
+              class="mbl-player-settings-toggle"
+              aria-expanded={showSettingsSheet()}
+              onClick={() => {
+                setShowSubtitlesMenu(false);
+                setShowSpeedMenu(false);
+                setShowSettingsSheet(!showSettingsSheet());
+              }}
+            >
+              Settings
+            </button>
+            <div class="mbl-player-settings" classList={{ open: showSettingsSheet() }}>
+              <button
+                type="button"
+                class="mbl-player-settings-close"
+                onClick={() => {
+                  setShowSubtitleSettings(false);
+                  setShowSettingsSheet(false);
+                }}
+              >
+                Done
+              </button>
               <div class="mbl-player-settings-group">
                 <Show when={(playbackData()?.audioTracks?.length ?? 0) > 0}>
                   <label for="player-audio-track">Audio track</label>
@@ -2665,18 +2690,6 @@ export function Player(props: PlayerProps) {
                   </select>
                 </Show>
                 <Show when={!isAudioOnly()}>
-                  <Show when={isCasting() && castProfile()}>
-                    <p
-                      class="cast-profile-notice"
-                      role="status"
-                      style={{ "overflow-wrap": "anywhere", "max-width": "100%" }}
-                    >
-                      Automatic · up to {castProfile()?.maxHeight}p ·{" "}
-                      {castProfile()?.source === "receiver-probe"
-                        ? "receiver capability verified"
-                        : "Limited compatibility — receiver capabilities could not be verified"}
-                    </p>
-                  </Show>
                   <label for="player-quality">Quality limit</label>
                   <select
                     id="player-quality"
