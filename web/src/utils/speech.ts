@@ -323,44 +323,119 @@ export function speak(
 /** Replies read one after another, like the browser's own queue. */
 let serverQueue: Promise<void> = Promise.resolve();
 
+/**
+ * Read a reply aloud while it is still being written: each finished sentence is read as soon as
+ * it arrives (`update` with the text so far), the rest when the reply is done (`finish`).
+ */
+export function streamingSpeaker(language: string) {
+  let spoken = 0;
+  const sayUpTo = (text: string, end: number) => {
+    const part = text.slice(spoken, end).trim();
+    spoken = end;
+    if (part) speak(part, language);
+  };
+  return {
+    update(text: string) {
+      let end = -1;
+      for (const match of text.matchAll(/[.!?…]["”’)\]]*\s/g)) {
+        end = (match.index ?? 0) + match[0].length;
+      }
+      if (end > spoken) sayUpTo(text, end);
+    },
+    finish(text: string) {
+      if (text.length > spoken) sayUpTo(text, text.length);
+    },
+  };
+}
+
+/** Bumped by `stopSpeaking`, so pieces still on their way are dropped. */
+let speechGeneration = 0;
+
+/**
+ * Text in pieces for the server to read one after another: the first sentence on its own, so
+ * the voice starts as soon as that sentence is ready, then up to about 250 characters each
+ * while the previous piece plays.
+ */
+export function speechChunks(text: string): string[] {
+  const sentences =
+    text
+      .replace(/\s+/g, " ")
+      .trim()
+      .match(/[^.!?…]+[.!?…]+["”’)\]]*|[^.!?…]+$/g)
+      ?.map((s) => s.trim())
+      .filter(Boolean) ?? [];
+  const out: string[] = [];
+  for (const sentence of sentences) {
+    const last = out[out.length - 1];
+    if (out.length >= 2 && last && last.length + sentence.length < 250) {
+      out[out.length - 1] = `${last} ${sentence}`;
+    } else {
+      out.push(sentence);
+    }
+  }
+  return out;
+}
+
+function fetchSpeech(text: string, language: string): Promise<Blob | null> {
+  const token = getStoredToken();
+  return fetch("/api/v1/speech/say", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ text, language }),
+  })
+    .then((response) => (response.ok ? response.blob() : null))
+    .catch(() => null);
+}
+
+/** Play one piece; resolves when it ends, is paused (stopped) or fails. */
+function playSpeech(blob: Blob, onPlay: () => void): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  serverAudio = audio;
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      URL.revokeObjectURL(url);
+      if (serverAudio === audio) serverAudio = undefined;
+      resolve();
+    };
+    audio.onplay = onPlay;
+    audio.onended = done;
+    audio.onerror = done;
+    audio.onpause = () => {
+      if (!audio.ended) done();
+    };
+    void audio.play().catch(done);
+  });
+}
+
 function speakOnServer(
   text: string,
   language: string,
   hooks: { onStart?: () => void; onEnd?: () => void },
 ): Promise<void> {
+  const generation = speechGeneration;
   const turn = serverQueue.then(async () => {
-    try {
-      const token = getStoredToken();
-      const response = await fetch("/api/v1/speech/say", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ text, language }),
+    const chunks = speechChunks(text);
+    let started = false;
+    // The next piece is made while the current one plays.
+    let next = chunks.length > 0 ? fetchSpeech(chunks[0], language) : Promise.resolve(null);
+    for (let i = 0; i < chunks.length; i++) {
+      const blob = await next;
+      if (generation !== speechGeneration) break;
+      next = i + 1 < chunks.length ? fetchSpeech(chunks[i + 1], language) : Promise.resolve(null);
+      if (!blob) continue;
+      await playSpeech(blob, () => {
+        if (!started) {
+          started = true;
+          hooks.onStart?.();
+        }
       });
-      if (!response.ok) return;
-      const url = URL.createObjectURL(await response.blob());
-      const audio = new Audio(url);
-      serverAudio = audio;
-      await new Promise<void>((resolve) => {
-        const done = () => {
-          URL.revokeObjectURL(url);
-          if (serverAudio === audio) serverAudio = undefined;
-          hooks.onEnd?.();
-          resolve();
-        };
-        audio.onplay = () => hooks.onStart?.();
-        audio.onended = done;
-        audio.onerror = done;
-        audio.onpause = () => {
-          if (!audio.ended) done();
-        };
-        void audio.play().catch(done);
-      });
-    } catch {
-      hooks.onEnd?.();
+      if (generation !== speechGeneration) break;
     }
+    hooks.onEnd?.();
   });
   serverQueue = turn;
   return turn;
@@ -371,6 +446,7 @@ function canSpeakInBrowser(): boolean {
 }
 
 export function stopSpeaking() {
+  speechGeneration += 1;
   if (canSpeakInBrowser()) window.speechSynthesis.cancel();
   serverAudio?.pause();
   serverAudio = undefined;

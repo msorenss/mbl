@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { LONGEST_MS, NOTHING_HEARD_MS, SILENCE_MS, silenceDetector } from "./speech";
+import { LONGEST_MS, NOTHING_HEARD_MS, SILENCE_MS, silenceDetector, speechChunks } from "./speech";
 
 const speech = 0.1;
 const quiet = 0.005;
@@ -43,4 +43,43 @@ it("picks a voice for the language and says when the browser has none", async ()
   installed = voices;
   expect(await readAloudProblem("de")).toContain("no voice for your language");
   expect(await readAloudProblem("sv")).toBeNull();
+});
+
+it("reads the first sentence on its own so the voice starts soon", () => {
+  const reply =
+    "Det är Jason. Han har just vaknat i en annan värld! Kvinnan bredvid honom är Amanda, som hjälper honom att förstå lådan. Vill du veta mer?";
+  const chunks = speechChunks(reply);
+  expect(chunks[0]).toBe("Det är Jason.");
+  expect(chunks.join(" ")).toBe(reply);
+  expect(chunks.every((c) => c.length < 260)).toBe(true);
+  expect(speechChunks("Utan punkt")).toEqual(["Utan punkt"]);
+  expect(speechChunks("   ")).toEqual([]);
+});
+
+it("starts reading finished sentences while the reply is still coming", async () => {
+  const { streamingSpeaker } = await import("./speech");
+  const spoken: string[] = [];
+  Object.defineProperty(window, "speechSynthesis", {
+    configurable: true,
+    value: {
+      getVoices: () => [{ lang: "sv-SE", localService: true, name: "sv" }],
+      speak: (u: { text: string }) => spoken.push(u.text),
+      addEventListener: () => undefined,
+    },
+  });
+  (globalThis as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance = class {
+    text: string;
+    constructor(text: string) {
+      this.text = text;
+    }
+  };
+  const speaker = streamingSpeaker("sv");
+  speaker.update("Det är Jason");
+  expect(spoken).toEqual([]);
+  speaker.update("Det är Jason. Han vaknar");
+  expect(spoken).toEqual(["Det är Jason."]);
+  speaker.update("Det är Jason. Han vaknar i en annan värld. Sedan");
+  expect(spoken).toEqual(["Det är Jason.", "Han vaknar i en annan värld."]);
+  speaker.finish("Det är Jason. Han vaknar i en annan värld. Sedan går han.");
+  expect(spoken[2]).toBe("Sedan går han.");
 });

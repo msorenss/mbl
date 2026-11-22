@@ -11,8 +11,8 @@ import {
   readAloud,
   readAloudProblem,
   setReadAloud,
-  speak,
   stopSpeaking,
+  streamingSpeaker,
 } from "../utils/speech";
 import MicButton from "./MicButton";
 import { AppIcon } from "./ui";
@@ -204,19 +204,24 @@ export default function AssistantChat() {
         );
       }
       let failure = "";
+      // Starts reading the first sentence while the rest is still coming.
+      const speaker = speakReplies() ? streamingSpeaker(locale()) : null;
+      let streamed = "";
       const feed = sseParser((name, data) => {
         const d = data as Record<string, unknown>;
         if (name === "conversation") setCurrent(d.id as number);
-        else if (name === "delta")
+        else if (name === "delta") {
+          streamed += String(d.text ?? "");
           updateLast((l) => ({ ...l, content: l.content + String(d.text ?? "") }));
-        else if (name === "done") {
+          speaker?.update(streamed);
+        } else if (name === "done") {
           const message = d.message as { content?: string; items?: Mention[] } | undefined;
           updateLast((l) => ({
             ...l,
             content: message?.content ?? l.content,
             items: message?.items ?? [],
           }));
-          if (speakReplies() && message?.content) speak(message.content, locale());
+          speaker?.finish(message?.content ?? streamed);
           // The person asked to watch something here.
           const play = d.play as Mention | null | undefined;
           if (play) {
