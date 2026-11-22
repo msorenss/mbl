@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-22
+
 ### Added
 - Edit the menu: choose **Edit menu** in the user menu to hide entries and change their order within each group (drag an entry, or use the arrows). The layout is saved with your account, so every device shows the same menu; **Reset to default** brings back the standard menu. Home is always shown.
 - **Open in Radarr/Sonarr/Lidarr** for administrators: on requests and on movie and show pages. It opens the title in the download service when the service has it, otherwise the service's start page, and appears only for services with an address and an API key. New `GET /api/v1/requests/arr-links`, `GET /api/v1/requests/{id}/arr-link` and `GET /api/v1/items/{id}/arr-link`.

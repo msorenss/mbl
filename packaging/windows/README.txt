@@ -1,4 +1,4 @@
-MBL Media Server for Windows (v1.3.10)
+MBL Media Server for Windows (v1.4.0)
 =====================================
 
 Welcome to MBL! MBL is a high-performance, lightweight personal media server.

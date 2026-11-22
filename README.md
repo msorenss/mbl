@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.3.10
+Current release: v1.4.0
 
-This release adds a built-in AI assistant: a chat on every page that answers questions about your library, and a watch companion in the player that comments on the scene and answers you. It works with Claude, OpenAI, Gemini and other OpenAI-compatible providers, local models such as Ollama, or an agent program such as Claude Code. The web app's first download is also about 40 % smaller. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release makes watching together and alone better. The watch companion and the assistant can see the scene (as a screenshot you allow, or analysed on a Hailo NPU without anything leaving the server) and you can talk to them. Movie nights can be planned and guests join without an account. Subtitles can be found and downloaded, embedded subtitles are ready in seconds, and "Continue watching" shows where you stopped. Libraries show what is missing, the database looks after itself, the menu can be rearranged, and on a Raspberry Pi transcoding no longer writes to the SD card. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 
