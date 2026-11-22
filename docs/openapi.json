@@ -1881,6 +1881,145 @@
         ]
       }
     },
+    "/api/v1/hw/ollama": {
+      "get": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Hailo-Ollama: whether it is installed and running, its models and the running download.",
+        "operationId": "hailo_ollama_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HailoOllamaStatus"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hw/ollama/models/{name}": {
+      "delete": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Remove a Hailo-Ollama model.",
+        "operationId": "delete_hailo_ollama_model",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "403": {},
+          "404": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hw/ollama/models/{name}/pull": {
+      "post": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Start downloading a Hailo-Ollama model (e.g. `qwen2.5:1.5b`).",
+        "operationId": "pull_hailo_ollama_model",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {},
+          "403": {},
+          "409": {},
+          "422": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hw/ollama/start": {
+      "post": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Start Hailo-Ollama (and again after a restart).",
+        "operationId": "start_hailo_ollama",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HailoOllamaStatus"
+                }
+              }
+            }
+          },
+          "403": {},
+          "409": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hw/ollama/stop": {
+      "post": {
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Stop the Hailo-Ollama MBL started.",
+        "operationId": "stop_hailo_ollama",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HailoOllamaStatus"
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/hw/report": {
       "get": {
         "tags": [
@@ -13316,6 +13455,119 @@
           "supported": {
             "type": "boolean",
             "description": "Models can be installed here (a Hailo-10H with a known HailoRT version)."
+          }
+        }
+      },
+      "HailoOllamaModel": {
+        "type": "object",
+        "required": [
+          "name",
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string",
+            "description": "For example `qwen2.5:1.5b`; what the assistant's model field takes."
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "HailoOllamaPull": {
+        "type": "object",
+        "required": [
+          "model",
+          "status",
+          "completed",
+          "finished"
+        ],
+        "properties": {
+          "completed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "What Hailo-Ollama says it is doing."
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "HailoOllamaStatus": {
+        "type": "object",
+        "required": [
+          "installed",
+          "running",
+          "managed",
+          "assistantUrl",
+          "models"
+        ],
+        "properties": {
+          "assistantUrl": {
+            "type": "string",
+            "description": "Address for the assistant's settings, e.g. `http://127.0.0.1:8000/v1`."
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "`hailo-ollama` is installed on this computer."
+          },
+          "managed": {
+            "type": "boolean",
+            "description": "Started by MBL (and stopped by it)."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HailoOllamaModel"
+            }
+          },
+          "pull": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HailoOllamaPull"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

@@ -2,6 +2,7 @@ import { createSignal, For, onMount, Show } from "solid-js";
 import client from "../../api/client";
 import type { components } from "../../api/schema";
 import HailoModels from "../../components/HailoModels";
+import HailoOllama from "../../components/HailoOllama";
 import { HefModelPickerDialog, type HefModelSlot } from "../../components/HefModelPickerDialog";
 import ServerVoices from "../../components/ServerVoices";
 import { useToast } from "../../context/ToastContext";
@@ -785,6 +786,8 @@ export function Hardware() {
             </div>
 
             <HailoModels />
+
+            <HailoOllama />
 
             <ServerVoices />
 

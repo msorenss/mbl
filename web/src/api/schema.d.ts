@@ -847,6 +847,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/hw/ollama": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hailo-Ollama: whether it is installed and running, its models and the running download. */
+        get: operations["hailo_ollama_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/ollama/models/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a Hailo-Ollama model. */
+        delete: operations["delete_hailo_ollama_model"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/ollama/models/{name}/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start downloading a Hailo-Ollama model (e.g. `qwen2.5:1.5b`). */
+        post: operations["pull_hailo_ollama_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/ollama/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Hailo-Ollama (and again after a restart). */
+        post: operations["start_hailo_ollama"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/hw/ollama/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop the Hailo-Ollama MBL started. */
+        post: operations["stop_hailo_ollama"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hw/report": {
         parameters: {
             query?: never;
@@ -4702,6 +4787,36 @@ export interface components {
             reason?: string | null;
             /** @description Models can be installed here (a Hailo-10H with a known HailoRT version). */
             supported: boolean;
+        };
+        HailoOllamaModel: {
+            installed: boolean;
+            /** @description For example `qwen2.5:1.5b`; what the assistant's model field takes. */
+            name: string;
+            /** Format: int64 */
+            sizeBytes?: number | null;
+        };
+        HailoOllamaPull: {
+            /** Format: int64 */
+            completed: number;
+            error?: string | null;
+            finished: boolean;
+            model: string;
+            /** @description What Hailo-Ollama says it is doing. */
+            status: string;
+            /** Format: int64 */
+            total?: number | null;
+        };
+        HailoOllamaStatus: {
+            /** @description Address for the assistant's settings, e.g. `http://127.0.0.1:8000/v1`. */
+            assistantUrl: string;
+            /** @description `hailo-ollama` is installed on this computer. */
+            installed: boolean;
+            /** @description Started by MBL (and stopped by it). */
+            managed: boolean;
+            models: components["schemas"]["HailoOllamaModel"][];
+            pull?: components["schemas"]["HailoOllamaPull"] | null;
+            running: boolean;
+            version?: string | null;
         };
         /**
          * @description AI media pipelines accelerated by Hailo-8 / Hailo-8L / Hailo-10H.
@@ -9149,6 +9264,161 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NpuActivity"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    hailo_ollama_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HailoOllamaStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_hailo_ollama_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pull_hailo_ollama_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    start_hailo_ollama: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HailoOllamaStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stop_hailo_ollama: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HailoOllamaStatus"];
                 };
             };
             403: {

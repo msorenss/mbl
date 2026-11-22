@@ -494,3 +494,23 @@ reason = "Installing the reading-aloud program is an admin task in the web inter
 [[exclusions]]
 path = "/api/v1/speech/voices/{language}"
 reason = "Installing reading-aloud voices is an admin task in the web interface (downloads)."
+
+[[exclusions]]
+path = "/api/v1/hw/ollama"
+reason = "Hailo-Ollama status for the Hardware page; agents use the assistant instead."
+
+[[exclusions]]
+path = "/api/v1/hw/ollama/start"
+reason = "Starting a local model server is an admin task in the web interface."
+
+[[exclusions]]
+path = "/api/v1/hw/ollama/stop"
+reason = "Stopping a local model server is an admin task in the web interface."
+
+[[exclusions]]
+path = "/api/v1/hw/ollama/models/{name}/pull"
+reason = "Model downloads are started by an admin in the web interface."
+
+[[exclusions]]
+path = "/api/v1/hw/ollama/models/{name}"
+reason = "Removing models is an admin task in the web interface."

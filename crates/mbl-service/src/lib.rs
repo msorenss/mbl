@@ -14,6 +14,7 @@ pub mod downloads;
 mod dvr;
 pub mod events;
 pub mod hailo_models;
+pub mod hailo_ollama;
 pub mod http_base;
 pub mod hw;
 pub mod images;
@@ -171,6 +172,7 @@ pub struct Services {
     pub speech: speech::SpeechService,
     pub voices: voices::VoiceService,
     pub hailo_models: hailo_models::HailoModelService,
+    pub hailo_ollama: hailo_ollama::HailoOllamaService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -252,6 +254,7 @@ impl Services {
             maintenance: maintenance::MaintenanceService::new(db_missing),
             speech: speech::SpeechService::new(),
             voices: voices::VoiceService::new(db_hailo.clone()),
+            hailo_ollama: hailo_ollama::HailoOllamaService::new(db_hailo.clone()),
             hailo_models: hailo_models::HailoModelService::new(db_hailo),
             metadata,
             restart: None,

@@ -319,6 +319,10 @@ impl Server {
         if let Err(e) = self.services.hailo_models.apply_saved_setting().await {
             tracing::warn!(failure = e.code(), "could not read the NPU setting");
         }
+        {
+            let ollama = self.services.hailo_ollama.clone();
+            tokio::spawn(async move { ollama.resume().await });
+        }
 
         let companion = tokio::spawn(mbl_mcp::companion_bot::run(
             mbl_mcp::assistant::AssistantRunner::new(self.db.clone(), self.services.clone())

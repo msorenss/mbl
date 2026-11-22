@@ -123,15 +123,164 @@ Keep Frigate's image on the same HailoRT version as the system. The Hailo-10H ha
 memory; Frigate's YOLO, the scene model and Whisper fit together, a large language model as well
 usually does not.
 
+## Language models on the NPU (Hailo-Ollama)
+
+On a Hailo-10H the built-in assistant can run on the board too, without a cloud service.
+Hailo-Ollama is Hailo's small model server: it speaks the same language as Ollama (and the
+OpenAI-style `/v1/chat/completions`), but runs models compiled for the Hailo-10H. The models are
+small (1–2 billion parameters): good for short answers and summaries, weaker at long
+conversations and at searching the library with tools. Try it; if the answers are not good
+enough, a cloud provider or Ollama on a PC is the better assistant.
+
+Hailo-8 / 8L boards cannot run these models.
+
+### Install Hailo-Ollama
+
+Hailo-Ollama comes in the package `hailo-gen-ai-model-zoo`, which must have **the same version as
+HailoRT** (`hailortcli --version`). Check what you have:
+
+```bash
+dpkg -l | grep -E "hailort|h10-hailort|hailo-gen-ai"
+```
+
+All lines must show the same version, for example `5.4.0`.
+
+**If you installed HailoRT from Raspberry Pi's repository** (`hailo-h10-all`), install the model
+zoo from there too:
+
+```bash
+sudo apt install hailo-gen-ai-model-zoo
+```
+
+**If you installed HailoRT yourself from Hailo's Developer Zone** (a newer version than Raspberry
+Pi packages, as for Frigate's `hailo-frigate-h10` image), apt cannot help: its version would not
+match. Download the model zoo from the same place instead:
+
+1. Sign in at Hailo's Developer Zone, open the software downloads and filter on the Hailo-10H,
+   your HailoRT version and `arm64` (for a Raspberry Pi 5). The package is listed as the GenAI
+   model zoo.
+2. Download `hailo-gen-ai-model-zoo_<version>_arm64.deb` (for example
+   `hailo-gen-ai-model-zoo_5.4.0_arm64.deb`).
+3. Install it from the folder you downloaded it to:
+
+```bash
+sudo apt install ./hailo-gen-ai-model-zoo_5.4.0_arm64.deb
+```
+
+4. Stop apt from replacing it with Raspberry Pi's older version on the next upgrade:
+
+```bash
+sudo apt-mark hold hailo-gen-ai-model-zoo hailort h10-hailort-pcie-driver
+```
+
+(Use `sudo apt-mark unhold …` when you upgrade on purpose, see below.)
+
+Check that the program is there:
+
+```bash
+hailo-ollama --help
+```
+
+The package installs `/usr/bin/hailo-ollama` and a list of the models Hailo offers in
+`/usr/share/hailo-ollama/models/manifests`. It does not install a service and does not download
+any models.
+
+### Start it from MBL
+
+Open **Administration → Hardware → Language models on the NPU**. With the package installed MBL
+shows **Stopped** and a **Start** button. **Start**:
+
+- runs `hailo-ollama` as the `mbl` user on `127.0.0.1:8000` (only reachable from the Pi itself),
+- shares the board with Frigate and MBL's own models (`HAILO_OLLAMA_VDEVICE_GROUP_ID=SHARED`),
+- keeps its downloaded models under `/var/lib/mbl/hailo-ollama`, next to MBL's database, so they
+  are not mixed with anything else on the Pi,
+- starts it again when MBL restarts, until you press **Stop**.
+
+Turning off **Let MBL use the NPU** stops Hailo-Ollama too.
+
+Then **Download** a model. Each is about 1.5–2.5 GB and comes from Hailo's server; MBL shows the
+progress. A good first choice is `qwen2.5:1.5b`; `qwen3:1.7b` answers a little better and more
+slowly, `llama3.2:1b` is the fastest. **Remove** deletes a model again.
+
+### Use it for the assistant
+
+Open **Administration → Server settings → Assistant**:
+
+1. **Provider:** Hailo-Ollama.
+2. **Address:** the one the Hardware page shows, normally `http://127.0.0.1:8000/v1`.
+3. **Model:** **Fetch models** and pick the one you downloaded, for example `qwen2.5:1.5b`.
+4. **Test connection**, then turn the assistant on.
+
+The first answer after a pause takes longer while the model loads onto the board (tens of
+seconds); after that answers start in a few seconds.
+
+If the test says the model cannot use tools, the assistant can still chat but cannot look things
+up in the library for you; a larger model elsewhere can.
+
+### If you already run Hailo-Ollama yourself
+
+MBL starts nothing if something already answers on `127.0.0.1:8000`: it uses that one, shows it
+as **Running** and has no **Stop** button for it. That is the way to go if you want your own
+settings, for example a systemd service:
+
+```ini
+# /etc/systemd/system/hailo-ollama.service
+[Unit]
+Description=Hailo-Ollama
+After=network.target
+
+[Service]
+User=mbl
+Environment=OLLAMA_HOST=127.0.0.1:8000
+Environment=HAILO_OLLAMA_VDEVICE_GROUP_ID=SHARED
+Environment=HOME=/var/lib/mbl/hailo-ollama
+WorkingDirectory=/var/lib/mbl/hailo-ollama
+ExecStart=/usr/bin/hailo-ollama
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+```
+
+```bash
+sudo systemctl enable --now hailo-ollama
+```
+
+Keep `127.0.0.1:8000`: MBL looks there. `HAILO_OLLAMA_VDEVICE_GROUP_ID=SHARED` is what lets it run
+next to Frigate; leave it out and Hailo-Ollama may take the board for itself.
+
+### Next to an ordinary Ollama
+
+An ordinary Ollama (for example in Docker on port `11434`) does not use the Hailo board and does
+not get in the way: the two use different ports. In the assistant settings, the **Ollama** preset
+points to `11434` and runs on the processor, the **Hailo-Ollama** preset to `8000` and runs on the
+NPU. Pick one.
+
+### Memory on the board
+
+The Hailo-10H has 8 GB of its own memory. Frigate's YOLO, MBL's scene model (Qwen2-VL, about
+3.3 GB) and Whisper fit together; a language model on top usually does not. Hailo-Ollama loads its
+model when the first question comes, and while it is loaded MBL's scene sentences can fail with
+an out-of-memory error in the log (and the other way round). Choose what matters most to you:
+
+- Assistant on the NPU: use Hailo-Ollama and let the companion work without scene sentences (or
+  remove Qwen2-VL on the Hardware page).
+- Scene sentences: keep Qwen2-VL and run the assistant elsewhere; press **Stop** for Hailo-Ollama.
+
 ## Upgrading HailoRT
 
 Upgrade everything together, in this order:
 
 1. Stop Frigate and MBL: `sudo systemctl stop mbl`.
-2. Install the new driver and HailoRT packages, then reboot.
+2. Install the new driver, HailoRT and (if you use it) `hailo-gen-ai-model-zoo` packages of the
+   same version (`sudo apt-mark unhold` first if you held them), then reboot.
 3. Update Frigate's image to the same HailoRT version.
 4. In MBL, **Remove** the old models and **Download** them again: models are built for one
-   HailoRT version.
+   HailoRT version. The same goes for Hailo-Ollama's models.
 5. Start MBL again.
 
 ## Troubleshooting
@@ -146,3 +295,9 @@ Upgrade everything together, in this order:
 | Frigate stops detecting after an upgrade | Frigate's image uses another HailoRT version than the driver; update the image |
 | Frigate says "Failed to connect to server" or "unsupported Hailo architecture: None" | The board has no free connections. Turn off **Let MBL use the NPU** for a moment, restart Frigate, and check that no test programs are left running |
 | `hailort.service` restarts over and over (`journalctl -u hailort.service`) | It is a HailoRT 4 leftover. With HailoRT 5: `sudo systemctl disable --now hailort.service` |
+| Hardware page says "Hailo-Ollama is not installed" | Install `hailo-gen-ai-model-zoo` of your HailoRT version (see above); `hailo-ollama --help` must work |
+| **Start** says "MBL may not use the NPU" | Turn on **Let MBL use the NPU** first |
+| **Start** says it "did not answer after starting" | Something else holds port 8000 (`ss -ltnp` lists who listens on `:8000`), or the model zoo and HailoRT versions differ. Run `hailo-ollama` by hand as a test to see its message |
+| A model download fails | Hailo's server must have the model for your version; check the Pi's internet connection and try again |
+| The assistant test says the model "does not support tools" | Small NPU models often cannot; the assistant still answers but cannot search the library |
+| Scene sentences fail while the assistant runs on the NPU | The board is out of memory, see *Memory on the board* |
