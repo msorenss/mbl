@@ -12,13 +12,15 @@
 //! 3. **Tier 3 (`hailortcli` CLI Runner):** Subprocess fallback when only `/usr/bin/hailortcli`
 //!    is present.
 
+// HailoRT is Linux-only: on other platforms the NPU paths compile but are never called.
+#![cfg_attr(not(unix), allow(dead_code, unused_imports))]
+
 #[cfg(unix)]
 use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_uint, c_void};
 #[cfg(unix)]
 use std::path::Path;
 #[cfg(unix)]
 use std::process::Command;
-#[cfg(unix)]
 use std::sync::{Mutex, OnceLock};
 
 use image::DynamicImage;
