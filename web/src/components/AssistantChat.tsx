@@ -6,7 +6,14 @@ import type { components } from "../api/schema";
 import { usePlayer } from "../context/PlayerContext";
 import { useI18n } from "../i18n";
 import { onAssistantAsk, setAssistantAvailable } from "../utils/assistantBridge";
-import { canSpeak, readAloud, setReadAloud, speak, stopSpeaking } from "../utils/speech";
+import {
+  canSpeak,
+  readAloud,
+  readAloudProblem,
+  setReadAloud,
+  speak,
+  stopSpeaking,
+} from "../utils/speech";
 import MicButton from "./MicButton";
 import { AppIcon } from "./ui";
 
@@ -477,6 +484,11 @@ export default function AssistantChat() {
                     setSpeakReplies(on);
                     setReadAloud("assistant", on);
                     if (!on) stopSpeaking();
+                    // A browser without voices would stay silent; say so.
+                    else
+                      void readAloudProblem(locale()).then(
+                        (problem) => problem && setError(problem),
+                      );
                   }}
                 />
                 Read replies aloud

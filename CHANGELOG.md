@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Changed
+- **Read replies aloud** picks a voice for your language and says so when the browser has no voices at all (Chromium on Linux, including on a Raspberry Pi, has none without a speech engine), instead of staying silent.
 - **Talk** stops by itself after a moment of quiet (or after 8 seconds without speech), so one click is enough; holding the button or clicking again still works. A tap that records nothing gives "No speech was heard" instead of an error, and the server logs why a recording could not be read.
 
 ## [1.4.0] - 2026-11-22

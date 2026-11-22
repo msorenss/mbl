@@ -2,7 +2,14 @@ import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n";
-import { canSpeak, readAloud, setReadAloud, speak, stopSpeaking } from "../utils/speech";
+import {
+  canSpeak,
+  readAloud,
+  readAloudProblem,
+  setReadAloud,
+  speak,
+  stopSpeaking,
+} from "../utils/speech";
 import MicButton from "./MicButton";
 
 type Reaction = components["schemas"]["CompanionReaction"];
@@ -530,6 +537,11 @@ export default function CompanionReactions(props: {
                     setSpeakReplies(on);
                     setReadAloud("player", on);
                     if (!on) stopSpeaking();
+                    // A browser without voices would stay silent; say so.
+                    else
+                      void readAloudProblem(locale()).then(
+                        (problem) => problem && setError(problem),
+                      );
                   }}
                 />
                 Read replies aloud

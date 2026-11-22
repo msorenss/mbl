@@ -216,6 +216,40 @@ export function canSpeak(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
+/** The browser's voices. Some browsers load them a moment after the page; wait up to 1.5 s. */
+export function browserVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (!canSpeak()) return Promise.resolve([]);
+  const now = window.speechSynthesis.getVoices();
+  if (now.length > 0) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const done = () => resolve(window.speechSynthesis.getVoices());
+    window.speechSynthesis.addEventListener?.("voiceschanged", done, { once: true });
+    setTimeout(done, 1500);
+  });
+}
+
+/** A voice for `language` (two-letter code), preferring one that works offline. */
+export function voiceFor(
+  voices: SpeechSynthesisVoice[],
+  language: string,
+): SpeechSynthesisVoice | undefined {
+  const matching = voices.filter((v) => v.lang.toLowerCase().startsWith(language.toLowerCase()));
+  return matching.find((v) => v.localService) ?? matching[0];
+}
+
+/**
+ * Why reading aloud will not work as expected, or `null`. A browser without voices (Chromium
+ * on Linux without a speech engine, for example) stays silent without any error.
+ */
+export async function readAloudProblem(language: string): Promise<string | null> {
+  const voices = await browserVoices();
+  if (voices.length === 0)
+    return "This browser has no voices to read with. Install a speech voice on this device or use another browser.";
+  if (!voiceFor(voices, language))
+    return "This browser has no voice for your language, so replies are read with another voice.";
+  return null;
+}
+
 /**
  * Read `text` aloud in `language`. `onStart`/`onEnd` let the player lower its volume meanwhile.
  */
@@ -227,6 +261,8 @@ export function speak(
   if (!canSpeak() || !text.trim()) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = language;
+  const voice = voiceFor(window.speechSynthesis.getVoices(), language);
+  if (voice) utterance.voice = voice;
   utterance.onstart = () => hooks.onStart?.();
   utterance.onend = () => hooks.onEnd?.();
   utterance.onerror = () => hooks.onEnd?.();
