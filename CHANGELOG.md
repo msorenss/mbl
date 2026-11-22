@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Fixed
+- Casting with MBL's own receiver to a Chromecast that reports 1080p failed on a Raspberry Pi with "timed out preparing playback media": without a GPU encoder, Cast is now encoded at most in 720p.
+- A long Cast session stopped after about 25 minutes ("evicting HLS session to enforce transcode disk quota"): already played segments of Cast streams are now removed (a minute behind is kept), and a stream someone is watching is never stopped to make room.
+
 ## [1.4.1] - 2026-11-22
 
 ### Fixed

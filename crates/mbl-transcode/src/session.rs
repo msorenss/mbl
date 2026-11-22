@@ -49,6 +49,8 @@ pub struct SessionManagerConfig {
     pub inactivity_timeout: Duration,
     pub segment_wait_timeout: Duration,
     pub temp_quota_bytes: u64,
+    /// A session requested within this time is in use and is not evicted for disk space.
+    pub quota_active_grace: Duration,
     pub caps: FfmpegCaps,
 }
 
@@ -72,6 +74,7 @@ impl SessionManagerConfig {
             inactivity_timeout: DEFAULT_INACTIVITY_TIMEOUT,
             segment_wait_timeout: DEFAULT_SEGMENT_WAIT_TIMEOUT,
             temp_quota_bytes: 4096 * 1024 * 1024,
+            quota_active_grace: Duration::from_secs(60),
             caps: FfmpegCaps::default(),
         }
     }
@@ -1258,17 +1261,15 @@ impl SessionManager {
         // Oldest-accessed session first.
         sessions.sort_by_key(|(last, _, _)| *last);
 
-        // Pass 1: delete segments strictly older than `last_requested_segment.saturating_sub(1)`.
-        // Generated EVENT playlists keep advertising every published segment.
-        // Removing one would leave an unrecoverable hole in the playlist.
+        // Pass 1: delete segments that were already played. Generated EVENT playlists (Cast)
+        // keep advertising every published segment, so they keep a minute behind the viewer;
+        // seeking further back starts a new stream at the target anyway.
         for (_, last_req, session) in &sessions {
-            if *last_req > 1
-                && *last_req != u32::MAX
-                && session.generated_playlist_start_ms.is_none()
-            {
+            let keep_behind = if session.generated_playlist_start_ms.is_some() { 10 } else { 1 };
+            if *last_req > keep_behind && *last_req != u32::MAX {
                 for idx in 0..session.base_pipeline.output.renditions.len() {
                     let r_dir = session.base_pipeline.output.rendition_dir(idx);
-                    for seg in 0..(last_req - 1) {
+                    for seg in 0..(last_req - keep_behind) {
                         let _ =
                             std::fs::remove_file(r_dir.join(format!("{seg}.m4s")).as_std_path());
                     }
@@ -1280,12 +1281,21 @@ impl SessionManager {
             return;
         }
 
-        // Pass 2: evict least-recently-used sessions until under quota (or all but newest if >1).
-        for (_, _, session) in &sessions {
+        // Pass 2: evict least-recently-used sessions until under quota. A session someone is
+        // watching right now is never stopped to make room: that cut playback mid-film.
+        for (last_access, _, session) in &sessions {
             if dir_size_bytes(self.config.transcode_dir.as_std_path())
                 <= self.config.temp_quota_bytes
             {
                 break;
+            }
+            if last_access.elapsed() < self.config.quota_active_grace {
+                tracing::warn!(
+                    session_id = %session.id,
+                    quota_bytes = self.config.temp_quota_bytes,
+                    "transcode disk quota exceeded by a session in use; keeping it"
+                );
+                continue;
             }
             tracing::warn!(
                 session_id = %session.id,

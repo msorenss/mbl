@@ -1227,9 +1227,12 @@ impl PlaybackService {
             StreamAction::Copy => VideoOp::Copy,
             StreamAction::Transcode { codec, bitrate, width } => VideoOp::Encode {
                 bounds: if !mbl_playback::cast_profiles::modes(&profile.name).is_empty() {
-                    profile.codec_limit(codec).and_then(|l| {
-                        Some((width.unwrap_or(l.max_width?).min(l.max_width?), l.max_height?))
-                    })
+                    profile
+                        .codec_limit(codec)
+                        .and_then(|l| {
+                            Some((width.unwrap_or(l.max_width?).min(l.max_width?), l.max_height?))
+                        })
+                        .map(|(w, h)| cast_encode_bounds(selected_backend, w, h))
                 } else {
                     None
                 },
@@ -1756,9 +1759,25 @@ fn generate_session_id() -> Result<String> {
     Ok(hex)
 }
 
+/// Cast bounds for the encoder at hand. Without a GPU encoder (a Raspberry Pi, or software on
+/// ARM) 1080p cannot be encoded fast enough to start within the preparation time, so Cast gets
+/// at most 720p there even when the receiver could show more.
+fn cast_encode_bounds(backend: Backend, width: u32, height: u32) -> (u32, u32) {
+    let slow = !backend.is_gpu() && (backend.is_pi() || !cfg!(target_arch = "x86_64"));
+    if slow { (width.min(1280), height.min(720)) } else { (width, height) }
+}
+
 #[cfg(test)]
 mod cast_profile_tests {
     use super::*;
+
+    #[test]
+    fn cast_encodes_at_most_720p_without_a_gpu_encoder_on_a_pi() {
+        assert_eq!(cast_encode_bounds(Backend::PiDrmDecode, 1920, 1080), (1280, 720));
+        assert_eq!(cast_encode_bounds(Backend::V4l2m2m, 1920, 1080), (1280, 720));
+        assert_eq!(cast_encode_bounds(Backend::Nvenc, 1920, 1080), (1920, 1080));
+        assert_eq!(cast_encode_bounds(Backend::PiDrmDecode, 1280, 720), (1280, 720));
+    }
 
     #[test]
     fn full_cast_profile_cannot_override_server_catalogue() {

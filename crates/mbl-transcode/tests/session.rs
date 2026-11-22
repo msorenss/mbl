@@ -340,6 +340,8 @@ async fn concurrency_cap_and_disk_quota_enforcement() {
     cfg.caps = FfmpegCaps { preset: "ultrafast".to_owned(), crf: 28, threads: Some(1) };
     // Tiny quota (1 KiB) to exercise quota enforcement.
     cfg.temp_quota_bytes = 1024;
+    // Treat every session as idle so the quota may evict the one just used.
+    cfg.quota_active_grace = std::time::Duration::ZERO;
     let mgr = SessionManager::new(cfg).unwrap();
 
     assert!(mgr.has_video_transcode_capacity());
