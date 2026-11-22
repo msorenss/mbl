@@ -166,6 +166,7 @@ impl StreamService {
         part_id: PartId,
         stream_index: u32,
         format: SubtitleFormat,
+        match_speech: bool,
     ) -> Result<PathBuf> {
         let part = media::part_for_stream(&self.db, part_id).await?.ok_or(Error::NotFound)?;
         if !actor.can_access_library(part.library_id) {
@@ -224,8 +225,26 @@ impl StreamService {
             .map(|h| h.config().ffmpeg_bin.as_path())
             .unwrap_or(self.ffmpeg_bin.as_path());
 
-        extract_or_convert_subtitle(&cache_dir, ffmpeg_bin, part_id, stream_index, &source, format)
-            .await
+        let path = extract_or_convert_subtitle(
+            &cache_dir,
+            ffmpeg_bin,
+            part_id,
+            stream_index,
+            &source,
+            format,
+        )
+        .await?;
+        if !match_speech || format != SubtitleFormat::Vtt {
+            return Ok(path);
+        }
+        // Moving the subtitles to the speech is a help, never a reason to show none.
+        match self.synced_vtt(part_id, stream_index, &path).await {
+            Ok(synced) => Ok(synced),
+            Err(error) => {
+                tracing::warn!(%error, part = part_id.0, "subtitles could not be matched to speech");
+                Ok(path)
+            }
+        }
     }
 
     fn subtitle_cache_dir(&self) -> PathBuf {
@@ -233,36 +252,126 @@ impl StreamService {
     }
 
     /// Extract every embedded text subtitle track of `part_id` to WebVTT in one read of the file,
-    /// skipping tracks already cached. Returns how many tracks were written. No access check: for
-    /// background jobs and callers that have already checked. With `detached` the work runs in
-    /// its own task, so a viewer who gives up waiting does not throw it away; otherwise dropping
-    /// the future stops FFmpeg (a background job that gives way to playback).
+    /// skipping tracks already cached, and in the same read map where people speak (for
+    /// [`Self::speech_map`]) unless that is cached too. Returns how many tracks were written. No
+    /// access check: for background jobs and callers that have already checked. With `detached`
+    /// the work runs in its own task, so a viewer who gives up waiting does not throw it away;
+    /// otherwise dropping the future stops FFmpeg (a background job that gives way to playback).
     pub async fn prepare_subtitles(&self, part_id: PartId, detached: bool) -> Result<usize> {
         let part = media::part_for_stream(&self.db, part_id).await?.ok_or(Error::NotFound)?;
-        let indices: Vec<u32> = media::streams_for_part(&self.db, part_id)
-            .await?
-            .into_iter()
-            .filter(|s| s.kind == StreamKind::Subtitle && s.external_path.is_none())
+        let streams = media::streams_for_part(&self.db, part_id).await?;
+        let text: Vec<_> = streams
+            .iter()
+            .filter(|s| s.kind == StreamKind::Subtitle)
             .filter(|s| !mbl_stream::subtitles::is_image_subtitle(&s.codec))
+            .collect();
+        let indices: Vec<u32> = text
+            .iter()
+            .filter(|s| s.external_path.is_none())
             .filter_map(|s| u32::try_from(s.idx).ok())
             .collect();
-        if indices.is_empty() {
+        let cache_dir = self.subtitle_cache_dir();
+        let speech_file = speech_map_path(&cache_dir, part_id);
+        let want_speech = !text.is_empty()
+            && streams.iter().any(|s| s.kind == StreamKind::Audio)
+            && !tokio::fs::try_exists(&speech_file).await.unwrap_or(false);
+        if indices.is_empty() && !want_speech {
             return Ok(0);
         }
         let lib = self.libraries.get(part.library_id).await?.ok_or(Error::NotFound)?;
         let media_path = verify_under_library_roots(&part.path, &lib.paths)?;
         let media_path = self.media_input(&media_path).await?;
-        let cache_dir = self.subtitle_cache_dir();
         let ffmpeg_bin = self
             .hls
             .as_ref()
             .map(|h| h.config().ffmpeg_bin.clone())
             .unwrap_or_else(|| self.ffmpeg_bin.clone());
         let work = async move {
-            extract_embedded_vtt(&cache_dir, &ffmpeg_bin, part_id, &media_path, &indices).await
+            let mut detector = mbl_analysis::subsync::SpeechDetector::new();
+            let written = {
+                let mut feed = |chunk: &[u8]| detector.feed(chunk);
+                let audio: Option<&mut mbl_stream::subtitles::AudioSink<'_>> =
+                    if want_speech { Some(&mut feed) } else { None };
+                extract_embedded_vtt(&cache_dir, &ffmpeg_bin, part_id, &media_path, &indices, audio)
+                    .await?
+            };
+            if want_speech {
+                let speech = detector.finish();
+                if !speech.is_empty() {
+                    let tmp = speech_file.with_extension("speech.tmp");
+                    let packed = mbl_analysis::subsync::pack_speech(&speech);
+                    if tokio::fs::write(&tmp, packed).await.is_ok() {
+                        let _ = tokio::fs::rename(&tmp, &speech_file).await;
+                    }
+                }
+            }
+            Ok(written)
         };
         if detached { tokio::spawn(work).await.map_err(Error::internal)? } else { work.await }
     }
+
+    /// Where people speak in `part_id`, one flag per [`mbl_analysis::subsync::FRAME_MS`]. Made
+    /// with the subtitle extraction (one read of the file) and cached.
+    pub async fn speech_map(&self, part_id: PartId) -> Result<Vec<bool>> {
+        let file = speech_map_path(&self.subtitle_cache_dir(), part_id);
+        if let Some(map) =
+            tokio::fs::read(&file).await.ok().and_then(|b| mbl_analysis::subsync::unpack_speech(&b))
+        {
+            return Ok(map);
+        }
+        self.prepare_subtitles(part_id, true).await?;
+        tokio::fs::read(&file)
+            .await
+            .ok()
+            .and_then(|b| mbl_analysis::subsync::unpack_speech(&b))
+            .ok_or_else(|| {
+                Error::Unavailable("this video has no audio to match subtitles to".into())
+            })
+    }
+
+    /// The WebVTT file `vtt` moved to where people speak (see [`mbl_analysis::subsync`]),
+    /// cached next to it. When the match is not clearly better than the original timing, the
+    /// original is kept, so a well-timed subtitle never gets worse.
+    async fn synced_vtt(&self, part_id: PartId, stream_index: u32, vtt: &Path) -> Result<PathBuf> {
+        let synced = vtt.with_file_name(format!("{}_{}.synced.vtt", part_id.0, stream_index));
+        if tokio::fs::metadata(&synced).await.is_ok_and(|m| m.len() > 0) {
+            return Ok(synced);
+        }
+        let speech = self.speech_map(part_id).await?;
+        let text = tokio::fs::read_to_string(vtt).await.map_err(Error::internal)?;
+        let cues = mbl_stream::subtitles::vtt_cues(&text);
+        let found = mbl_analysis::subsync::align_to_speech(&speech, &cues, 30_000);
+        let output = match found {
+            Some(alignment) if alignment.is_improvement() => {
+                tracing::info!(
+                    part = part_id.0,
+                    stream = stream_index,
+                    offset_ms = alignment.offset_ms,
+                    scale = alignment.scale,
+                    score = format!("{:.2}→{:.2}", alignment.unshifted_score, alignment.score),
+                    "subtitles matched to the speech"
+                );
+                mbl_stream::subtitles::shift_vtt(&text, |ms| alignment.apply(ms))
+            }
+            other => {
+                tracing::info!(
+                    part = part_id.0,
+                    stream = stream_index,
+                    score = other.map(|a| a.unshifted_score),
+                    "subtitles already match the speech"
+                );
+                text
+            }
+        };
+        let tmp = synced.with_extension("vtt.tmp");
+        tokio::fs::write(&tmp, output).await.map_err(Error::internal)?;
+        tokio::fs::rename(&tmp, &synced).await.map_err(Error::internal)?;
+        Ok(synced)
+    }
+}
+
+fn speech_map_path(cache_dir: &Path, part_id: PartId) -> PathBuf {
+    cache_dir.join("subtitles").join(format!("{}.speech", part_id.0))
 }
 
 /// One JPEG frame at `position_ms`, at most `max_width` pixels wide. Seeks before opening the

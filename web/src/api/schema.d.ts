@@ -6515,6 +6515,11 @@ export interface components {
             color: string;
             /** @description `"sans" | "serif" | "mono"`, default `"sans"`. */
             font?: string;
+            /**
+             * @description Move subtitles to where people speak in the audio, for files timed for another cut or
+             *     frame rate. Default off.
+             */
+            matchSpeech?: boolean;
             /** @description `"sm" | "md" | "lg" | "xl"`, default `"md"`. */
             size: string;
         };
@@ -7037,6 +7042,7 @@ export interface components {
              *       "background": "dim",
              *       "color": "white",
              *       "font": "sans",
+             *       "matchSpeech": false,
              *       "size": "md"
              *     }
              */
@@ -14196,6 +14202,11 @@ export interface operations {
             query?: {
                 /** @description Short-lived HMAC-signed stream token (6 h) for players that cannot set headers. */
                 token?: string;
+                /**
+                 * @description Move the cues to where people speak in the audio (WebVTT only). Off by default; the
+                 *     first request for a file can take as long as reading the file once.
+                 */
+                sync?: boolean;
             };
             header?: never;
             path: {

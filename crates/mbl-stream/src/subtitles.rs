@@ -209,18 +209,27 @@ fn part_lock(part_id: PartId) -> std::sync::Arc<tokio::sync::Mutex<()>> {
     lock
 }
 
+/// Receives decoded audio in chunks (see [`extract_embedded_vtt`]).
+pub type AudioSink<'a> = dyn FnMut(&[u8]) + Send + 'a;
+
 /// Extract the embedded text subtitle streams `indices` of `media_path` to WebVTT in the cache,
 /// all in one FFmpeg run. Subtitles are spread over the whole film, so FFmpeg reads the entire
 /// file for any one of them: 4.9 GB from an SD card took over two minutes per track. One run
 /// writes every track for the price of one. Tracks already cached are skipped; returns how many
 /// were written. Fails as a whole when FFmpeg fails (then extract the track on its own).
+///
+/// With `audio`, the same run also decodes the first audio track to 8 kHz mono 16-bit PCM in the
+/// voice band and hands it over in chunks, for finding where people speak (subtitle sync)
+/// without reading the file a second time. FFmpeg then runs even when every track is cached.
 pub async fn extract_embedded_vtt(
     cache_dir: &Path,
     ffmpeg_bin: &Path,
     part_id: PartId,
     media_path: &Path,
     indices: &[u32],
+    mut audio: Option<&mut AudioSink<'_>>,
 ) -> Result<usize> {
+    use tokio::io::AsyncReadExt;
     let lock = part_lock(part_id);
     let _guard = lock.lock().await;
     let mut missing = Vec::new();
@@ -230,7 +239,7 @@ pub async fn extract_embedded_vtt(
             missing.push(index);
         }
     }
-    if missing.is_empty() {
+    if missing.is_empty() && audio.is_none() {
         return Ok(0);
     }
     let sub_cache_dir = cache_dir.join("subtitles");
@@ -250,32 +259,56 @@ pub async fn extract_embedded_vtt(
             .args(["-c:s", "webvtt", "-f", "webvtt"])
             .arg(tmp);
     }
-    let output = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .output()
-        .await
-        .map_err(|e| {
-            Error::Unavailable(format!("failed to launch ffmpeg (`{}`): {e}", ffmpeg_bin.display()))
-        });
-    let output = match output {
-        Ok(output) if output.status.success() => output,
-        other => {
-            for (_, tmp) in &outputs {
-                let _ = tokio::fs::remove_file(tmp).await;
-            }
-            return Err(match other {
-                Ok(output) => Error::Unavailable(format!(
-                    "ffmpeg subtitle extraction failed: {}",
-                    String::from_utf8_lossy(&output.stderr).trim()
-                )),
-                Err(error) => error,
-            });
+    if audio.is_some() {
+        command.args([
+            "-map",
+            "0:a:0",
+            "-ac",
+            "1",
+            "-ar",
+            "8000",
+            "-af",
+            "highpass=f=200,lowpass=f=3500",
+            "-f",
+            "s16le",
+            "pipe:1",
+        ]);
+    }
+    let cleanup = |outputs: &[(u32, PathBuf)]| {
+        for (_, tmp) in outputs {
+            let _ = std::fs::remove_file(tmp);
         }
     };
-    drop(output);
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(if audio.is_some() { Stdio::piped() } else { Stdio::null() })
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| {
+            Error::Unavailable(format!("failed to launch ffmpeg (`{}`): {e}", ffmpeg_bin.display()))
+        })?;
+    if let (Some(feed), Some(mut stdout)) = (audio.as_mut(), child.stdout.take()) {
+        let mut buffer = vec![0u8; 64 * 1024];
+        loop {
+            match stdout.read(&mut buffer).await {
+                Ok(0) => break,
+                Ok(n) => feed(&buffer[..n]),
+                Err(error) => {
+                    cleanup(&outputs);
+                    return Err(Error::internal(error));
+                }
+            }
+        }
+    }
+    let output = child.wait_with_output().await.map_err(Error::internal)?;
+    if !output.status.success() {
+        cleanup(&outputs);
+        return Err(Error::Unavailable(format!(
+            "ffmpeg subtitle extraction failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
     let mut written = 0;
     for (index, tmp) in outputs {
         tokio::fs::rename(&tmp, cached_vtt_path(cache_dir, part_id, index))
@@ -284,6 +317,57 @@ pub async fn extract_embedded_vtt(
         written += 1;
     }
     Ok(written)
+}
+
+/// Milliseconds from a WebVTT timestamp (`hh:mm:ss.mmm` or `mm:ss.mmm`).
+fn vtt_time(text: &str) -> Option<i64> {
+    let (clock, millis) = text.trim().split_once('.')?;
+    let parts: Vec<i64> = clock.split(':').map(|p| p.parse().ok()).collect::<Option<_>>()?;
+    let seconds = match parts.as_slice() {
+        [h, m, s] => h * 3600 + m * 60 + s,
+        [m, s] => m * 60 + s,
+        _ => return None,
+    };
+    Some(seconds * 1000 + millis.get(..3)?.parse::<i64>().ok()?)
+}
+
+fn format_vtt_time(ms: i64) -> String {
+    let ms = ms.max(0);
+    format!("{:02}:{:02}:{:02}.{:03}", ms / 3_600_000, ms / 60_000 % 60, ms / 1000 % 60, ms % 1000)
+}
+
+/// The (start, end) of every cue in a WebVTT file, in milliseconds.
+pub fn vtt_cues(vtt: &str) -> Vec<(i64, i64)> {
+    vtt.lines()
+        .filter_map(|line| {
+            let (start, rest) = line.split_once("-->")?;
+            let end = rest.split_whitespace().next()?;
+            Some((vtt_time(start)?, vtt_time(end)?))
+        })
+        .collect()
+}
+
+/// The WebVTT file with every cue's times passed through `shift`; cue settings after the end
+/// time and everything else are kept as they are.
+pub fn shift_vtt(vtt: &str, shift: impl Fn(i64) -> i64) -> String {
+    let mut out = String::with_capacity(vtt.len());
+    for line in vtt.lines() {
+        let shifted = line.split_once("-->").and_then(|(start, rest)| {
+            let rest = rest.trim_start();
+            let (end, settings) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+            let (start, end) = (vtt_time(start)?, vtt_time(end)?);
+            let mut line =
+                format!("{} --> {}", format_vtt_time(shift(start)), format_vtt_time(shift(end)));
+            if !settings.trim().is_empty() {
+                line.push(' ');
+                line.push_str(settings.trim());
+            }
+            Some(line)
+        });
+        out.push_str(shifted.as_deref().unwrap_or(line));
+        out.push('\n');
+    }
+    out
 }
 
 /// Serve a converted or raw subtitle file with the appropriate MIME type and caching headers.
@@ -305,6 +389,17 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    #[test]
+    fn webvtt_cues_are_read_and_shifted() {
+        let vtt = "WEBVTT\n\n00:01.500 --> 00:03.000 align:start\nHello\n\n01:00:02.250 --> 01:00:04.000\nBye\n";
+        assert_eq!(vtt_cues(vtt), vec![(1_500, 3_000), (3_602_250, 3_604_000)]);
+        let shifted = shift_vtt(vtt, |ms| ms - 2_000);
+        assert_eq!(
+            shifted,
+            "WEBVTT\n\n00:00:00.000 --> 00:00:01.000 align:start\nHello\n\n01:00:00.250 --> 01:00:02.000\nBye\n"
+        );
+    }
 
     #[test]
     fn parses_subtitle_targets() {

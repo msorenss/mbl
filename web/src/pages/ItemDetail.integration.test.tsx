@@ -22,6 +22,12 @@ vi.mock("../context/PlayerContext", () => ({
   usePlayer: () => ({ playItem: state.play, playbackRevision: () => state.revision() }),
 }));
 vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: vi.fn() }) }));
+vi.mock("../context/ThemeContext", () => ({
+  useTheme: () => ({
+    subtitleStyle: () => ({ size: "md", background: "dim", color: "white" }),
+    setSubtitleStyle: vi.fn(),
+  }),
+}));
 vi.mock("../context/AuthContext", () => ({
   useAuth: () => ({ user: () => ({ isAdmin: false }) }),
 }));

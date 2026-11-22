@@ -68,6 +68,17 @@ pub struct DirectStreamQuery {
     pub token: Option<String>,
 }
 
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct SubtitleQuery {
+    /// Short-lived HMAC-signed stream token (6 h) for players that cannot set headers.
+    pub token: Option<String>,
+    /// Move the cues to where people speak in the audio (WebVTT only). Off by default; the
+    /// first request for a file can take as long as reading the file once.
+    #[serde(default)]
+    pub sync: bool,
+}
+
 /// Stream a media part directly with HTTP `Range` (`206` / `416`) and `HEAD` support.
 #[utoipa::path(
     get,
@@ -353,7 +364,7 @@ pub async fn hls_rendition_file(
     params(
         ("partId" = i64, Path),
         ("target" = String, Path, description = "`{streamIndex}.vtt` or `{streamIndex}.ass`"),
-        DirectStreamQuery,
+        SubtitleQuery,
     ),
     responses(
         (status = 200, description = "Converted WebVTT or raw ASS subtitle track"),
@@ -367,13 +378,16 @@ pub async fn hls_rendition_file(
 pub async fn subtitle(
     State(state): State<AppState>,
     Path((part_id, target)): Path<(PartId, String)>,
-    Query(query): Query<DirectStreamQuery>,
+    Query(query): Query<SubtitleQuery>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let actor = authenticate_stream(&state, &headers, query.token.as_deref(), part_id).await?;
     let (stream_index, format) = parse_subtitle_target(&target)?;
-    let path =
-        state.services.stream.resolve_subtitle(&actor, part_id, stream_index, format).await?;
+    let path = state
+        .services
+        .stream
+        .resolve_subtitle(&actor, part_id, stream_index, format, query.sync)
+        .await?;
     Ok(serve_subtitle_file(&path, format).await?)
 }
 

@@ -24,9 +24,11 @@ import { type CastProfileSelection, SAFE_CAST_PROFILE } from "../utils/castProfi
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
 import { startLocalRemote } from "../utils/localRemote";
 import { subtitleSearchAvailable } from "../utils/subtitleSearch";
+import { subtitleUrl } from "../utils/subtitleUrl";
 import CastDiagnostics from "./CastDiagnostics";
 import CompanionReactions from "./CompanionReactions";
 import LyricsPanel from "./LyricsPanel";
+import SubtitleOptions from "./SubtitleOptions";
 import TrickplayPreview from "./TrickplayPreview";
 import { AppIcon, Button } from "./ui";
 
@@ -1233,7 +1235,11 @@ export function Player(props: PlayerProps) {
                   return autoplay;
                 })()
               : autoplay,
-            subtitles: result.data.subtitles,
+            // The receiver fetches the same, speech-matched files as the browser would.
+            subtitles: result.data.subtitles?.map((sub) => ({
+              ...sub,
+              url: subtitleUrl(sub.url, subtitleStyle().matchSpeech),
+            })),
             subtitleIndex: result.data.burnedSubtitleStreamIndex != null ? null : subtitleIndex,
             textStyle: subtitleStyle(),
           };
@@ -1949,7 +1955,7 @@ export function Player(props: PlayerProps) {
           {(sub) => (
             <track
               kind="subtitles"
-              src={sub().url}
+              src={subtitleUrl(sub().url, subtitleStyle().matchSpeech)}
               srclang={sub().language || "en"}
               label={sub().title || sub().language || "Subtitles"}
               default
@@ -2735,6 +2741,13 @@ export function Player(props: PlayerProps) {
                   {(milliseconds) => <option value={milliseconds}>{milliseconds} ms</option>}
                 </For>
               </select>
+              <Show when={subtitleChoices().length > 0}>
+                <SubtitleOptions
+                  style={subtitleStyle()}
+                  onChange={updateSubtitleStyle}
+                  hideMatchSpeech={isCasting()}
+                />
+              </Show>
             </div>
             {/* Speed Selector */}
             <div class="mbl-player-menu-anchor">
@@ -2905,61 +2918,6 @@ export function Player(props: PlayerProps) {
                         Find subtitles…
                       </button>
                     </Show>
-                    <div class="mbl-player-sub-style">
-                      <label>
-                        Size
-                        <select
-                          value={subtitleStyle().size}
-                          onChange={(e) =>
-                            updateSubtitleStyle({ size: e.currentTarget.value as "sm" })
-                          }
-                        >
-                          <option value="sm">Small</option>
-                          <option value="md">Medium</option>
-                          <option value="lg">Large</option>
-                          <option value="xl">Extra large</option>
-                        </select>
-                      </label>
-                      <label>
-                        Font
-                        <select
-                          value={subtitleStyle().font ?? "sans"}
-                          onChange={(e) =>
-                            updateSubtitleStyle({ font: e.currentTarget.value as "sans" })
-                          }
-                        >
-                          <option value="sans">Sans-serif</option>
-                          <option value="serif">Serif</option>
-                          <option value="mono">Monospace</option>
-                        </select>
-                      </label>
-                      <label>
-                        Color
-                        <select
-                          value={subtitleStyle().color}
-                          onChange={(e) =>
-                            updateSubtitleStyle({ color: e.currentTarget.value as "white" })
-                          }
-                        >
-                          <option value="white">White</option>
-                          <option value="yellow">Yellow</option>
-                          <option value="cyan">Cyan</option>
-                        </select>
-                      </label>
-                      <label>
-                        Background
-                        <select
-                          value={subtitleStyle().background}
-                          onChange={(e) =>
-                            updateSubtitleStyle({ background: e.currentTarget.value as "dim" })
-                          }
-                        >
-                          <option value="none">None</option>
-                          <option value="dim">Dimmed</option>
-                          <option value="solid">Solid</option>
-                        </select>
-                      </label>
-                    </div>
                   </div>
                 </Show>
               </div>

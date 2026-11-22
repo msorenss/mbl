@@ -461,6 +461,7 @@ impl CompanionService {
                         part,
                         index,
                         mbl_stream::subtitles::SubtitleFormat::Vtt,
+                        false,
                     )
                     .await?;
                 let size = tokio::fs::metadata(&path).await.map_err(Error::internal)?.len();

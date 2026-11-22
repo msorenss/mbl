@@ -7965,6 +7965,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "sync",
+            "in": "query",
+            "description": "Move the cues to where people speak in the audio (WebVTT only). Off by default; the\nfirst request for a file can take as long as reading the file once.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -19790,6 +19799,10 @@
             "type": "string",
             "description": "`\"sans\" | \"serif\" | \"mono\"`, default `\"sans\"`."
           },
+          "matchSpeech": {
+            "type": "boolean",
+            "description": "Move subtitles to where people speak in the audio, for files timed for another cut or\nframe rate. Default off."
+          },
           "size": {
             "type": "string",
             "description": "`\"sm\" | \"md\" | \"lg\" | \"xl\"`, default `\"md\"`."
@@ -21622,6 +21635,7 @@
               "background": "dim",
               "color": "white",
               "font": "sans",
+              "matchSpeech": false,
               "size": "md"
             }
           },

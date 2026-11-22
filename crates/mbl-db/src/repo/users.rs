@@ -16,6 +16,10 @@ pub struct SubtitleStylePreferences {
     /// `"sans" | "serif" | "mono"`, default `"sans"`.
     #[serde(default = "default_subtitle_font")]
     pub font: String,
+    /// Move subtitles to where people speak in the audio, for files timed for another cut or
+    /// frame rate. Default off.
+    #[serde(default)]
+    pub match_speech: bool,
 }
 
 fn default_subtitle_font() -> String {
@@ -29,6 +33,7 @@ impl Default for SubtitleStylePreferences {
             background: "dim".to_owned(),
             color: "white".to_owned(),
             font: default_subtitle_font(),
+            match_speech: false,
         }
     }
 }

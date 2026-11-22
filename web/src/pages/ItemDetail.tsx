@@ -9,9 +9,11 @@ import MetadataEditor from "../components/MetadataEditor";
 import MissingEpisodes from "../components/MissingEpisodes";
 import PlayOnDevice from "../components/PlayOnDevice";
 import RecapPanel from "../components/RecapPanel";
+import SubtitleOptions from "../components/SubtitleOptions";
 import { Badge, Button, Chip } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { usePlayer } from "../context/PlayerContext";
+import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { useI18n } from "../i18n";
 import { subtitleSearchAvailable } from "../utils/subtitleSearch";
@@ -45,6 +47,7 @@ export function ItemDetail() {
     }
   };
   const { showToast } = useToast();
+  const theme = useTheme();
   const { t } = useI18n();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -814,6 +817,17 @@ export function ItemDetail() {
                       )}
                     </For>
                   </select>
+                  <details style={{ "margin-top": "6px", "font-size": "var(--font-size-xs)" }}>
+                    <summary style={{ cursor: "pointer", color: "var(--text-muted)" }}>
+                      Subtitle settings
+                    </summary>
+                    <SubtitleOptions
+                      style={theme.subtitleStyle()}
+                      onChange={(patch) =>
+                        theme.setSubtitleStyle({ ...theme.subtitleStyle(), ...patch })
+                      }
+                    />
+                  </details>
                 </div>
               )}
             </div>

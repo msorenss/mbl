@@ -72,6 +72,8 @@ export interface SubtitleStyle {
   background: "none" | "dim" | "solid";
   color: "white" | "yellow" | "cyan";
   font?: "sans" | "serif" | "mono";
+  /** Move subtitles to where people speak in the audio (the server does it). */
+  matchSpeech?: boolean;
 }
 
 interface ThemeContextValue {

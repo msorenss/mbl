@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- **Match subtitles to the speech** (an option): MBL finds where people speak in the audio and moves the subtitles there, also when they were timed for another frame rate, and leaves them alone when they already fit. The speech is mapped in the same read of the file as the subtitles.
+- Subtitle settings (size, font, colour, background and matching) sit next to quality and audio before playback and in the player's settings; the subtitle menu keeps the languages.
+
 ### Changed
 - **Read replies aloud** picks a voice for your language and says so when the browser has no voices at all (Chromium on Linux, including on a Raspberry Pi, has none without a speech engine), instead of staying silent.
 - **Talk** stops by itself after a moment of quiet (or after 8 seconds without speech), so one click is enough; holding the button or clicking again still works. A tap that records nothing gives "No speech was heard" instead of an error, and the server logs why a recording could not be read.
