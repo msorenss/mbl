@@ -22,6 +22,7 @@ pub mod import;
 pub mod intelligence;
 pub mod items;
 pub mod libraries;
+pub mod linked_servers;
 mod live_relay;
 pub mod livetv;
 pub mod lyrics;
@@ -173,6 +174,7 @@ pub struct Services {
     pub voices: voices::VoiceService,
     pub hailo_models: hailo_models::HailoModelService,
     pub hailo_ollama: hailo_ollama::HailoOllamaService,
+    pub linked_servers: linked_servers::LinkedServerService,
     pub restart: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -255,6 +257,7 @@ impl Services {
             speech: speech::SpeechService::new(),
             voices: voices::VoiceService::new(db_hailo.clone()),
             hailo_ollama: hailo_ollama::HailoOllamaService::new(db_hailo.clone()),
+            linked_servers: linked_servers::LinkedServerService::new(db_hailo.clone()),
             hailo_models: hailo_models::HailoModelService::new(db_hailo),
             metadata,
             restart: None,

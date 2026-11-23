@@ -30,6 +30,15 @@ server allows every other server's origin, and REST uses session logins, not sco
 not share users between servers: each server keeps its own accounts, permissions and age
 limits; a link only grants what the token's scopes allow on B.
 
+## Status (2026-11-23)
+
+M1–M4 are built: links in Server settings, the other server's players on the Remote page
+(control and play from its library), and its web app in the user menu. Tested with two
+servers in `crates/mbl-server/tests/linked_servers.rs` (commands arrive on the other server's
+player). Not yet tried between the Pi and the Windows PC. M5 is not started. The token is stored
+like the other secrets in `settings` (not encrypted). The user menu lists only linked servers,
+not this server's own LAN/tailnet/public addresses.
+
 ## Phases
 
 1. **M1 – Linked servers.** Settings, storage, test, status (reachable, version, players). REST

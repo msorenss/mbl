@@ -13,6 +13,7 @@ pub mod intelligence;
 pub mod invites;
 pub mod items;
 pub mod libraries;
+pub mod linked_servers;
 pub mod livetv;
 pub mod maintenance;
 pub mod matchmaker;

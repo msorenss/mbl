@@ -1597,6 +1597,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/linked-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Linked servers you may use, with their players right now. */
+        get: operations["linked_server_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/linked-servers/names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Linked servers you may use, by name and address only (for switching servers). */
+        get: operations["linked_server_names"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/linked-servers/{id}/players/{player}/command": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause, resume, stop, seek or set the volume on a linked server's player. */
+        post: operations["command_linked_player"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/linked-servers/{id}/players/{player}/play": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Play a title from the linked server's library on one of its players. */
+        post: operations["play_on_linked_player"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/linked-servers/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search a linked server's library. */
+        get: operations["search_linked_server"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/livetv/channels": {
         parameters: {
             query?: never;
@@ -3268,6 +3353,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/linked-servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Linked servers (admin). Tokens are never returned. */
+        get: operations["list_linked_servers"];
+        put?: never;
+        /** Link another MBL (admin). The token is checked against it first. */
+        post: operations["add_linked_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/linked-servers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a link (admin). Revoke the token on the other server as well. */
+        delete: operations["remove_linked_server"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/logs": {
         parameters: {
             query?: never;
@@ -4103,6 +4223,13 @@ export interface components {
             state: components["schemas"]["PlaybackState"];
             title: string;
             userId: components["schemas"]["UserId"];
+        };
+        AddLinkedServerRequest: {
+            name: string;
+            shared?: boolean;
+            /** @description API token made on the other server (AI agents → new token, scopes read + playback). */
+            token: string;
+            url: string;
         };
         ApiTokenInfo: {
             allowedNetworks: string[];
@@ -5190,6 +5317,64 @@ export interface components {
              * @description Movies and episodes that have no indexed scenes yet.
              */
             pendingItems: number;
+        };
+        /** @description A title in a linked server's library. */
+        LinkedItem: {
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            title: string;
+            /** Format: int64 */
+            year?: number | null;
+        };
+        LinkedPlayRequest: {
+            /** Format: int64 */
+            itemId: number;
+            /** Format: int64 */
+            startMs?: number | null;
+        };
+        /** @description A player connected to a linked server. */
+        LinkedPlayer: {
+            deviceType: string;
+            /** Format: int64 */
+            durationMs: number;
+            id: string;
+            name: string;
+            /** Format: int64 */
+            nowPlayingItemId?: number | null;
+            /** @description Title on the other server, when something plays. */
+            nowPlayingTitle?: string | null;
+            /** Format: int64 */
+            positionMs: number;
+            state: string;
+            /** Format: int32 */
+            volume: number;
+        };
+        /** @description What to do on a linked server's player. */
+        LinkedPlayerCommand: {
+            /** @description `pause`, `resume`, `stop`, `seek` or `volume`. */
+            action: string;
+            /** Format: int64 */
+            positionMs?: number | null;
+            /** Format: int32 */
+            volume?: number | null;
+        };
+        /** @description A link as administrators see it. */
+        LinkedServer: {
+            id: string;
+            name: string;
+            /** @description Everyone on this server may use its players, not only administrators. */
+            shared: boolean;
+            /** @description The other server's web address, e.g. `http://192.168.1.20:8420`. */
+            url: string;
+        };
+        /** @description A linked server with its players, or why it could not be reached. */
+        LinkedServerView: {
+            error?: string | null;
+            id: string;
+            name: string;
+            players: components["schemas"]["LinkedPlayer"][];
+            url: string;
         };
         LiveSessionContext: {
             connectedCompanions: string[];
@@ -11143,6 +11328,157 @@ export interface operations {
             };
         };
     };
+    linked_server_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkedServerView"][];
+                };
+            };
+        };
+    };
+    linked_server_names: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkedServer"][];
+                };
+            };
+        };
+    };
+    command_linked_player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                player: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkedPlayerCommand"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    play_on_linked_player: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                player: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkedPlayRequest"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    search_linked_server: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkedItem"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_channels: {
         parameters: {
             query?: {
@@ -15363,6 +15699,103 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ServerInfo"];
                 };
+            };
+        };
+    };
+    list_linked_servers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkedServer"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    add_linked_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddLinkedServerRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkedServer"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_linked_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -3986,6 +3986,205 @@
         ]
       }
     },
+    "/api/v1/linked-servers": {
+      "get": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Linked servers you may use, with their players right now.",
+        "operationId": "linked_server_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkedServerView"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/linked-servers/names": {
+      "get": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Linked servers you may use, by name and address only (for switching servers).",
+        "operationId": "linked_server_names",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkedServer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/linked-servers/{id}/players/{player}/command": {
+      "post": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Pause, resume, stop, seek or set the volume on a linked server's player.",
+        "operationId": "command_linked_player",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "player",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkedPlayerCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "404": {},
+          "422": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/linked-servers/{id}/players/{player}/play": {
+      "post": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Play a title from the linked server's library on one of its players.",
+        "operationId": "play_on_linked_player",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "player",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkedPlayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "404": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/linked-servers/{id}/search": {
+      "get": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Search a linked server's library.",
+        "operationId": "search_linked_server",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkedItem"
+                  }
+                }
+              }
+            }
+          },
+          "404": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/livetv/channels": {
       "get": {
         "tags": [
@@ -8899,6 +9098,100 @@
         "security": []
       }
     },
+    "/api/v1/system/linked-servers": {
+      "get": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Linked servers (admin). Tokens are never returned.",
+        "operationId": "list_linked_servers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkedServer"
+                  }
+                }
+              }
+            }
+          },
+          "403": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Link another MBL (admin). The token is checked against it first.",
+        "operationId": "add_linked_server",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLinkedServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkedServer"
+                }
+              }
+            }
+          },
+          "403": {},
+          "409": {},
+          "422": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/linked-servers/{id}": {
+      "delete": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "Remove a link (admin). Revoke the token on the other server as well.",
+        "operationId": "remove_linked_server",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "403": {},
+          "404": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/system/logs": {
       "get": {
         "tags": [
@@ -11035,6 +11328,29 @@
           },
           "userId": {
             "$ref": "#/components/schemas/UserId"
+          }
+        }
+      },
+      "AddLinkedServerRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "url",
+          "token"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "token": {
+            "type": "string",
+            "description": "API token made on the other server (AI agents → new token, scopes read + playback)."
+          },
+          "url": {
+            "type": "string"
           }
         }
       },
@@ -14973,6 +15289,194 @@
             "format": "int64",
             "description": "Movies and episodes that have no indexed scenes yet.",
             "minimum": 0
+          }
+        }
+      },
+      "LinkedItem": {
+        "type": "object",
+        "description": "A title in a linked server's library.",
+        "required": [
+          "id",
+          "title",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "LinkedPlayRequest": {
+        "type": "object",
+        "required": [
+          "itemId"
+        ],
+        "properties": {
+          "itemId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "startMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "LinkedPlayer": {
+        "type": "object",
+        "description": "A player connected to a linked server.",
+        "required": [
+          "id",
+          "name",
+          "deviceType",
+          "state",
+          "positionMs",
+          "durationMs",
+          "volume"
+        ],
+        "properties": {
+          "deviceType": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nowPlayingItemId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "nowPlayingTitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title on the other server, when something plays."
+          },
+          "positionMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "LinkedPlayerCommand": {
+        "type": "object",
+        "description": "What to do on a linked server's player.",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`pause`, `resume`, `stop`, `seek` or `volume`."
+          },
+          "positionMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "volume": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "LinkedServer": {
+        "type": "object",
+        "description": "A link as administrators see it.",
+        "required": [
+          "id",
+          "name",
+          "url",
+          "shared"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean",
+            "description": "Everyone on this server may use its players, not only administrators."
+          },
+          "url": {
+            "type": "string",
+            "description": "The other server's web address, e.g. `http://192.168.1.20:8420`."
+          }
+        }
+      },
+      "LinkedServerView": {
+        "type": "object",
+        "description": "A linked server with its players, or why it could not be reached.",
+        "required": [
+          "id",
+          "name",
+          "url",
+          "players"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkedPlayer"
+            }
+          },
+          "url": {
+            "type": "string"
           }
         }
       },

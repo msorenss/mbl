@@ -5,6 +5,7 @@ pub mod assistant_command;
 pub mod audit;
 pub mod caller;
 pub mod companion_bot;
+pub mod linked;
 pub mod resources;
 pub mod sanitize;
 pub mod server;

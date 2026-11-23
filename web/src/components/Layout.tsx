@@ -10,6 +10,7 @@ import {
   Show,
   Suspense,
 } from "solid-js";
+import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import {
   type AccentColor,
@@ -74,6 +75,10 @@ export function Layout(props: { children?: JSX.Element }) {
   const visible = <T extends { href: string }>(links: readonly T[]) =>
     arrangeNav(links, navOrder(), hiddenNav());
   const [navEditorOpen, setNavEditorOpen] = createSignal(false);
+  // Other MBL servers this one is linked to, to open from the user menu.
+  const [linkedServers, setLinkedServers] = createSignal<
+    { id: string; name: string; url: string }[]
+  >([]);
   const { t } = useI18n();
   const { isOpen: isCommandOpen, open: openCommand, close: closeCommand } = useCommandPalette();
 
@@ -104,6 +109,10 @@ export function Layout(props: { children?: JSX.Element }) {
   };
 
   onMount(() => {
+    void client
+      .GET("/api/v1/linked-servers/names")
+      .then((result) => setLinkedServers(result.data ?? []))
+      .catch(() => undefined);
     const mobileMql = window.matchMedia?.("(max-width: 768px)");
     if (mobileMql) {
       setIsMobile(mobileMql.matches);
@@ -308,9 +317,19 @@ export function Layout(props: { children?: JSX.Element }) {
         icon: <AppIcon name="remote" size={18} />,
         onSelect: () => navigate("/connect"),
       },
+      ...linkedServers().map((server, index) => ({
+        id: `server-${server.id}`,
+        label: t(`Open ${server.name}`),
+        icon: <AppIcon name="workers" size={18} />,
+        separatorBefore: index === 0,
+        onSelect: () => {
+          window.open(server.url, "_blank", "noopener");
+        },
+      })),
       {
         id: "appearance",
         label: `${t("appearance")} & ${t("theme")}`,
+        separatorBefore: linkedServers().length > 0,
         icon: <AppIcon name="appearance" size={18} />,
         onSelect: () => setSettingsOpen(true),
       },

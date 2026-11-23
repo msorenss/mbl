@@ -526,3 +526,31 @@ reason = "Read by the Cast receiver with its token; agents use read_companion_ch
 [[exclusions]]
 path = "/api/v1/companion/receiver/{id}/speech/{reaction}"
 reason = "Audio for the Cast receiver; agents have no use for WAV files."
+
+[[exclusions]]
+path = "/api/v1/system/linked-servers"
+reason = "Holds tokens for other servers; set up by an administrator in the web app."
+
+[[exclusions]]
+path = "/api/v1/system/linked-servers/{id}"
+reason = "Removing a link to another server is an administrator task in the web app."
+
+[[exclusions]]
+path = "/api/v1/linked-servers"
+reason = "Players on other MBL servers; an agent talks to that server's MCP directly."
+
+[[exclusions]]
+path = "/api/v1/linked-servers/{id}/search"
+reason = "Searches another MBL server; an agent uses that server's search_media directly."
+
+[[exclusions]]
+path = "/api/v1/linked-servers/{id}/players/{player}/command"
+reason = "Controls another MBL server's player; an agent uses that server's control_player directly."
+
+[[exclusions]]
+path = "/api/v1/linked-servers/{id}/players/{player}/play"
+reason = "Plays on another MBL server; an agent uses that server's play_on_player directly."
+
+[[exclusions]]
+path = "/api/v1/linked-servers/names"
+reason = "Names and addresses of other MBL servers for the web app's server menu."

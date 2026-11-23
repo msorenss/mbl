@@ -10,9 +10,9 @@ use utoipa::{Modify, OpenApi};
 use crate::AppState;
 use crate::routes::{
     assistant, auth, collections, companion, downloads, events, hailo_models, hw, images, import,
-    intelligence, invites, items, libraries, livetv, maintenance, matchmaker, mcp, media_audio,
-    metadata, missing, nodes, oauth, online, photos, playback, players, playlists, plugins, remote,
-    requests, speech, stream, subtitles, system, tls, users, webhooks, workers,
+    intelligence, invites, items, libraries, linked_servers, livetv, maintenance, matchmaker, mcp,
+    media_audio, metadata, missing, nodes, oauth, online, photos, playback, players, playlists,
+    plugins, remote, requests, speech, stream, subtitles, system, tls, users, webhooks, workers,
 };
 
 #[derive(OpenApi)]
@@ -62,7 +62,7 @@ use crate::routes::{
         matchmaker::create_matchmaker_session,
         matchmaker::join_session, matchmaker::get_matchmaker_session, matchmaker::record_vote, matchmaker::allow_guests, matchmaker::stop_guests, matchmaker::join_as_guest, matchmaker::guest_view, matchmaker::guest_vote, matchmaker::guest_image,
         players::list_players, players::register_player, players::unregister_player, players::connect_player, players::send_player_command,
-        companion::join_companion_session, companion::send_companion_reaction, companion::get_companion_context, companion::get_companion_reactions, companion::set_companion_mode, companion::post_viewer_message, companion::request_companion_comment, companion::wait_for_companion_events, companion::companion_frame, companion::companion_receiver_token, companion::receiver_reactions, companion::receiver_speech, assistant::get_assistant_settings, assistant::update_assistant_settings, assistant::test_assistant_connection, assistant::list_assistant_models, assistant::assistant_status, assistant::list_conversations, assistant::get_conversation, assistant::delete_conversation, assistant::assistant_chat,
+        companion::join_companion_session, companion::send_companion_reaction, companion::get_companion_context, companion::get_companion_reactions, companion::set_companion_mode, companion::post_viewer_message, companion::request_companion_comment, companion::wait_for_companion_events, companion::companion_frame, companion::companion_receiver_token, linked_servers::list_linked_servers, linked_servers::add_linked_server, linked_servers::remove_linked_server, linked_servers::linked_server_overview, linked_servers::linked_server_names, linked_servers::search_linked_server, linked_servers::command_linked_player, linked_servers::play_on_linked_player, companion::receiver_reactions, companion::receiver_speech, assistant::get_assistant_settings, assistant::update_assistant_settings, assistant::test_assistant_connection, assistant::list_assistant_models, assistant::assistant_status, assistant::list_conversations, assistant::get_conversation, assistant::delete_conversation, assistant::assistant_chat,
         media_audio::stream_audio, photos::get_photo_timeline, photos::list_photos,
         workers::generate_worker_pairing_code, workers::pair_worker, workers::list_workers,
         workers::get_worker, workers::delete_worker, workers::wake_worker,
@@ -240,6 +240,13 @@ use crate::routes::{
         companion::CompanionModeRequest,
         companion::ViewerMessageRequest,
         companion::CompanionReceiverToken,
+        mbl_service::linked_servers::LinkedServer,
+        mbl_service::linked_servers::AddLinkedServerRequest,
+        mbl_service::linked_servers::LinkedServerView,
+        mbl_service::linked_servers::LinkedPlayer,
+        mbl_service::linked_servers::LinkedPlayerCommand,
+        mbl_service::linked_servers::LinkedPlayRequest,
+        mbl_service::linked_servers::LinkedItem,
         mbl_db::repo::m7::PhotoTimelineBucket,
         mbl_db::repo::m7::PhotoSummary,
         mbl_core::WorkerEncoder,

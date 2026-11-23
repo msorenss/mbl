@@ -215,6 +215,7 @@ pub(crate) async fn build_runtime(
             .with_jobs(runner.queue())
             .with_mcp_url(local_mcp_url(&config.server.bind, config.server.port)),
     ));
+    services.linked_servers.set_client(Arc::new(mbl_mcp::linked::McpLinkedClient));
     let mcp_state = mbl_mcp::McpState::new(
         db.clone(),
         services.clone(),

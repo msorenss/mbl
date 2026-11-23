@@ -1,7 +1,10 @@
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { Button } from "../components/ui";
+
+const LinkedServerPlayers = lazy(() => import("../components/LinkedServerPlayers"));
+
 import { localPlayerId } from "../utils/localRemote";
 
 type PlayerInfo = components["schemas"]["PlayerInfo"];
@@ -191,6 +194,9 @@ export default function Remote() {
           </section>
         )}
       </For>
+      <Suspense>
+        <LinkedServerPlayers />
+      </Suspense>
     </div>
   );
 }
