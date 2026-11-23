@@ -1,7 +1,8 @@
 //! AI Watch Companion endpoints (M7.16).
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use mbl_service::{
@@ -63,6 +64,118 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/companion/sessions/{id}/nudge", post(request_companion_comment))
         .route("/api/v1/companion/sessions/{id}/wait", get(wait_for_companion_events))
         .route("/api/v1/companion/sessions/{id}/frame", get(companion_frame))
+        .route("/api/v1/companion/sessions/{id}/receiver-token", post(companion_receiver_token))
+        .merge(
+            // The Cast receiver runs on another origin and has no MBL sign-in, only the token.
+            Router::new()
+                .route(
+                    "/api/v1/companion/receiver/{id}/reactions",
+                    get(receiver_reactions).options(crate::routes::stream::media_preflight),
+                )
+                .route(
+                    "/api/v1/companion/receiver/{id}/speech/{reaction}",
+                    get(receiver_speech).options(crate::routes::stream::media_preflight),
+                )
+                .layer(axum::middleware::map_response(crate::routes::stream::media_cors)),
+        )
+}
+
+/// A token for the Cast receiver of this session.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionReceiverToken {
+    /// Lets the receiver read this session's comments and hear them read aloud, nothing else.
+    pub token: String,
+    pub expires_at: i64,
+}
+
+/// Let the TV read the companions' comments itself while casting.
+#[utoipa::path(
+    post,
+    path = "/api/v1/companion/sessions/{id}/receiver-token",
+    params(("id" = String, Path, description = "Live playback session ID")),
+    responses(
+        (status = 200, description = "Token for the receiver", body = CompanionReceiverToken),
+        (status = 404, description = "Session not found")
+    ),
+    security(("bearer_auth" = []))
+)]
+async fn companion_receiver_token(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<CompanionReceiverToken>, ApiError> {
+    // Only someone who can see the session gets a token for it.
+    state.services.companion.get_live_context(&auth.actor, &id)?;
+    let (token, expires_at) = state.services.auth.sign_companion_receiver_token(&auth.actor, &id);
+    Ok(Json(CompanionReceiverToken { token, expires_at }))
+}
+
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ReceiverQuery {
+    /// Token from `receiver-token`.
+    pub token: String,
+    /// Only entries with a larger ID.
+    #[serde(default, rename = "afterId")]
+    pub after_id: Option<u64>,
+    /// Only entries created after this time (ms since epoch), when `afterId` is left out.
+    #[serde(default)]
+    pub after: i64,
+    /// Voice language for reading aloud, e.g. `sv`.
+    #[serde(default)]
+    pub language: Option<String>,
+}
+
+/// The session's comments, for the Cast receiver (token instead of sign-in).
+#[utoipa::path(
+    get,
+    path = "/api/v1/companion/receiver/{id}/reactions",
+    params(("id" = String, Path, description = "Live playback session ID"), ReceiverQuery),
+    responses(
+        (status = 200, description = "Comments", body = CompanionFeed),
+        (status = 401, description = "Missing, wrong or expired token"),
+        (status = 404, description = "Session not found")
+    )
+)]
+async fn receiver_reactions(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<ReceiverQuery>,
+) -> Result<Json<CompanionFeed>, ApiError> {
+    let actor =
+        state.services.auth.authenticate_companion_receiver_token(&query.token, &id).await?;
+    Ok(Json(state.services.companion.reactions_since(&actor, &id, query.after, query.after_id)?))
+}
+
+/// One companion comment read aloud on the server (WAV), for the Cast receiver.
+#[utoipa::path(
+    get,
+    path = "/api/v1/companion/receiver/{id}/speech/{reaction}",
+    params(
+        ("id" = String, Path, description = "Live playback session ID"),
+        ("reaction" = u64, Path, description = "Comment ID"),
+        ReceiverQuery
+    ),
+    responses(
+        (status = 200, description = "WAV audio", content_type = "audio/wav"),
+        (status = 401, description = "Missing, wrong or expired token"),
+        (status = 404, description = "No such comment"),
+        (status = 503, description = "No server voice for the language")
+    )
+)]
+async fn receiver_speech(
+    State(state): State<AppState>,
+    Path((id, reaction)): Path<(String, u64)>,
+    Query(query): Query<ReceiverQuery>,
+) -> Result<Response, ApiError> {
+    let actor =
+        state.services.auth.authenticate_companion_receiver_token(&query.token, &id).await?;
+    let text = state.services.companion.comment_text(&actor, &id, reaction)?;
+    let language = query.language.as_deref().unwrap_or("en");
+    let wav = state.services.voices.speak(&actor, &text, language).await?;
+    Ok(([(header::CONTENT_TYPE, "audio/wav"), (header::CACHE_CONTROL, "no-store")], wav)
+        .into_response())
 }
 
 #[utoipa::path(

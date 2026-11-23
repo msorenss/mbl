@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Added
+- Comments on the TV keep coming when the phone sleeps: MBL's Cast receiver fetches the session's comments from MBL itself with a token for that session only, and reads them aloud with the server's voice when reading aloud is on. This needs MBL's HTTPS address (on a plain LAN address the phone still relays the comments). New `POST /api/v1/companion/sessions/{id}/receiver-token`, `GET /api/v1/companion/receiver/{id}/reactions`, `GET /api/v1/companion/receiver/{id}/speech/{reaction}`.
+
 ### Fixed
 - Phones turned sideways got the tablet layout sized for a tall screen (the start page's banner and a title's backdrop filled the whole height); short landscape screens now size these by height.
 - Casting with MBL's own receiver to a Chromecast that reports 1080p failed on a Raspberry Pi with "timed out preparing playback media": without a GPU encoder, Cast is now encoded at most in 720p.

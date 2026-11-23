@@ -145,29 +145,187 @@ function safeJson(text: string): unknown {
   }
 }
 
-/** Shows relayed comments top right, at most three, each for 15 seconds. */
-export function installCompanionOverlay(context: ReceiverContext, doc: Document = document) {
+/** A request from the sender to fetch the session's comments directly from MBL. */
+export interface CompanionSubscription {
+  base: string;
+  session: string;
+  token: string;
+  speak: boolean;
+  language: string;
+}
+
+/** A valid `subscribe` message (an https/http base URL and plain IDs), or null. */
+export function companionSubscription(data: unknown): CompanionSubscription | null {
+  const value = typeof data === "string" ? safeJson(data) : data;
+  if (!value || typeof value !== "object") return null;
+  const r = value as Record<string, unknown>;
+  if (r.type !== "subscribe") return null;
+  const { base, session, token } = r;
+  if (typeof base !== "string" || typeof session !== "string" || typeof token !== "string")
+    return null;
+  let origin: string;
+  try {
+    const url = new URL(base);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    origin = url.origin;
+  } catch {
+    return null;
+  }
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(session) || token.length > 1024) return null;
+  const language =
+    typeof r.language === "string" && /^[a-z]{2,3}$/.test(r.language) ? r.language : "en";
+  return { base: origin, session, token, speak: r.speak === true, language };
+}
+
+interface OverlayEnv {
+  fetch: typeof fetch;
+  /** Plays a WAV and resolves when it ends. */
+  play: (url: string) => Promise<void>;
+  /** Turns the film down while a comment is read aloud, and back up afterwards. */
+  duck: (on: boolean) => void;
+}
+
+const browserEnv = (doc: Document): OverlayEnv => {
+  const video = () =>
+    (doc.querySelector("video") ??
+      doc
+        .querySelector("cast-media-player")
+        ?.shadowRoot?.querySelector("video")) as HTMLVideoElement | null;
+  let restore: number | null = null;
+  return {
+    fetch: (...args) => fetch(...args),
+    play: (url) =>
+      new Promise((resolve) => {
+        const audio = new Audio(url);
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.play().catch(() => resolve());
+      }),
+    duck: (on) => {
+      const v = video();
+      if (!v) return;
+      if (on && restore === null) {
+        restore = v.volume;
+        v.volume = Math.min(v.volume, 0.3);
+      } else if (!on && restore !== null) {
+        v.volume = restore;
+        restore = null;
+      }
+    },
+  };
+};
+
+/**
+ * Shows companion comments top right, at most three, each for 15 seconds. The sender can
+ * relay comments, or subscribe the receiver to fetch them from MBL itself (so they keep coming
+ * when the phone sleeps) and read them aloud with the server's voice.
+ */
+export function installCompanionOverlay(
+  context: ReceiverContext,
+  doc: Document = document,
+  env: OverlayEnv = browserEnv(doc),
+) {
   const box = doc.createElement("div");
   box.setAttribute("aria-live", "polite");
   box.style.cssText =
     "position:fixed;top:5%;right:4%;max-width:38%;display:flex;flex-direction:column;" +
     "gap:12px;align-items:flex-end;z-index:10;pointer-events:none;font:28px sans-serif";
   doc.body.appendChild(box);
-  context.addCustomMessageListener(COMPANION_NAMESPACE, ({ data }) => {
-    const comment = companionComment(data);
-    if (!comment) return;
+  const seen = new Set<number>();
+  const show = (author: string, text: string, id?: number) => {
+    if (id !== undefined) {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      if (seen.size > 200) seen.delete(seen.values().next().value as number);
+    }
     const bubble = doc.createElement("p");
     bubble.style.cssText =
       "margin:0;padding:14px 20px;border-radius:16px;background:rgba(10,12,16,0.82);" +
       "color:#fff;line-height:1.35;box-shadow:0 4px 24px rgba(0,0,0,0.4)";
-    if (comment.author) {
+    if (author) {
       const name = doc.createElement("strong");
-      name.textContent = `${comment.author}: `;
+      name.textContent = `${author}: `;
       bubble.appendChild(name);
     }
-    bubble.appendChild(doc.createTextNode(comment.text));
+    bubble.appendChild(doc.createTextNode(text));
     box.appendChild(bubble);
     while (box.childElementCount > 3) box.firstElementChild?.remove();
     setTimeout(() => bubble.remove(), COMPANION_VISIBLE_MS);
+    return true;
+  };
+
+  let poll: ReturnType<typeof setInterval> | undefined;
+  let generation = 0;
+  let speech = Promise.resolve();
+  const stop = () => {
+    generation += 1;
+    if (poll) clearInterval(poll);
+    poll = undefined;
+  };
+  const subscribe = (sub: CompanionSubscription) => {
+    stop();
+    const mine = generation;
+    const root = `${sub.base}/api/v1/companion/receiver/${encodeURIComponent(sub.session)}`;
+    const token = encodeURIComponent(sub.token);
+    let afterId: number | undefined;
+    const after = Date.now();
+    let busy = false;
+    const tick = async () => {
+      if (busy || mine !== generation) return;
+      busy = true;
+      try {
+        const query = afterId === undefined ? `after=${after}` : `afterId=${afterId}`;
+        const res = await env.fetch(`${root}/reactions?token=${token}&${query}`);
+        if (!res.ok) {
+          // Expired token or ended session: the sender's relay still works.
+          if (res.status === 401 || res.status === 404) stop();
+          return;
+        }
+        const feed = (await res.json()) as {
+          reactions?: {
+            id?: number;
+            botName?: string;
+            commentary?: string;
+            fromViewer?: boolean;
+          }[];
+        };
+        for (const r of feed.reactions ?? []) {
+          if (typeof r.id === "number") afterId = Math.max(afterId ?? 0, r.id);
+          if (r.fromViewer || typeof r.commentary !== "string") continue;
+          const comment = companionComment({
+            type: "comment",
+            author: r.botName,
+            text: r.commentary,
+          });
+          if (!comment || !show(comment.author, comment.text, r.id) || !sub.speak) continue;
+          const id = r.id;
+          if (typeof id !== "number") continue;
+          speech = speech.then(async () => {
+            if (mine !== generation) return;
+            env.duck(true);
+            await env.play(`${root}/speech/${id}?token=${token}&language=${sub.language}`);
+            env.duck(false);
+          });
+        }
+      } catch {
+        /* Unreachable from the TV (for example http from this https page): rely on the relay. */
+      } finally {
+        busy = false;
+      }
+    };
+    void tick();
+    poll = setInterval(() => void tick(), 2000);
+  };
+
+  context.addCustomMessageListener(COMPANION_NAMESPACE, ({ data }) => {
+    const value = typeof data === "string" ? safeJson(data) : data;
+    const type = value && typeof value === "object" ? (value as { type?: unknown }).type : null;
+    if (type === "unsubscribe") return stop();
+    const sub = companionSubscription(value);
+    if (sub) return subscribe(sub);
+    const comment = companionComment(value);
+    if (!comment) return;
+    const id = (value as { id?: unknown }).id;
+    show(comment.author, comment.text, typeof id === "number" ? id : undefined);
   });
 }

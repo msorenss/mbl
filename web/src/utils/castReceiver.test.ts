@@ -4,6 +4,7 @@ import {
   COMPANION_NAMESPACE,
   capabilityReport,
   companionComment,
+  companionSubscription,
   installCapabilityChannel,
   installCompanionOverlay,
   type ReceiverContext,
@@ -135,6 +136,90 @@ describe("companion comments on the TV", () => {
     expect(box.querySelector("b")).toBeNull();
     vi.advanceTimersByTime(16000);
     expect(box.childElementCount).toBe(0);
+    box.remove();
+    vi.useRealTimers();
+  });
+});
+
+describe("the TV fetches comments itself", () => {
+  it("accepts only a well-formed subscription", () => {
+    const ok = {
+      type: "subscribe",
+      base: "https://mbl.example:8443/x",
+      session: "abc",
+      token: "t",
+    };
+    expect(companionSubscription(ok)).toEqual({
+      base: "https://mbl.example:8443",
+      session: "abc",
+      token: "t",
+      speak: false,
+      language: "en",
+    });
+    expect(companionSubscription({ ...ok, base: "javascript:alert(1)" })).toBeNull();
+    expect(companionSubscription({ ...ok, session: "../x" })).toBeNull();
+    expect(companionSubscription({ ...ok, language: "sv", speak: true })?.speak).toBe(true);
+  });
+
+  it("polls MBL, shows each comment once and reads it aloud", async () => {
+    vi.useFakeTimers();
+    const ctx = context();
+    const fetched: string[] = [];
+    const played: string[] = [];
+    const duck = vi.fn();
+    const fetchImpl = vi.fn(async (url: string) => {
+      fetched.push(url);
+      return new Response(
+        JSON.stringify({
+          reactions: [
+            { id: 4, botName: "MBL", commentary: "Look at the door", fromViewer: false },
+            { id: 5, botName: "Viewer", commentary: "me", fromViewer: true },
+          ],
+        }),
+      );
+    });
+    installCompanionOverlay(ctx, document, {
+      fetch: fetchImpl as unknown as typeof fetch,
+      play: async (url) => {
+        played.push(url);
+      },
+      duck,
+    });
+    const listener = vi.mocked(ctx.addCustomMessageListener).mock.calls[0][1];
+    listener({
+      data: {
+        type: "subscribe",
+        base: "https://mbl.example:8443",
+        session: "s1",
+        token: "t k",
+        speak: true,
+        language: "sv",
+      },
+      senderId: "x",
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetched[0]).toContain(
+      "https://mbl.example:8443/api/v1/companion/receiver/s1/reactions?token=t%20k&after=",
+    );
+    // A relayed copy of the same comment is not shown twice; the viewer's own message is not shown.
+    listener({
+      data: { type: "comment", id: 4, author: "MBL", text: "Look at the door" },
+      senderId: "x",
+    });
+    const box = document.body.lastElementChild as HTMLElement;
+    expect(box.childElementCount).toBe(1);
+    expect(box.textContent).toBe("MBL: Look at the door");
+    expect(played).toEqual([
+      "https://mbl.example:8443/api/v1/companion/receiver/s1/speech/4?token=t%20k&language=sv",
+    ]);
+    expect(duck).toHaveBeenCalledWith(true);
+    expect(duck).toHaveBeenLastCalledWith(false);
+    // The next poll asks for newer entries only; unsubscribe stops polling.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetched[1]).toContain("afterId=5");
+    listener({ data: { type: "unsubscribe" }, senderId: "x" });
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(fetched).toHaveLength(2);
     box.remove();
     vi.useRealTimers();
   });

@@ -494,6 +494,20 @@ impl CompanionService {
 
     /// Feed entries for a session, oldest first: those after `after_id` when given, otherwise
     /// those created after `after_ms`.
+    /// What a companion said in comment `id` of this session (not the viewer's own messages).
+    pub fn comment_text(&self, actor: &Actor, session_id: &str, id: u64) -> Result<String> {
+        self.get_live_context(actor, session_id)?;
+        let recent = self
+            .recent
+            .read()
+            .map_err(|_| Error::Unavailable("companion lock unavailable".into()))?;
+        recent
+            .get(session_id)
+            .and_then(|list| list.iter().find(|r| r.id == id && !r.from_viewer))
+            .map(|r| r.commentary.clone())
+            .ok_or(Error::NotFound)
+    }
+
     pub fn reactions_since(
         &self,
         actor: &Actor,

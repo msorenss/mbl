@@ -130,6 +130,51 @@ pub fn verify_stream_token(
     Ok(StreamTokenClaims { user_id, part_id, expires_at_ms })
 }
 
+/// Sign a token for `user_id` that is only valid for `scope` (for example one companion
+/// session) until `expires_at_ms`: `<payload_b64>.<sig_b64>`, HMAC-SHA256 like stream tokens.
+pub fn sign_scoped_token(
+    secret: &[u8; 32],
+    scope: &str,
+    user_id: UserId,
+    expires_at_ms: i64,
+) -> String {
+    let scope_b64 = URL_SAFE_NO_PAD.encode(scope.as_bytes());
+    let payload = format!("s1:{}:{expires_at_ms}:{scope_b64}", user_id.0);
+    let payload_b64 = URL_SAFE_NO_PAD.encode(payload.as_bytes());
+    let sig_b64 = URL_SAFE_NO_PAD.encode(hmac_sha256(secret, payload_b64.as_bytes()));
+    format!("{payload_b64}.{sig_b64}")
+}
+
+/// Verify a [`sign_scoped_token`] token for `expected_scope`; returns its user.
+pub fn verify_scoped_token(
+    secret: &[u8; 32],
+    token: &str,
+    expected_scope: &str,
+    now_ms: i64,
+) -> Result<UserId> {
+    let (payload_b64, sig_b64) = token.split_once('.').ok_or(Error::Unauthorized)?;
+    let provided_sig = URL_SAFE_NO_PAD.decode(sig_b64).map_err(|_| Error::Unauthorized)?;
+    if !constant_time_eq(&provided_sig, &hmac_sha256(secret, payload_b64.as_bytes())) {
+        return Err(Error::Unauthorized);
+    }
+    let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64).map_err(|_| Error::Unauthorized)?;
+    let payload = std::str::from_utf8(&payload_bytes).map_err(|_| Error::Unauthorized)?;
+    let mut parts = payload.split(':');
+    if parts.next() != Some("s1") {
+        return Err(Error::Unauthorized);
+    }
+    let user_id =
+        parts.next().and_then(|s| s.parse::<i64>().ok()).map(UserId).ok_or(Error::Unauthorized)?;
+    let expires_at_ms =
+        parts.next().and_then(|s| s.parse::<i64>().ok()).ok_or(Error::Unauthorized)?;
+    let scope =
+        parts.next().and_then(|s| URL_SAFE_NO_PAD.decode(s).ok()).ok_or(Error::Unauthorized)?;
+    if parts.next().is_some() || scope != expected_scope.as_bytes() || expires_at_ms <= now_ms {
+        return Err(Error::Unauthorized);
+    }
+    Ok(user_id)
+}
+
 /// Claims embedded in a signed `?token=` for worker media source access.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkerSourceTokenClaims {

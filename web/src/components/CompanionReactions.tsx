@@ -118,7 +118,14 @@ export default function CompanionReactions(props: {
   open: boolean;
   onClose: () => void;
   /** Set while casting: whether the receiver can draw comments, and how to send it one. */
-  tv?: { available: boolean; show: (author: string, text: string) => void } | null;
+  tv?: {
+    available: boolean;
+    show: (id: number | undefined, author: string, text: string) => void;
+    /** Let the TV fetch comments (and read them aloud) itself; `null` stops it. */
+    subscribe: (
+      sub: { session: string; token: string; speak: boolean; language: string } | null,
+    ) => void;
+  } | null;
 }) {
   const { t, locale } = useI18n();
   const [speakReplies, setSpeakReplies] = createSignal(readAloud("player"));
@@ -147,9 +154,10 @@ export default function CompanionReactions(props: {
     if (fresh.length === 0) return;
     setHistory((list) => [...list, ...fresh].slice(-HISTORY));
     const comments = fresh.filter((r) => !r.fromViewer);
-    if (onTv()) for (const r of comments) props.tv?.show(r.botName, r.commentary);
+    if (onTv()) for (const r of comments) props.tv?.show(r.id, r.botName, r.commentary);
     else setShown((list) => [...list, ...comments].slice(-3));
-    if (speakReplies()) for (const r of fresh.filter((r) => !r.fromViewer)) sayAloud(r.commentary);
+    // On the TV, the receiver reads them aloud itself.
+    if (speakReplies() && !onTv()) for (const r of comments) sayAloud(r.commentary);
   };
 
   /** Read a companion's reply aloud, with the film quieter meanwhile. */
@@ -228,6 +236,38 @@ export default function CompanionReactions(props: {
       },
     ),
   );
+
+  // Showing comments on the TV: give the receiver a token so it fetches them itself.
+  createEffect(
+    on(
+      [() => props.sessionId, onTv, speakReplies, () => props.tv?.available],
+      ([sessionId, tv, speaking]) => {
+        if (!sessionId || !tv) {
+          props.tv?.subscribe(null);
+          return;
+        }
+        let cancelled = false;
+        void client
+          .POST("/api/v1/companion/sessions/{id}/receiver-token", {
+            params: { path: { id: sessionId } },
+          })
+          .then((result) => {
+            if (cancelled || !result.data) return;
+            props.tv?.subscribe({
+              session: sessionId,
+              token: result.data.token,
+              speak: Boolean(speaking),
+              language: locale().split("-")[0] || "en",
+            });
+          })
+          .catch(() => undefined);
+        onCleanup(() => {
+          cancelled = true;
+        });
+      },
+    ),
+  );
+  onCleanup(() => props.tv?.subscribe(null));
 
   // Newest message in view whenever the chat opens or grows.
   // Read-aloud already on from an earlier visit: still say when this browser cannot speak.

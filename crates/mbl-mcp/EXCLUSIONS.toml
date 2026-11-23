@@ -514,3 +514,15 @@ reason = "Model downloads are started by an admin in the web interface."
 [[exclusions]]
 path = "/api/v1/hw/ollama/models/{name}"
 reason = "Removing models is an admin task in the web interface."
+
+[[exclusions]]
+path = "/api/v1/companion/sessions/{id}/receiver-token"
+reason = "Hands the viewer's Cast receiver a token to show comments on the TV; agents read the chat with read_companion_chat."
+
+[[exclusions]]
+path = "/api/v1/companion/receiver/{id}/reactions"
+reason = "Read by the Cast receiver with its token; agents use read_companion_chat."
+
+[[exclusions]]
+path = "/api/v1/companion/receiver/{id}/speech/{reaction}"
+reason = "Audio for the Cast receiver; agents have no use for WAV files."

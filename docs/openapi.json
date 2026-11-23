@@ -1109,6 +1109,170 @@
         ]
       }
     },
+    "/api/v1/companion/receiver/{id}/reactions": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "The session's comments, for the Cast receiver (token instead of sign-in).",
+        "operationId": "receiver_reactions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Token from `receiver-token`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "description": "Only entries with a larger ID.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Only entries created after this time (ms since epoch), when `afterId` is left out.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Voice language for reading aloud, e.g. `sv`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionFeed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, wrong or expired token"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        }
+      }
+    },
+    "/api/v1/companion/receiver/{id}/speech/{reaction}": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "One companion comment read aloud on the server (WAV), for the Cast receiver.",
+        "operationId": "receiver_speech",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reaction",
+            "in": "path",
+            "description": "Comment ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Token from `receiver-token`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "description": "Only entries with a larger ID.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Only entries created after this time (ms since epoch), when `afterId` is left out.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Voice language for reading aloud, e.g. `sv`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WAV audio",
+            "content": {
+              "audio/wav": {}
+            }
+          },
+          "401": {
+            "description": "Missing, wrong or expired token"
+          },
+          "404": {
+            "description": "No such comment"
+          },
+          "503": {
+            "description": "No server voice for the language"
+          }
+        }
+      }
+    },
     "/api/v1/companion/sessions/{id}/context": {
       "get": {
         "tags": [
@@ -1465,6 +1629,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CompanionFeed"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/companion/sessions/{id}/receiver-token": {
+      "post": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "Let the TV read the companions' comments itself while casting.",
+        "operationId": "companion_receiver_token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Live playback session ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token for the receiver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionReceiverToken"
                 }
               }
             }
@@ -11809,6 +12013,24 @@
           "timestampMs": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "CompanionReceiverToken": {
+        "type": "object",
+        "description": "A token for the Cast receiver of this session.",
+        "required": [
+          "token",
+          "expiresAt"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "token": {
+            "type": "string",
+            "description": "Lets the receiver read this session's comments and hear them read aloud, nothing else."
           }
         }
       },

@@ -478,6 +478,42 @@ impl AuthService {
         )
     }
 
+    /// A token that lets a Cast receiver read the comments of one companion session (8 h).
+    pub fn sign_companion_receiver_token(&self, actor: &Actor, session_id: &str) -> (String, i64) {
+        let expires_at_ms = now_ms().saturating_add(8 * 60 * 60 * 1000);
+        let token = mbl_auth::sign_scoped_token(
+            &self.stream_secret,
+            &format!("companion:{session_id}"),
+            actor.user_id,
+            expires_at_ms,
+        );
+        (token, expires_at_ms)
+    }
+
+    /// The person a companion receiver token was made for, with their current permissions.
+    pub async fn authenticate_companion_receiver_token(
+        &self,
+        token: &str,
+        session_id: &str,
+    ) -> Result<Actor> {
+        let user_id = mbl_auth::verify_scoped_token(
+            &self.stream_secret,
+            token,
+            &format!("companion:{session_id}"),
+            now_ms(),
+        )?;
+        let user = self.users.get(user_id).await?.ok_or(Error::Unauthorized)?;
+        let (library_access, is_managed, content_rating_ceiling) =
+            self.resolve_actor_permissions(user.id, user.is_admin).await?;
+        Ok(Actor {
+            user_id: user.id,
+            is_admin: user.is_admin,
+            library_access,
+            is_managed,
+            content_rating_ceiling,
+        })
+    }
+
     /// Verify a signed `?token=` for `part_id` and resolve the owning user to an [`Actor`].
     pub async fn authenticate_stream_token(&self, token: &str, part_id: PartId) -> Result<Actor> {
         let claims = mbl_auth::verify_stream_token(&self.stream_secret, token, part_id, now_ms())?;

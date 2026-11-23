@@ -1870,7 +1870,8 @@ export function Player(props: PlayerProps) {
           isCasting()
             ? {
                 available: receiverShowsComments(),
-                show: (author, text) => void castManager.showComment(author, text),
+                show: (id, author, text) => void castManager.showComment(id, author, text),
+                subscribe: (sub) => void castManager.subscribeComments(sub),
               }
             : null
         }

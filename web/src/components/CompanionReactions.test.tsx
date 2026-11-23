@@ -261,14 +261,19 @@ it("shows companion comments on the TV when chosen while casting", async () => {
     },
     response: new Response(),
   } as never);
+  const post = vi.spyOn(client, "POST").mockResolvedValue({
+    data: { token: "tv-token", expiresAt: Date.now() + 1000 },
+    response: new Response(),
+  } as never);
   const show = vi.fn();
+  const subscribe = vi.fn();
   dispose = render(
     () =>
       createComponent(CompanionReactions, {
         sessionId: "s1",
         open: true,
         onClose: () => {},
-        tv: { available: true, show },
+        tv: { available: true, show, subscribe },
       }),
     document.body,
   );
@@ -277,7 +282,14 @@ it("shows companion comments on the TV when chosen while casting", async () => {
   ) as HTMLButtonElement;
   tvButton.click();
   await vi.advanceTimersByTimeAsync(2500);
-  expect(show).toHaveBeenCalledWith("Hermes", "On the big screen");
+  expect(show).toHaveBeenCalledWith(3, "Hermes", "On the big screen");
+  // The TV gets its own token and fetches comments itself, also while the phone sleeps.
+  expect(post).toHaveBeenCalledWith("/api/v1/companion/sessions/{id}/receiver-token", {
+    params: { path: { id: "s1" } },
+  });
+  expect(subscribe).toHaveBeenCalledWith(
+    expect.objectContaining({ session: "s1", token: "tv-token", language: "en" }),
+  );
   expect(localStorage.getItem("mbl.companion.display")).toBe("tv");
   localStorage.removeItem("mbl.companion.display");
 });
@@ -293,7 +305,7 @@ it("keeps comments on the device when the receiver cannot show them", async () =
         sessionId: "s1",
         open: true,
         onClose: () => {},
-        tv: { available: false, show: vi.fn() },
+        tv: { available: false, show: vi.fn(), subscribe: vi.fn() },
       }),
     document.body,
   );

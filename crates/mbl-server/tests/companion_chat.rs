@@ -325,3 +325,104 @@ async fn companions_wake_on_viewer_messages_and_requested_comments() {
         app.call(Method::GET, &format!("{base}/wait?botName=Claude"), Some(&other), None).await;
     assert_eq!(res.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn the_cast_receiver_reads_comments_with_its_own_token() {
+    let (app, db, _services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let fixture = common::seed_playback_fixtures(&app, &db, &admin).await;
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin),
+            Some(json!({"itemId": fixture.movie_id, "profile": "chrome", "startMs": 0})),
+        )
+        .await;
+    assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+    let session = start.body["sessionId"].as_str().unwrap().to_owned();
+    let base = format!("/api/v1/companion/sessions/{session}");
+    let res = app
+        .call(Method::POST, &format!("{base}/join"), Some(&admin), Some(json!({"botName": "MBL"})))
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let res = app
+        .call(
+            Method::POST,
+            &format!("{base}/reaction"),
+            Some(&admin),
+            Some(json!({"botName": "MBL", "timestampMs": 1000, "commentary": "Watch the door"})),
+        )
+        .await;
+    assert!(res.status.is_success(), "{}", res.body);
+    let res = app
+        .call(Method::POST, &format!("{base}/messages"), Some(&admin), Some(json!({"text": "hi"})))
+        .await;
+    let viewer_id = res.body["id"].as_u64().unwrap();
+
+    // Only someone who can see the session gets a token.
+    let res = app
+        .call(Method::POST, "/api/v1/companion/sessions/nope/receiver-token", Some(&admin), None)
+        .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let res = app.call(Method::POST, &format!("{base}/receiver-token"), Some(&admin), None).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let token = res.body["token"].as_str().unwrap().to_owned();
+    let enc: String = token.bytes().map(|b| format!("%{b:02X}")).collect();
+
+    // The receiver reads the feed with the token alone, no sign-in.
+    let feed = format!("/api/v1/companion/receiver/{session}/reactions?token={enc}");
+    let res = app.call(Method::GET, &feed, None, None).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let texts: Vec<&str> = res.body["reactions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|r| r["commentary"].as_str())
+        .collect();
+    assert!(texts.contains(&"Watch the door"), "{texts:?}");
+    let comment_id = res.body["reactions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["commentary"] == "Watch the door")
+        .and_then(|r| r["id"].as_u64())
+        .unwrap();
+
+    // A wrong token, or this token for another session, is refused.
+    let res = app
+        .call(
+            Method::GET,
+            &format!("/api/v1/companion/receiver/{session}/reactions?token=x.y"),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+    let res = app
+        .call(
+            Method::GET,
+            &format!("/api/v1/companion/receiver/other/reactions?token={enc}"),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNAUTHORIZED);
+
+    // Reading aloud: only companion comments, never the viewer's own words or arbitrary text.
+    let speech = format!("/api/v1/companion/receiver/{session}/speech");
+    let res = app
+        .call(Method::GET, &format!("{speech}/{viewer_id}?token={enc}&language=sv"), None, None)
+        .await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let res = app
+        .call(Method::GET, &format!("{speech}/{comment_id}?token={enc}&language=sv"), None, None)
+        .await;
+    // No Piper in the test environment: the comment exists, the voice does not.
+    assert!(
+        matches!(res.status, StatusCode::SERVICE_UNAVAILABLE | StatusCode::OK),
+        "{} {}",
+        res.status,
+        res.body
+    );
+}

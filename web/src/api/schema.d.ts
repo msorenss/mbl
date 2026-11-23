@@ -517,6 +517,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion/receiver/{id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The session's comments, for the Cast receiver (token instead of sign-in). */
+        get: operations["receiver_reactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/receiver/{id}/speech/{reaction}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One companion comment read aloud on the server (WAV), for the Cast receiver. */
+        get: operations["receiver_speech"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/companion/sessions/{id}/context": {
         parameters: {
             query?: never;
@@ -647,6 +681,23 @@ export interface paths {
         get: operations["get_companion_reactions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions/{id}/receiver-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Let the TV read the companions' comments itself while casting. */
+        post: operations["companion_receiver_token"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4339,6 +4390,13 @@ export interface components {
             sessionId: string;
             /** Format: int64 */
             timestampMs: number;
+        };
+        /** @description A token for the Cast receiver of this session. */
+        CompanionReceiverToken: {
+            /** Format: int64 */
+            expiresAt: number;
+            /** @description Lets the receiver read this session's comments and hear them read aloud, nothing else. */
+            token: string;
         };
         /** @description What a waiting companion should react to. */
         CompanionWake: {
@@ -8566,6 +8624,107 @@ export interface operations {
             };
         };
     };
+    receiver_reactions: {
+        parameters: {
+            query: {
+                /** @description Token from `receiver-token`. */
+                token: string;
+                /** @description Only entries with a larger ID. */
+                afterId?: number;
+                /** @description Only entries created after this time (ms since epoch), when `afterId` is left out. */
+                after?: number;
+                /** @description Voice language for reading aloud, e.g. `sv`. */
+                language?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Comments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionFeed"];
+                };
+            };
+            /** @description Missing, wrong or expired token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    receiver_speech: {
+        parameters: {
+            query: {
+                /** @description Token from `receiver-token`. */
+                token: string;
+                /** @description Only entries with a larger ID. */
+                afterId?: number;
+                /** @description Only entries created after this time (ms since epoch), when `afterId` is left out. */
+                after?: number;
+                /** @description Voice language for reading aloud, e.g. `sv`. */
+                language?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+                /** @description Comment ID */
+                reaction: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WAV audio */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/wav": unknown;
+                };
+            };
+            /** @description Missing, wrong or expired token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such comment */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No server voice for the language */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_companion_context: {
         parameters: {
             query?: never;
@@ -8852,6 +9011,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompanionFeed"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    companion_receiver_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Live playback session ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token for the receiver */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionReceiverToken"];
                 };
             };
             /** @description Session not found */

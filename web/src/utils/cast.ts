@@ -213,6 +213,8 @@ class CastManager {
   private deviceName: string | null = null;
   private detachTelemetry: (() => void) | null = null;
   private profileSelection: CastProfileSelection | null = null;
+  /** Origin the receiver streams from; it reaches MBL there for comments too. */
+  private mediaBase: string | null = null;
   private playerState: "idle" | "playing" | "paused" | "buffering" = "idle";
   private currentTime = 0;
   private duration = 0;
@@ -393,16 +395,41 @@ class CastManager {
     );
   }
 
-  /** Show a companion comment over the video on MBL's own receiver. False when it cannot. */
-  public async showComment(author: string, text: string): Promise<boolean> {
-    if (!this.receiverShowsComments()) return false;
+  private companionSession(): CapabilitySession | null {
+    if (!this.receiverShowsComments()) return null;
     const session = window.cast?.framework?.CastContext.getInstance().getCurrentSession() as
       | CapabilitySession
       | null
       | undefined;
-    if (!session?.sendMessage) return false;
+    return session?.sendMessage ? session : null;
+  }
+
+  /** Show a companion comment over the video on MBL's own receiver. False when it cannot. */
+  public async showComment(id: number | undefined, author: string, text: string): Promise<boolean> {
+    const session = this.companionSession();
+    if (!session) return false;
     try {
-      await session.sendMessage(COMPANION_NAMESPACE, { type: "comment", author, text });
+      await session.sendMessage?.(COMPANION_NAMESPACE, { type: "comment", id, author, text });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Let the receiver fetch the session's comments from MBL itself, with the address it already
+   * streams from, so they keep coming while this phone sleeps. `null` stops it.
+   */
+  public async subscribeComments(
+    sub: { session: string; token: string; speak: boolean; language: string } | null,
+  ): Promise<boolean> {
+    const session = this.companionSession();
+    if (!session || (sub && !this.mediaBase)) return false;
+    try {
+      await session.sendMessage?.(
+        COMPANION_NAMESPACE,
+        sub ? { type: "subscribe", base: this.mediaBase, ...sub } : { type: "unsubscribe" },
+      );
       return true;
     } catch {
       return false;
@@ -872,6 +899,7 @@ class CastManager {
           if (castContext.getCurrentSession() !== session) return false;
           this.activeItemId = media.itemId ?? null;
           const url = this.toAbsoluteUrl(media.contentId);
+          this.mediaBase = new URL(url).origin;
           if (["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)) {
             throw new Error(
               "Open MBL using a LAN address or configure a receiver-reachable public URL before casting.",
