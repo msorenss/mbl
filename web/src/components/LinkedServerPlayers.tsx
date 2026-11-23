@@ -33,6 +33,13 @@ export default function LinkedServerPlayers() {
   });
   onCleanup(() => clearInterval(timer));
 
+  const playing = () =>
+    servers().flatMap((s) =>
+      s.players
+        .filter((p) => p.state === "playing" && p.nowPlayingItemId)
+        .map((p) => `${s.id}\u0000${p.id}`),
+    );
+
   const send = async (server: View, player: Player, command: Command) => {
     setError("");
     try {
@@ -56,6 +63,28 @@ export default function LinkedServerPlayers() {
       <Show when={error()}>
         <p role="alert">{error()}</p>
       </Show>
+      {/* Keyed by server and player ID so the watchers survive each refresh. */}
+      <For each={playing()}>
+        {(key) => {
+          const [serverId, playerId] = key.split("\u0000");
+          return (
+            <CommentWatcher
+              player={
+                servers()
+                  .find((s) => s.id === serverId)
+                  ?.players.find((p) => p.id === playerId)?.name ?? ""
+              }
+              fetch={async (afterId) =>
+                (
+                  await client.GET("/api/v1/linked-servers/{id}/players/{player}/comments", {
+                    params: { path: { id: serverId, player: playerId }, query: { afterId } },
+                  })
+                ).data
+              }
+            />
+          );
+        }}
+      </For>
       <For each={servers()}>
         {(server) => (
           <section class="mbl-card-section" aria-label={server.name}>
@@ -83,24 +112,6 @@ export default function LinkedServerPlayers() {
                     gap: "0.5rem",
                   }}
                 >
-                  <Show when={player.state === "playing" && player.nowPlayingItemId}>
-                    <CommentWatcher
-                      player={player.name}
-                      fetch={async (afterId) =>
-                        (
-                          await client.GET(
-                            "/api/v1/linked-servers/{id}/players/{player}/comments",
-                            {
-                              params: {
-                                path: { id: server.id, player: player.id },
-                                query: { afterId },
-                              },
-                            },
-                          )
-                        ).data
-                      }
-                    />
-                  </Show>
                   <div style={{ display: "flex", "justify-content": "space-between", gap: "1rem" }}>
                     <strong translate="no">{player.name}</strong>
                     <small>

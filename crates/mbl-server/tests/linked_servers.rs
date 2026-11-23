@@ -72,6 +72,7 @@ async fn a_server_controls_and_plays_on_a_linked_servers_players() {
     assert_eq!(res.body[0]["error"], json!(null), "{}", res.body);
     assert_eq!(res.body[0]["players"][0]["id"], "b-tv", "{}", res.body);
     assert_eq!(res.body[0]["players"][0]["name"], "Living room");
+    assert_eq!(res.body[0]["players"][0]["deviceType"], "web");
 
     // B's player connects its command channel; A searches B's library, plays a title on the
     // player, pauses and seeks it, and each command arrives on B's player.
@@ -155,6 +156,12 @@ async fn a_server_controls_and_plays_on_a_linked_servers_players() {
         "nowPlayingItemId": fixture.movie_id, "positionMs":1000, "durationMs":60000, "volume":50});
     let res = b.call(Method::POST, "/api/v1/players", Some(&b_admin), Some(player)).await;
     assert!(res.status.is_success(), "{}", res.body);
+    // A sees what B's player plays, with B's title.
+    let res = a.call(Method::GET, "/api/v1/linked-servers", Some(&a_admin), None).await;
+    let tv = &res.body[0]["players"][0];
+    assert_eq!(tv["nowPlayingItemId"], fixture.movie_id, "{}", res.body);
+    assert!(tv["nowPlayingTitle"].as_str().is_some_and(|t| !t.is_empty()), "{}", res.body);
+    assert_eq!(tv["positionMs"], 1000);
     let comments = format!("/api/v1/linked-servers/{id}/players/b-tv/comments");
     let res = a.call(Method::GET, &comments, Some(&a_admin), None).await;
     assert_eq!(res.status, StatusCode::OK, "{}", res.body);

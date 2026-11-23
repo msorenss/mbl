@@ -121,6 +121,25 @@ export default function Remote() {
         your account.
       </p>
       <ReadCommentsAloud />
+      {/* Keyed by player ID: the list is replaced on every refresh, the watchers must live on. */}
+      <For
+        each={players()
+          .filter((p) => p.state === "playing" && p.nowPlayingItemId)
+          .map((p) => p.id)}
+      >
+        {(id) => (
+          <CommentWatcher
+            player={players().find((p) => p.id === id)?.name ?? ""}
+            fetch={async (afterId) =>
+              (
+                await client.GET("/api/v1/players/{id}/comments", {
+                  params: { path: { id }, query: { afterId } },
+                })
+              ).data
+            }
+          />
+        )}
+      </For>
       <Show when={error()}>
         <p role="alert">{error()}</p>
       </Show>
@@ -133,18 +152,6 @@ export default function Remote() {
       <For each={players()}>
         {(player) => (
           <section class="mbl-card-section" aria-label={player.name}>
-            <Show when={player.state === "playing" && player.nowPlayingItemId}>
-              <CommentWatcher
-                player={player.name}
-                fetch={async (afterId) =>
-                  (
-                    await client.GET("/api/v1/players/{id}/comments", {
-                      params: { path: { id: player.id }, query: { afterId } },
-                    })
-                  ).data
-                }
-              />
-            </Show>
             <div style={{ display: "flex", "justify-content": "space-between", gap: "1rem" }}>
               <div>
                 <h2 style={{ margin: 0, "font-size": "1.1rem" }}>{player.name}</h2>

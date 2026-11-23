@@ -371,15 +371,21 @@ fn public(link: StoredLink) -> LinkedServer {
 }
 
 fn parse_player(v: &Value) -> Option<LinkedPlayer> {
+    // `list_players` sends the player as the REST API does (camelCase); accept snake_case too.
+    let field = |camel: &str, snake: &str| v.get(camel).or_else(|| v.get(snake));
     Some(LinkedPlayer {
         id: v.get("id")?.as_str()?.to_owned(),
         name: v.get("name").and_then(Value::as_str).unwrap_or("Player").chars().take(80).collect(),
-        device_type: v.get("device_type").and_then(Value::as_str).unwrap_or("").to_owned(),
+        device_type: field("deviceType", "device_type")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned(),
         state: v.get("state").and_then(Value::as_str).unwrap_or("idle").to_owned(),
-        now_playing_item_id: v.get("now_playing_item_id").and_then(Value::as_i64),
+        now_playing_item_id: field("nowPlayingItemId", "now_playing_item_id")
+            .and_then(Value::as_i64),
         now_playing_title: None,
-        position_ms: v.get("position_ms").and_then(Value::as_i64).unwrap_or(0),
-        duration_ms: v.get("duration_ms").and_then(Value::as_i64).unwrap_or(0),
+        position_ms: field("positionMs", "position_ms").and_then(Value::as_i64).unwrap_or(0),
+        duration_ms: field("durationMs", "duration_ms").and_then(Value::as_i64).unwrap_or(0),
         volume: v.get("volume").and_then(Value::as_u64).map_or(100, |v| v.min(100) as u32),
     })
 }
@@ -442,5 +448,13 @@ mod tests {
         assert_eq!(p.now_playing_item_id, Some(7));
         assert_eq!(p.volume, 100);
         assert!(parse_player(&json!({ "name": "no id" })).is_none());
+        // What list_players actually sends.
+        let p = parse_player(&json!({
+            "id": "p2", "name": "TV", "deviceType": "web", "state": "playing",
+            "nowPlayingItemId": 9, "positionMs": 5, "durationMs": 10, "volume": 40
+        }))
+        .unwrap();
+        assert_eq!((p.now_playing_item_id, p.position_ms, p.duration_ms), (Some(9), 5, 10));
+        assert_eq!(p.device_type, "web");
     }
 }
