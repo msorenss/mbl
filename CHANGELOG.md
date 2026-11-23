@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-11-23
+
 ### Added
 - **Companion comments on the remote control**: while you control a player (also one on a linked server) from Remote control, what the companions say about what it plays pops up as a toast on your phone, or is read aloud with "Read companion comments aloud". New `GET /api/v1/players/{id}/comments`, `GET /api/v1/linked-servers/{id}/players/{player}/comments`; MCP `read_companion_chat` takes `player_id` instead of `session_id`.
 - **Linked MBL servers**: link another MBL (for example a Windows PC) under Server settings → Other MBL servers, with a token made on it (scopes read and playback). Remote control then shows its players: pause, seek, volume, stop, and play a title from its library there. The user menu opens a linked server's web app. Calls go to the other server's MCP endpoint, so its permissions, network rules and audit log apply; links are for administrators unless shared. New `GET/POST /api/v1/system/linked-servers`, `DELETE /api/v1/system/linked-servers/{id}`, `GET /api/v1/linked-servers`, `GET /api/v1/linked-servers/names`, `GET /api/v1/linked-servers/{id}/search`, `POST /api/v1/linked-servers/{id}/players/{player}/command`, `POST /api/v1/linked-servers/{id}/players/{player}/play`.

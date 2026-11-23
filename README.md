@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.4.1
+Current release: v1.4.2
 
-This release lets the assistant run on a Hailo-10H with Hailo-Ollama, reads replies aloud on the server with Piper when the browser has no voices, matches subtitles to the speech, and shows companion comments on the TV while casting with MBL's own Cast receiver, now the default for every installation. On phones the player is tidier. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release links MBL servers: from one server's Remote control you see and control another's players and start titles from its library there. While casting, the TV fetches and reads the companion's comments itself, and the remote control shows them as pop-ups or reads them aloud. Casting from a Raspberry Pi no longer fails at 1080p or stops after 25 minutes, and phones turned sideways get a fitting layout. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 

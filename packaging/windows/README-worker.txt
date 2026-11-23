@@ -1,4 +1,4 @@
-MBL Distributed Transcode Worker for Windows (v1.4.1)
+MBL Distributed Transcode Worker for Windows (v1.4.2)
 ======================================================
 
 Welcome to mbl-worker! This binary turns any Windows machine (such as your GPU gaming PC)
