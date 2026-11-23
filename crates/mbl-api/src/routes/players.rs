@@ -1,12 +1,12 @@
 //! Players Registry & Companion Remote Control endpoints (M7.10, M7.13).
 
 use axum::extract::ws::{Message, WebSocketUpgrade};
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
-use mbl_service::{PlayerCommand, PlayerInfo};
+use mbl_service::{PlayerCommand, PlayerComments, PlayerInfo};
 
 use crate::error::ApiError;
 use crate::extract::AuthUser;
@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/players/{id}", delete(unregister_player))
         .route("/api/v1/players/{id}/connect", get(connect_player))
         .route("/api/v1/players/{id}/command", post(send_player_command))
+        .route("/api/v1/players/{id}/comments", get(player_comments))
 }
 
 #[utoipa::path(
@@ -132,4 +133,37 @@ pub(crate) async fn connect_player(
             }
         }
     }))
+}
+
+#[derive(Debug, Default, serde::Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct PlayerCommentsQuery {
+    /// From the previous answer's `lastId`; without it only `lastId` is returned.
+    #[serde(default, rename = "afterId")]
+    pub after_id: Option<u64>,
+}
+
+/// What companions say about what this player plays, for a remote control.
+#[utoipa::path(
+    get,
+    path = "/api/v1/players/{id}/comments",
+    params(("id" = String, Path, description = "Player ID"), PlayerCommentsQuery),
+    responses(
+        (status = 200, description = "New companion comments", body = PlayerComments),
+        (status = 404, description = "No such player")
+    ),
+    security(("bearer_auth" = []))
+)]
+pub(crate) async fn player_comments(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<PlayerCommentsQuery>,
+) -> Result<Json<PlayerComments>, ApiError> {
+    Ok(Json(state.services.companion.player_comments(
+        &auth.actor,
+        &state.services.players,
+        &id,
+        query.after_id,
+    )?))
 }

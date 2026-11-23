@@ -4090,6 +4090,62 @@
         ]
       }
     },
+    "/api/v1/linked-servers/{id}/players/{player}/comments": {
+      "get": {
+        "tags": [
+          "linked-servers"
+        ],
+        "summary": "What companions say about what a linked server's player plays.",
+        "operationId": "linked_player_comments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "player",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "description": "From the previous answer's `lastId`; without it only `lastId` is returned.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerComments"
+                }
+              }
+            }
+          },
+          "404": {},
+          "503": {}
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/linked-servers/{id}/players/{player}/play": {
       "post": {
         "tags": [
@@ -7005,6 +7061,57 @@
           },
           "503": {
             "description": "Player command connection unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/players/{id}/comments": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "What companions say about what this player plays, for a remote control.",
+        "operationId": "player_comments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Player ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "description": "From the previous answer's `lastId`; without it only `lastId` is returned.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "New companion comments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerComments"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such player"
           }
         },
         "security": [
@@ -12278,7 +12385,6 @@
       },
       "CompanionReaction": {
         "type": "object",
-        "description": "One entry in a session's co-watching feed: a companion comment or a viewer message.",
         "required": [
           "sessionId",
           "botName",
@@ -18618,6 +18724,56 @@
             }
           }
         ]
+      },
+      "PlayerComment": {
+        "type": "object",
+        "required": [
+          "id",
+          "botName",
+          "commentary"
+        ],
+        "properties": {
+          "botName": {
+            "type": "string"
+          },
+          "commentary": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "PlayerComments": {
+        "type": "object",
+        "description": "One entry in a session's co-watching feed: a companion comment or a viewer message.\nWhat companions say about what a player plays, for a remote control.",
+        "required": [
+          "comments",
+          "lastId"
+        ],
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerComment"
+            }
+          },
+          "lastId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pass as `afterId` next time.",
+            "minimum": 0
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Playback session the comments belong to; none when the player plays nothing."
+          }
+        }
       },
       "PlayerInfo": {
         "type": "object",

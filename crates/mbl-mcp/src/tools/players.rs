@@ -258,9 +258,9 @@ pub fn definitions() -> Vec<RegisteredTool> {
                     "type": "object",
                     "properties": {
                         "session_id": { "type": "string", "description": "Active playback session ID" },
+                        "player_id": { "type": "string", "description": "Instead of session_id: the companion comments for what this player plays now (from list_players). Without after_id only last_id is returned." },
                         "after_id": { "type": "integer", "minimum": 0, "description": "Only entries with a larger ID" }
                     },
-                    "required": ["session_id"],
                     "additionalProperties": false
                 }),
                 annotations: Some(ToolAnnotations {
@@ -588,16 +588,27 @@ pub async fn execute(
             })
         }
         "read_companion_chat" => {
-            let session_id = args
-                .get("session_id")
-                .and_then(Value::as_str)
-                .ok_or_else(|| JsonRpcError::invalid_params("missing session_id"))?;
             let after_id = match args.get("after_id") {
                 None | Some(Value::Null) => None,
                 Some(v) => Some(v.as_u64().ok_or_else(|| {
                     JsonRpcError::invalid_params("after_id must be a non-negative integer")
                 })?),
             };
+            if let Some(player_id) = args.get("player_id").and_then(Value::as_str) {
+                let comments = services
+                    .companion
+                    .player_comments(&caller.actor, &services.players, player_id, after_id)
+                    .map_err(map_service_error)?;
+                let n = comments.comments.len();
+                return Ok(CallToolResult::structured(
+                    &json!({ "playerComments": comments }),
+                    format!("{n} companion comment(s)"),
+                ));
+            }
+            let session_id = args
+                .get("session_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| JsonRpcError::invalid_params("missing session_id or player_id"))?;
             let feed = services
                 .companion
                 .reactions_since(&caller.actor, session_id, 0, after_id)

@@ -985,6 +985,15 @@ impl PlaybackService {
             .map(|s| s.session_id.clone())
     }
 
+    /// The newest session of `user` playing `item`.
+    pub fn latest_session_for_item(&self, user: UserId, item: ItemId) -> Option<String> {
+        let map = self.sessions.read().ok()?;
+        map.values()
+            .filter(|s| s.user_id == user && s.item_id == item)
+            .max_by_key(|s| s.last_updated_at)
+            .map(|s| s.session_id.clone())
+    }
+
     pub fn get_session(&self, actor: &Actor, session_id: &str) -> Option<ActivePlaybackSession> {
         let Ok(map) = self.sessions.read() else {
             return None;

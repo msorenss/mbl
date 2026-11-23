@@ -174,6 +174,17 @@ impl PlayerRegistry {
         Ok(list)
     }
 
+    /// Whose player this is and what it plays, for someone allowed to see it.
+    pub fn now_playing(&self, actor: &Actor, id: &str) -> Result<(UserId, Option<ItemId>)> {
+        let players = self
+            .players
+            .read()
+            .map_err(|_| Error::Unavailable("player registry unavailable".into()))?;
+        let player = players.get(id).filter(|p| Self::visible(actor, p)).ok_or(Error::NotFound)?;
+        let owner = player.owner.map_or(actor.user_id, |(user, _)| user);
+        Ok((owner, player.info.now_playing_item_id))
+    }
+
     pub fn get_player(&self, player_id: &str) -> Option<PlayerInfo> {
         self.players.read().ok()?.get(player_id).map(|p| p.info.clone())
     }

@@ -2,6 +2,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { formatClock } from "../pages/Remote";
+import { CommentWatcher } from "./RemoteComments";
 import { Button } from "./ui";
 
 type View = components["schemas"]["LinkedServerView"];
@@ -82,6 +83,24 @@ export default function LinkedServerPlayers() {
                     gap: "0.5rem",
                   }}
                 >
+                  <Show when={player.state === "playing" && player.nowPlayingItemId}>
+                    <CommentWatcher
+                      player={player.name}
+                      fetch={async (afterId) =>
+                        (
+                          await client.GET(
+                            "/api/v1/linked-servers/{id}/players/{player}/comments",
+                            {
+                              params: {
+                                path: { id: server.id, player: player.id },
+                                query: { afterId },
+                              },
+                            },
+                          )
+                        ).data
+                      }
+                    />
+                  </Show>
                   <div style={{ display: "flex", "justify-content": "space-between", gap: "1rem" }}>
                     <strong translate="no">{player.name}</strong>
                     <small>

@@ -4,6 +4,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import client from "../api/client";
 import LinkedServerPlayers from "./LinkedServerPlayers";
 
+vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: vi.fn() }) }));
+
 let dispose: (() => void) | undefined;
 afterEach(() => {
   dispose?.();

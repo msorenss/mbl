@@ -554,3 +554,11 @@ reason = "Plays on another MBL server; an agent uses that server's play_on_playe
 [[exclusions]]
 path = "/api/v1/linked-servers/names"
 reason = "Names and addresses of other MBL servers for the web app's server menu."
+
+[[exclusions]]
+path = "/api/v1/players/{id}/comments"
+reason = "Comments for a remote control; agents use read_companion_chat with player_id."
+
+[[exclusions]]
+path = "/api/v1/linked-servers/{id}/players/{player}/comments"
+reason = "Comments from another MBL server for the remote control; an agent uses that server's read_companion_chat."

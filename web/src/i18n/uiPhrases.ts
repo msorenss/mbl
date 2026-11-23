@@ -29,6 +29,30 @@ type Row22 = readonly [
 
 /** Complete UI strings (exact match). */
 export const UI_PHRASES_22: Record<string, Row22> = {
+  "Read companion comments aloud (otherwise they pop up here)": [
+    "Läs upp medtittarens kommentarer (annars dyker de upp här)",
+    "Kommentare der Begleiter vorlesen (sonst erscheinen sie hier)",
+    "Lire à voix haute les commentaires des compagnons (sinon ils s’affichent ici)",
+    "Leer en voz alta los comentarios de los acompañantes (si no, aparecen aquí)",
+    "Ler em voz alta os comentários dos acompanhantes (senão aparecem aqui)",
+    "Leggi ad alta voce i commenti dei compagni (altrimenti compaiono qui)",
+    "Opmerkingen van meekijkers voorlezen (anders verschijnen ze hier)",
+    "Czytaj na głos komentarze towarzyszy (w przeciwnym razie pojawią się tutaj)",
+    "Eşlikçi yorumlarını sesli oku (aksi halde burada görünür)",
+    "Зачитывать комментарии спутников вслух (иначе они появятся здесь)",
+    "Зачитувати коментарі супутників уголос (інакше вони з’являться тут)",
+    "قراءة تعليقات المرافقين بصوت عالٍ (وإلا فستظهر هنا)",
+    "साथियों की टिप्पणियाँ पढ़कर सुनाएँ (नहीं तो वे यहाँ दिखेंगी)",
+    "朗读陪看助手的评论（否则显示在这里）",
+    "コンパニオンのコメントを読み上げる（オフならここに表示）",
+    "동반자 댓글 읽어 주기(끄면 여기에 표시됨)",
+    "Bacakan komentar pendamping (jika tidak, muncul di sini)",
+    "Đọc to bình luận của người xem cùng (nếu không, chúng hiện ở đây)",
+    "Les opp kommentarene fra medseerne (ellers dukker de opp her)",
+    "Basahin nang malakas ang mga komento ng kasama (kung hindi, lalabas ang mga ito dito)",
+    "Basaha og kusog ang mga komento sa kauban (kon dili, mogawas sila dinhi)",
+    "Basaha hin makusog an mga komento han kaupod (kon diri, makita hira dinhi)",
+  ],
   "Could not load the linked servers.": [
     "Det gick inte att läsa in de länkade servrarna.",
     "Die verknüpften Server konnten nicht geladen werden.",

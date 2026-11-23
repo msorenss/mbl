@@ -5,6 +5,8 @@ import client from "../api/client";
 import { localPlayerId, localPlayerName } from "../utils/localRemote";
 import Remote, { formatClock } from "./Remote";
 
+vi.mock("../context/ToastContext", () => ({ useToast: () => ({ showToast: vi.fn() }) }));
+
 let dispose: (() => void) | undefined;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 afterEach(() => {

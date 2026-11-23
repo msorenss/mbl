@@ -1648,6 +1648,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/linked-servers/{id}/players/{player}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What companions say about what a linked server's player plays. */
+        get: operations["linked_player_comments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/linked-servers/{id}/players/{player}/play": {
         parameters: {
             query?: never;
@@ -2576,6 +2593,23 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["send_player_command"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/players/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What companions say about what this player plays, for a remote control. */
+        get: operations["player_comments"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4494,7 +4528,6 @@ export interface components {
             frequency?: components["schemas"]["CompanionFrequency"] | null;
             mode: components["schemas"]["CompanionMode"];
         };
-        /** @description One entry in a session's co-watching feed: a companion comment or a viewer message. */
         CompanionReaction: {
             /** @description Companion name, or "Viewer" for messages from the person watching. */
             botName: string;
@@ -6308,6 +6341,26 @@ export interface components {
                 /** Format: int64 */
                 subtitleStreamIndex?: number | null;
             };
+        };
+        PlayerComment: {
+            botName: string;
+            commentary: string;
+            /** Format: int64 */
+            id: number;
+        };
+        /**
+         * @description One entry in a session's co-watching feed: a companion comment or a viewer message.
+         *     What companions say about what a player plays, for a remote control.
+         */
+        PlayerComments: {
+            comments: components["schemas"]["PlayerComment"][];
+            /**
+             * Format: int64
+             * @description Pass as `afterId` next time.
+             */
+            lastId: number;
+            /** @description Playback session the comments belong to; none when the player plays nothing. */
+            sessionId?: string | null;
         };
         PlayerInfo: {
             deviceType: string;
@@ -11408,6 +11461,43 @@ export interface operations {
             };
         };
     };
+    linked_player_comments: {
+        parameters: {
+            query?: {
+                /** @description From the previous answer's `lastId`; without it only `lastId` is returned. */
+                afterId?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+                player: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerComments"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     play_on_linked_player: {
         parameters: {
             query?: never;
@@ -13970,6 +14060,39 @@ export interface operations {
             };
             /** @description Player command connection unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    player_comments: {
+        parameters: {
+            query?: {
+                /** @description From the previous answer's `lastId`; without it only `lastId` is returned. */
+                afterId?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Player ID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New companion comments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerComments"];
+                };
+            };
+            /** @description No such player */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

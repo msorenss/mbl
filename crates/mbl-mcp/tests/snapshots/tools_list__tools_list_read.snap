@@ -833,14 +833,15 @@ expression: tools
           "minimum": 0,
           "type": "integer"
         },
+        "player_id": {
+          "description": "Instead of session_id: the companion comments for what this player plays now (from list_players). Without after_id only last_id is returned.",
+          "type": "string"
+        },
         "session_id": {
           "description": "Active playback session ID",
           "type": "string"
         }
       },
-      "required": [
-        "session_id"
-      ],
       "type": "object"
     },
     "annotations": {

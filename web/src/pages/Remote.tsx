@@ -5,6 +5,7 @@ import { Button } from "../components/ui";
 
 const LinkedServerPlayers = lazy(() => import("../components/LinkedServerPlayers"));
 
+import { CommentWatcher, ReadCommentsAloud } from "../components/RemoteComments";
 import { localPlayerId } from "../utils/localRemote";
 
 type PlayerInfo = components["schemas"]["PlayerInfo"];
@@ -119,6 +120,7 @@ export default function Remote() {
         Control MBL playing on your other devices: browsers, Chromecast and TV apps signed in to
         your account.
       </p>
+      <ReadCommentsAloud />
       <Show when={error()}>
         <p role="alert">{error()}</p>
       </Show>
@@ -131,6 +133,18 @@ export default function Remote() {
       <For each={players()}>
         {(player) => (
           <section class="mbl-card-section" aria-label={player.name}>
+            <Show when={player.state === "playing" && player.nowPlayingItemId}>
+              <CommentWatcher
+                player={player.name}
+                fetch={async (afterId) =>
+                  (
+                    await client.GET("/api/v1/players/{id}/comments", {
+                      params: { path: { id: player.id }, query: { afterId } },
+                    })
+                  ).data
+                }
+              />
+            </Show>
             <div style={{ display: "flex", "justify-content": "space-between", gap: "1rem" }}>
               <div>
                 <h2 style={{ margin: 0, "font-size": "1.1rem" }}>{player.name}</h2>

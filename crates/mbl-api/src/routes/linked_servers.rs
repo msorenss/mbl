@@ -23,6 +23,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/v1/linked-servers/{id}/search", get(search_linked_server))
         .route("/api/v1/linked-servers/{id}/players/{player}/command", post(command_linked_player))
         .route("/api/v1/linked-servers/{id}/players/{player}/play", post(play_on_linked_player))
+        .route("/api/v1/linked-servers/{id}/players/{player}/comments", get(linked_player_comments))
 }
 
 /// Linked servers (admin). Tokens are never returned.
@@ -137,4 +138,26 @@ pub(crate) async fn play_on_linked_player(
 ) -> Result<StatusCode, ApiError> {
     state.services.linked_servers.play(&auth.actor, &id, &player, body).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// What companions say about what a linked server's player plays.
+#[utoipa::path(get, path = "/api/v1/linked-servers/{id}/players/{player}/comments",
+    tag = "linked-servers",
+    params(("id" = String, Path), ("player" = String, Path),
+        crate::routes::players::PlayerCommentsQuery),
+    responses((status = 200, body = mbl_service::PlayerComments), (status = 404), (status = 503)),
+    security(("bearer_auth" = [])))]
+pub(crate) async fn linked_player_comments(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((id, player)): Path<(String, String)>,
+    Query(query): Query<crate::routes::players::PlayerCommentsQuery>,
+) -> Result<Json<mbl_service::PlayerComments>, ApiError> {
+    Ok(Json(
+        state
+            .services
+            .linked_servers
+            .player_comments(&auth.actor, &id, &player, query.after_id)
+            .await?,
+    ))
 }

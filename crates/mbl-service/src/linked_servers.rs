@@ -302,6 +302,24 @@ impl LinkedServerService {
         self.call(&link, "control_player", args).await.map(|_| ())
     }
 
+    /// What companions say about what a linked server's player plays (its `read_companion_chat`).
+    pub async fn player_comments(
+        &self,
+        actor: &Actor,
+        id: &str,
+        player_id: &str,
+        after_id: Option<u64>,
+    ) -> Result<crate::PlayerComments> {
+        let link = self.link(actor, id).await?;
+        let mut args = json!({ "player_id": player_id });
+        if let Some(after) = after_id {
+            args["after_id"] = json!(after);
+        }
+        let value = self.call(&link, "read_companion_chat", args).await?;
+        serde_json::from_value(value.get("playerComments").cloned().unwrap_or(Value::Null))
+            .map_err(|_| Error::External(format!("{} sent no comments", link.name)))
+    }
+
     /// Search a linked server's library (what its token may see).
     pub async fn search(&self, actor: &Actor, id: &str, query: &str) -> Result<Vec<LinkedItem>> {
         let link = self.link(actor, id).await?;

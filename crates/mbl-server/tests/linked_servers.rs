@@ -139,6 +139,63 @@ async fn a_server_controls_and_plays_on_a_linked_servers_players() {
         .await;
     assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
 
+    // Comments for what B's player plays: B plays the film, a companion comments, and A's
+    // remote control gets the comment through B's player.
+    let start = b
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&b_admin),
+            Some(json!({"itemId": fixture.movie_id, "profile": "chrome", "startMs": 0})),
+        )
+        .await;
+    assert_eq!(start.status, StatusCode::OK, "{}", start.body);
+    let session = start.body["sessionId"].as_str().unwrap().to_owned();
+    let player = json!({"id":"b-tv", "name":"Living room", "deviceType":"web", "state":"playing",
+        "nowPlayingItemId": fixture.movie_id, "positionMs":1000, "durationMs":60000, "volume":50});
+    let res = b.call(Method::POST, "/api/v1/players", Some(&b_admin), Some(player)).await;
+    assert!(res.status.is_success(), "{}", res.body);
+    let comments = format!("/api/v1/linked-servers/{id}/players/b-tv/comments");
+    let res = a.call(Method::GET, &comments, Some(&a_admin), None).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["sessionId"], session.as_str());
+    assert_eq!(res.body["comments"], json!([]));
+    let last_id = res.body["lastId"].as_u64().unwrap();
+    let base = format!("/api/v1/companion/sessions/{session}");
+    let res = b
+        .call(
+            Method::POST,
+            &format!("{base}/join"),
+            Some(&b_admin),
+            Some(json!({"botName": "MBL"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let res = b
+        .call(
+            Method::POST,
+            &format!("{base}/reaction"),
+            Some(&b_admin),
+            Some(json!({"botName": "MBL", "timestampMs": 1000, "commentary": "Watch the door"})),
+        )
+        .await;
+    assert!(res.status.is_success(), "{}", res.body);
+    let res =
+        a.call(Method::GET, &format!("{comments}?afterId={last_id}"), Some(&a_admin), None).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert_eq!(res.body["comments"][0]["commentary"], "Watch the door", "{}", res.body);
+    assert_eq!(res.body["comments"][0]["botName"], "MBL");
+    // B's own remote control gets the same through its player.
+    let res = b
+        .call(
+            Method::GET,
+            &format!("/api/v1/players/b-tv/comments?afterId={last_id}"),
+            Some(&b_admin),
+            None,
+        )
+        .await;
+    assert_eq!(res.body["comments"][0]["commentary"], "Watch the door", "{}", res.body);
+
     // Other accounts on A do not see unshared links; managed profiles never.
     let viewer = a.create_user(&a_admin, "viewer").await;
     let res = a.call(Method::GET, "/api/v1/linked-servers", Some(&viewer), None).await;

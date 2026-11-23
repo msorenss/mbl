@@ -84,6 +84,25 @@ pub struct CompanionActivity {
 }
 
 /// One entry in a session's co-watching feed: a companion comment or a viewer message.
+/// What companions say about what a player plays, for a remote control.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerComments {
+    /// Playback session the comments belong to; none when the player plays nothing.
+    pub session_id: Option<String>,
+    pub comments: Vec<PlayerComment>,
+    /// Pass as `afterId` next time.
+    pub last_id: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerComment {
+    pub id: u64,
+    pub bot_name: String,
+    pub commentary: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionReaction {
@@ -506,6 +525,45 @@ impl CompanionService {
             .and_then(|list| list.iter().find(|r| r.id == id && !r.from_viewer))
             .map(|r| r.commentary.clone())
             .ok_or(Error::NotFound)
+    }
+
+    /// Companion comments for whatever a player plays now, for a remote control. Without
+    /// `after_id` it returns no comments, only where the feed stands (`last_id`), so a remote
+    /// shows what is said from now on.
+    pub fn player_comments(
+        &self,
+        actor: &Actor,
+        players: &crate::players::PlayerRegistry,
+        player_id: &str,
+        after_id: Option<u64>,
+    ) -> Result<PlayerComments> {
+        let (owner, item) = players.now_playing(actor, player_id)?;
+        let session = item.and_then(|item| {
+            self.playback.as_ref().and_then(|p| p.latest_session_for_item(owner, item))
+        });
+        // Comment IDs count up across the whole server, so "after this ID" also works when the
+        // player moves to another title.
+        let newest = self.next_id.load(Ordering::Relaxed).saturating_sub(1);
+        let Some(session) = session else {
+            return Ok(PlayerComments {
+                session_id: None,
+                comments: Vec::new(),
+                last_id: after_id.unwrap_or(newest),
+            });
+        };
+        let feed = self.reactions_since(actor, &session, i64::MAX, after_id.or(Some(0)))?;
+        let last_id =
+            feed.reactions.iter().map(|r| r.id).max().unwrap_or(0).max(after_id.unwrap_or(newest));
+        let comments = if after_id.is_none() {
+            Vec::new()
+        } else {
+            feed.reactions
+                .into_iter()
+                .filter(|r| !r.from_viewer)
+                .map(|r| PlayerComment { id: r.id, bot_name: r.bot_name, commentary: r.commentary })
+                .collect()
+        };
+        Ok(PlayerComments { session_id: Some(session), comments, last_id })
     }
 
     pub fn reactions_since(
