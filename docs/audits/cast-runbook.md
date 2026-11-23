@@ -186,6 +186,38 @@ kapacitetsöverlämning ger ett laddningsavbrott, inte sömlös övergång.
 
 Genomförandeplan: [Enhetsanpassad Cast och adaptiv Automatisk](../plans/cast-device-profiles.md).
 
+## Testlista: två kvalitetsnivåer (ABR) på en server med GPU
+
+Pi:n kodar alltid en nivå (högst 720p, se `cast_encode_bounds`). Två nivåer för Cast provas därför
+på en server med GPU-kodare, till exempel Windows-servern med RTX 4060 (NVENC). Villkoren i koden
+(`HwService::supports_cast_ladder` och `start_hls_session`):
+
+- Mottagaren är MBL:s egen (`4D0903C0`) och rapporterar en namngiven profil (statistiken visar
+  "receiver capability verified", inte "Limited compatibility").
+- Videon kodas om till H.264: ingen HDR, högst 30 bilder/s, ingen inbränd undertext, ingen
+  avflätning, och källan är minst 960 px bred.
+- Hårdvarusidan har ett aktuellt självtest för samma kodare, FFmpeg och drivrutin, och servern har
+  två lediga kodarplatser (inga andra omkodningar pågår).
+
+Steg (logga med Diagnostikloggar → Kopiera, och Cast-diagnostiken i spelarens statistik):
+
+1. Hårdvara → Kör självtest. Kontrollera att NVENC är "pass" och att ingen annan omkodning pågår.
+2. Casta en 1080p H.264-film i 24 eller 25 bilder/s, som behöver omkodas (till exempel E-AC-3-ljud
+   och en bithastighet över gränsen), från början. Förväntat i loggen: `variant_count=2` för
+   masterspellistan och segment från både nivå 0 och 1 efter en stund.
+3. Samma från en sparad position (återuppta). Båda nivåerna ska förberedas, uppspelningen starta
+   inom cirka 10 s.
+4. WAN: casta via det publika namnet (`mbl.tplinkdns.com:8443`) med mobildata eller ett annat
+   nät, eller begränsa bandbredden på routern. Mottagaren ska byta till den lägre nivån
+   (`variant_index=1` i loggen) utan avbrott, och tillbaka när bandbredden räcker.
+5. Paus i 2 minuter och fortsätt; spola framåt 10 minuter. Ingen 404 på segment.
+6. Låt den spela 30 minuter. Ingen "evicting HLS session" i loggen, minnet/disken i
+   `transcode_dir` växer inte utan gräns.
+7. Starta en andra omkodning samtidigt (en annan webbläsare). Den nya Cast-sessionen ska då få en
+   nivå (inte två), och ingen av dem ska avbrytas.
+
+Skriv resultatet (enhet, nivåer, tid till bild, nivåbyten, fel) under "Verifierat läge" ovan.
+
 ## Källkarta och återstående arbete
 
 - `web/src/utils/cast.ts`: SDK, LOAD, mottagartillstånd, URL och textspår.
