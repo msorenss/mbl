@@ -2,6 +2,7 @@ import { createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "sol
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { Button } from "../components/ui";
+import { createTimedSignal } from "../utils/timedSignal";
 
 const LinkedServerPlayers = lazy(() => import("../components/LinkedServerPlayers"));
 
@@ -33,7 +34,7 @@ export default function Remote() {
   const ownId = localPlayerId();
   const [players, setPlayers] = createSignal<PlayerInfo[]>([]);
   const [loaded, setLoaded] = createSignal(false);
-  const [error, setError] = createSignal("");
+  const [error, setError] = createTimedSignal<string>("", 10000);
   const [titles, setTitles] = createSignal<Record<number, string>>({});
   const requested = new Set<number>();
 

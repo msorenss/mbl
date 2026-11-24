@@ -2,6 +2,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import client from "../api/client";
 import type { components } from "../api/schema";
 import { formatClock } from "../pages/Remote";
+import { createTimedSignal } from "../utils/timedSignal";
 import { CommentWatcher } from "./RemoteComments";
 import { Button } from "./ui";
 
@@ -18,7 +19,7 @@ function message(error: unknown, fallback: string): string {
 /** Players on other MBL servers this server is linked to, with remote control. */
 export default function LinkedServerPlayers() {
   const [servers, setServers] = createSignal<View[]>([]);
-  const [error, setError] = createSignal("");
+  const [error, setError] = createTimedSignal<string>("", 10000);
   let timer: ReturnType<typeof setInterval> | undefined;
 
   const refresh = async () => {

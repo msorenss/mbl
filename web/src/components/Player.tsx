@@ -25,6 +25,7 @@ import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
 import { startLocalRemote } from "../utils/localRemote";
 import { subtitleSearchAvailable } from "../utils/subtitleSearch";
 import { subtitleUrl } from "../utils/subtitleUrl";
+import { createTimedSignal } from "../utils/timedSignal";
 import CastDiagnostics from "./CastDiagnostics";
 import CompanionReactions from "./CompanionReactions";
 import LyricsPanel from "./LyricsPanel";
@@ -78,7 +79,8 @@ export function Player(props: PlayerProps) {
   let hlsRecovery: ReturnType<typeof createHlsRecovery> | null = null;
   let localAutoplay = false;
   let lastAdvancingTime = 0;
-  const [recoveryNotice, setRecoveryNotice] = createSignal("");
+  // Notices over the player clear themselves after a while (errors a little later).
+  const [recoveryNotice, setRecoveryNotice] = createTimedSignal<string>("", 8000);
   const [retryingPlayback, setRetryingPlayback] = createSignal(false);
   const [failedPositionMs, setFailedPositionMs] = createSignal<number | null>(null);
   let progressInterval: number | null = null;
@@ -116,14 +118,14 @@ export function Player(props: PlayerProps) {
   let castPlayRequestedAt = 0;
   const [adaptiveLevels, setAdaptiveLevels] = createSignal(0);
   const [changingQuality, setChangingQuality] = createSignal(false);
-  const [controlNotice, setControlNotice] = createSignal("");
+  const [controlNotice, setControlNotice] = createTimedSignal<string>("", 8000);
 
   const [mediaItemId, setMediaItemId] = createSignal(props.itemId);
   const [mediaTitle, setMediaTitle] = createSignal(props.title);
   const [mediaPartId, setMediaPartId] = createSignal(props.partId);
-  const [castStatus, setCastStatus] = createSignal<string | null>(null);
+  const [castStatus, setCastStatus] = createTimedSignal<string | null>(null, 12000);
   const [nextEpisode, setNextEpisode] = createSignal<{ id: number; title: string } | null>(null);
-  const [nextError, setNextError] = createSignal("");
+  const [nextError, setNextError] = createTimedSignal<string>("", 12000);
   const [ended, setEnded] = createSignal(false);
   const [startingNext, setStartingNext] = createSignal(false);
   const [autoplayNext, setAutoplayNext] = createSignal(props.autoplayNext ?? false);
@@ -188,7 +190,7 @@ export function Player(props: PlayerProps) {
   const [diagnostics, setDiagnostics] = createSignal<
     components["schemas"]["PlaybackDiagnostics"] | null
   >(null);
-  const [diagnosticsError, setDiagnosticsError] = createSignal("");
+  const [diagnosticsError, setDiagnosticsError] = createTimedSignal<string>("", 12000);
 
   // Chromecast & Remote Playback state (M12)
   const [isCasting, setIsCasting] = createSignal(false);

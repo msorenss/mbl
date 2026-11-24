@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Fixed
+- Notices and errors over the player (Cast errors, "Starting playback on the receiver…", next-episode errors) and on the Remote page no longer stay on screen: they clear after 8–12 seconds. The playback error with Retry stays until you act.
+
 ## [1.4.2] - 2026-11-23
 
 ### Added
