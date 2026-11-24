@@ -1567,6 +1567,14 @@ export function Player(props: PlayerProps) {
       (url) => setSubtitleLoad(url ? "loading" : "idle"),
     ),
   );
+  // "The subtitles could not be loaded" goes away after a while like the other notices.
+  createEffect(
+    on(subtitleLoad, (state) => {
+      if (state !== "failed") return;
+      const timer = setTimeout(() => setSubtitleLoad("idle"), 10000);
+      onCleanup(() => clearTimeout(timer));
+    }),
+  );
 
   // Markers: intro, credits, chapters
   const currentMarkers = () => playbackData()?.markers || [];
@@ -1813,7 +1821,11 @@ export function Player(props: PlayerProps) {
         </p>
       </Show>
       {/* While casting the receiver loads its own text track; the local one never loads. */}
-      <Show when={!isCasting() && (subtitleLoad() === "loading" || subtitleLoad() === "failed")}>
+      <Show
+        when={
+          !isCasting() && !error() && (subtitleLoad() === "loading" || subtitleLoad() === "failed")
+        }
+      >
         <p
           role="status"
           style={{

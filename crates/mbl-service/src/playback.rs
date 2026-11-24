@@ -1226,6 +1226,10 @@ impl PlaybackService {
             .unwrap_or(Backend::Software);
         let can_tonemap = ctx.hw.as_ref().is_some_and(|h| h.can_tonemap);
         let needs_tonemap = decision.reasons.contains(&Reason::HdrUnsupported) && can_tonemap;
+        // Without a GPU encoder (a Raspberry Pi) a full-width encode cannot produce its first
+        // segment in time, for example when a WAN viewer needs a lower bitrate: at most 1280 px.
+        let decision =
+            &slow_encoder_width(decision, selected_backend, video_stream.and_then(|v| v.width));
 
         let video_op = match &decision.video {
             StreamAction::Copy
@@ -1772,8 +1776,30 @@ fn generate_session_id() -> Result<String> {
 /// ARM) 1080p cannot be encoded fast enough to start within the preparation time, so Cast gets
 /// at most 720p there even when the receiver could show more.
 fn cast_encode_bounds(backend: Backend, width: u32, height: u32) -> (u32, u32) {
-    let slow = !backend.is_gpu() && (backend.is_pi() || !cfg!(target_arch = "x86_64"));
-    if slow { (width.min(1280), height.min(720)) } else { (width, height) }
+    if slow_encoder(backend) { (width.min(1280), height.min(720)) } else { (width, height) }
+}
+
+/// No GPU encoder: a Raspberry Pi's backends, or software encoding on ARM.
+fn slow_encoder(backend: Backend) -> bool {
+    !backend.is_gpu() && (backend.is_pi() || !cfg!(target_arch = "x86_64"))
+}
+
+/// The decision with its video encode at most 1280 px wide on a slow encoder.
+fn slow_encoder_width(
+    decision: &Decision,
+    backend: Backend,
+    source_width: Option<u32>,
+) -> Decision {
+    let mut decision = decision.clone();
+    if slow_encoder(backend)
+        && let StreamAction::Transcode { width, .. } = &mut decision.video
+    {
+        let current = width.or(source_width).unwrap_or(1280);
+        if current > 1280 {
+            *width = Some(1280);
+        }
+    }
+    decision
 }
 
 #[cfg(test)]
@@ -1786,6 +1812,28 @@ mod cast_profile_tests {
         assert_eq!(cast_encode_bounds(Backend::V4l2m2m, 1920, 1080), (1280, 720));
         assert_eq!(cast_encode_bounds(Backend::Nvenc, 1920, 1080), (1920, 1080));
         assert_eq!(cast_encode_bounds(Backend::PiDrmDecode, 1280, 720), (1280, 720));
+    }
+
+    #[test]
+    fn video_encodes_are_at_most_1280_wide_without_a_gpu_encoder() {
+        let decision = Decision {
+            method: mbl_playback::PlayMethod::Transcode,
+            container: "mp4".into(),
+            video: StreamAction::Transcode {
+                codec: "h264".into(),
+                bitrate: 6_000_000,
+                width: None,
+            },
+            audio: StreamAction::Copy,
+            subtitle: mbl_playback::SubtitleDelivery::None,
+            reasons: Vec::new(),
+        };
+        let slow = slow_encoder_width(&decision, Backend::PiDrmDecode, Some(1920));
+        assert!(matches!(slow.video, StreamAction::Transcode { width: Some(1280), .. }));
+        let gpu = slow_encoder_width(&decision, Backend::Nvenc, Some(1920));
+        assert!(matches!(gpu.video, StreamAction::Transcode { width: None, .. }));
+        let small = slow_encoder_width(&decision, Backend::PiDrmDecode, Some(960));
+        assert!(matches!(small.video, StreamAction::Transcode { width: None, .. }));
     }
 
     #[test]

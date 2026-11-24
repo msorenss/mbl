@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format is based on 
 ## [Unreleased]
 
 ### Fixed
+- Watching from outside home on a Raspberry Pi failed with "timed out preparing playback media": the lower WAN bitrate needs a new encode, and without a GPU encoder it is now at most 1280 px wide so the first segment is ready in time.
+- "The subtitles could not be loaded" no longer appears when playback itself failed, and goes away after 10 seconds.
 - Notices and errors over the player (Cast errors, "Starting playback on the receiver…", next-episode errors) and on the Remote page no longer stay on screen: they clear after 8–12 seconds. The playback error with Retry stays until you act.
 
 ## [1.4.2] - 2026-11-23
