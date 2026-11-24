@@ -3,6 +3,14 @@ import client from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n";
 import {
+  FREQUENCIES,
+  FREQUENCY_KEY,
+  MODE_KEY,
+  MODES,
+  storedFrequency,
+  storedMode,
+} from "../utils/companionPrefs";
+import {
   canSpeak,
   readAloud,
   readAloudProblem,
@@ -19,18 +27,11 @@ type Frames = components["schemas"]["CompanionFrames"];
 
 const VISIBLE_MS = 12_000;
 const HISTORY = 30;
-const MODE_KEY = "mbl.companion.mode";
 /** Ready-made questions about the scene; `text` is what the companion receives. */
 const QUICK_QUESTIONS = [
   { label: "Who is on screen?", text: "Who is on screen right now?" },
   { label: "What just happened?", text: "What just happened?" },
   { label: "The story so far", text: "Remind me of the story so far, without spoilers." },
-];
-const FREQUENCY_KEY = "mbl.companion.frequency";
-const FREQUENCIES: { value: Frequency; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
 ];
 const FRAMES_KEY = "mbl.companion.frames";
 const FRAMES: { value: Frames; label: string }[] = [
@@ -46,28 +47,6 @@ function storedFrames(): Frames {
     if (FRAMES.some((f) => f.value === value)) return value as Frames;
   } catch {}
   return "off";
-}
-
-const MODES: { value: Mode; label: string }[] = [
-  { value: "on", label: "Comments on" },
-  { value: "replies", label: "Replies only" },
-  { value: "off", label: "Comments off" },
-];
-
-function storedMode(): Mode {
-  try {
-    const value = localStorage.getItem(MODE_KEY);
-    if (value === "on" || value === "replies" || value === "off") return value;
-  } catch {}
-  return "on";
-}
-
-function storedFrequency(): Frequency {
-  try {
-    const value = localStorage.getItem(FREQUENCY_KEY);
-    if (value === "low" || value === "medium" || value === "high") return value;
-  } catch {}
-  return "medium";
 }
 
 /** Where companion comments appear while casting: this device, or over the video on the TV. */
@@ -190,14 +169,14 @@ export default function CompanionReactions(props: {
         setAssistant(false);
         setError("");
         if (!sessionId) return;
-        // The viewer's last choice follows them to the next session.
-        if (mode() !== "on" || frequency() !== "medium" || frames() !== "off")
-          void client
-            .PUT("/api/v1/companion/sessions/{id}/mode", {
-              params: { path: { id: sessionId } },
-              body: { mode: mode(), frequency: frequency(), frames: frames() },
-            })
-            .catch(() => undefined);
+        // The viewer's choice goes with every new session; it also brings the built-in
+        // companion in at once when comments are on.
+        void client
+          .PUT("/api/v1/companion/sessions/{id}/mode", {
+            params: { path: { id: sessionId } },
+            body: { mode: mode(), frequency: frequency(), frames: frames() },
+          })
+          .catch(() => undefined);
         // Only entries sent after the player opened; older ones are not news.
         const after = Date.now();
         let afterId: number | undefined;

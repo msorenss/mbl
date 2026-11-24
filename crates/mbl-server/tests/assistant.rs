@@ -750,3 +750,91 @@ async fn an_agent_program_can_be_the_assistant() {
         .await;
     assert!(res.body["error"].as_str().unwrap().contains("Could not start"), "{}", res.body);
 }
+
+#[tokio::test]
+async fn the_built_in_companion_joins_when_playback_starts_with_comments_on() {
+    let (app, db, services) = TestApp::new_with_services().await;
+    let admin = app.setup_admin().await;
+    let fixture = common::seed_playback_fixtures(&app, &db, &admin).await;
+    let base_url = echo_provider().await;
+    let res = app
+        .call(
+            Method::PUT,
+            "/api/v1/system/assistant",
+            Some(&admin),
+            Some(json!({"enabled": true, "provider": "openai_compatible", "baseUrl": base_url, "model": "echo"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    let stop = tokio_util::sync::CancellationToken::new();
+    tokio::spawn(mbl_mcp::companion_bot::run(
+        mbl_mcp::assistant::AssistantRunner::new(db.clone(), services.clone()),
+        services.clone(),
+        db.clone(),
+        stop.clone(),
+    ));
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin),
+            Some(json!({"itemId": fixture.movie_id, "profile": "chrome", "startMs": 0})),
+        )
+        .await;
+    let session = start.body["sessionId"].as_str().unwrap().to_owned();
+    let base = format!("/api/v1/companion/sessions/{session}");
+
+    // The player sends the viewer's choice when it starts; nobody writes anything.
+    let res = app
+        .call(
+            Method::PUT,
+            &format!("{base}/mode"),
+            Some(&admin),
+            Some(json!({"mode": "on", "frequency": "medium"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    let joined = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let feed =
+                app.call(Method::GET, &format!("{base}/reactions"), Some(&admin), None).await;
+            if feed.body["companions"].as_array().is_some_and(|c| c.contains(&json!("MBL"))) {
+                return feed.body;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+    assert!(joined.is_ok(), "the built-in companion did not join on its own");
+
+    // With comments off, choosing a mode does not bring it in.
+    let start = app
+        .call(
+            Method::POST,
+            "/api/v1/playback",
+            Some(&admin),
+            Some(json!({"itemId": fixture.movie_id, "profile": "chrome", "startMs": 0})),
+        )
+        .await;
+    let quiet = start.body["sessionId"].as_str().unwrap().to_owned();
+    let res = app
+        .call(
+            Method::PUT,
+            &format!("/api/v1/companion/sessions/{quiet}/mode"),
+            Some(&admin),
+            Some(json!({"mode": "off"})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let feed = app
+        .call(
+            Method::GET,
+            &format!("/api/v1/companion/sessions/{quiet}/reactions"),
+            Some(&admin),
+            None,
+        )
+        .await;
+    assert_eq!(feed.body["companions"], json!([]), "{}", feed.body);
+    stop.cancel();
+}

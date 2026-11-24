@@ -75,6 +75,9 @@ pub struct CompanionWake {
     pub context: LiveSessionContext,
 }
 
+/// When the first scheduled comment of a session is due, after the companion joined.
+const FIRST_COMMENT_MS: i64 = 60_000;
+
 /// The viewer did something a companion may want to react to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompanionActivity {
@@ -83,7 +86,6 @@ pub struct CompanionActivity {
     pub message_id: Option<u64>,
 }
 
-/// One entry in a session's co-watching feed: a companion comment or a viewer message.
 /// What companions say about what a player plays, for a remote control.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -103,6 +105,7 @@ pub struct PlayerComment {
     pub commentary: String,
 }
 
+/// One entry in a session's co-watching feed: a companion comment or a viewer message.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionReaction {
@@ -694,6 +697,13 @@ impl CompanionService {
             Ok(())
         })?;
         self.wake.notify_waiters();
+        // The player sends its choice when playback starts: with comments allowed, the
+        // built-in companion joins now instead of waiting for the viewer to write.
+        if mode != CompanionMode::Off {
+            let _ = self
+                .activity_tx
+                .send(CompanionActivity { session_id: session_id.to_owned(), message_id: None });
+        }
         Ok(())
     }
 
@@ -772,7 +782,14 @@ impl CompanionService {
                     comment_due = Some(CommentReason::Requested);
                 } else if state.mode == CompanionMode::On && playing {
                     let since = state.last_comment_at.max(state.last_due_at).max(state.joined_at);
-                    if now - since >= state.frequency.interval_ms() {
+                    // The first comment comes after a minute, not a whole interval.
+                    let first = state.last_comment_at == 0 && state.last_due_at == 0;
+                    let wait = if first {
+                        FIRST_COMMENT_MS.min(state.frequency.interval_ms())
+                    } else {
+                        state.frequency.interval_ms()
+                    };
+                    if now - since >= wait {
                         state.last_due_at = now;
                         comment_due = Some(CommentReason::Scheduled);
                     }

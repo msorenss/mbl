@@ -16,6 +16,13 @@ import { usePlayer } from "../context/PlayerContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { useI18n } from "../i18n";
+import {
+  FREQUENCY_KEY,
+  MODE_KEY,
+  storedFrequency,
+  storedMode,
+  storePref,
+} from "../utils/companionPrefs";
 import { subtitleSearchAvailable } from "../utils/subtitleSearch";
 
 const SubtitleSearch = lazy(() => import("../components/SubtitleSearch"));
@@ -58,6 +65,16 @@ export function ItemDetail() {
   const [selectedVersionId, setSelectedVersionId] = createSignal<number | null>(null);
   const [selectedAudioIdx, setSelectedAudioIdx] = createSignal<number | null>(null);
   const [selectedSubIdx, setSelectedSubIdx] = createSignal<number | null>(null);
+  // The companion choice for the next playback (the player sends it when it starts).
+  const [companionChoice, setCompanionChoiceSignal] = createSignal(
+    storedMode() === "on" ? `on:${storedFrequency()}` : storedMode(),
+  );
+  const setCompanionChoice = (value: string) => {
+    setCompanionChoiceSignal(value);
+    const [mode, frequency] = value.split(":");
+    storePref(MODE_KEY, mode);
+    if (frequency) storePref(FREQUENCY_KEY, frequency);
+  };
   const QUALITY_KEY = "mbl.playback.quality";
   const [selectedQuality, setSelectedQualitySignal] = createSignal<number>(
     (() => {
@@ -831,6 +848,39 @@ export function ItemDetail() {
                   </details>
                 </div>
               )}
+
+              <div>
+                <label
+                  for="companion-select"
+                  style={{
+                    display: "block",
+                    "font-size": "var(--font-size-xs)",
+                    "font-weight": "bold",
+                    color: "var(--text-muted)",
+                    "margin-bottom": "4px",
+                  }}
+                >
+                  AI companion
+                </label>
+                <select
+                  id="companion-select"
+                  value={companionChoice()}
+                  onChange={(e) => setCompanionChoice(e.currentTarget.value)}
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-primary)",
+                    padding: "6px 10px",
+                    "border-radius": "var(--radius-sm)",
+                  }}
+                >
+                  <option value="on:high">Comments often</option>
+                  <option value="on:medium">Comments sometimes</option>
+                  <option value="on:low">Comments rarely</option>
+                  <option value="replies">Only answers me</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
             </div>
 
             {/* Cast & Crew */}

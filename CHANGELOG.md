@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Changed
+- The built-in AI companion starts with playback when comments are on, instead of waiting until you write or press Comment now; its first comment comes after about a minute. The title page has an **AI companion** choice next to quality, audio and subtitles: comments often, sometimes or rarely, only answers to you, or off.
+
 ### Fixed
 - Watching from outside home on a Raspberry Pi failed with "timed out preparing playback media": the lower WAN bitrate needs a new encode, and without a GPU encoder it is now at most 1280 px wide so the first segment is ready in time.
 - "The subtitles could not be loaded" no longer appears when playback itself failed, and goes away after 10 seconds.
