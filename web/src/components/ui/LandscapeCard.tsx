@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { createSignal, Show } from "solid-js";
 import type { components } from "../../api/schema";
 import { usePlayer } from "../../context/PlayerContext";
+import { frameUrl } from "../../utils/frameUrl";
 
 type ItemSummary = components["schemas"]["ItemSummary"];
 
@@ -24,10 +25,12 @@ export function LandscapeCard(props: LandscapeCardProps) {
   const item = () => props.item;
   const posterUrl = () => (item().posterId ? `/api/v1/images/${item().posterId}?w=480` : null);
   const snapshotUrl = () => {
-    const at = item().viewOffsetMs;
-    if (!props.snapshot || snapshotFailed() || at <= 0 || !item().durationMs) return null;
-    // Rounded like the server, so a few seconds more watching keeps the cached picture.
-    return `/api/v1/items/${item().id}/snapshot?at=${Math.floor(at / 10_000) * 10_000}`;
+    if (snapshotFailed()) return null;
+    // "Continue watching": where the viewer stopped. Otherwise only when there is no artwork
+    // (a library without metadata): a picture from the video instead of a black card.
+    if (props.snapshot && item().viewOffsetMs > 0) return frameUrl(item());
+    if (!item().posterId) return frameUrl(item(), false);
+    return null;
   };
   const imageUrl = () => snapshotUrl() ?? posterUrl();
   const onImageError = () => {

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+### Fixed
+- Titles without artwork (a library without TMDB metadata) showed black: the start page's featured title, the Up next cards and the player's Up Next box now show a picture from the video instead.
+
 ### Changed
 - The built-in AI companion starts with playback when comments are on, instead of waiting until you write or press Comment now; its first comment comes after about a minute. The title page has an **AI companion** choice next to quality, audio and subtitles: comments often, sometimes or rarely, only answers to you, or off.
 

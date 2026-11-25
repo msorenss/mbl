@@ -6,6 +6,7 @@ import { PosterCard } from "../components/PosterCard";
 import { Hero, HubRow, LandscapeCard, Skeleton } from "../components/ui";
 import { usePlayer } from "../context/PlayerContext";
 import { useI18n } from "../i18n";
+import { frameUrl } from "../utils/frameUrl";
 
 type Hub = components["schemas"]["Hub"];
 type ItemSummary = components["schemas"]["ItemSummary"];
@@ -110,7 +111,11 @@ export function Home() {
               title={item().title}
               year={item().year || undefined}
               durationMs={item().durationMs || undefined}
-              backdropUrl={item().posterId ? `/api/v1/images/${item().posterId}?w=1080` : undefined}
+              backdropUrl={
+                item().posterId
+                  ? `/api/v1/images/${item().posterId}?w=1080`
+                  : (frameUrl(item()) ?? undefined)
+              }
               detailsHref={`/item/${item().id}`}
               playLabel={t("playNow")}
               detailsLabel={t("details")}

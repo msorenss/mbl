@@ -54,3 +54,9 @@ it("uses the poster when not asked for a snapshot or nothing was watched", () =>
   );
   expect(img().getAttribute("src")).toBe("/api/v1/images/11?w=480");
 });
+
+it("shows a picture from the video when the title has no artwork (Up next)", () => {
+  const bare = { ...(item as object), posterId: null, viewOffsetMs: 0 } as never;
+  dispose = render(() => createComponent(LandscapeCard, { item: bare }), document.body);
+  expect(img().getAttribute("src")).toBe("/api/v1/items/3/snapshot?at=300000");
+});

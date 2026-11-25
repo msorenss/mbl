@@ -1,7 +1,10 @@
 import client from "./client";
 import type { components } from "./schema";
 
-type Episode = Pick<components["schemas"]["ItemSummary"], "id" | "title">;
+export type Episode = Pick<
+  components["schemas"]["ItemSummary"],
+  "id" | "title" | "kind" | "posterId" | "durationMs"
+>;
 
 // All lookups use authenticated item/children APIs, preserving library and rating filters.
 export async function findNextEpisode(

@@ -13,7 +13,7 @@ import {
 } from "solid-js";
 import client from "../api/client";
 import { getDeviceProfileInput } from "../api/deviceProfile";
-import { findNextEpisode } from "../api/nextEpisode";
+import { findNextEpisode, type Episode as NextEpisode } from "../api/nextEpisode";
 import type { components } from "../api/schema";
 import type { PlayRequest } from "../context/PlayerContext";
 import { useTheme } from "../context/ThemeContext";
@@ -21,6 +21,7 @@ import { browserLogs } from "../utils/browserLogs";
 import { castManager } from "../utils/cast";
 import { castDiagnostics } from "../utils/castDiagnostics";
 import { type CastProfileSelection, SAFE_CAST_PROFILE } from "../utils/castProfile";
+import { frameUrl } from "../utils/frameUrl";
 import { createHlsRecovery, hlsLoadPolicy } from "../utils/hlsRecovery";
 import { startLocalRemote } from "../utils/localRemote";
 import { subtitleSearchAvailable } from "../utils/subtitleSearch";
@@ -124,7 +125,7 @@ export function Player(props: PlayerProps) {
   const [mediaTitle, setMediaTitle] = createSignal(props.title);
   const [mediaPartId, setMediaPartId] = createSignal(props.partId);
   const [castStatus, setCastStatus] = createTimedSignal<string | null>(null, 12000);
-  const [nextEpisode, setNextEpisode] = createSignal<{ id: number; title: string } | null>(null);
+  const [nextEpisode, setNextEpisode] = createSignal<NextEpisode | null>(null);
   const [nextError, setNextError] = createTimedSignal<string>("", 12000);
   const [ended, setEnded] = createSignal(false);
   const [startingNext, setStartingNext] = createSignal(false);
@@ -2323,6 +2324,30 @@ export function Player(props: PlayerProps) {
             {(episode) => (
               <>
                 <h2>Up Next</h2>
+                <Show
+                  when={
+                    episode().posterId
+                      ? `/api/v1/images/${episode().posterId}?w=480`
+                      : frameUrl({ ...episode(), kind: episode().kind ?? "episode" }, false)
+                  }
+                >
+                  {(src) => (
+                    <img
+                      src={src()}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        "aspect-ratio": "16 / 9",
+                        "object-fit": "cover",
+                        "border-radius": "var(--radius-sm)",
+                        background: "#000",
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  )}
+                </Show>
                 <p>{episode().title}</p>
                 <Button
                   disabled={
