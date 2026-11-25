@@ -1611,7 +1611,22 @@ struct SharedNpu {
     last_vision_use: Option<std::time::Instant>,
     last_vlm_use: Option<std::time::Instant>,
     vlm_loaded: bool,
+    /// After a model failed to load (the board busy or out of connections, as when Frigate
+    /// holds them), wait before trying again instead of hammering the board.
+    vlm_retry_at: Option<std::time::Instant>,
+    vlm_failures: u32,
+    vision_retry_at: Option<std::time::Instant>,
     activity: NpuActivity,
+}
+
+/// How long to wait after the `failures`-th failure in a row: 5, 10, 20, then 30 minutes.
+fn retry_delay(failures: u32) -> std::time::Duration {
+    let minutes = 5u64.saturating_mul(1 << failures.saturating_sub(1).min(3)).min(30);
+    std::time::Duration::from_secs(minutes * 60)
+}
+
+fn waiting(retry_at: Option<std::time::Instant>) -> bool {
+    retry_at.is_some_and(|at| std::time::Instant::now() < at)
 }
 
 /// One set of board connections for the whole server process.
@@ -1660,6 +1675,12 @@ pub fn set_npu_enabled(enabled: bool) {
     NPU_ENABLED.store(enabled, std::sync::atomic::Ordering::Release);
     if !enabled {
         release_idle(true);
+    }
+    // Turning it on again is a fresh start: no waiting after earlier failures.
+    if let Ok(mut npu) = shared().lock() {
+        npu.vlm_retry_at = None;
+        npu.vlm_failures = 0;
+        npu.vision_retry_at = None;
     }
 }
 
@@ -1724,6 +1745,10 @@ impl HailoNativeRuntime {
         if guard.as_ref().is_some_and(|(current_path, _)| current_path == &target_hef) {
             return;
         }
+        if waiting(npu.vision_retry_at) {
+            return;
+        }
+        let guard = &mut npu.vision;
         // Drop previous session before opening the newly selected `.hef` model
         *guard = None;
         let arch_label = fp
@@ -1745,6 +1770,14 @@ impl HailoNativeRuntime {
             npu.activity.detection_model = Some(sess.model_name.clone());
             *guard = Some((target_hef, sess));
             npu.activity.detection_loaded = true;
+            npu.vision_retry_at = None;
+        } else {
+            npu.vision_retry_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(120));
+            npu.activity.failures += 1;
+            npu.activity.last_error =
+                Some("detection: the model could not be opened; trying again in 2 minutes".into());
+            tracing::warn!(target: "mbl::npu", "NPU detection model could not be opened; trying again in 2 minutes");
         }
     }
 
@@ -1818,25 +1851,58 @@ impl HailoNativeRuntime {
             let hef_path =
                 mbl_hwaccel::hailo::discover_vlm_hef_model(Path::new("/"), fp.npu_profile)?;
             let group_id = if self.group_id.is_empty() { "SHARED" } else { &self.group_id };
+            let was_loaded = match shared().lock() {
+                Ok(mut npu) => {
+                    if waiting(npu.vlm_retry_at) {
+                        return None;
+                    }
+                    npu.last_vlm_use = Some(std::time::Instant::now());
+                    if !npu.vlm_loaded {
+                        tracing::info!(
+                            target: "mbl::npu",
+                            npu_model = %hef_path.file_name().and_then(|n| n.to_str()).unwrap_or("VLM"),
+                            "Loading the NPU scene description model (about 45 seconds)"
+                        );
+                    }
+                    npu.vlm_loaded
+                }
+                Err(_) => return None,
+            };
+            let result = unix_ffi::run_vlm_describe(&hef_path, group_id, img, prompt, max_tokens);
             if let Ok(mut npu) = shared().lock() {
                 npu.last_vlm_use = Some(std::time::Instant::now());
-                if !npu.vlm_loaded {
-                    tracing::info!(
-                        target: "mbl::npu",
-                        npu_model = %hef_path.file_name().and_then(|n| n.to_str()).unwrap_or("VLM"),
-                        "Loading the NPU scene description model (about 45 seconds)"
-                    );
+                match &result {
+                    Some(_) => {
+                        npu.vlm_loaded = true;
+                        npu.activity.description_loaded = true;
+                        npu.vlm_failures = 0;
+                        npu.vlm_retry_at = None;
+                    }
+                    None => {
+                        // Let go of what the bridge may hold and wait before the next try.
+                        unix_ffi::release_vlm();
+                        npu.vlm_loaded = false;
+                        npu.activity.description_loaded = false;
+                        npu.vlm_failures += 1;
+                        let delay = retry_delay(npu.vlm_failures);
+                        npu.vlm_retry_at = Some(std::time::Instant::now() + delay);
+                        tracing::warn!(
+                            target: "mbl::npu",
+                            was_loaded,
+                            retry_minutes = delay.as_secs() / 60,
+                            "NPU scene description failed; trying again later"
+                        );
+                    }
                 }
-                npu.vlm_loaded = true;
-                npu.activity.description_loaded = true;
             }
-            let result = unix_ffi::run_vlm_describe(&hef_path, group_id, img, prompt, max_tokens);
             match &result {
                 Some(_) => record(|a| a.descriptions += 1, None),
-                None => record(|_| {}, Some("description: the vision model gave no answer")),
-            }
-            if let Ok(mut npu) = shared().lock() {
-                npu.last_vlm_use = Some(std::time::Instant::now());
+                None => record(
+                    |_| {},
+                    Some(
+                        "description: the vision model gave no answer; paused before the next try",
+                    ),
+                ),
             }
             result
         }
@@ -1919,5 +1985,16 @@ impl HailoNativeRuntime {
             let _ = group_id;
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::retry_delay;
+
+    #[test]
+    fn waits_longer_after_each_failure_up_to_half_an_hour() {
+        let minutes: Vec<u64> = (1..=6).map(|n| retry_delay(n).as_secs() / 60).collect();
+        assert_eq!(minutes, [5, 10, 20, 30, 30, 30]);
     }
 }

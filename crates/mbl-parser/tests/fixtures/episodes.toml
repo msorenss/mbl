@@ -131,4 +131,9 @@ cases = [
   { path = "TV/Show/Season 1/random.mkv", show = "Show", season = 1 },
   { path = "TV/Show/random.mkv", show = "Show" },
   { path = "random.mkv", show = "" },
+  # Sonarr's default naming: quality after the episode title, joined with a hyphen.
+  { path = "Dark Matter (2024) - S02E09 - How to Build the Box WEBDL-1080p.mkv", show = "Dark Matter", year = 2024, season = 2, episodes = [9], title = "How to Build the Box" },
+  { path = "The Lord of the Rings - The Rings of Power - S03E01 - Marnûkh WEBDL-1080p.mkv", show = "The Lord of the Rings The Rings of Power", season = 3, episodes = [1], title = "Marnûkh" },
+  { path = "TV/X-Men '97/Season 1/X-Men '97 - S01E02 - Mutant Liberation Begins Bluray-2160p Remux.mkv", show = "X-Men '97", season = 1, episodes = [2], title = "Mutant Liberation Begins" },
 ]
+

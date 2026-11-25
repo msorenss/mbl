@@ -4528,6 +4528,7 @@ export interface components {
             frequency?: components["schemas"]["CompanionFrequency"] | null;
             mode: components["schemas"]["CompanionMode"];
         };
+        /** @description One entry in a session's co-watching feed: a companion comment or a viewer message. */
         CompanionReaction: {
             /** @description Companion name, or "Viewer" for messages from the person watching. */
             botName: string;
@@ -5250,6 +5251,7 @@ export interface components {
         ItemSummary: {
             /** Format: int64 */
             addedAt: number;
+            backdropId?: components["schemas"]["ArtworkId"] | null;
             /** Format: int64 */
             durationMs?: number | null;
             id: components["schemas"]["ItemId"];
@@ -6043,6 +6045,7 @@ export interface components {
             items: {
                 /** Format: int64 */
                 addedAt: number;
+                backdropId?: components["schemas"]["ArtworkId"] | null;
                 /** Format: int64 */
                 durationMs?: number | null;
                 id: components["schemas"]["ItemId"];
@@ -6348,10 +6351,7 @@ export interface components {
             /** Format: int64 */
             id: number;
         };
-        /**
-         * @description One entry in a session's co-watching feed: a companion comment or a viewer message.
-         *     What companions say about what a player plays, for a remote control.
-         */
+        /** @description What companions say about what a player plays, for a remote control. */
         PlayerComments: {
             comments: components["schemas"]["PlayerComment"][];
             /**

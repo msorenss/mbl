@@ -7,6 +7,8 @@ Type=simple
 User=mbl
 Group=mbl
 ExecStart=/usr/bin/mbl-server --config /etc/mbl/mbl.toml
+# HailoRT writes hailort.log to the working directory; / is read-only for the service.
+WorkingDirectory=/var/lib/mbl
 Restart=on-failure
 RestartSec=5s
 

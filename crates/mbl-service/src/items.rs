@@ -210,6 +210,7 @@ mod next_episode_tests {
             poster_id: None,
             poster_hash: None,
             poster_blurhash: None,
+            backdrop_id: None,
             view_offset_ms,
             view_count,
         }

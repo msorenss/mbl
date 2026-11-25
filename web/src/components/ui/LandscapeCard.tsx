@@ -23,13 +23,19 @@ export function LandscapeCard(props: LandscapeCardProps) {
   const [snapshotFailed, setSnapshotFailed] = createSignal(false);
 
   const item = () => props.item;
-  const posterUrl = () => (item().posterId ? `/api/v1/images/${item().posterId}?w=480` : null);
+  // A wide card: the backdrop (the show's for an episode) fits better than the poster.
+  const posterUrl = () =>
+    item().backdropId
+      ? `/api/v1/images/${item().backdropId}?w=640`
+      : item().posterId
+        ? `/api/v1/images/${item().posterId}?w=480`
+        : null;
   const snapshotUrl = () => {
     if (snapshotFailed()) return null;
     // "Continue watching": where the viewer stopped. Otherwise only when there is no artwork
     // (a library without metadata): a picture from the video instead of a black card.
     if (props.snapshot && item().viewOffsetMs > 0) return frameUrl(item());
-    if (!item().posterId) return frameUrl(item(), false);
+    if (!item().posterId && !item().backdropId) return frameUrl(item(), false);
     return null;
   };
   const imageUrl = () => snapshotUrl() ?? posterUrl();

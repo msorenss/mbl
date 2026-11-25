@@ -85,6 +85,13 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-25 — Efter 1.4.2 (till 1.4.3, ej pushat)
+- `9b658b1` notiser försvinner själva (`utils/timedSignal.ts`), `47ce10f` WAN-omkodning högst 1280 px utan GPU-kodare (`slow_encoder_width`), `e225145` medtittaren startar med uppspelningen och väljs på titelsidan (`utils/companionPrefs.ts`), `14f6287` bild ur videon när artwork saknas (`utils/frameUrl.ts`).
+- Samma serie i flera mappar: migration 0024 (`media_items.scan_name`, namnet skannern först såg). `media::find_top_item` matchar serier även på `match_key` (gemener, bara bokstäver/siffror) mot titel/originaltitel/scan_name med förenliga år. `media::merge_duplicate_shows` (samma TMDB-id eller nyckel) körs efter skanning och efter `metadata.match`; behåller äldsta serien, flyttar säsonger/avsnitt, slår ihop dubblettavsnitt (filer via `item_versions`, `watch_state` med INSERT OR IGNORE). Användarens dubbla "Rings of Power" (4 och 7) slås ihop vid nästa skanning. Tester i `mbl-scanner/tests/scan.rs`.
+- Parsern: bindestreckade kvalitetsnamn (`WEBDL-1080p`, `Bluray-2160p`) räknas som skräp.
+- `ItemSummary.backdropId`; affisch/bakgrund faller tillbaka på säsong och serie (`items.rs` SUMMARY). Hem/LandscapeCard använder bakgrund före affisch före videobild.
+- NPU: `SharedNpu` väntar efter fel (detektion 2 min, VLM 5/10/20/30 min, VLM släpps vid fel). `mbl.service` har `WorkingDirectory=/var/lib/mbl` (hailort.log); testpaketets install.sh byter inte enheten, så det gäller först med deb-paketet.
+
 ### 2026-11-23 — Release v1.4.2 förberedd
 - Cast på Pi (`f7cf957`): `cast_encode_bounds` ger högst 720p utan GPU-kodare (Pi/ARM); diskkvoten rensar spelade segment även för genererade Cast-tidslinjer (10 segment kvar) och stänger aldrig en session som använts senaste minuten (`quota_active_grace`, 60 s). Användarens logg: 1080p (`chromecast-gen3`) gav "timed out preparing playback media", och en 25 min Cast-session med kopierad video fyllde 1,5 GB-kvoten i `/run/mbl/transcode` och avbröts.
 - Liggande telefon (`9f03f3b`): `@media (orientation: landscape) and (max-height: 500px)` för hero, titelsidans bakgrund, affisch och toppfält.

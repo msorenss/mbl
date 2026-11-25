@@ -112,9 +112,12 @@ export function Home() {
               year={item().year || undefined}
               durationMs={item().durationMs || undefined}
               backdropUrl={
-                item().posterId
-                  ? `/api/v1/images/${item().posterId}?w=1080`
-                  : (frameUrl(item()) ?? undefined)
+                // Wide artwork (the show's for an episode), else the poster, else the video.
+                item().backdropId
+                  ? `/api/v1/images/${item().backdropId}?w=1280`
+                  : item().posterId
+                    ? `/api/v1/images/${item().posterId}?w=1080`
+                    : (frameUrl(item()) ?? undefined)
               }
               detailsHref={`/item/${item().id}`}
               playLabel={t("playNow")}

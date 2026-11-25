@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on 
 
 ### Fixed
 - Titles without artwork (a library without TMDB metadata) showed black: the start page's featured title, the Up next cards and the player's Up Next box now show a picture from the video instead.
+- An episode without its own artwork shows its show's or season's poster and backdrop (the start page's featured episode was black even when the show had artwork). `ItemSummary` has a new `backdropId`.
+- The same show in different folders, or with a release name such as "WEBDL-1080p" in a file name, became two shows; and after TMDB renamed a show, new episodes started a second one. Shows now match on the name with punctuation and case ignored, the name the scanner first saw, and the TMDB id. Duplicates already in the library are merged after the next scan or metadata match: episodes, files and watch state move to the oldest show.
+- Episode titles no longer end with quality names like "WEBDL-1080p", "Bluray-2160p" or "HDTV-720p".
+- When the NPU fails (for example "vdma channels" when Frigate uses it), MBL waits before trying again (2 minutes for detection; 5, 10, 20 and then 30 minutes for scene descriptions) instead of retrying every frame. The service runs in `/var/lib/mbl`, so HailoRT can write `hailort.log`.
 
 ### Changed
 - The built-in AI companion starts with playback when comments are on, instead of waiting until you write or press Comment now; its first comment comes after about a minute. The title page has an **AI companion** choice next to quality, audio and subtitles: comments often, sometimes or rarely, only answers to you, or off.

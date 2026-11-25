@@ -330,6 +330,7 @@ impl PluginService {
             poster_id: None,
             poster_hash: None,
             poster_blurhash: None,
+            backdrop_id: None,
             view_offset_ms: 0,
             view_count: 0,
         }

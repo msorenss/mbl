@@ -120,7 +120,7 @@ pub async fn find_top_item(
             return Ok(found);
         }
     }
-    Ok(sqlx::query_scalar!(
+    let exact = sqlx::query_scalar!(
         r#"SELECT id AS "id: ItemId" FROM media_items
            WHERE library_id = ? AND kind = ? AND parent_id IS NULL
              AND title = ? COLLATE NOCASE AND year IS ? LIMIT 1"#,
@@ -130,7 +130,52 @@ pub async fn find_top_item(
         year
     )
     .fetch_optional(&mut *conn)
-    .await?)
+    .await?;
+    if exact.is_some() || kind != MediaKind::Show {
+        return Ok(exact);
+    }
+    // A show is the same show when its name matches ignoring punctuation and case, also after
+    // metadata renamed it ("The Rings of Power" → "The Rings of Power:" with a year added), or
+    // when another folder spells it differently.
+    let wanted = match_key(title);
+    if wanted.is_empty() {
+        return Ok(None);
+    }
+    let candidates: Vec<ShowCandidate> = sqlx::query_as(
+        "SELECT id, title, original_title, year, scan_name FROM media_items
+             WHERE library_id = ? AND kind = ? AND parent_id IS NULL ORDER BY id",
+    )
+    .bind(library_id.0)
+    .bind(kind)
+    .fetch_all(&mut *conn)
+    .await?;
+    Ok(candidates
+        .into_iter()
+        .find(|(_, t, original, item_year, scanned)| {
+            // The name read from the files counts even after metadata changed title and year.
+            if scanned.as_deref().is_some_and(|n| match_key(n) == wanted) {
+                return true;
+            }
+            let same_name = match_key(t) == wanted
+                || original.as_deref().is_some_and(|o| match_key(o) == wanted);
+            let same_year = match (year, item_year) {
+                (Some(a), Some(b)) => i64::from(a) == *b,
+                _ => true,
+            };
+            same_name && same_year
+        })
+        .map(|(id, ..)| ItemId(id)))
+}
+
+/// id, title, original title, year, scan name.
+type ShowCandidate = (i64, String, Option<String>, Option<i64>, Option<String>);
+/// id, title, scan name or original title, year, TMDB id.
+type ShowRow = (i64, String, Option<String>, Option<i64>, Option<i64>);
+
+/// A name for matching: lower case letters and digits only ("The Lord of the Rings: The
+/// Rings of Power" and "The Lord of the Rings - The Rings of Power" give the same key).
+pub fn match_key(name: &str) -> String {
+    name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
 }
 
 /// Child (season, episode, album, track) by index, or by title when `idx` is `None`.
@@ -580,4 +625,170 @@ pub async fn video_part_ids_for_library(
 ) -> Result<Vec<PartId>> {
     Ok(sqlx::query_scalar::<_, i64>("SELECT p.id FROM media_parts p JOIN media_versions v ON v.id=p.version_id JOIN media_items i ON i.id=v.item_id WHERE i.library_id=? AND i.kind IN ('movie','episode') AND p.missing_since IS NULL")
         .bind(library.0).fetch_all(&db.read).await?.into_iter().map(PartId).collect())
+}
+
+/// Merge shows in a library that are the same series: the same TMDB id, or the same name
+/// (see [`match_key`]) with no conflicting year. This happens when a series lies in several
+/// folders, or when files were added after metadata renamed the show. The oldest show is kept;
+/// seasons move over (episodes of a season both have move into the kept season), and an
+/// episode both have keeps its files under the kept episode. Episodes that move keep their
+/// IDs, so watch history and markers stay. Returns how many shows were merged away.
+pub async fn merge_duplicate_shows(db: &Db, library_id: LibraryId) -> Result<usize> {
+    let mut tx = db.write.begin().await?;
+    let shows: Vec<ShowRow> = sqlx::query_as(
+        "SELECT id, title, COALESCE(scan_name, original_title), year, tmdb_id FROM media_items
+         WHERE library_id = ? AND kind = 'show' AND parent_id IS NULL ORDER BY id",
+    )
+    .bind(library_id.0)
+    .fetch_all(&mut *tx)
+    .await?;
+    let same = |a: &ShowRow, b: &ShowRow| {
+        if let (Some(x), Some(y)) = (a.4, b.4) {
+            return x == y;
+        }
+        let keys = |s: &ShowRow| {
+            let mut k = vec![match_key(&s.1)];
+            if let Some(o) = &s.2 {
+                k.push(match_key(o));
+            }
+            k.retain(|k| !k.is_empty());
+            k
+        };
+        let years_fit = match (a.3, b.3) {
+            (Some(x), Some(y)) => x == y,
+            _ => true,
+        };
+        let (ka, kb) = (keys(a), keys(b));
+        years_fit && ka.iter().any(|k| kb.contains(k))
+    };
+    let mut merged = 0;
+    let mut gone: Vec<i64> = Vec::new();
+    for (i, keep) in shows.iter().enumerate() {
+        if gone.contains(&keep.0) {
+            continue;
+        }
+        for dup in shows.iter().skip(i + 1) {
+            if gone.contains(&dup.0) || !same(keep, dup) {
+                continue;
+            }
+            merge_show_into(&mut tx, keep.0, dup.0).await?;
+            gone.push(dup.0);
+            merged += 1;
+        }
+    }
+    tx.commit().await?;
+    Ok(merged)
+}
+
+async fn merge_show_into(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    keep: i64,
+    dup: i64,
+) -> Result<()> {
+    let seasons: Vec<(i64, Option<i64>)> =
+        sqlx::query_as("SELECT id, idx FROM media_items WHERE parent_id = ? ORDER BY id")
+            .bind(dup)
+            .fetch_all(&mut **tx)
+            .await?;
+    for (season, idx) in seasons {
+        let target: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM media_items WHERE parent_id = ? AND kind = 'season' AND idx IS ?",
+        )
+        .bind(keep)
+        .bind(idx)
+        .fetch_optional(&mut **tx)
+        .await?;
+        let Some(target) = target else {
+            sqlx::query("UPDATE media_items SET parent_id = ? WHERE id = ?")
+                .bind(keep)
+                .bind(season)
+                .execute(&mut **tx)
+                .await?;
+            continue;
+        };
+        let episodes: Vec<(i64, Option<i64>)> =
+            sqlx::query_as("SELECT id, idx FROM media_items WHERE parent_id = ? ORDER BY id")
+                .bind(season)
+                .fetch_all(&mut **tx)
+                .await?;
+        for (episode, ep_idx) in episodes {
+            let twin: Option<i64> = match ep_idx {
+                Some(n) => {
+                    sqlx::query_scalar(
+                        "SELECT id FROM media_items WHERE parent_id = ? AND idx = ? LIMIT 1",
+                    )
+                    .bind(target)
+                    .bind(n)
+                    .fetch_optional(&mut **tx)
+                    .await?
+                }
+                None => None,
+            };
+            match twin {
+                // Both have this episode: its files become versions of the kept one.
+                Some(twin) => {
+                    sqlx::query("UPDATE media_versions SET item_id = ? WHERE item_id = ?")
+                        .bind(twin)
+                        .bind(episode)
+                        .execute(&mut **tx)
+                        .await?;
+                    // Multi-episode files link items to versions here as well.
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO item_versions (item_id, version_id)
+                         SELECT ?, version_id FROM item_versions WHERE item_id = ?",
+                    )
+                    .bind(twin)
+                    .bind(episode)
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query(
+                        "INSERT OR IGNORE INTO watch_state
+                           (user_id, item_id, view_offset_ms, view_count, last_viewed_at)
+                         SELECT user_id, ?, view_offset_ms, view_count, last_viewed_at
+                         FROM watch_state WHERE item_id = ?",
+                    )
+                    .bind(twin)
+                    .bind(episode)
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query("DELETE FROM media_items WHERE id = ?")
+                        .bind(episode)
+                        .execute(&mut **tx)
+                        .await?;
+                }
+                None => {
+                    sqlx::query("UPDATE media_items SET parent_id = ? WHERE id = ?")
+                        .bind(target)
+                        .bind(episode)
+                        .execute(&mut **tx)
+                        .await?;
+                }
+            }
+        }
+        sqlx::query("DELETE FROM media_items WHERE id = ?").bind(season).execute(&mut **tx).await?;
+    }
+    sqlx::query("DELETE FROM media_items WHERE id = ?").bind(dup).execute(&mut **tx).await?;
+    tracing::info!(kept = keep, merged = dup, "merged duplicate show");
+    Ok(())
+}
+
+/// The library of a show (a top-level item); `None` for anything else.
+pub async fn top_item_library(db: &Db, id: ItemId) -> Result<Option<LibraryId>> {
+    let library: Option<i64> = sqlx::query_scalar(
+        "SELECT library_id FROM media_items WHERE id = ? AND kind = 'show' AND parent_id IS NULL",
+    )
+    .bind(id.0)
+    .fetch_optional(&db.read)
+    .await?;
+    Ok(library.map(LibraryId))
+}
+
+/// Remember the name the scanner read from the files for a show.
+pub async fn set_scan_name(conn: &mut SqliteConnection, id: ItemId, name: &str) -> Result<()> {
+    sqlx::query("UPDATE media_items SET scan_name = ? WHERE id = ?")
+        .bind(name)
+        .bind(id.0)
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
 }

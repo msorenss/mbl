@@ -302,6 +302,9 @@ async fn write_episode(conn: &mut SqliteConnection, ctx: &FileCtx<'_>) -> Result
     show.tvdb_id = g.ids.tvdb;
     show.imdb_id = g.ids.imdb.as_deref();
     let show_id = top_item(conn, ctx, MediaKind::Show, show, &mut written).await?;
+    if written.new_top_items.last() == Some(&show_id) {
+        media::set_scan_name(conn, show_id, &g.show).await?;
+    }
 
     let season_no = g.season.or_else(|| g.air_date.map(|d| d.year().unsigned_abs())).unwrap_or(1);
     let season_title =

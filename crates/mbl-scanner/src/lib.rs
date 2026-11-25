@@ -361,6 +361,14 @@ impl Scanner {
             }
         }
         media::touch_library_paths(&self.db, library_id, now).await?;
+        // One show per series, also across folders and after metadata renamed one.
+        match media::merge_duplicate_shows(&self.db, library_id).await {
+            Ok(0) => {}
+            Ok(n) => {
+                tracing::info!(library_id = library_id.0, merged = n, "merged duplicate shows")
+            }
+            Err(error) => tracing::warn!(%error, "could not merge duplicate shows"),
+        }
         self.events.publish(Event::ScanProgress {
             library_id,
             scanned: total as u64,

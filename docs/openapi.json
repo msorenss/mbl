@@ -12385,6 +12385,7 @@
       },
       "CompanionReaction": {
         "type": "object",
+        "description": "One entry in a session's co-watching feed: a companion comment or a viewer message.",
         "required": [
           "sessionId",
           "botName",
@@ -15061,6 +15062,17 @@
             "type": "integer",
             "format": "int64"
           },
+          "backdropId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArtworkId",
+                "description": "Wide artwork: the item's backdrop, or its season's or show's."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "durationMs": {
             "type": [
               "integer",
@@ -17658,6 +17670,17 @@
                   "type": "integer",
                   "format": "int64"
                 },
+                "backdropId": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ArtworkId",
+                      "description": "Wide artwork: the item's backdrop, or its season's or show's."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "durationMs": {
                   "type": [
                     "integer",
@@ -18748,7 +18771,7 @@
       },
       "PlayerComments": {
         "type": "object",
-        "description": "One entry in a session's co-watching feed: a companion comment or a viewer message.\nWhat companions say about what a player plays, for a remote control.",
+        "description": "What companions say about what a player plays, for a remote control.",
         "required": [
           "comments",
           "lastId"

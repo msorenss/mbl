@@ -21,7 +21,7 @@ pub const ACCEPT: f64 = 0.85;
 
 #[derive(Debug, Clone)]
 pub struct Matcher {
-    db: Db,
+    pub(crate) db: Db,
     tmdb: Arc<RwLock<Option<(String, TmdbClient)>>>,
     events: EventBus,
 }
@@ -305,6 +305,14 @@ impl JobHandler for MatchHandler {
             Err(Error::NotFound) => Ok(()),
             Err(e) => Err(e),
             Ok(()) => {
+                // A show that now has a TMDB id may be the same series as another show.
+                if let Ok(Some(library)) =
+                    mbl_db::repo::media::top_item_library(&self.matcher.db, id).await
+                    && let Err(error) =
+                        mbl_db::repo::media::merge_duplicate_shows(&self.matcher.db, library).await
+                {
+                    tracing::warn!(%error, "could not merge duplicate shows");
+                }
                 if let Some(jobs) = &self.jobs {
                     jobs.enqueue(kinds::ARTWORK_FETCH, &json!({ "itemId": id }), Priority::Idle)
                         .await?;

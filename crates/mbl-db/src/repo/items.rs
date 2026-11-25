@@ -170,17 +170,34 @@ pub struct ItemSummary {
     pub poster_id: Option<ArtworkId>,
     pub poster_hash: Option<String>,
     pub poster_blurhash: Option<String>,
+    /// Wide artwork: the item's backdrop, or its season's or show's.
+    pub backdrop_id: Option<ArtworkId>,
     pub view_offset_ms: i64,
     pub view_count: i64,
 }
 
+// An episode or season without its own artwork uses its season's or show's.
 const SUMMARY: &str = "SELECT i.id, i.library_id, i.kind, i.parent_id, i.title, i.year, i.idx, \
     i.parent_idx, i.rating, i.duration_ms, i.added_at, a.id AS poster_id, \
     a.local_hash AS poster_hash, a.blurhash AS poster_blurhash, \
+    COALESCE( \
+      (SELECT id FROM artwork WHERE item_id = i.id AND kind = 'backdrop' \
+        ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1), \
+      (SELECT id FROM artwork WHERE item_id = i.parent_id AND kind = 'backdrop' \
+        ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1), \
+      (SELECT id FROM artwork WHERE kind = 'backdrop' AND item_id = \
+        (SELECT p.parent_id FROM media_items p WHERE p.id = i.parent_id) \
+        ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1)) AS backdrop_id, \
     COALESCE(w.view_offset_ms, 0) AS view_offset_ms, COALESCE(w.view_count, 0) AS view_count \
     FROM media_items i \
-    LEFT JOIN artwork a ON a.id = (SELECT id FROM artwork WHERE item_id = i.id \
-        AND kind = 'poster' ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1) \
+    LEFT JOIN artwork a ON a.id = COALESCE( \
+      (SELECT id FROM artwork WHERE item_id = i.id AND kind = 'poster' \
+        ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1), \
+      (SELECT id FROM artwork WHERE item_id = i.parent_id AND kind = 'poster' \
+        ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1), \
+      (SELECT id FROM artwork WHERE kind = 'poster' AND item_id = \
+        (SELECT p.parent_id FROM media_items p WHERE p.id = i.parent_id) \
+        ORDER BY selected DESC, local_hash IS NULL, id LIMIT 1)) \
     LEFT JOIN watch_state w ON w.item_id = i.id AND w.user_id = ";
 
 fn summary_query(filter: &ItemFilter) -> QueryBuilder<Sqlite> {

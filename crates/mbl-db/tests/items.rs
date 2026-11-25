@@ -200,3 +200,25 @@ async fn series_browse_and_up_next_require_available_video() {
         items::list(&f.db, &all, f.shows, &ListQuery::default()).await.unwrap().items.is_empty()
     );
 }
+
+#[tokio::test]
+async fn episodes_show_the_show_artwork_when_they_have_none() {
+    let f = fixture().await;
+    let all = user(LibraryAccess::All);
+    let show_id: i64 = sqlx::query_scalar("SELECT id FROM media_items WHERE kind = 'show'")
+        .fetch_one(&f.db.read)
+        .await
+        .unwrap();
+    let poster = exec(&f.db, &format!("INSERT INTO artwork (item_id, kind, local_hash, selected) VALUES ({show_id}, 'poster', 'p1', 1)")).await;
+    let backdrop = exec(&f.db, &format!("INSERT INTO artwork (item_id, kind, local_hash, selected) VALUES ({show_id}, 'backdrop', 'b1', 1)")).await;
+
+    let next = items::up_next(&f.db, &all, 20).await.unwrap();
+    assert_eq!(next[0].poster_id.map(|a| a.0), Some(poster));
+    assert_eq!(next[0].backdrop_id.map(|a| a.0), Some(backdrop));
+
+    // An episode's own still wins over the show's backdrop.
+    let still = exec(&f.db, &format!("INSERT INTO artwork (item_id, kind, local_hash, selected) VALUES ({}, 'backdrop', 'e2', 1)", f.ep[1].0)).await;
+    let next = items::up_next(&f.db, &all, 20).await.unwrap();
+    assert_eq!(next[0].backdrop_id.map(|a| a.0), Some(still));
+    assert_eq!(next[0].poster_id.map(|a| a.0), Some(poster));
+}

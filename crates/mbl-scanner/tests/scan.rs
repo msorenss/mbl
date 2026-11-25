@@ -301,3 +301,103 @@ async fn importing_video_queues_idle_previews_without_requeueing_unchanged_files
         1
     );
 }
+
+fn copy_episode(dest_root: &Path, src: &str, rel: &str) {
+    let dest = dest_root.join(rel);
+    std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+    std::fs::copy(media_root().join("TV/Test Show (2019)/Season 01").join(src), dest).unwrap();
+}
+
+#[tokio::test]
+async fn one_show_across_folders_and_after_metadata_renamed_it() {
+    let Some((db, scanner, dir)) = setup().await else { return };
+    let cancel = CancellationToken::new();
+    let root = dir.path().join("tv");
+    // The same series in two folders, spelled differently, one with Sonarr's quality suffix.
+    copy_episode(
+        &root,
+        "Test Show - S01E01 - Pilot.mkv",
+        "Test Show (2019)/Season 01/Test Show - S01E01 - Pilot.mkv",
+    );
+    copy_episode(
+        &root,
+        "Test Show - S01E02 - Second.mkv",
+        "Other Disk/Test.Show/Test Show - S01E02 - Second WEBDL-1080p.mkv",
+    );
+    let tv = library(&db, LibraryKind::Show, &root).await;
+    let stats = scanner.scan(tv, &cancel, |_| {}).await.unwrap();
+    assert_eq!(stats.failed, 0, "{stats:?}");
+    assert_eq!(count(&db, tv, MediaKind::Show).await, 1);
+    assert_eq!(count(&db, tv, MediaKind::Season).await, 1);
+    assert_eq!(count(&db, tv, MediaKind::Episode).await, 2);
+    let titles: Vec<String> = sqlx::query_scalar(
+        "SELECT title FROM media_items WHERE library_id = ? AND kind = 'episode' ORDER BY idx",
+    )
+    .bind(tv)
+    .fetch_all(&db.read)
+    .await
+    .unwrap();
+    assert_eq!(titles, ["Pilot", "Second"], "no quality suffix in titles");
+
+    // Metadata renames the show and gives it a year and a TMDB id; a new file still joins it.
+    sqlx::query(
+        "UPDATE media_items SET title = 'Test Show: The Series', year = 2019, tmdb_id = 42
+         WHERE library_id = ? AND kind = 'show'",
+    )
+    .bind(tv)
+    .execute(&db.write)
+    .await
+    .unwrap();
+    copy_episode(
+        &root,
+        "Test Show - S01E03-E04 - Double.mkv",
+        "Test Show/Season 01/Test Show - S01E03-E04 - Double.mkv",
+    );
+    scanner.scan(tv, &cancel, |_| {}).await.unwrap();
+    assert_eq!(count(&db, tv, MediaKind::Show).await, 1);
+    assert_eq!(count(&db, tv, MediaKind::Season).await, 1);
+    assert_eq!(count(&db, tv, MediaKind::Episode).await, 4);
+}
+
+#[tokio::test]
+async fn shows_with_the_same_tmdb_id_are_merged_keeping_episode_ids() {
+    let Some((db, scanner, dir)) = setup().await else { return };
+    let cancel = CancellationToken::new();
+    let root = dir.path().join("tv");
+    copy_episode(
+        &root,
+        "Test Show - S01E01 - Pilot.mkv",
+        "A/Show One/Season 01/Show One - S01E01 - Pilot.mkv",
+    );
+    copy_episode(
+        &root,
+        "Test Show - S01E02 - Second.mkv",
+        "B/Totally Different/Season 01/Totally Different - S01E02 - Second.mkv",
+    );
+    let tv = library(&db, LibraryKind::Show, &root).await;
+    scanner.scan(tv, &cancel, |_| {}).await.unwrap();
+    assert_eq!(count(&db, tv, MediaKind::Show).await, 2);
+    let second: i64 = sqlx::query_scalar(
+        "SELECT id FROM media_items WHERE library_id = ? AND kind = 'episode' AND idx = 2",
+    )
+    .bind(tv)
+    .fetch_one(&db.read)
+    .await
+    .unwrap();
+    // Metadata finds both are the same series.
+    sqlx::query("UPDATE media_items SET tmdb_id = 7 WHERE library_id = ? AND kind = 'show'")
+        .bind(tv)
+        .execute(&db.write)
+        .await
+        .unwrap();
+    assert_eq!(media::merge_duplicate_shows(&db, tv).await.unwrap(), 1);
+    assert_eq!(count(&db, tv, MediaKind::Show).await, 1);
+    assert_eq!(count(&db, tv, MediaKind::Season).await, 1);
+    assert_eq!(count(&db, tv, MediaKind::Episode).await, 2);
+    let still: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM media_items WHERE id = ?")
+        .bind(second)
+        .fetch_one(&db.read)
+        .await
+        .unwrap();
+    assert_eq!(still, 1, "the moved episode keeps its id (and its history)");
+}

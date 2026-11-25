@@ -88,7 +88,7 @@ const JUNK: &[&str] = &[
     "divx", "aac", "aac2.0", "ac3", "eac3", "dts", "dts-hd", "dd5.1", "ddp5.1", "atmos", "truehd",
     "flac", "10bit", "8bit", "hdr", "hdr10", "hdr10+", "dv", "dovi", "sdr", "proper", "repack",
     "internal", "limited", "multi", "subbed", "dubbed", "nf", "amzn", "dsnp", "hmax", "atvp",
-    "imax", "complete",
+    "imax", "complete", "sdtv", "raw-hd", "rawhd", "brdisk",
 ];
 
 static RESOLUTION: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)^\d{3,4}[pi]$"));
@@ -96,7 +96,14 @@ static RESOLUTION: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)^\d{3,4}[pi]$"));
 pub(crate) fn is_junk(token: &str) -> bool {
     let t = token.to_ascii_lowercase();
     let t = t.trim_matches('-');
-    JUNK.contains(&t) || RESOLUTION.is_match(t)
+    if JUNK.contains(&t) || RESOLUTION.is_match(t) {
+        return true;
+    }
+    // Sonarr/Radarr quality names join parts with a hyphen ("WEBDL-1080p", "Bluray-2160p",
+    // "HDTV-720p"); only when every part is junk, so "X-Men" stays a title.
+    t.contains('-')
+        && t.split('-')
+            .all(|part| !part.is_empty() && (JUNK.contains(&part) || RESOLUTION.is_match(part)))
 }
 
 /// Index of the first junk token at or after `from`, or `tokens.len()`.
