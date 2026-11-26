@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.4.2
+Current release: v1.4.3
 
-This release links MBL servers: from one server's Remote control you see and control another's players and start titles from its library there. While casting, the TV fetches and reads the companion's comments itself, and the remote control shows them as pop-ups or reads them aloud. Casting from a Raspberry Pi no longer fails at 1080p or stops after 25 minutes, and phones turned sideways get a fitting layout. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This release keeps one show together when it is spread over several folders or renamed by TMDB, and merges duplicates already in the library. Episodes without artwork show their show's, and titles with no artwork at all show a picture from the video. The AI companion starts with playback and is chosen on the title page, notices clear themselves, watching from outside home on a Raspberry Pi starts in time, and the NPU steps back after failures so it shares the Hailo with Frigate. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 
