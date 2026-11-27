@@ -85,6 +85,10 @@ When a milestone is complete and the relevant checks are green:
 ## 5. Session and handoff log
 > Agent instruction: add a new section at the top of this log when a task or milestone is completed. Describe what was done, which files/crates changed, any pitfalls solved, and what the next agent should take on next.
 
+### 2026-11-27 - Offline 720p encoding
+- In mbl-analysis, the shared FFmpeg scale filter now requests even dimensions for H.264 4:2:0. Added coverage to the argument builder test.
+- Verified with FFmpeg that 1920x800 encodes to 1280x534, 1920x1080 to 1280x720, and 853x480 to 852x480. All three MP4s decoded with video and audio. Rust tests await an environment with Cargo. After deployment, retry the 720p episode download on Android.
+
 ### 2026-11-26 — Release v1.4.3
 - Version 1.4.3 i Cargo, README, CHANGELOG, Windows-filerna och OpenAPI. CI på `ca9fdd4` grön (45704176738). Innehåll nedan.
 

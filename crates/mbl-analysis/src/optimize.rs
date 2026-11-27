@@ -102,7 +102,7 @@ pub fn build_optimize_ffmpeg_args(
     let mut input_arg = OsString::from("file:");
     input_arg.push(input.as_os_str());
     let vf = format!(
-        "scale='min({},iw)':-2:force_original_aspect_ratio=decrease,format=yuv420p",
+        "scale='min({},iw)':-2:force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv420p",
         profile.max_width()
     );
     let v_bitrate = profile.video_bitrate_bps().to_string();
@@ -193,6 +193,7 @@ mod tests {
             OptimizationProfile::Universal1080p,
         );
         let strs: Vec<String> = args.iter().map(|s| s.to_string_lossy().into_owned()).collect();
+        assert!(strs.windows(2).any(|w| w[0] == "-vf" && w[1].contains("force_divisible_by=2")));
         assert!(strs.windows(2).any(|w| w[0] == "-c:v" && w[1] == "libx264"));
         assert!(strs.windows(2).any(|w| w[0] == "-profile:v" && w[1] == "high"));
         assert!(strs.windows(2).any(|w| w[0] == "-c:a" && w[1] == "aac"));
