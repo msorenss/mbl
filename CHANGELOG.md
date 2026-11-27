@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format is based on 
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-11-27
+
+### Fixed
+- Widescreen episodes can now be prepared for 720p offline downloads. The server rounds the scaled dimensions to even values required by the H.264 encoder.
+
 ## [1.4.3] - 2026-11-26
 
 ### Changed

@@ -24,9 +24,9 @@ Key capabilities include:
 
 ## Status
 
-Current release: v1.4.3
+Current release: v1.4.4
 
-This release keeps one show together when it is spread over several folders or renamed by TMDB, and merges duplicates already in the library. Episodes without artwork show their show's, and titles with no artwork at all show a picture from the video. The AI companion starts with playback and is chosen on the title page, notices clear themselves, watching from outside home on a Raspberry Pi starts in time, and the NPU steps back after failures so it shares the Hailo with Frigate. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
+This patch fixes 720p offline downloads for widescreen videos whose scaled width or height would otherwise be odd. See [CHANGELOG.md](CHANGELOG.md) for the release summary and [docs/book](docs/book) for operational documentation.
 
 ## Quick start
 
